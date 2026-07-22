@@ -1,0 +1,9 @@
+[animations.idle]
+frames = ["akiha/idle/000.png"]
+ticks_per_frame = 24
+y_offset = 0
+
+[animations.dragging]
+frames = ["akiha/dragging/000.png"]
+ticks_per_frame = 24
+y_offset = 0

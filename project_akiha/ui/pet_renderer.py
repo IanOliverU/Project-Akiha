@@ -74,10 +74,17 @@ class SpritePetRenderer:
             self._fallback_renderer.paint(painter, frame)
             return
 
+        target_size = painter.viewport().size()
+        scaled_pixmap = pixmap.scaled(
+            target_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
         target_rect = QRectF(painter.viewport())
-        image_rect = QRectF(pixmap.rect())
+        image_rect = QRectF(scaled_pixmap.rect())
         image_rect.moveCenter(target_rect.center())
-        painter.drawPixmap(image_rect.toRect(), pixmap)
+        image_rect.translate(0, frame.y_offset)
+        painter.drawPixmap(image_rect.toRect(), scaled_pixmap)
 
     def _load_pixmap(self, image_path: Path) -> QPixmap:
         cached_pixmap = self._pixmap_cache.get(image_path)
