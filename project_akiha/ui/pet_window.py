@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from project_akiha.config import PetWindowConfig
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
+from project_akiha.providers.animation import AnimationProvider
+from project_akiha.ui.pet_renderer import PetRenderer
 
 
 class PetWindow(QWidget):
@@ -19,14 +21,18 @@ class PetWindow(QWidget):
         self,
         event_bus: EventBus,
         config: PetWindowConfig,
+        animation_provider: AnimationProvider,
+        renderer: PetRenderer,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._event_bus = event_bus
         self._config = config
+        self._animation_provider = animation_provider
+        self._renderer = renderer
         self._current_state = AnimationState.IDLE
         self._drag_offset: QPoint | None = None
-        self._frame = 0
+        self._frame_number = 0
 
         self.setWindowTitle("Project Akiha")
         self.setFixedSize(config.width, config.height)
@@ -81,42 +87,14 @@ class PetWindow(QWidget):
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        bob = 4 if self._current_state == AnimationState.IDLE else 0
-        y_offset = bob if self._frame % 24 < 12 else 0
-
-        shadow = QColor(28, 28, 34, 70)
-        painter.setBrush(shadow)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(42, 188, 96, 18))
-
-        body_color = QColor(147, 42, 68)
-        accent_color = QColor(252, 232, 226)
-        outline_color = QColor(44, 28, 36)
-
-        painter.setBrush(body_color)
-        painter.setPen(QPen(outline_color, 3))
-        painter.drawRoundedRect(QRectF(44, 62 + y_offset, 92, 128), 36, 36)
-
-        painter.setBrush(accent_color)
-        painter.drawEllipse(QRectF(58, 82 + y_offset, 22, 20))
-        painter.drawEllipse(QRectF(100, 82 + y_offset, 22, 20))
-
-        painter.setBrush(outline_color)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QRectF(66, 90 + y_offset, 7, 7))
-        painter.drawEllipse(QRectF(108, 90 + y_offset, 7, 7))
-
-        painter.setPen(QPen(outline_color, 3))
-        painter.drawArc(QRectF(78, 110 + y_offset, 24, 16), 200 * 16, 140 * 16)
-
-        painter.setBrush(QColor(90, 32, 48))
-        painter.setPen(QPen(outline_color, 3))
-        painter.drawEllipse(QRectF(58, 34 + y_offset, 24, 42))
-        painter.drawEllipse(QRectF(98, 34 + y_offset, 24, 42))
+        animation_frame = self._animation_provider.frame_for(
+            state=self._current_state,
+            frame_number=self._frame_number,
+        )
+        self._renderer.paint(painter, animation_frame)
 
     def _advance_frame(self) -> None:
-        self._frame = (self._frame + 1) % 240
+        self._frame_number += 1
         self.update()
 
     def _handle_state_changed(self, event: Event) -> None:

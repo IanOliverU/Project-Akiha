@@ -12,10 +12,12 @@ from project_akiha.config import load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationStateMachine
+from project_akiha.providers.animation import PlaceholderAnimationProvider
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
+from project_akiha.ui.pet_renderer import PlaceholderPetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.tray import AkihaTrayIcon
 
@@ -48,6 +50,8 @@ def main() -> int:
     window = PetWindow(
         event_bus=event_bus,
         config=config.pet_window,
+        animation_provider=PlaceholderAnimationProvider(),
+        renderer=PlaceholderPetRenderer(),
     )
     window.move(start_position.x, start_position.y)
     window.show()
