@@ -121,6 +121,10 @@ class PetWindow(QWidget):
 
         menu.addSeparator()
 
+        settings_action = QAction("Settings", menu)
+        settings_action.triggered.connect(self._request_settings)
+        menu.addAction(settings_action)
+
         hide_action = QAction("Hide", menu)
         hide_action.triggered.connect(self.hide)
         menu.addAction(hide_action)
@@ -182,6 +186,9 @@ class PetWindow(QWidget):
 
     def _request_idle(self) -> None:
         self._event_bus.publish(EventType.PET_IDLE_REQUESTED)
+
+    def _request_settings(self) -> None:
+        self._event_bus.publish(EventType.SETTINGS_OPEN_REQUESTED)
 
     def _handle_state_changed(self, event: Event) -> None:
         state = event.payload.get("state")

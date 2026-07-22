@@ -8,7 +8,7 @@ logging, and sprite asset loading.
 
 - Transparent frameless PySide6 pet window
 - Dragging
-- Right-click pet actions: Walk, Stop walking, Sleep, Wake, Hide
+- Right-click pet actions: Walk, Stop walking, Sleep, Wake, Settings, Hide
 - System tray actions: Show, Hide, Settings, Quit
 - Settings window for Phase 1 pet options
 - User config saved to `%LOCALAPPDATA%\Akiha\user_config.toml`
@@ -45,7 +45,7 @@ Then check:
 
 - The pet appears.
 - Dragging works.
-- Right-click menu can Sleep/Wake and Walk/Stop walking.
+- Right-click menu can Sleep/Wake, Walk/Stop walking, and open Settings.
 - Tray can Show/Hide/Settings/Quit.
 - Settings Save persists values across restart.
 - Reset position moves the pet back to the configured start position.
@@ -59,4 +59,3 @@ python -m compileall project_akiha tests
 python -m ruff check project_akiha tests
 python -m black --check project_akiha tests
 ```
-

@@ -19,7 +19,7 @@ pip install -e .[dev]
 ## Phase 1 Features
 
 - Drag the pet around the desktop.
-- Right-click the pet for Walk, Stop walking, Sleep, Wake, and Hide.
+- Right-click the pet for Walk, Stop walking, Sleep, Wake, Settings, and Hide.
 - Use the tray for Show, Hide, Settings, and Quit.
 - Edit Phase 1 settings without hand-editing TOML.
 - Load sprite frames from `assets/animations/manifest.toml`.

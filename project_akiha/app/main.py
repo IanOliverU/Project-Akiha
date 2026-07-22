@@ -132,6 +132,13 @@ def main() -> int:
     settings_window.settings_saved.connect(apply_settings)
     settings_window.position_reset_requested.connect(reset_window_position)
 
+    def show_settings(event: Event | None = None) -> None:
+        del event
+        settings_window.show()
+        settings_window.raise_()
+        settings_window.activateWindow()
+
+    event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
     app.aboutToQuit.connect(save_window_position)
 
