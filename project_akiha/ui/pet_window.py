@@ -7,9 +7,9 @@ from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
 from project_akiha.config import PetWindowConfig
-from project_akiha.core.events.bus import EventBus
+from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
-from project_akiha.core.state.animation import AnimationState, AnimationStateMachine
+from project_akiha.core.state.animation import AnimationState
 
 
 class PetWindow(QWidget):
@@ -18,14 +18,13 @@ class PetWindow(QWidget):
     def __init__(
         self,
         event_bus: EventBus,
-        animation_state: AnimationStateMachine,
         config: PetWindowConfig,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._event_bus = event_bus
-        self._animation_state = animation_state
         self._config = config
+        self._current_state = AnimationState.IDLE
         self._drag_offset: QPoint | None = None
         self._frame = 0
 
@@ -40,6 +39,7 @@ class PetWindow(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._advance_frame)
         self._timer.start(1000 // config.frames_per_second)
+        self._event_bus.subscribe(EventType.STATE_CHANGED, self._handle_state_changed)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Start dragging the pet window."""
@@ -47,7 +47,6 @@ class PetWindow(QWidget):
             self._drag_offset = (
                 event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             )
-            self._set_animation_state(AnimationState.DRAGGING)
             self._event_bus.publish(EventType.PET_DRAG_STARTED)
             event.accept()
 
@@ -64,9 +63,11 @@ class PetWindow(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         """End dragging the pet window."""
-        if event.button() == Qt.MouseButton.LeftButton and self._drag_offset is not None:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._drag_offset is not None
+        ):
             self._drag_offset = None
-            self._set_animation_state(AnimationState.IDLE)
             self._event_bus.publish(EventType.PET_DRAG_ENDED)
             event.accept()
 
@@ -77,7 +78,7 @@ class PetWindow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        bob = 4 if self._animation_state.state == AnimationState.IDLE else 0
+        bob = 4 if self._current_state == AnimationState.IDLE else 0
         y_offset = bob if self._frame % 24 < 12 else 0
 
         shadow = QColor(28, 28, 34, 70)
@@ -114,11 +115,12 @@ class PetWindow(QWidget):
         self._frame = (self._frame + 1) % 240
         self.update()
 
-    def _set_animation_state(self, state: AnimationState) -> None:
-        previous_state = self._animation_state.state
-        next_state = self._animation_state.transition_to(state)
-        if next_state != previous_state:
-            self._event_bus.publish(
-                EventType.STATE_CHANGED,
-                {"state": next_state.value},
-            )
+    def _handle_state_changed(self, event: Event) -> None:
+        state = event.payload.get("state")
+        if isinstance(state, str):
+            try:
+                self._current_state = AnimationState(state)
+            except ValueError:
+                return
+            else:
+                self.update()

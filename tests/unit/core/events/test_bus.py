@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from project_akiha.core.events.bus import Event
-from project_akiha.core.events.bus import EventBus
+from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 
 
@@ -36,4 +35,3 @@ class EventBusTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import unittest
 
-from project_akiha.core.state.animation import AnimationState
-from project_akiha.core.state.animation import AnimationStateMachine
-from project_akiha.core.state.animation import InvalidAnimationTransitionError
+from project_akiha.core.state.animation import (
+    AnimationState,
+    AnimationStateMachine,
+    InvalidAnimationTransitionError,
+)
 
 
 class AnimationStateMachineTest(unittest.TestCase):
@@ -33,4 +35,3 @@ class AnimationStateMachineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

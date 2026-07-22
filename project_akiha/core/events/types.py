@@ -13,4 +13,3 @@ class EventType(StrEnum):
     PET_DRAG_ENDED = "pet.drag_ended"
     STATE_CHANGED = "state.changed"
     ERROR_OCCURRED = "error.occurred"
-

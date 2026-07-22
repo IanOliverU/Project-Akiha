@@ -6,6 +6,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from project_akiha.app.pet_controller import PetController
 from project_akiha.config import load_config
 from project_akiha.core.events.bus import EventBus
 from project_akiha.core.state.animation import AnimationStateMachine
@@ -22,9 +23,12 @@ def main() -> int:
     config = load_config()
     event_bus = EventBus()
     animation_state = AnimationStateMachine()
-    window = PetWindow(
+    pet_controller = PetController(
         event_bus=event_bus,
         animation_state=animation_state,
+    )
+    window = PetWindow(
+        event_bus=event_bus,
         config=config.pet_window,
     )
     window.move(config.pet_window.start_x, config.pet_window.start_y)
@@ -32,6 +36,7 @@ def main() -> int:
 
     tray_icon = AkihaTrayIcon(pet_window=window)
     tray_icon.show()
+    app._akiha_pet_controller = pet_controller
 
     return app.exec()
 

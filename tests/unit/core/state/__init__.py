@@ -1,2 +1,1 @@
 """State unit tests."""
-
