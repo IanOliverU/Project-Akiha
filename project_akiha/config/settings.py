@@ -18,6 +18,7 @@ class PetWindowConfig:
     start_x: int = 120
     start_y: int = 120
     always_on_top: bool = True
+    animation_manifest_path: str = "assets/animations/manifest.toml"
 
     def __post_init__(self) -> None:
         """Validate values that would make the UI unusable."""

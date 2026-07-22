@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 
 from project_akiha.providers.animation.base import AnimationFrame
 
@@ -53,3 +54,36 @@ class PlaceholderPetRenderer:
         painter.setPen(QPen(outline_color, 3))
         painter.drawEllipse(QRectF(58, 34 + y_offset, 24, 42))
         painter.drawEllipse(QRectF(98, 34 + y_offset, 24, 42))
+
+
+class SpritePetRenderer:
+    """Paint image-backed animation frames with a placeholder fallback."""
+
+    def __init__(self, fallback_renderer: PetRenderer) -> None:
+        self._fallback_renderer = fallback_renderer
+        self._pixmap_cache: dict[Path, QPixmap] = {}
+
+    def paint(self, painter: QPainter, frame: AnimationFrame) -> None:
+        """Paint the frame image, or fall back when no usable image exists."""
+        if frame.image_path is None:
+            self._fallback_renderer.paint(painter, frame)
+            return
+
+        pixmap = self._load_pixmap(frame.image_path)
+        if pixmap.isNull():
+            self._fallback_renderer.paint(painter, frame)
+            return
+
+        target_rect = QRectF(painter.viewport())
+        image_rect = QRectF(pixmap.rect())
+        image_rect.moveCenter(target_rect.center())
+        painter.drawPixmap(image_rect.toRect(), pixmap)
+
+    def _load_pixmap(self, image_path: Path) -> QPixmap:
+        cached_pixmap = self._pixmap_cache.get(image_path)
+        if cached_pixmap is not None:
+            return cached_pixmap
+
+        pixmap = QPixmap(str(image_path))
+        self._pixmap_cache[image_path] = pixmap
+        return pixmap

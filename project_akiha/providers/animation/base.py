@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 from project_akiha.core.state.animation import AnimationState
@@ -15,6 +16,7 @@ class AnimationFrame:
     state: AnimationState
     frame_index: int
     y_offset: int = 0
+    image_path: Path | None = None
 
 
 class AnimationProvider(Protocol):

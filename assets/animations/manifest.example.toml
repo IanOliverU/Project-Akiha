@@ -1,0 +1,14 @@
+# Copy this file to manifest.toml when real frame images are available.
+#
+# Frame paths are resolved relative to this manifest file.
+#
+# [animations.idle]
+# frames = ["idle/000.png", "idle/001.png", "idle/002.png"]
+# ticks_per_frame = 4
+# y_offset = 0
+#
+# [animations.dragging]
+# frames = ["dragging/000.png"]
+# ticks_per_frame = 6
+# y_offset = 0
+

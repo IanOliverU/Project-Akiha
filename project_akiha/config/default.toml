@@ -5,4 +5,4 @@ frames_per_second = 24
 start_x = 120
 start_y = 120
 always_on_top = true
-
+animation_manifest_path = "assets/animations/manifest.toml"
