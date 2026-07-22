@@ -21,6 +21,7 @@ from project_akiha.providers.animation import (
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
+from project_akiha.services.path_resolver import ConfigPathResolver
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
@@ -34,6 +35,10 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     paths = get_app_paths()
+    path_resolver = ConfigPathResolver(
+        project_root=paths.project_root,
+        asset_dir=paths.asset_dir,
+    )
     log_path = configure_logging(paths.log_dir)
     logger = logging.getLogger("project_akiha.app")
     logger.info("Starting Project Akiha. Log path: %s", log_path)
@@ -52,8 +57,11 @@ def main() -> int:
         y=config.pet_window.start_y,
     )
     start_position = window_state_store.load_position() or fallback_position
+    manifest_path = path_resolver.resolve_asset_path(
+        config.pet_window.animation_manifest_path
+    )
     animation_provider = _build_animation_provider(
-        Path(config.pet_window.animation_manifest_path),
+        manifest_path,
         logger,
     )
     window = PetWindow(

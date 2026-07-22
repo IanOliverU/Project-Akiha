@@ -13,6 +13,7 @@ class AppPaths:
     """Filesystem locations for mutable application data."""
 
     data_dir: Path
+    project_root: Path
 
     @property
     def log_dir(self) -> Path:
@@ -24,10 +25,16 @@ class AppPaths:
         """Return the directory for small runtime state files."""
         return self.data_dir / "state"
 
+    @property
+    def asset_dir(self) -> Path:
+        """Return the directory for project asset files."""
+        return self.project_root / "assets"
+
 
 def get_app_paths(
     app_name: str = "Akiha",
     environ: Mapping[str, str] | None = None,
+    project_root: Path | None = None,
 ) -> AppPaths:
     """Build runtime paths from Windows app data conventions."""
     env = environ if environ is not None else os.environ
@@ -35,4 +42,9 @@ def get_app_paths(
     if base_path is None:
         base_path = str(Path.home() / "AppData" / "Local")
 
-    return AppPaths(data_dir=Path(base_path) / app_name)
+    resolved_project_root = project_root or Path(__file__).resolve().parents[2]
+
+    return AppPaths(
+        data_dir=Path(base_path) / app_name,
+        project_root=resolved_project_root,
+    )
