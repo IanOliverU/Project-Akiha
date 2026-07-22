@@ -43,6 +43,11 @@ class SettingsWindow(QWidget):
         self._width_input = _build_spinbox(64, 2000, config.pet_window.width)
         self._height_input = _build_spinbox(64, 2000, config.pet_window.height)
         self._fps_input = _build_spinbox(1, 120, config.pet_window.frames_per_second)
+        self._walking_speed_input = _build_spinbox(
+            1,
+            32,
+            config.pet_window.walking_speed_pixels,
+        )
         self._start_x_input = _build_spinbox(-10000, 10000, config.pet_window.start_x)
         self._start_y_input = _build_spinbox(-10000, 10000, config.pet_window.start_y)
         self._always_on_top_input = QCheckBox()
@@ -53,6 +58,7 @@ class SettingsWindow(QWidget):
         form_layout.addRow("Width", self._width_input)
         form_layout.addRow("Height", self._height_input)
         form_layout.addRow("FPS", self._fps_input)
+        form_layout.addRow("Walking speed", self._walking_speed_input)
         form_layout.addRow("Start X", self._start_x_input)
         form_layout.addRow("Start Y", self._start_y_input)
         form_layout.addRow("Always on top", self._always_on_top_input)
@@ -83,6 +89,7 @@ class SettingsWindow(QWidget):
         self._width_input.setValue(config.pet_window.width)
         self._height_input.setValue(config.pet_window.height)
         self._fps_input.setValue(config.pet_window.frames_per_second)
+        self._walking_speed_input.setValue(config.pet_window.walking_speed_pixels)
         self._start_x_input.setValue(config.pet_window.start_x)
         self._start_y_input.setValue(config.pet_window.start_y)
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
@@ -115,6 +122,7 @@ class SettingsWindow(QWidget):
             width=self._width_input.value(),
             height=self._height_input.value(),
             frames_per_second=self._fps_input.value(),
+            walking_speed_pixels=self._walking_speed_input.value(),
             start_x=self._start_x_input.value(),
             start_y=self._start_y_input.value(),
             always_on_top=self._always_on_top_input.isChecked(),

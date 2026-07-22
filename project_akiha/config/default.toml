@@ -6,3 +6,4 @@ start_x = 120
 start_y = 120
 always_on_top = true
 animation_manifest_path = "assets/animations/manifest.toml"
+walking_speed_pixels = 2

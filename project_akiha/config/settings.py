@@ -19,6 +19,7 @@ class PetWindowConfig:
     start_y: int = 120
     always_on_top: bool = True
     animation_manifest_path: str = "assets/animations/manifest.toml"
+    walking_speed_pixels: int = 2
 
     def __post_init__(self) -> None:
         """Validate values that would make the UI unusable."""
@@ -28,6 +29,9 @@ class PetWindowConfig:
             raise ValueError("pet_window.height must be greater than zero.")
         if self.frames_per_second <= 0:
             raise ValueError("pet_window.frames_per_second must be greater than zero.")
+        if self.walking_speed_pixels <= 0:
+            message = "pet_window.walking_speed_pixels must be greater than zero."
+            raise ValueError(message)
 
 
 @dataclass(frozen=True, slots=True)

@@ -11,4 +11,13 @@
 # frames = ["dragging/000.png"]
 # ticks_per_frame = 6
 # y_offset = 0
-
+#
+# [animations.walking]
+# frames = ["walking/000.png", "walking/001.png"]
+# ticks_per_frame = 3
+# y_offset = 0
+#
+# [animations.sleeping]
+# frames = ["sleeping/000.png"]
+# ticks_per_frame = 12
+# y_offset = 0

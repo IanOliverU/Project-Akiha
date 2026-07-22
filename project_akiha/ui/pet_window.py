@@ -33,6 +33,7 @@ class PetWindow(QWidget):
         self._current_state = AnimationState.IDLE
         self._drag_offset: QPoint | None = None
         self._frame_number = 0
+        self._walk_direction = 1
 
         self.setWindowTitle("Project Akiha")
         self.setFixedSize(config.width, config.height)
@@ -101,7 +102,19 @@ class PetWindow(QWidget):
             wake_action = QAction("Wake", menu)
             wake_action.triggered.connect(self._request_wake)
             menu.addAction(wake_action)
+        elif self._current_state == AnimationState.WALKING:
+            stop_action = QAction("Stop walking", menu)
+            stop_action.triggered.connect(self._request_idle)
+            menu.addAction(stop_action)
+
+            sleep_action = QAction("Sleep", menu)
+            sleep_action.triggered.connect(self._request_sleep)
+            menu.addAction(sleep_action)
         else:
+            walk_action = QAction("Walk", menu)
+            walk_action.triggered.connect(self._request_walk)
+            menu.addAction(walk_action)
+
             sleep_action = QAction("Sleep", menu)
             sleep_action.triggered.connect(self._request_sleep)
             menu.addAction(sleep_action)
@@ -129,7 +142,28 @@ class PetWindow(QWidget):
 
     def _advance_frame(self) -> None:
         self._frame_number += 1
+        if self._current_state == AnimationState.WALKING:
+            self._advance_walking_position()
         self.update()
+
+    def _advance_walking_position(self) -> None:
+        screen = self.screen()
+        if screen is None:
+            return
+
+        geometry = screen.availableGeometry()
+        next_x = self.x() + self._config.walking_speed_pixels * self._walk_direction
+        min_x = geometry.x()
+        max_x = max(min_x, geometry.right() - self.width())
+
+        if next_x <= min_x:
+            next_x = min_x
+            self._walk_direction = 1
+        elif next_x >= max_x:
+            next_x = max_x
+            self._walk_direction = -1
+
+        self.move(next_x, self.y())
 
     def _build_window_flags(self, config: PetWindowConfig) -> Qt.WindowType:
         window_flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
@@ -142,6 +176,12 @@ class PetWindow(QWidget):
 
     def _request_wake(self) -> None:
         self._event_bus.publish(EventType.PET_WAKE_REQUESTED)
+
+    def _request_walk(self) -> None:
+        self._event_bus.publish(EventType.PET_WALK_REQUESTED)
+
+    def _request_idle(self) -> None:
+        self._event_bus.publish(EventType.PET_IDLE_REQUESTED)
 
     def _handle_state_changed(self, event: Event) -> None:
         state = event.payload.get("state")

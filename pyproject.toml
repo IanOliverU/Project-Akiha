@@ -13,6 +13,9 @@ dev = [
     "black>=24.10",
     "ruff>=0.8",
 ]
+package = [
+    "nuitka>=2.5",
+]
 
 [project.scripts]
 akiha = "project_akiha.app.main:main"

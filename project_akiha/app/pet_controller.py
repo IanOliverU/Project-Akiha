@@ -24,6 +24,8 @@ class PetController:
 
         event_bus.subscribe(EventType.PET_DRAG_STARTED, self._handle_drag_started)
         event_bus.subscribe(EventType.PET_DRAG_ENDED, self._handle_drag_ended)
+        event_bus.subscribe(EventType.PET_WALK_REQUESTED, self._handle_walk_requested)
+        event_bus.subscribe(EventType.PET_IDLE_REQUESTED, self._handle_idle_requested)
         event_bus.subscribe(EventType.PET_SLEEP_REQUESTED, self._handle_sleep_requested)
         event_bus.subscribe(EventType.PET_WAKE_REQUESTED, self._handle_wake_requested)
 
@@ -36,9 +38,19 @@ class PetController:
 
     def _handle_drag_started(self, event: Event) -> None:
         del event
+        if self._animation_state.state == AnimationState.SLEEPING:
+            self._transition_to(AnimationState.IDLE)
         self._transition_to(AnimationState.DRAGGING)
 
     def _handle_drag_ended(self, event: Event) -> None:
+        del event
+        self._transition_to(AnimationState.IDLE)
+
+    def _handle_walk_requested(self, event: Event) -> None:
+        del event
+        self._transition_to(AnimationState.WALKING)
+
+    def _handle_idle_requested(self, event: Event) -> None:
         del event
         self._transition_to(AnimationState.IDLE)
 

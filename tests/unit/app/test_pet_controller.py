@@ -32,6 +32,16 @@ class PetControllerTest(unittest.TestCase):
         bus.publish(EventType.PET_DRAG_ENDED)
         self.assertEqual(controller.animation_state, AnimationState.IDLE)
 
+    def test_walk_and_idle_events_change_animation_state(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+
+        bus.publish(EventType.PET_WALK_REQUESTED)
+        self.assertEqual(controller.animation_state, AnimationState.WALKING)
+
+        bus.publish(EventType.PET_IDLE_REQUESTED)
+        self.assertEqual(controller.animation_state, AnimationState.IDLE)
+
     def test_sleep_and_wake_events_change_animation_state(self) -> None:
         bus = EventBus()
         controller = PetController(bus, AnimationStateMachine())
@@ -42,13 +52,22 @@ class PetControllerTest(unittest.TestCase):
         bus.publish(EventType.PET_WAKE_REQUESTED)
         self.assertEqual(controller.animation_state, AnimationState.IDLE)
 
+    def test_dragging_wakes_sleeping_pet(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+        bus.publish(EventType.PET_DRAG_STARTED)
+
+        self.assertEqual(controller.animation_state, AnimationState.DRAGGING)
+
     def test_invalid_transition_publishes_error(self) -> None:
         bus = EventBus()
         errors: list[Event] = []
         bus.subscribe(EventType.ERROR_OCCURRED, errors.append)
         controller = PetController(bus, AnimationStateMachine(AnimationState.SLEEPING))
 
-        bus.publish(EventType.PET_DRAG_STARTED)
+        bus.publish(EventType.PET_WALK_REQUESTED)
 
         self.assertEqual(controller.animation_state, AnimationState.SLEEPING)
         self.assertEqual(errors[-1].event_type, EventType.ERROR_OCCURRED)

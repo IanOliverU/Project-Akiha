@@ -40,6 +40,7 @@ def _serialize_config(config: AppConfig) -> str:
         f"start_y = {pet_window.start_y}\n"
         f"always_on_top = {always_on_top}\n"
         f'animation_manifest_path = "{manifest_path}"\n'
+        f"walking_speed_pixels = {pet_window.walking_speed_pixels}\n"
     )
 
 

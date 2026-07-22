@@ -27,6 +27,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         start_y=60,
                         always_on_top=False,
                         animation_manifest_path="assets/custom/manifest.toml",
+                        walking_speed_pixels=5,
                     )
                 )
             )
@@ -39,6 +40,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.pet_window.start_x, 50)
         self.assertEqual(config.pet_window.start_y, 60)
         self.assertFalse(config.pet_window.always_on_top)
+        self.assertEqual(config.pet_window.walking_speed_pixels, 5)
         self.assertEqual(
             config.pet_window.animation_manifest_path,
             "assets/custom/manifest.toml",

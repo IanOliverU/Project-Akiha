@@ -11,6 +11,8 @@ class EventType(StrEnum):
     PET_DRAG_STARTED = "pet.drag_started"
     PET_DRAGGED = "pet.dragged"
     PET_DRAG_ENDED = "pet.drag_ended"
+    PET_WALK_REQUESTED = "pet.walk_requested"
+    PET_IDLE_REQUESTED = "pet.idle_requested"
     PET_SLEEP_REQUESTED = "pet.sleep_requested"
     PET_WAKE_REQUESTED = "pet.wake_requested"
     STATE_CHANGED = "state.changed"
