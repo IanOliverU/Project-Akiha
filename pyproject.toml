@@ -1,0 +1,39 @@
+[project]
+name = "project-akiha"
+version = "0.1.0"
+description = "Windows-first desktop pet and AI companion foundation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.8,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.10",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+akiha = "project_akiha.app.main:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["project_akiha*"]
+
+[tool.setuptools.package-data]
+project_akiha = ["config/*.toml"]

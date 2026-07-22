@@ -1,0 +1,2 @@
+"""Framework-free application core."""
+
