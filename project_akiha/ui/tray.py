@@ -10,9 +10,15 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 class AkihaTrayIcon(QSystemTrayIcon):
     """Tray icon with basic Phase 1 window controls."""
 
-    def __init__(self, pet_window: QWidget, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        pet_window: QWidget,
+        settings_window: QWidget,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._pet_window = pet_window
+        self._settings_window = settings_window
 
         self.setToolTip("Project Akiha")
         self.setIcon(_build_icon())
@@ -29,6 +35,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         hide_action = QAction("Hide", menu)
         hide_action.triggered.connect(self._pet_window.hide)
         menu.addAction(hide_action)
+
+        settings_action = QAction("Settings", menu)
+        settings_action.triggered.connect(self._show_settings)
+        menu.addAction(settings_action)
 
         menu.addSeparator()
 
@@ -51,6 +61,11 @@ class AkihaTrayIcon(QSystemTrayIcon):
         self._pet_window.show()
         self._pet_window.raise_()
         self._pet_window.activateWindow()
+
+    def _show_settings(self) -> None:
+        self._settings_window.show()
+        self._settings_window.raise_()
+        self._settings_window.activateWindow()
 
 
 def _build_icon() -> QIcon:

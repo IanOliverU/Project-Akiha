@@ -26,6 +26,11 @@ class AppPaths:
         return self.data_dir / "state"
 
     @property
+    def user_config_path(self) -> Path:
+        """Return the mutable user config path."""
+        return self.data_dir / "user_config.toml"
+
+    @property
     def asset_dir(self) -> Path:
         """Return the directory for project asset files."""
         return self.project_root / "assets"

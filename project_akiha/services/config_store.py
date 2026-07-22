@@ -1,0 +1,47 @@
+"""Persistence for user-editable configuration overrides."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from project_akiha.config import AppConfig
+
+
+class UserConfigStore:
+    """Read and write the user config TOML file."""
+
+    def __init__(self, config_path: Path) -> None:
+        self._config_path = config_path
+
+    @property
+    def config_path(self) -> Path:
+        """Return the user config file path."""
+        return self._config_path
+
+    def save_config(self, config: AppConfig) -> None:
+        """Persist supported config values as TOML."""
+        self._config_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self._config_path.with_suffix(".tmp")
+        temporary_path.write_text(_serialize_config(config), encoding="utf-8")
+        temporary_path.replace(self._config_path)
+
+
+def _serialize_config(config: AppConfig) -> str:
+    pet_window = config.pet_window
+    always_on_top = str(pet_window.always_on_top).lower()
+    manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
+
+    return (
+        "[pet_window]\n"
+        f"width = {pet_window.width}\n"
+        f"height = {pet_window.height}\n"
+        f"frames_per_second = {pet_window.frames_per_second}\n"
+        f"start_x = {pet_window.start_x}\n"
+        f"start_y = {pet_window.start_y}\n"
+        f"always_on_top = {always_on_top}\n"
+        f'animation_manifest_path = "{manifest_path}"\n'
+    )
+
+
+def _escape_toml_string(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')

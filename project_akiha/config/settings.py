@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +35,10 @@ class AppConfig:
     """Full application configuration."""
 
     pet_window: PetWindowConfig = PetWindowConfig()
+
+    def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
+        """Return a copy with updated pet window settings."""
+        return replace(self, pet_window=pet_window)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:

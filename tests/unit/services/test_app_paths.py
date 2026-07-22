@@ -21,6 +21,7 @@ class AppPathsTest(unittest.TestCase):
         self.assertEqual(paths.data_dir, Path("C:/Users/Test/Local") / "Akiha")
         self.assertEqual(paths.log_dir, paths.data_dir / "logs")
         self.assertEqual(paths.state_dir, paths.data_dir / "state")
+        self.assertEqual(paths.user_config_path, paths.data_dir / "user_config.toml")
         self.assertEqual(paths.asset_dir, project_root / "assets")
 
     def test_falls_back_to_app_data(self) -> None:

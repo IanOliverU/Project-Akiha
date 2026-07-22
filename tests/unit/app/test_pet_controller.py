@@ -32,6 +32,16 @@ class PetControllerTest(unittest.TestCase):
         bus.publish(EventType.PET_DRAG_ENDED)
         self.assertEqual(controller.animation_state, AnimationState.IDLE)
 
+    def test_sleep_and_wake_events_change_animation_state(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+        self.assertEqual(controller.animation_state, AnimationState.SLEEPING)
+
+        bus.publish(EventType.PET_WAKE_REQUESTED)
+        self.assertEqual(controller.animation_state, AnimationState.IDLE)
+
     def test_invalid_transition_publishes_error(self) -> None:
         bus = EventBus()
         errors: list[Event] = []
