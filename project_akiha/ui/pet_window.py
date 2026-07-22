@@ -68,7 +68,11 @@ class PetWindow(QWidget):
             and self._drag_offset is not None
         ):
             self._drag_offset = None
-            self._event_bus.publish(EventType.PET_DRAG_ENDED)
+            position = self.pos()
+            self._event_bus.publish(
+                EventType.PET_DRAG_ENDED,
+                {"x": position.x(), "y": position.y()},
+            )
             event.accept()
 
     def paintEvent(self, event: QPaintEvent) -> None:
