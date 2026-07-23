@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.config import AppConfig, PetWindowConfig, load_config
+from project_akiha.config import AIConfig, AppConfig, PetWindowConfig, load_config
 from project_akiha.services.config_store import UserConfigStore
 
 
@@ -28,7 +28,13 @@ class UserConfigStoreTest(unittest.TestCase):
                         always_on_top=False,
                         animation_manifest_path="assets/custom/manifest.toml",
                         walking_speed_pixels=5,
-                    )
+                    ),
+                    ai=AIConfig(
+                        provider="ollama",
+                        ollama_base_url="http://localhost:11434",
+                        ollama_model="akiha-test",
+                        request_timeout_seconds=15,
+                    ),
                 )
             )
 
@@ -45,6 +51,9 @@ class UserConfigStoreTest(unittest.TestCase):
             config.pet_window.animation_manifest_path,
             "assets/custom/manifest.toml",
         )
+        self.assertEqual(config.ai.provider, "ollama")
+        self.assertEqual(config.ai.ollama_model, "akiha-test")
+        self.assertEqual(config.ai.request_timeout_seconds, 15)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

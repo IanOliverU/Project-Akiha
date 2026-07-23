@@ -8,6 +8,7 @@ from PySide6.QtCore import QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from project_akiha.config import AppConfig, PetWindowConfig
+from project_akiha.config import AIConfig, AppConfig, PetWindowConfig
 
 
 class SettingsWindow(QWidget):
@@ -53,6 +54,16 @@ class SettingsWindow(QWidget):
         self._always_on_top_input = QCheckBox()
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
         self._manifest_path_input = QLineEdit(config.pet_window.animation_manifest_path)
+        self._ai_provider_input = QComboBox()
+        self._ai_provider_input.addItems(["mock", "ollama"])
+        self._ai_provider_input.setCurrentText(config.ai.provider)
+        self._ollama_base_url_input = QLineEdit(config.ai.ollama_base_url)
+        self._ollama_model_input = QLineEdit(config.ai.ollama_model)
+        self._ai_timeout_input = _build_spinbox(
+            1,
+            600,
+            config.ai.request_timeout_seconds,
+        )
 
         form_layout = QFormLayout()
         form_layout.addRow("Width", self._width_input)
@@ -63,6 +74,10 @@ class SettingsWindow(QWidget):
         form_layout.addRow("Start Y", self._start_y_input)
         form_layout.addRow("Always on top", self._always_on_top_input)
         form_layout.addRow("Animation manifest", self._build_manifest_row())
+        form_layout.addRow("AI provider", self._ai_provider_input)
+        form_layout.addRow("Ollama URL", self._ollama_base_url_input)
+        form_layout.addRow("Ollama model", self._ollama_model_input)
+        form_layout.addRow("AI timeout", self._ai_timeout_input)
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -94,6 +109,10 @@ class SettingsWindow(QWidget):
         self._start_y_input.setValue(config.pet_window.start_y)
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
         self._manifest_path_input.setText(config.pet_window.animation_manifest_path)
+        self._ai_provider_input.setCurrentText(config.ai.provider)
+        self._ollama_base_url_input.setText(config.ai.ollama_base_url)
+        self._ollama_model_input.setText(config.ai.ollama_model)
+        self._ai_timeout_input.setValue(config.ai.request_timeout_seconds)
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -129,6 +148,14 @@ class SettingsWindow(QWidget):
             animation_manifest_path=self._manifest_path_input.text(),
         )
         config = self._config.with_pet_window(pet_window)
+        config = config.with_ai(
+            AIConfig(
+                provider=self._ai_provider_input.currentText(),
+                ollama_base_url=self._ollama_base_url_input.text(),
+                ollama_model=self._ollama_model_input.text(),
+                request_timeout_seconds=self._ai_timeout_input.value(),
+            )
+        )
         self.update_config(config)
         self.settings_saved.emit(config)
 

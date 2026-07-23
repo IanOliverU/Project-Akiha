@@ -27,6 +27,10 @@ class ChatController:
         """Return the current chat history."""
         return tuple(self._messages)
 
+    def set_ai_provider(self, ai_provider: AIProvider) -> None:
+        """Replace the provider used for future chat responses."""
+        self._ai_provider = ai_provider
+
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
         normalized_content = content.strip()

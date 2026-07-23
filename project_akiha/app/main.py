@@ -10,11 +10,11 @@ from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.chat_controller import ChatController, ChatExchange
 from project_akiha.app.pet_controller import PetController
-from project_akiha.config import AppConfig, load_config
+from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationStateMachine
-from project_akiha.providers.ai import MockAIProvider
+from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
 from project_akiha.providers.animation import (
     AnimationManifestError,
     AssetAnimationProvider,
@@ -62,7 +62,7 @@ def main() -> int:
     )
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
-    chat_controller = ChatController(MockAIProvider())
+    chat_controller = ChatController(_build_ai_provider(config.ai, logger))
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
         event_bus=event_bus,
@@ -118,6 +118,7 @@ def main() -> int:
             updated_config.pet_window.animation_manifest_path
         )
         window.set_animation_provider(_build_animation_provider(manifest, logger))
+        chat_controller.set_ai_provider(_build_ai_provider(updated_config.ai, logger))
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -220,6 +221,23 @@ def _build_animation_provider(
     except AnimationManifestError as error:
         logger.warning("Animation manifest failed to load: %s", error)
         return PlaceholderAnimationProvider()
+
+
+def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvider:
+    if ai_config.provider == "ollama":
+        logger.info(
+            "Using Ollama AI provider with model %s at %s.",
+            ai_config.ollama_model,
+            ai_config.ollama_base_url,
+        )
+        return OllamaProvider(
+            base_url=ai_config.ollama_base_url,
+            model=ai_config.ollama_model,
+            timeout_seconds=float(ai_config.request_timeout_seconds),
+        )
+
+    logger.info("Using mock AI provider.")
+    return MockAIProvider()
 
 
 def _clamp_to_primary_screen(

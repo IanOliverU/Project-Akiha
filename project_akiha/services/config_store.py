@@ -28,8 +28,12 @@ class UserConfigStore:
 
 def _serialize_config(config: AppConfig) -> str:
     pet_window = config.pet_window
+    ai = config.ai
     always_on_top = str(pet_window.always_on_top).lower()
     manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
+    provider = _escape_toml_string(ai.provider)
+    ollama_base_url = _escape_toml_string(ai.ollama_base_url)
+    ollama_model = _escape_toml_string(ai.ollama_model)
 
     return (
         "[pet_window]\n"
@@ -41,6 +45,12 @@ def _serialize_config(config: AppConfig) -> str:
         f"always_on_top = {always_on_top}\n"
         f'animation_manifest_path = "{manifest_path}"\n'
         f"walking_speed_pixels = {pet_window.walking_speed_pixels}\n"
+        "\n"
+        "[ai]\n"
+        f'provider = "{provider}"\n'
+        f'ollama_base_url = "{ollama_base_url}"\n'
+        f'ollama_model = "{ollama_model}"\n'
+        f"request_timeout_seconds = {ai.request_timeout_seconds}\n"
     )
 
 

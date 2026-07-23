@@ -29,12 +29,13 @@ Phase 1 details live in `docs/PHASE1_DESKTOP_PET.md`.
 
 ## Phase 2 Status
 
-Phase 2 has started with a chat window and local mock AI provider. This is not
-Ollama yet; it is the UI/controller/provider foundation for companion chat.
+Phase 2 has started with a chat window, local mock AI provider, and optional
+non-streaming Ollama provider support.
 
 - Open Chat from the tray menu.
 - Open Chat from the pet right-click menu.
 - Send a message and receive a deterministic mock response.
+- Switch Settings > AI provider to `ollama` when Ollama is running locally.
 
 Phase 2 details live in `docs/PHASE2_CHAT_FOUNDATION.md`.
 

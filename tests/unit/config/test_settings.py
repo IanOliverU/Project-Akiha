@@ -18,16 +18,21 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.pet_window.width, 180)
         self.assertEqual(config.pet_window.height, 220)
         self.assertEqual(config.pet_window.frames_per_second, 24)
+        self.assertEqual(config.ai.provider, "mock")
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
             config_path = Path(directory) / "user_config.toml"
-            config_path.write_text("[pet_window]\nwidth = 240\n", encoding="utf-8")
+            config_path.write_text(
+                '[pet_window]\nwidth = 240\n\n[ai]\nprovider = "ollama"\n',
+                encoding="utf-8",
+            )
 
             config = load_config(config_path)
 
         self.assertEqual(config.pet_window.width, 240)
         self.assertEqual(config.pet_window.height, 220)
+        self.assertEqual(config.ai.provider, "ollama")
 
 
 if __name__ == "__main__":

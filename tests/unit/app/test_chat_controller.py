@@ -6,7 +6,22 @@ import asyncio
 import unittest
 
 from project_akiha.app.chat_controller import ChatController
-from project_akiha.providers.ai import MockAIProvider
+from project_akiha.providers.ai import ChatMessage, MockAIProvider
+
+
+class StaticProvider:
+    """Test provider that returns a configured response."""
+
+    def __init__(self, response: str) -> None:
+        self._response = response
+
+    async def generate_response(self, messages: tuple[ChatMessage, ...]) -> str:
+        """Return the configured response."""
+        return self._response
+
+    async def is_available(self) -> bool:
+        """Return true for test use."""
+        return True
 
 
 class ChatControllerTest(unittest.TestCase):
@@ -26,6 +41,16 @@ class ChatControllerTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             asyncio.run(controller.submit_user_message("   "))
+
+    def test_provider_can_be_replaced_for_future_messages(self) -> None:
+        controller = ChatController(StaticProvider("first"))
+
+        first_exchange = asyncio.run(controller.submit_user_message("hello"))
+        controller.set_ai_provider(StaticProvider("second"))
+        second_exchange = asyncio.run(controller.submit_user_message("again"))
+
+        self.assertEqual(first_exchange.assistant_message.content, "first")
+        self.assertEqual(second_exchange.assistant_message.content, "second")
 
 
 if __name__ == "__main__":
