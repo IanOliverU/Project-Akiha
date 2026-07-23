@@ -72,6 +72,10 @@ class SQLiteConversationRepository:
             limit,
         )
 
+    async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
+        """Return all transcript messages in chronological order."""
+        return await asyncio.to_thread(self._get_messages, conversation_id)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
@@ -235,6 +239,23 @@ class SQLiteConversationRepository:
                 ORDER BY created_at ASC, id ASC
                 """,
                 (conversation_id, limit),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        return tuple(_message_from_row(row) for row in rows)
+
+    def _get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT id, conversation_id, role, content, created_at
+                FROM messages
+                WHERE conversation_id = ?
+                ORDER BY created_at ASC, id ASC
+                """,
+                (conversation_id,),
             ).fetchall()
         finally:
             connection.close()

@@ -42,6 +42,7 @@ class RecordingConversationRepository:
 
     def __init__(self) -> None:
         self.saved_messages: list[tuple[int, MessageRole, str]] = []
+        self.export_messages: tuple[StoredMessage, ...] = ()
         self.closed_conversation_ids: list[int] = []
         self.cleared_conversation_ids: list[int] = []
         self.next_conversation_id = 10
@@ -100,6 +101,11 @@ class RecordingConversationRepository:
         """Return no persisted messages for test use."""
         del conversation_id, limit
         return ()
+
+    async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
+        """Return persisted messages for export."""
+        del conversation_id
+        return self.export_messages
 
 
 class ChatControllerTest(unittest.TestCase):
@@ -243,6 +249,52 @@ class ChatControllerTest(unittest.TestCase):
         asyncio.run(controller.clear_current_conversation())
 
         self.assertEqual(controller.messages, ())
+
+    def test_get_export_messages_uses_repository_when_available(self) -> None:
+        repository = RecordingConversationRepository()
+        repository.export_messages = (
+            StoredMessage(
+                id=1,
+                conversation_id=7,
+                role="user",
+                content="from database",
+                created_at="now",
+            ),
+            StoredMessage(
+                id=2,
+                conversation_id=7,
+                role="assistant",
+                content="stored reply",
+                created_at="now",
+            ),
+        )
+        controller = ChatController(
+            StaticProvider("done"),
+            conversation_repository=repository,
+            conversation_id=7,
+            initial_messages=(ChatMessage(role="user", content="memory only"),),
+        )
+
+        messages = asyncio.run(controller.get_export_messages())
+
+        self.assertEqual(
+            messages,
+            (
+                ChatMessage(role="user", content="from database"),
+                ChatMessage(role="assistant", content="stored reply"),
+            ),
+        )
+
+    def test_get_export_messages_falls_back_to_memory_without_repository(self) -> None:
+        controller = ChatController(
+            StaticProvider("done"),
+            initial_messages=(ChatMessage(role="user", content="memory only"),),
+        )
+
+        self.assertEqual(
+            asyncio.run(controller.get_export_messages()),
+            (ChatMessage(role="user", content="memory only"),),
+        )
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:

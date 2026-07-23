@@ -36,3 +36,6 @@ class ConversationRepository(Protocol):
         limit: int,
     ) -> tuple[StoredMessage, ...]:
         """Return recent transcript messages in chronological order."""
+
+    async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
+        """Return all transcript messages in chronological order."""

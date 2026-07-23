@@ -29,6 +29,10 @@ from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.transcript_export import (
+    render_chat_transcript,
+    write_chat_transcript,
+)
 from project_akiha.services.window_placement import (
     ScreenBounds,
     WindowSize,
@@ -243,10 +247,38 @@ def main() -> int:
         chat_window.set_status("Ready")
         logger.info("Cleared current chat conversation.")
 
+    def export_current_chat(selected_path: str) -> None:
+        if active_chat_threads:
+            chat_window.append_notice(
+                "Stop the current response before exporting chat."
+            )
+            return
+
+        messages = asyncio.run(chat_controller.get_export_messages())
+        transcript = render_chat_transcript(
+            messages,
+            assistant_name=config.personality.character_name,
+        )
+        if not transcript:
+            chat_window.append_notice("No chat messages to export.")
+            return
+
+        export_path = Path(selected_path)
+        try:
+            write_chat_transcript(export_path, transcript)
+        except OSError as error:
+            logger.error("Chat transcript export failed: %s", error)
+            chat_window.append_error(f"Export failed: {error}")
+            return
+
+        chat_window.append_notice("Chat exported.")
+        logger.info("Exported chat transcript to %s", export_path)
+
     chat_window.message_submitted.connect(submit_chat_message)
     chat_window.cancel_requested.connect(cancel_active_chat)
     chat_window.new_chat_requested.connect(start_new_chat)
     chat_window.clear_chat_requested.connect(clear_current_chat)
+    chat_window.export_chat_requested.connect(export_current_chat)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)

@@ -23,13 +23,15 @@ prompt.
 - Stop button for cancelling an in-progress streamed response
 - New chat control for starting a fresh persisted conversation
 - Clear chat control for deleting the current transcript after confirmation
+- Export control for saving the current transcript as plain text
 - Chat status label for ready/thinking/stopping states
+- Basic role, notice, and error styling in the transcript view
+- QThread/asyncio streaming bridge selected for Phase 2
 
-## Not Yet In This Phase
+## Deferred To Later Phases
 
-- richer token-level styling
-- qasync bridge if model integration needs tighter asyncio integration
 - memory extraction or retrieval
+- qasync bridge only if the QThread bridge becomes limiting
 
 ## Manual Smoke Test
 
@@ -46,6 +48,7 @@ Then check:
 - Stop interrupts an in-progress response and re-enables the chat input.
 - New chat clears the visible transcript and starts a fresh persisted session.
 - Clear chat deletes the current persisted transcript after confirmation.
+- Export saves the current transcript to a `.txt` file.
 - Closing and reopening the app restores recent chat messages.
 - Empty messages are ignored by the UI.
 
@@ -85,3 +88,10 @@ messages from the newest open conversation at startup.
 
 Use New chat when you want to preserve the old transcript as a closed session.
 Use Clear chat when the current transcript should be deleted.
+
+## Phase 2 Bridge Decision
+
+Phase 2 uses a `QThread` worker with an internal `asyncio` loop for streaming.
+This keeps model calls off the UI thread and has enough cancellation/status
+support for the current chat surface. `qasync` remains a future option if later
+features need a shared Qt/asyncio event loop.

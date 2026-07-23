@@ -76,6 +76,20 @@ class ChatController:
 
         self._messages.clear()
 
+    async def get_export_messages(self) -> tuple[ChatMessage, ...]:
+        """Return the full current transcript for export."""
+        if self._conversation_repository is None or self._conversation_id is None:
+            return self.messages
+
+        stored_messages = await self._conversation_repository.get_messages(
+            self._conversation_id
+        )
+        return tuple(
+            ChatMessage(role=message.role, content=message.content)
+            for message in stored_messages
+            if message.role != "system"
+        )
+
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
         user_message = self._append_user_message(content)

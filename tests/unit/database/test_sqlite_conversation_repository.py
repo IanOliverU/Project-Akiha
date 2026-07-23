@@ -81,6 +81,21 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
 
         self.assertEqual(messages, ())
 
+    def test_get_messages_returns_full_transcript(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            conversation = asyncio.run(repository.get_or_create_current_conversation())
+
+            asyncio.run(repository.save_message(conversation.id, "user", "one"))
+            asyncio.run(repository.save_message(conversation.id, "assistant", "two"))
+            asyncio.run(repository.save_message(conversation.id, "user", "three"))
+
+            messages = asyncio.run(repository.get_messages(conversation.id))
+
+        self.assertEqual(
+            [message.content for message in messages], ["one", "two", "three"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
