@@ -12,13 +12,14 @@ mock provider, with optional non-streaming Ollama support.
 - `OllamaProvider` using Ollama's local HTTP API
 - `ChatController`
 - QThread bridge for non-blocking chat responses
+- Streaming response chunks into the chat window
 - Local message history in memory
 - Deterministic placeholder responses
 
 ## Not Yet In This Phase
 
-- streaming tokens
-- qasync bridge if streaming needs tighter asyncio integration
+- richer token-level styling and cancellation controls
+- qasync bridge if model integration needs tighter asyncio integration
 - SQLite conversation persistence
 - memory extraction or retrieval
 - personality prompt system
@@ -46,5 +47,4 @@ Ollama, open Settings and set:
 - Ollama URL: `http://localhost:11434`
 - Ollama model: a model installed in Ollama, such as `llama3.2`
 
-Current Ollama support uses complete non-streaming responses. Streaming token
-display is a later Phase 2 refinement.
+Current Ollama support streams response chunks into the chat window.

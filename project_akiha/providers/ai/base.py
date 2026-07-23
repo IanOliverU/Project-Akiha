@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -22,6 +22,12 @@ class AIProvider(Protocol):
 
     async def generate_response(self, messages: Sequence[ChatMessage]) -> str:
         """Return a complete assistant response for the given messages."""
+
+    def stream_response(
+        self,
+        messages: Sequence[ChatMessage],
+    ) -> AsyncIterator[str]:
+        """Yield assistant response text as it becomes available."""
 
     async def is_available(self) -> bool:
         """Return whether this provider is ready to answer."""

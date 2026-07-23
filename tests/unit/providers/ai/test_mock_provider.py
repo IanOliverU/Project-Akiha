@@ -26,10 +26,29 @@ class MockAIProviderTest(unittest.TestCase):
 
         self.assertEqual(response, "I heard you say: are you there?")
 
+    def test_stream_response_yields_response_chunks(self) -> None:
+        provider = MockAIProvider()
+
+        chunks = asyncio.run(
+            _collect_stream(
+                provider,
+                [ChatMessage(role="user", content="stream this")],
+            )
+        )
+
+        self.assertEqual("".join(chunks), "I heard you say: stream this")
+
     def test_provider_is_available(self) -> None:
         provider = MockAIProvider()
 
         self.assertTrue(asyncio.run(provider.is_available()))
+
+
+async def _collect_stream(
+    provider: MockAIProvider,
+    messages: list[ChatMessage],
+) -> list[str]:
+    return [chunk async for chunk in provider.stream_response(messages)]
 
 
 if __name__ == "__main__":

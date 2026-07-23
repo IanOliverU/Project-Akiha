@@ -5,6 +5,7 @@ from __future__ import annotations
 from html import escape
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
@@ -47,6 +48,16 @@ class ChatWindow(QWidget):
     def append_message(self, speaker: str, content: str) -> None:
         """Append a message to the visible transcript."""
         self._history_view.append(f"<b>{escape(speaker)}</b>: {escape(content)}")
+
+    def begin_streaming_message(self, speaker: str) -> None:
+        """Start a message that will receive incremental text."""
+        self._history_view.append(f"<b>{escape(speaker)}</b>: ")
+
+    def append_stream_delta(self, content: str) -> None:
+        """Append incremental plain text to the current message."""
+        self._history_view.moveCursor(QTextCursor.MoveOperation.End)
+        self._history_view.insertPlainText(content)
+        self._history_view.ensureCursorVisible()
 
     def append_error(self, content: str) -> None:
         """Append an error-style message to the transcript."""

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from project_akiha.app.chat_controller import ChatController, ChatExchange
+from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
@@ -161,10 +161,14 @@ def main() -> int:
             message=message,
         )
         active_chat_threads.append(thread)
+        has_response_started = False
 
-        def handle_response(exchange: object) -> None:
-            if isinstance(exchange, ChatExchange):
-                chat_window.append_message("Akiha", exchange.assistant_message.content)
+        def handle_delta(chunk: str) -> None:
+            nonlocal has_response_started
+            if not has_response_started:
+                chat_window.begin_streaming_message("Akiha")
+                has_response_started = True
+            chat_window.append_stream_delta(chunk)
 
         def handle_error(error_message: str) -> None:
             logger.error("Chat message failed: %s", error_message)
@@ -176,7 +180,7 @@ def main() -> int:
                 active_chat_threads.remove(thread)
             thread.deleteLater()
 
-        thread.response_ready.connect(handle_response)
+        thread.response_delta.connect(handle_delta)
         thread.response_failed.connect(handle_error)
         thread.finished.connect(cleanup_thread)
         thread.start()

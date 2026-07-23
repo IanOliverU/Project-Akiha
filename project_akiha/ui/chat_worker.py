@@ -12,6 +12,7 @@ from project_akiha.app.chat_controller import ChatController
 class ChatResponseThread(QThread):
     """Run one chat request away from the Qt UI thread."""
 
+    response_delta = Signal(str)
     response_ready = Signal(object)
     response_failed = Signal(str)
 
@@ -28,11 +29,13 @@ class ChatResponseThread(QThread):
     def run(self) -> None:
         """Generate an assistant response in this worker thread."""
         try:
-            exchange = asyncio.run(
-                self._chat_controller.submit_user_message(self._message)
-            )
+            asyncio.run(self._stream_response())
         except Exception as error:
             self.response_failed.emit(str(error))
             return
 
-        self.response_ready.emit(exchange)
+        self.response_ready.emit(None)
+
+    async def _stream_response(self) -> None:
+        async for chunk in self._chat_controller.stream_user_message(self._message):
+            self.response_delta.emit(chunk)

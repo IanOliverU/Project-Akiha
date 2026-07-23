@@ -54,6 +54,41 @@ class OllamaProviderTest(unittest.TestCase):
                 provider.generate_response([ChatMessage(role="user", content="hi")])
             )
 
+    def test_stream_response_yields_chat_chunks(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def stream_transport(
+            url: str,
+            payload: dict[str, Any],
+            timeout_seconds: float,
+        ) -> list[dict[str, Any]]:
+            captured["url"] = url
+            captured["payload"] = payload
+            captured["timeout_seconds"] = timeout_seconds
+            return [
+                {"message": {"content": "hel"}},
+                {"message": {"content": "lo"}},
+                {"done": True},
+            ]
+
+        provider = OllamaProvider(
+            base_url="http://localhost:11434",
+            model="akiha-test",
+            timeout_seconds=12.0,
+            stream_transport=stream_transport,
+        )
+
+        chunks = asyncio.run(
+            _collect_stream(
+                provider,
+                [ChatMessage(role="user", content="hi")],
+            )
+        )
+
+        self.assertEqual(chunks, ["hel", "lo"])
+        self.assertEqual(captured["url"], "http://localhost:11434/api/chat")
+        self.assertTrue(captured["payload"]["stream"])
+
     def test_is_available_returns_false_on_provider_error(self) -> None:
         def transport(
             _url: str,
@@ -69,6 +104,13 @@ class OllamaProviderTest(unittest.TestCase):
         )
 
         self.assertFalse(asyncio.run(provider.is_available()))
+
+
+async def _collect_stream(
+    provider: OllamaProvider,
+    messages: list[ChatMessage],
+) -> list[str]:
+    return [chunk async for chunk in provider.stream_response(messages)]
 
 
 if __name__ == "__main__":

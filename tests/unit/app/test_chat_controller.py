@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from collections.abc import AsyncIterator
 
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.providers.ai import ChatMessage, MockAIProvider
@@ -18,6 +19,14 @@ class StaticProvider:
     async def generate_response(self, messages: tuple[ChatMessage, ...]) -> str:
         """Return the configured response."""
         return self._response
+
+    async def stream_response(
+        self,
+        messages: tuple[ChatMessage, ...],
+    ) -> AsyncIterator[str]:
+        """Yield the configured response."""
+        del messages
+        yield self._response
 
     async def is_available(self) -> bool:
         """Return true for test use."""
@@ -51,6 +60,18 @@ class ChatControllerTest(unittest.TestCase):
 
         self.assertEqual(first_exchange.assistant_message.content, "first")
         self.assertEqual(second_exchange.assistant_message.content, "second")
+
+    def test_stream_user_message_records_assistant_response(self) -> None:
+        controller = ChatController(StaticProvider("streamed response"))
+
+        chunks = asyncio.run(_collect_stream(controller, "hello"))
+
+        self.assertEqual(chunks, ["streamed response"])
+        self.assertEqual(controller.messages[-1].content, "streamed response")
+
+
+async def _collect_stream(controller: ChatController, message: str) -> list[str]:
+    return [chunk async for chunk in controller.stream_user_message(message)]
 
 
 if __name__ == "__main__":
