@@ -20,6 +20,7 @@ class ChatWindow(QWidget):
     """Simple chat UI that emits user-submitted messages."""
 
     message_submitted = Signal(str)
+    cancel_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -36,9 +37,14 @@ class ChatWindow(QWidget):
         self._send_button = QPushButton("Send")
         self._send_button.clicked.connect(self._submit_message)
 
+        self._stop_button = QPushButton("Stop")
+        self._stop_button.setDisabled(True)
+        self._stop_button.clicked.connect(self._request_cancel)
+
         input_layout = QHBoxLayout()
         input_layout.addWidget(self._input)
         input_layout.addWidget(self._send_button)
+        input_layout.addWidget(self._stop_button)
 
         layout = QVBoxLayout()
         layout.addWidget(self._history_view)
@@ -65,10 +71,17 @@ class ChatWindow(QWidget):
             f"<span style='color:#b00020'>{escape(content)}</span>"
         )
 
+    def append_notice(self, content: str) -> None:
+        """Append a low-emphasis status message to the transcript."""
+        self._history_view.append(
+            f"<span style='color:#666666'>{escape(content)}</span>"
+        )
+
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""
         self._input.setDisabled(is_busy)
         self._send_button.setDisabled(is_busy)
+        self._stop_button.setDisabled(not is_busy)
 
     def _submit_message(self) -> None:
         message = self._input.text().strip()
@@ -77,3 +90,7 @@ class ChatWindow(QWidget):
 
         self._input.clear()
         self.message_submitted.emit(message)
+
+    def _request_cancel(self) -> None:
+        self._stop_button.setDisabled(True)
+        self.cancel_requested.emit()

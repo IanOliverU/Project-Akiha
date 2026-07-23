@@ -199,6 +199,10 @@ def main() -> int:
             logger.error("Chat message failed: %s", error_message)
             chat_window.append_error(error_message)
 
+        def handle_cancelled() -> None:
+            logger.info("Chat response cancelled by user.")
+            chat_window.append_notice("Response stopped.")
+
         def cleanup_thread() -> None:
             chat_window.set_busy(False)
             if thread in active_chat_threads:
@@ -207,10 +211,16 @@ def main() -> int:
 
         thread.response_delta.connect(handle_delta)
         thread.response_failed.connect(handle_error)
+        thread.response_cancelled.connect(handle_cancelled)
         thread.finished.connect(cleanup_thread)
         thread.start()
 
+    def cancel_active_chat() -> None:
+        for thread in tuple(active_chat_threads):
+            thread.cancel()
+
     chat_window.message_submitted.connect(submit_chat_message)
+    chat_window.cancel_requested.connect(cancel_active_chat)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)

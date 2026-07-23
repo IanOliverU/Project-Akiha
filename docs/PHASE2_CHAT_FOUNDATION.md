@@ -20,10 +20,11 @@ prompt.
 - System prompt injection through `ChatController` before provider calls
 - SQLite-backed raw conversation transcript persistence
 - Versioned database migration runner
+- Stop button for cancelling an in-progress streamed response
 
 ## Not Yet In This Phase
 
-- richer token-level styling and cancellation controls
+- richer token-level styling
 - qasync bridge if model integration needs tighter asyncio integration
 - memory extraction or retrieval
 
@@ -39,6 +40,7 @@ Then check:
 - Pet right-click menu can open Chat.
 - Sending a message appends `You`.
 - Mock response appends the configured companion name.
+- Stop interrupts an in-progress response and re-enables the chat input.
 - Closing and reopening the app restores recent chat messages.
 - Empty messages are ignored by the UI.
 
