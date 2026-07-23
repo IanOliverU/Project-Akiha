@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
+from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationStateMachine
+from project_akiha.providers.ai import MockAIProvider
 from project_akiha.providers.animation import (
     AnimationManifestError,
     AssetAnimationProvider,
@@ -29,6 +32,7 @@ from project_akiha.services.window_placement import (
     clamp_window_position,
 )
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
+from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.settings_window import SettingsWindow
@@ -58,6 +62,7 @@ def main() -> int:
     )
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
+    chat_controller = ChatController(MockAIProvider())
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
         event_bus=event_bus,
@@ -97,6 +102,7 @@ def main() -> int:
         config=config,
         log_dir=paths.log_dir,
     )
+    chat_window = ChatWindow()
 
     def save_window_position(event: Event | None = None) -> None:
         del event
@@ -138,16 +144,41 @@ def main() -> int:
         settings_window.raise_()
         settings_window.activateWindow()
 
+    def show_chat(event: Event | None = None) -> None:
+        del event
+        chat_window.show()
+        chat_window.raise_()
+        chat_window.activateWindow()
+
+    def submit_chat_message(message: str) -> None:
+        chat_window.append_message("You", message)
+        chat_window.set_busy(True)
+        try:
+            exchange = asyncio.run(chat_controller.submit_user_message(message))
+        except Exception as error:
+            logger.exception("Chat message failed.")
+            chat_window.append_error(str(error))
+            return
+        finally:
+            chat_window.set_busy(False)
+
+        chat_window.append_message("Akiha", exchange.assistant_message.content)
+
+    chat_window.message_submitted.connect(submit_chat_message)
+    event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
     app.aboutToQuit.connect(save_window_position)
 
     tray_icon = AkihaTrayIcon(
         pet_window=window,
+        chat_window=chat_window,
         settings_window=settings_window,
     )
     tray_icon.show()
     app._akiha_services = (
+        chat_controller,
+        chat_window,
         event_logger,
         pet_controller,
         settings_window,

@@ -20,7 +20,7 @@ These are expensive to fix later if violated early. Never break them to "move fa
 
 *(Update this section as the project progresses — it's the most important line in this file for keeping the AI's suggestions scoped correctly.)*
 
-- Current milestone: **Phase 1 — Desktop Pet** (feature complete; no AI integration yet)
+- Current milestone: **Phase 2 — Chat Companion foundation** (mock AI provider; Ollama not integrated yet)
 - Do not build ahead of the current phase unless explicitly asked. If asked to add a feature from a later phase, flag that it's out of current sequence before proceeding.
 
 ## Coding conventions

@@ -13,11 +13,13 @@ class AkihaTrayIcon(QSystemTrayIcon):
     def __init__(
         self,
         pet_window: QWidget,
+        chat_window: QWidget,
         settings_window: QWidget,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._pet_window = pet_window
+        self._chat_window = chat_window
         self._settings_window = settings_window
 
         self.setToolTip("Project Akiha")
@@ -35,6 +37,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         hide_action = QAction("Hide", menu)
         hide_action.triggered.connect(self._pet_window.hide)
         menu.addAction(hide_action)
+
+        chat_action = QAction("Chat", menu)
+        chat_action.triggered.connect(self._show_chat)
+        menu.addAction(chat_action)
 
         settings_action = QAction("Settings", menu)
         settings_action.triggered.connect(self._show_settings)
@@ -66,6 +72,11 @@ class AkihaTrayIcon(QSystemTrayIcon):
         self._settings_window.show()
         self._settings_window.raise_()
         self._settings_window.activateWindow()
+
+    def _show_chat(self) -> None:
+        self._chat_window.show()
+        self._chat_window.raise_()
+        self._chat_window.activateWindow()
 
 
 def _build_icon() -> QIcon:
