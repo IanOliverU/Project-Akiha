@@ -10,6 +10,7 @@ mock provider.
 - `AIProvider` interface
 - `MockAIProvider`
 - `ChatController`
+- QThread bridge for non-blocking chat responses
 - Local message history in memory
 - Deterministic placeholder responses
 
@@ -17,7 +18,8 @@ mock provider.
 
 - Ollama provider
 - Streaming tokens
-- qasync/QThread bridge for long-running AI requests
+- streaming tokens
+- qasync bridge if streaming needs tighter asyncio integration
 - SQLite conversation persistence
 - memory extraction or retrieval
 - personality prompt system
@@ -35,4 +37,3 @@ Then check:
 - Sending a message appends `You`.
 - Mock response appends `Akiha`.
 - Empty messages are ignored by the UI.
-

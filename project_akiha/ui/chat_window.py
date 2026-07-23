@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -44,11 +46,13 @@ class ChatWindow(QWidget):
 
     def append_message(self, speaker: str, content: str) -> None:
         """Append a message to the visible transcript."""
-        self._history_view.append(f"<b>{speaker}</b>: {content}")
+        self._history_view.append(f"<b>{escape(speaker)}</b>: {escape(content)}")
 
     def append_error(self, content: str) -> None:
         """Append an error-style message to the transcript."""
-        self._history_view.append(f"<span style='color:#b00020'>{content}</span>")
+        self._history_view.append(
+            f"<span style='color:#b00020'>{escape(content)}</span>"
+        )
 
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""

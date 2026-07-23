@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from project_akiha.app.chat_controller import ChatController
+from project_akiha.app.chat_controller import ChatController, ChatExchange
 from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
@@ -33,6 +32,7 @@ from project_akiha.services.window_placement import (
 )
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
 from project_akiha.ui.chat_window import ChatWindow
+from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.settings_window import SettingsWindow
@@ -103,6 +103,7 @@ def main() -> int:
         log_dir=paths.log_dir,
     )
     chat_window = ChatWindow()
+    active_chat_threads: list[ChatResponseThread] = []
 
     def save_window_position(event: Event | None = None) -> None:
         del event
@@ -153,16 +154,31 @@ def main() -> int:
     def submit_chat_message(message: str) -> None:
         chat_window.append_message("You", message)
         chat_window.set_busy(True)
-        try:
-            exchange = asyncio.run(chat_controller.submit_user_message(message))
-        except Exception as error:
-            logger.exception("Chat message failed.")
-            chat_window.append_error(str(error))
-            return
-        finally:
-            chat_window.set_busy(False)
 
-        chat_window.append_message("Akiha", exchange.assistant_message.content)
+        thread = ChatResponseThread(
+            chat_controller=chat_controller,
+            message=message,
+        )
+        active_chat_threads.append(thread)
+
+        def handle_response(exchange: object) -> None:
+            if isinstance(exchange, ChatExchange):
+                chat_window.append_message("Akiha", exchange.assistant_message.content)
+
+        def handle_error(error_message: str) -> None:
+            logger.error("Chat message failed: %s", error_message)
+            chat_window.append_error(error_message)
+
+        def cleanup_thread() -> None:
+            chat_window.set_busy(False)
+            if thread in active_chat_threads:
+                active_chat_threads.remove(thread)
+            thread.deleteLater()
+
+        thread.response_ready.connect(handle_response)
+        thread.response_failed.connect(handle_error)
+        thread.finished.connect(cleanup_thread)
+        thread.start()
 
     chat_window.message_submitted.connect(submit_chat_message)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
@@ -178,6 +194,7 @@ def main() -> int:
     tray_icon.show()
     app._akiha_services = (
         chat_controller,
+        active_chat_threads,
         chat_window,
         event_logger,
         pet_controller,
