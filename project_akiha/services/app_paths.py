@@ -31,6 +31,11 @@ class AppPaths:
         return self.data_dir / "user_config.toml"
 
     @property
+    def database_path(self) -> Path:
+        """Return the local SQLite database path."""
+        return self.data_dir / "akiha.sqlite3"
+
+    @property
     def asset_dir(self) -> Path:
         """Return the directory for project asset files."""
         return self.project_root / "assets"

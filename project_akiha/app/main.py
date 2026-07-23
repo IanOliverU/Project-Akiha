@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -13,8 +14,11 @@ from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.memory import StoredMessage
 from project_akiha.core.state.animation import AnimationStateMachine
+from project_akiha.database import SQLiteConversationRepository
 from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
+from project_akiha.providers.ai.base import ChatMessage
 from project_akiha.providers.animation import (
     AnimationManifestError,
     AssetAnimationProvider,
@@ -62,9 +66,19 @@ def main() -> int:
     )
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
+    conversation_repository = SQLiteConversationRepository(paths.database_path)
+    current_conversation = asyncio.run(
+        conversation_repository.get_or_create_current_conversation()
+    )
+    recent_messages = asyncio.run(
+        conversation_repository.get_recent_messages(current_conversation.id, limit=50)
+    )
     chat_controller = ChatController(
         _build_ai_provider(config.ai, logger),
         system_prompt=config.personality.rendered_system_prompt(),
+        conversation_repository=conversation_repository,
+        conversation_id=current_conversation.id,
+        initial_messages=_stored_messages_to_chat_messages(recent_messages),
     )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
@@ -106,6 +120,11 @@ def main() -> int:
         log_dir=paths.log_dir,
     )
     chat_window = ChatWindow()
+    _populate_chat_window(
+        chat_window=chat_window,
+        messages=chat_controller.messages,
+        assistant_name=config.personality.character_name,
+    )
     active_chat_threads: list[ChatResponseThread] = []
 
     def save_window_position(event: Event | None = None) -> None:
@@ -207,6 +226,7 @@ def main() -> int:
         chat_controller,
         active_chat_threads,
         chat_window,
+        conversation_repository,
         event_logger,
         pet_controller,
         settings_window,
@@ -248,6 +268,26 @@ def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvide
 
     logger.info("Using mock AI provider.")
     return MockAIProvider()
+
+
+def _stored_messages_to_chat_messages(
+    messages: tuple[StoredMessage, ...],
+) -> tuple[ChatMessage, ...]:
+    return tuple(
+        ChatMessage(role=message.role, content=message.content) for message in messages
+    )
+
+
+def _populate_chat_window(
+    chat_window: ChatWindow,
+    messages: tuple[ChatMessage, ...],
+    assistant_name: str,
+) -> None:
+    for message in messages:
+        if message.role == "user":
+            chat_window.append_message("You", message.content)
+        elif message.role == "assistant":
+            chat_window.append_message(assistant_name, message.content)
 
 
 def _clamp_to_primary_screen(

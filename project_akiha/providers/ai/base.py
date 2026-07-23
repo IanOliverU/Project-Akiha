@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Protocol
 
-ChatRole = Literal["user", "assistant", "system"]
+from project_akiha.core.memory.models import MessageRole
+
+ChatRole = MessageRole
 
 
 @dataclass(frozen=True, slots=True)

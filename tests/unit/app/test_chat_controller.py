@@ -7,6 +7,7 @@ import unittest
 from collections.abc import AsyncIterator
 
 from project_akiha.app.chat_controller import ChatController
+from project_akiha.core.memory import Conversation, MessageRole, StoredMessage
 from project_akiha.providers.ai import ChatMessage, MockAIProvider
 
 
@@ -34,6 +35,48 @@ class StaticProvider:
     async def is_available(self) -> bool:
         """Return true for test use."""
         return True
+
+
+class RecordingConversationRepository:
+    """Test repository that records saved messages."""
+
+    def __init__(self) -> None:
+        self.saved_messages: list[tuple[int, MessageRole, str]] = []
+
+    async def get_or_create_current_conversation(self) -> Conversation:
+        """Return a test conversation."""
+        return Conversation(
+            id=1,
+            title="Test",
+            created_at="now",
+            updated_at="now",
+            closed_at=None,
+        )
+
+    async def save_message(
+        self,
+        conversation_id: int,
+        role: MessageRole,
+        content: str,
+    ) -> StoredMessage:
+        """Record a saved message."""
+        self.saved_messages.append((conversation_id, role, content))
+        return StoredMessage(
+            id=len(self.saved_messages),
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            created_at="now",
+        )
+
+    async def get_recent_messages(
+        self,
+        conversation_id: int,
+        limit: int,
+    ) -> tuple[StoredMessage, ...]:
+        """Return no persisted messages for test use."""
+        del conversation_id, limit
+        return ()
 
 
 class ChatControllerTest(unittest.TestCase):
@@ -94,6 +137,37 @@ class ChatControllerTest(unittest.TestCase):
         asyncio.run(_collect_stream(controller, "hello"))
 
         self.assertEqual(provider.stream_messages[0].content, "New prompt.")
+
+    def test_messages_are_persisted_when_repository_is_configured(self) -> None:
+        repository = RecordingConversationRepository()
+        controller = ChatController(
+            StaticProvider("hello from persistence"),
+            conversation_repository=repository,
+            conversation_id=7,
+        )
+
+        asyncio.run(controller.submit_user_message(" hello "))
+
+        self.assertEqual(
+            repository.saved_messages,
+            [
+                (7, "user", "hello"),
+                (7, "assistant", "hello from persistence"),
+            ],
+        )
+
+    def test_initial_system_messages_are_not_exposed_as_history(self) -> None:
+        controller = ChatController(
+            StaticProvider("done"),
+            initial_messages=(
+                ChatMessage(role="system", content="hidden"),
+                ChatMessage(role="user", content="visible"),
+            ),
+        )
+
+        self.assertEqual(
+            controller.messages, (ChatMessage(role="user", content="visible"),)
+        )
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:

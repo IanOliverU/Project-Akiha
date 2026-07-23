@@ -18,12 +18,13 @@ prompt.
 - Deterministic placeholder responses
 - Configurable companion name and system prompt
 - System prompt injection through `ChatController` before provider calls
+- SQLite-backed raw conversation transcript persistence
+- Versioned database migration runner
 
 ## Not Yet In This Phase
 
 - richer token-level styling and cancellation controls
 - qasync bridge if model integration needs tighter asyncio integration
-- SQLite conversation persistence
 - memory extraction or retrieval
 
 ## Manual Smoke Test
@@ -38,6 +39,7 @@ Then check:
 - Pet right-click menu can open Chat.
 - Sending a message appends `You`.
 - Mock response appends the configured companion name.
+- Closing and reopening the app restores recent chat messages.
 - Empty messages are ignored by the UI.
 
 ## Ollama
@@ -61,3 +63,15 @@ Open Settings to edit:
 The prompt may include `{character_name}`, which is replaced before the message
 history is sent to the active provider. The system prompt is not stored in the
 visible chat history.
+
+## Conversation Persistence
+
+The app stores raw chat transcripts in SQLite at:
+
+```text
+%LOCALAPPDATA%\Akiha\akiha.sqlite3
+```
+
+Schema changes are applied through versioned SQL migrations in
+`project_akiha/database/migrations/`. The current chat loads the latest 50
+messages from the newest open conversation at startup.
