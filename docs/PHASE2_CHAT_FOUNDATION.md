@@ -21,6 +21,8 @@ prompt.
 - SQLite-backed raw conversation transcript persistence
 - Versioned database migration runner
 - Stop button for cancelling an in-progress streamed response
+- New chat control for starting a fresh persisted conversation
+- Chat status label for ready/thinking/stopping states
 
 ## Not Yet In This Phase
 
@@ -41,6 +43,7 @@ Then check:
 - Sending a message appends `You`.
 - Mock response appends the configured companion name.
 - Stop interrupts an in-progress response and re-enables the chat input.
+- New chat clears the visible transcript and starts a fresh persisted session.
 - Closing and reopening the app restores recent chat messages.
 - Empty messages are ignored by the UI.
 

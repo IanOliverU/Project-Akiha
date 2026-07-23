@@ -49,6 +49,21 @@ class ChatController:
         """Replace the system prompt used for future chat responses."""
         self._system_prompt = system_prompt.strip()
 
+    async def start_new_conversation(self) -> None:
+        """Close the current conversation and begin a fresh transcript."""
+        if self._conversation_repository is None:
+            self._messages.clear()
+            return
+
+        if self._conversation_id is not None:
+            await self._conversation_repository.close_conversation(
+                self._conversation_id
+            )
+
+        conversation = await self._conversation_repository.create_conversation()
+        self._conversation_id = conversation.id
+        self._messages.clear()
+
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
         user_message = self._append_user_message(content)

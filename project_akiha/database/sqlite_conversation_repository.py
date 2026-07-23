@@ -19,9 +19,21 @@ class SQLiteConversationRepository:
         self._database_path = database_path
         DatabaseMigrator(database_path).apply_pending()
 
+    async def create_conversation(self, title: str = "Current chat") -> Conversation:
+        """Create a new open conversation."""
+        normalized_title = title.strip()
+        if not normalized_title:
+            raise ValueError("conversation title cannot be empty.")
+
+        return await asyncio.to_thread(self._create_conversation, normalized_title)
+
     async def get_or_create_current_conversation(self) -> Conversation:
         """Return the newest open conversation, creating one when needed."""
         return await asyncio.to_thread(self._get_or_create_current_conversation)
+
+    async def close_conversation(self, conversation_id: int) -> None:
+        """Mark a conversation as closed."""
+        await asyncio.to_thread(self._close_conversation, conversation_id)
 
     async def save_message(
         self,
@@ -62,6 +74,31 @@ class SQLiteConversationRepository:
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
+    def _create_conversation(self, title: str) -> Conversation:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            cursor = connection.execute(
+                """
+                INSERT INTO conversations(title, created_at, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (title, timestamp, timestamp),
+            )
+            conversation_id = int(cursor.lastrowid)
+            row = connection.execute(
+                """
+                SELECT id, title, created_at, updated_at, closed_at
+                FROM conversations
+                WHERE id = ?
+                """,
+                (conversation_id,),
+            ).fetchone()
+            connection.commit()
+            return _conversation_from_row(row)
+        finally:
+            connection.close()
+
     def _get_or_create_current_conversation(self) -> Conversation:
         connection = self._connect()
         try:
@@ -94,6 +131,22 @@ class SQLiteConversationRepository:
                 connection.commit()
 
             return _conversation_from_row(row)
+        finally:
+            connection.close()
+
+    def _close_conversation(self, conversation_id: int) -> None:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                UPDATE conversations
+                SET closed_at = ?, updated_at = ?
+                WHERE id = ? AND closed_at IS NULL
+                """,
+                (timestamp, timestamp, conversation_id),
+            )
+            connection.commit()
         finally:
             connection.close()
 

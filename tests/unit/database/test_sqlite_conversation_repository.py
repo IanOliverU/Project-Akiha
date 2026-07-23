@@ -48,6 +48,24 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 asyncio.run(repository.save_message(conversation.id, "user", "   "))
 
+    def test_closed_conversation_is_not_reused_as_current(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            first = asyncio.run(repository.get_or_create_current_conversation())
+
+            asyncio.run(repository.close_conversation(first.id))
+            second = asyncio.run(repository.get_or_create_current_conversation())
+
+        self.assertNotEqual(first.id, second.id)
+        self.assertEqual(second.title, "Current chat")
+
+    def test_create_conversation_rejects_empty_title(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.create_conversation("   "))
+
 
 if __name__ == "__main__":
     unittest.main()

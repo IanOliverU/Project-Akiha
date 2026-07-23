@@ -10,8 +10,14 @@ from project_akiha.core.memory.models import Conversation, MessageRole, StoredMe
 class ConversationRepository(Protocol):
     """Persist and load raw conversation transcripts."""
 
+    async def create_conversation(self, title: str = "Current chat") -> Conversation:
+        """Create a new open conversation."""
+
     async def get_or_create_current_conversation(self) -> Conversation:
         """Return the open conversation used for the current chat session."""
+
+    async def close_conversation(self, conversation_id: int) -> None:
+        """Mark a conversation as closed."""
 
     async def save_message(
         self,

@@ -219,8 +219,22 @@ def main() -> int:
         for thread in tuple(active_chat_threads):
             thread.cancel()
 
+    def start_new_chat() -> None:
+        if active_chat_threads:
+            chat_window.append_notice(
+                "Stop the current response before starting a new chat."
+            )
+            return
+
+        asyncio.run(chat_controller.start_new_conversation())
+        chat_window.clear_history()
+        chat_window.append_notice("New chat started.")
+        chat_window.set_status("Ready")
+        logger.info("Started a new chat conversation.")
+
     chat_window.message_submitted.connect(submit_chat_message)
     chat_window.cancel_requested.connect(cancel_active_chat)
+    chat_window.new_chat_requested.connect(start_new_chat)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)

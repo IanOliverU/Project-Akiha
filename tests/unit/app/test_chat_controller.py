@@ -42,6 +42,20 @@ class RecordingConversationRepository:
 
     def __init__(self) -> None:
         self.saved_messages: list[tuple[int, MessageRole, str]] = []
+        self.closed_conversation_ids: list[int] = []
+        self.next_conversation_id = 10
+
+    async def create_conversation(self, title: str = "Current chat") -> Conversation:
+        """Create a test conversation."""
+        conversation = Conversation(
+            id=self.next_conversation_id,
+            title=title,
+            created_at="now",
+            updated_at="now",
+            closed_at=None,
+        )
+        self.next_conversation_id += 1
+        return conversation
 
     async def get_or_create_current_conversation(self) -> Conversation:
         """Return a test conversation."""
@@ -52,6 +66,10 @@ class RecordingConversationRepository:
             updated_at="now",
             closed_at=None,
         )
+
+    async def close_conversation(self, conversation_id: int) -> None:
+        """Record a closed conversation."""
+        self.closed_conversation_ids.append(conversation_id)
 
     async def save_message(
         self,
@@ -168,6 +186,32 @@ class ChatControllerTest(unittest.TestCase):
         self.assertEqual(
             controller.messages, (ChatMessage(role="user", content="visible"),)
         )
+
+    def test_start_new_conversation_closes_current_and_clears_history(self) -> None:
+        repository = RecordingConversationRepository()
+        controller = ChatController(
+            StaticProvider("done"),
+            conversation_repository=repository,
+            conversation_id=7,
+            initial_messages=(ChatMessage(role="user", content="old"),),
+        )
+
+        asyncio.run(controller.start_new_conversation())
+        asyncio.run(controller.submit_user_message("fresh"))
+
+        self.assertEqual(repository.closed_conversation_ids, [7])
+        self.assertEqual(controller.messages[0].content, "fresh")
+        self.assertEqual(repository.saved_messages[0], (10, "user", "fresh"))
+
+    def test_start_new_conversation_clears_history_without_repository(self) -> None:
+        controller = ChatController(
+            StaticProvider("done"),
+            initial_messages=(ChatMessage(role="user", content="old"),),
+        )
+
+        asyncio.run(controller.start_new_conversation())
+
+        self.assertEqual(controller.messages, ())
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:
