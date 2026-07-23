@@ -232,9 +232,21 @@ def main() -> int:
         chat_window.set_status("Ready")
         logger.info("Started a new chat conversation.")
 
+    def clear_current_chat() -> None:
+        if active_chat_threads:
+            chat_window.append_notice("Stop the current response before clearing chat.")
+            return
+
+        asyncio.run(chat_controller.clear_current_conversation())
+        chat_window.clear_history()
+        chat_window.append_notice("Chat cleared.")
+        chat_window.set_status("Ready")
+        logger.info("Cleared current chat conversation.")
+
     chat_window.message_submitted.connect(submit_chat_message)
     chat_window.cancel_requested.connect(cancel_active_chat)
     chat_window.new_chat_requested.connect(start_new_chat)
+    chat_window.clear_chat_requested.connect(clear_current_chat)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)

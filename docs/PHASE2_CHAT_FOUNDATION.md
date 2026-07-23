@@ -22,6 +22,7 @@ prompt.
 - Versioned database migration runner
 - Stop button for cancelling an in-progress streamed response
 - New chat control for starting a fresh persisted conversation
+- Clear chat control for deleting the current transcript after confirmation
 - Chat status label for ready/thinking/stopping states
 
 ## Not Yet In This Phase
@@ -44,6 +45,7 @@ Then check:
 - Mock response appends the configured companion name.
 - Stop interrupts an in-progress response and re-enables the chat input.
 - New chat clears the visible transcript and starts a fresh persisted session.
+- Clear chat deletes the current persisted transcript after confirmation.
 - Closing and reopening the app restores recent chat messages.
 - Empty messages are ignored by the UI.
 
@@ -80,3 +82,6 @@ The app stores raw chat transcripts in SQLite at:
 Schema changes are applied through versioned SQL migrations in
 `project_akiha/database/migrations/`. The current chat loads the latest 50
 messages from the newest open conversation at startup.
+
+Use New chat when you want to preserve the old transcript as a closed session.
+Use Clear chat when the current transcript should be deleted.

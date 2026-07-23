@@ -66,6 +66,21 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 asyncio.run(repository.create_conversation("   "))
 
+    def test_clear_conversation_messages_deletes_transcript(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            conversation = asyncio.run(repository.get_or_create_current_conversation())
+
+            asyncio.run(repository.save_message(conversation.id, "user", "one"))
+            asyncio.run(repository.save_message(conversation.id, "assistant", "two"))
+            asyncio.run(repository.clear_conversation_messages(conversation.id))
+
+            messages = asyncio.run(
+                repository.get_recent_messages(conversation.id, limit=10)
+            )
+
+        self.assertEqual(messages, ())
+
 
 if __name__ == "__main__":
     unittest.main()

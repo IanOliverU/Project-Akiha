@@ -35,6 +35,10 @@ class SQLiteConversationRepository:
         """Mark a conversation as closed."""
         await asyncio.to_thread(self._close_conversation, conversation_id)
 
+    async def clear_conversation_messages(self, conversation_id: int) -> None:
+        """Delete all messages in a conversation."""
+        await asyncio.to_thread(self._clear_conversation_messages, conversation_id)
+
     async def save_message(
         self,
         conversation_id: int,
@@ -145,6 +149,29 @@ class SQLiteConversationRepository:
                 WHERE id = ? AND closed_at IS NULL
                 """,
                 (timestamp, timestamp, conversation_id),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+    def _clear_conversation_messages(self, conversation_id: int) -> None:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                DELETE FROM messages
+                WHERE conversation_id = ?
+                """,
+                (conversation_id,),
+            )
+            connection.execute(
+                """
+                UPDATE conversations
+                SET updated_at = ?
+                WHERE id = ?
+                """,
+                (timestamp, conversation_id),
             )
             connection.commit()
         finally:

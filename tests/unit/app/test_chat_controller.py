@@ -43,6 +43,7 @@ class RecordingConversationRepository:
     def __init__(self) -> None:
         self.saved_messages: list[tuple[int, MessageRole, str]] = []
         self.closed_conversation_ids: list[int] = []
+        self.cleared_conversation_ids: list[int] = []
         self.next_conversation_id = 10
 
     async def create_conversation(self, title: str = "Current chat") -> Conversation:
@@ -70,6 +71,10 @@ class RecordingConversationRepository:
     async def close_conversation(self, conversation_id: int) -> None:
         """Record a closed conversation."""
         self.closed_conversation_ids.append(conversation_id)
+
+    async def clear_conversation_messages(self, conversation_id: int) -> None:
+        """Record a cleared conversation."""
+        self.cleared_conversation_ids.append(conversation_id)
 
     async def save_message(
         self,
@@ -210,6 +215,32 @@ class ChatControllerTest(unittest.TestCase):
         )
 
         asyncio.run(controller.start_new_conversation())
+
+        self.assertEqual(controller.messages, ())
+
+    def test_clear_current_conversation_deletes_messages_and_clears_history(
+        self,
+    ) -> None:
+        repository = RecordingConversationRepository()
+        controller = ChatController(
+            StaticProvider("done"),
+            conversation_repository=repository,
+            conversation_id=7,
+            initial_messages=(ChatMessage(role="user", content="old"),),
+        )
+
+        asyncio.run(controller.clear_current_conversation())
+
+        self.assertEqual(repository.cleared_conversation_ids, [7])
+        self.assertEqual(controller.messages, ())
+
+    def test_clear_current_conversation_clears_history_without_repository(self) -> None:
+        controller = ChatController(
+            StaticProvider("done"),
+            initial_messages=(ChatMessage(role="user", content="old"),),
+        )
+
+        asyncio.run(controller.clear_current_conversation())
 
         self.assertEqual(controller.messages, ())
 

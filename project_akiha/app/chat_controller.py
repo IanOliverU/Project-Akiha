@@ -64,6 +64,18 @@ class ChatController:
         self._conversation_id = conversation.id
         self._messages.clear()
 
+    async def clear_current_conversation(self) -> None:
+        """Clear the current transcript without starting a new conversation."""
+        if (
+            self._conversation_repository is not None
+            and self._conversation_id is not None
+        ):
+            await self._conversation_repository.clear_conversation_messages(
+                self._conversation_id
+            )
+
+        self._messages.clear()
+
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
         user_message = self._append_user_message(content)

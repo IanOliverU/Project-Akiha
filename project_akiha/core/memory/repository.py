@@ -19,6 +19,9 @@ class ConversationRepository(Protocol):
     async def close_conversation(self, conversation_id: int) -> None:
         """Mark a conversation as closed."""
 
+    async def clear_conversation_messages(self, conversation_id: int) -> None:
+        """Delete all messages in a conversation."""
+
     async def save_message(
         self,
         conversation_id: int,

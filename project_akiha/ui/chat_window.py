@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -23,6 +24,7 @@ class ChatWindow(QWidget):
     message_submitted = Signal(str)
     cancel_requested = Signal()
     new_chat_requested = Signal()
+    clear_chat_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -34,6 +36,9 @@ class ChatWindow(QWidget):
 
         self._new_chat_button = QPushButton("New chat")
         self._new_chat_button.clicked.connect(self.new_chat_requested.emit)
+
+        self._clear_chat_button = QPushButton("Clear chat")
+        self._clear_chat_button.clicked.connect(self._request_clear_chat)
 
         self._status_label = QLabel("Ready")
 
@@ -50,6 +55,7 @@ class ChatWindow(QWidget):
 
         toolbar_layout = QHBoxLayout()
         toolbar_layout.addWidget(self._new_chat_button)
+        toolbar_layout.addWidget(self._clear_chat_button)
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self._status_label)
 
@@ -104,6 +110,7 @@ class ChatWindow(QWidget):
         self._send_button.setDisabled(is_busy)
         self._stop_button.setDisabled(not is_busy)
         self._new_chat_button.setDisabled(is_busy)
+        self._clear_chat_button.setDisabled(is_busy)
         self.set_status("Thinking..." if is_busy else "Ready")
 
     def _submit_message(self) -> None:
@@ -118,3 +125,14 @@ class ChatWindow(QWidget):
         self._stop_button.setDisabled(True)
         self.set_status("Stopping...")
         self.cancel_requested.emit()
+
+    def _request_clear_chat(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Clear chat",
+            "Clear the current chat transcript?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.clear_chat_requested.emit()
