@@ -19,8 +19,9 @@ class ChatExchange:
 class ChatController:
     """Keep chat history and route messages through an AIProvider."""
 
-    def __init__(self, ai_provider: AIProvider) -> None:
+    def __init__(self, ai_provider: AIProvider, system_prompt: str = "") -> None:
         self._ai_provider = ai_provider
+        self._system_prompt = system_prompt.strip()
         self._messages: list[ChatMessage] = []
 
     @property
@@ -32,11 +33,17 @@ class ChatController:
         """Replace the provider used for future chat responses."""
         self._ai_provider = ai_provider
 
+    def set_system_prompt(self, system_prompt: str) -> None:
+        """Replace the system prompt used for future chat responses."""
+        self._system_prompt = system_prompt.strip()
+
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
         user_message = self._append_user_message(content)
 
-        response = await self._ai_provider.generate_response(self.messages)
+        response = await self._ai_provider.generate_response(
+            self._messages_for_provider()
+        )
         assistant_message = self._append_assistant_message(response)
 
         return ChatExchange(
@@ -49,11 +56,22 @@ class ChatController:
         self._append_user_message(content)
         chunks: list[str] = []
 
-        async for chunk in self._ai_provider.stream_response(self.messages):
+        async for chunk in self._ai_provider.stream_response(
+            self._messages_for_provider()
+        ):
             chunks.append(chunk)
             yield chunk
 
         self._append_assistant_message("".join(chunks))
+
+    def _messages_for_provider(self) -> tuple[ChatMessage, ...]:
+        if not self._system_prompt:
+            return self.messages
+
+        return (
+            ChatMessage(role="system", content=self._system_prompt),
+            *self._messages,
+        )
 
     def _append_user_message(self, content: str) -> ChatMessage:
         normalized_content = content.strip()

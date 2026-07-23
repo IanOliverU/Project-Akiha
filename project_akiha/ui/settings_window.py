@@ -13,13 +13,14 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
-from project_akiha.config import AIConfig, AppConfig, PetWindowConfig
+from project_akiha.config import AIConfig, AppConfig, PersonalityConfig, PetWindowConfig
 
 
 class SettingsWindow(QWidget):
@@ -64,6 +65,9 @@ class SettingsWindow(QWidget):
             600,
             config.ai.request_timeout_seconds,
         )
+        self._character_name_input = QLineEdit(config.personality.character_name)
+        self._system_prompt_input = QPlainTextEdit(config.personality.system_prompt)
+        self._system_prompt_input.setMinimumHeight(96)
 
         form_layout = QFormLayout()
         form_layout.addRow("Width", self._width_input)
@@ -78,6 +82,8 @@ class SettingsWindow(QWidget):
         form_layout.addRow("Ollama URL", self._ollama_base_url_input)
         form_layout.addRow("Ollama model", self._ollama_model_input)
         form_layout.addRow("AI timeout", self._ai_timeout_input)
+        form_layout.addRow("Companion name", self._character_name_input)
+        form_layout.addRow("System prompt", self._system_prompt_input)
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -113,6 +119,8 @@ class SettingsWindow(QWidget):
         self._ollama_base_url_input.setText(config.ai.ollama_base_url)
         self._ollama_model_input.setText(config.ai.ollama_model)
         self._ai_timeout_input.setValue(config.ai.request_timeout_seconds)
+        self._character_name_input.setText(config.personality.character_name)
+        self._system_prompt_input.setPlainText(config.personality.system_prompt)
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -154,6 +162,12 @@ class SettingsWindow(QWidget):
                 ollama_base_url=self._ollama_base_url_input.text(),
                 ollama_model=self._ollama_model_input.text(),
                 request_timeout_seconds=self._ai_timeout_input.value(),
+            )
+        )
+        config = config.with_personality(
+            PersonalityConfig(
+                character_name=self._character_name_input.text(),
+                system_prompt=self._system_prompt_input.toPlainText(),
             )
         )
         self.update_config(config)

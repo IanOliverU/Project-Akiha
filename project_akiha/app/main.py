@@ -62,7 +62,10 @@ def main() -> int:
     )
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
-    chat_controller = ChatController(_build_ai_provider(config.ai, logger))
+    chat_controller = ChatController(
+        _build_ai_provider(config.ai, logger),
+        system_prompt=config.personality.rendered_system_prompt(),
+    )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
         event_bus=event_bus,
@@ -119,6 +122,9 @@ def main() -> int:
         )
         window.set_animation_provider(_build_animation_provider(manifest, logger))
         chat_controller.set_ai_provider(_build_ai_provider(updated_config.ai, logger))
+        chat_controller.set_system_prompt(
+            updated_config.personality.rendered_system_prompt()
+        )
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -166,7 +172,7 @@ def main() -> int:
         def handle_delta(chunk: str) -> None:
             nonlocal has_response_started
             if not has_response_started:
-                chat_window.begin_streaming_message("Akiha")
+                chat_window.begin_streaming_message(config.personality.character_name)
                 has_response_started = True
             chat_window.append_stream_delta(chunk)
 

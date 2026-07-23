@@ -29,11 +29,14 @@ class UserConfigStore:
 def _serialize_config(config: AppConfig) -> str:
     pet_window = config.pet_window
     ai = config.ai
+    personality = config.personality
     always_on_top = str(pet_window.always_on_top).lower()
     manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
     provider = _escape_toml_string(ai.provider)
     ollama_base_url = _escape_toml_string(ai.ollama_base_url)
     ollama_model = _escape_toml_string(ai.ollama_model)
+    character_name = _escape_toml_string(personality.character_name)
+    system_prompt = _escape_toml_string(personality.system_prompt)
 
     return (
         "[pet_window]\n"
@@ -51,8 +54,18 @@ def _serialize_config(config: AppConfig) -> str:
         f'ollama_base_url = "{ollama_base_url}"\n'
         f'ollama_model = "{ollama_model}"\n'
         f"request_timeout_seconds = {ai.request_timeout_seconds}\n"
+        "\n"
+        "[personality]\n"
+        f'character_name = "{character_name}"\n'
+        f'system_prompt = "{system_prompt}"\n'
     )
 
 
 def _escape_toml_string(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"')
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )

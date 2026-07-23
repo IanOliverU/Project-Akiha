@@ -15,9 +15,12 @@ class StaticProvider:
 
     def __init__(self, response: str) -> None:
         self._response = response
+        self.generate_messages: tuple[ChatMessage, ...] = ()
+        self.stream_messages: tuple[ChatMessage, ...] = ()
 
     async def generate_response(self, messages: tuple[ChatMessage, ...]) -> str:
         """Return the configured response."""
+        self.generate_messages = messages
         return self._response
 
     async def stream_response(
@@ -25,7 +28,7 @@ class StaticProvider:
         messages: tuple[ChatMessage, ...],
     ) -> AsyncIterator[str]:
         """Yield the configured response."""
-        del messages
+        self.stream_messages = messages
         yield self._response
 
     async def is_available(self) -> bool:
@@ -68,6 +71,29 @@ class ChatControllerTest(unittest.TestCase):
 
         self.assertEqual(chunks, ["streamed response"])
         self.assertEqual(controller.messages[-1].content, "streamed response")
+
+    def test_system_prompt_is_sent_to_provider_only(self) -> None:
+        provider = StaticProvider("hello from Akiha")
+        controller = ChatController(provider, system_prompt="Stay warm.")
+
+        asyncio.run(controller.submit_user_message("hello"))
+
+        self.assertEqual(provider.generate_messages[0].role, "system")
+        self.assertEqual(provider.generate_messages[0].content, "Stay warm.")
+        self.assertEqual(provider.generate_messages[1].role, "user")
+        self.assertEqual(provider.generate_messages[1].content, "hello")
+        self.assertEqual(
+            [message.role for message in controller.messages], ["user", "assistant"]
+        )
+
+    def test_system_prompt_can_be_replaced(self) -> None:
+        provider = StaticProvider("done")
+        controller = ChatController(provider, system_prompt="Old prompt.")
+
+        controller.set_system_prompt("New prompt.")
+        asyncio.run(_collect_stream(controller, "hello"))
+
+        self.assertEqual(provider.stream_messages[0].content, "New prompt.")
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:

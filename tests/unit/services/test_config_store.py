@@ -6,7 +6,13 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.config import AIConfig, AppConfig, PetWindowConfig, load_config
+from project_akiha.config import (
+    AIConfig,
+    AppConfig,
+    PersonalityConfig,
+    PetWindowConfig,
+    load_config,
+)
 from project_akiha.services.config_store import UserConfigStore
 
 
@@ -35,6 +41,10 @@ class UserConfigStoreTest(unittest.TestCase):
                         ollama_model="akiha-test",
                         request_timeout_seconds=15,
                     ),
+                    personality=PersonalityConfig(
+                        character_name="Mei",
+                        system_prompt="You are {character_name}.",
+                    ),
                 )
             )
 
@@ -54,6 +64,9 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.ai.provider, "ollama")
         self.assertEqual(config.ai.ollama_model, "akiha-test")
         self.assertEqual(config.ai.request_timeout_seconds, 15)
+        self.assertEqual(config.personality.character_name, "Mei")
+        self.assertEqual(config.personality.system_prompt, "You are {character_name}.")
+        self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:
@@ -72,6 +85,27 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(
             config.pet_window.animation_manifest_path,
             'C:\\Akiha "Sprites"\\manifest.toml',
+        )
+
+    def test_escapes_multiline_personality_prompt_for_toml(self) -> None:
+        with TemporaryDirectory() as directory:
+            config_path = Path(directory) / "user_config.toml"
+            store = UserConfigStore(config_path)
+            store.save_config(
+                AppConfig(
+                    personality=PersonalityConfig(
+                        character_name='Akiha "Test"',
+                        system_prompt="Line one.\nLine two with {character_name}.",
+                    )
+                )
+            )
+
+            config = load_config(config_path)
+
+        self.assertEqual(config.personality.character_name, 'Akiha "Test"')
+        self.assertEqual(
+            config.personality.system_prompt,
+            "Line one.\nLine two with {character_name}.",
         )
 
 

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.config import load_config
+from project_akiha.config import PersonalityConfig, load_config
 
 
 class SettingsTest(unittest.TestCase):
@@ -19,12 +19,22 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.pet_window.height, 220)
         self.assertEqual(config.pet_window.frames_per_second, 24)
         self.assertEqual(config.ai.provider, "mock")
+        self.assertEqual(config.personality.character_name, "Akiha")
+        self.assertIn("Akiha", config.personality.rendered_system_prompt())
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
             config_path = Path(directory) / "user_config.toml"
             config_path.write_text(
-                '[pet_window]\nwidth = 240\n\n[ai]\nprovider = "ollama"\n',
+                "[pet_window]\n"
+                "width = 240\n"
+                "\n"
+                "[ai]\n"
+                'provider = "ollama"\n'
+                "\n"
+                "[personality]\n"
+                'character_name = "Mei"\n'
+                'system_prompt = "You are {character_name}."\n',
                 encoding="utf-8",
             )
 
@@ -33,6 +43,19 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.pet_window.width, 240)
         self.assertEqual(config.pet_window.height, 220)
         self.assertEqual(config.ai.provider, "ollama")
+        self.assertEqual(config.personality.character_name, "Mei")
+        self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
+
+    def test_personality_prompt_replaces_only_character_name_token(self) -> None:
+        personality = PersonalityConfig(
+            character_name="Aki",
+            system_prompt="You are {character_name}. Keep literal braces: {json}.",
+        )
+
+        self.assertEqual(
+            personality.rendered_system_prompt(),
+            "You are Aki. Keep literal braces: {json}.",
+        )
 
 
 if __name__ == "__main__":

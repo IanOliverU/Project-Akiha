@@ -56,11 +56,38 @@ class AIConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PersonalityConfig:
+    """Settings that shape Akiha's chat persona."""
+
+    character_name: str = "Akiha"
+    system_prompt: str = (
+        "You are {character_name}, a warm, concise desktop companion. "
+        "Be helpful, friendly, and direct. Keep replies grounded in what the "
+        "user asked for, and do not claim abilities the app has not built yet."
+    )
+
+    def __post_init__(self) -> None:
+        """Validate personality settings."""
+        if not self.character_name.strip():
+            raise ValueError("personality.character_name cannot be empty.")
+        if not self.system_prompt.strip():
+            raise ValueError("personality.system_prompt cannot be empty.")
+
+    def rendered_system_prompt(self) -> str:
+        """Return the prompt text sent to the active AI provider."""
+        return self.system_prompt.replace(
+            "{character_name}",
+            self.character_name.strip(),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
     pet_window: PetWindowConfig = PetWindowConfig()
     ai: AIConfig = AIConfig()
+    personality: PersonalityConfig = PersonalityConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -69,6 +96,10 @@ class AppConfig:
     def with_ai(self, ai: AIConfig) -> AppConfig:
         """Return a copy with updated AI settings."""
         return replace(self, ai=ai)
+
+    def with_personality(self, personality: PersonalityConfig) -> AppConfig:
+        """Return a copy with updated personality settings."""
+        return replace(self, personality=personality)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -87,9 +118,14 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(ai_data, dict):
         raise ValueError("ai config must be a TOML table.")
 
+    personality_data = data.get("personality", {})
+    if not isinstance(personality_data, dict):
+        raise ValueError("personality config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
+        personality=PersonalityConfig(**personality_data),
     )
 
 
