@@ -38,7 +38,8 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("schema_version", table_names)
         self.assertIn("conversations", table_names)
         self.assertIn("messages", table_names)
-        self.assertEqual(versions, [(1,)])
+        self.assertIn("memories", table_names)
+        self.assertEqual(versions, [(1,), (2,)])
 
 
 if __name__ == "__main__":

@@ -28,3 +28,17 @@ class StoredMessage:
     role: MessageRole
     content: str
     created_at: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryEntry:
+    """A durable fact or preference remembered from interaction."""
+
+    id: int
+    content: str
+    source_conversation_id: int | None
+    importance: int
+    tags: tuple[str, ...]
+    created_at: str
+    updated_at: str
+    last_accessed_at: str | None

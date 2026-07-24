@@ -4,5 +4,10 @@ from project_akiha.database.migrator import DatabaseMigrator
 from project_akiha.database.sqlite_conversation_repository import (
     SQLiteConversationRepository,
 )
+from project_akiha.database.sqlite_memory_repository import SQLiteMemoryRepository
 
-__all__ = ["DatabaseMigrator", "SQLiteConversationRepository"]
+__all__ = [
+    "DatabaseMigrator",
+    "SQLiteConversationRepository",
+    "SQLiteMemoryRepository",
+]
