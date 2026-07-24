@@ -39,13 +39,14 @@ retrieved later and injected into prompts.
 - pending memory search/filter UI
 - `ConversationSummarizer` protocol
 - deterministic closed-conversation summaries
+- AI-assisted closed-conversation summaries with deterministic fallback
 - SQLite conversation `summary` storage through migration `0003_conversation_summaries.sql`
 - recent closed-conversation summary retrieval
 - hidden conversation-summary context injection into system prompts
 
 ## Not Yet In This Phase
 
-- AI-assisted summary generation
+- AI-assisted memory extraction
 - embeddings or vector search
 
 ## Storage
@@ -89,9 +90,9 @@ The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.
 
 When a new chat is started, the previous conversation is closed with a compact
-summary. The current implementation is deterministic and local; it records the
-visible message count and the first user topics without sending transcript
-content to an external summarizer.
+summary. The mock provider uses the deterministic local summarizer. When Ollama
+is configured, Akiha uses an AI-assisted summarizer and falls back to the
+deterministic summary if the provider fails or returns an empty result.
 
 Recent closed-conversation summaries can also be rendered into hidden prompt
 context. This gives Akiha lightweight continuity across chats without replaying

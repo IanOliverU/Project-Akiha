@@ -14,7 +14,12 @@ from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
-from project_akiha.core.memory import MemoryPipeline, StoredMessage
+from project_akiha.core.memory import (
+    ConversationSummarizer,
+    HeuristicConversationSummarizer,
+    MemoryPipeline,
+    StoredMessage,
+)
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.database import SQLiteConversationRepository, SQLiteMemoryRepository
 from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
@@ -26,6 +31,7 @@ from project_akiha.providers.animation import (
 )
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.config_store import UserConfigStore
+from project_akiha.services.conversation_summary import AIConversationSummarizer
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.path_resolver import ConfigPathResolver
@@ -80,8 +86,9 @@ def main() -> int:
     recent_messages = asyncio.run(
         conversation_repository.get_recent_messages(current_conversation.id, limit=50)
     )
+    ai_provider = _build_ai_provider(config.ai, logger)
     chat_controller = ChatController(
-        _build_ai_provider(config.ai, logger),
+        ai_provider,
         system_prompt=config.personality.rendered_system_prompt(),
         conversation_repository=conversation_repository,
         conversation_id=current_conversation.id,
@@ -91,6 +98,10 @@ def main() -> int:
         memory_enabled=config.memory.enabled,
         memory_retrieval_limit=config.memory.retrieval_limit,
         memory_requires_approval=config.memory.require_approval,
+        conversation_summarizer=_build_conversation_summarizer(
+            ai_provider,
+            config.ai,
+        ),
     )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
@@ -153,7 +164,11 @@ def main() -> int:
             updated_config.pet_window.animation_manifest_path
         )
         window.set_animation_provider(_build_animation_provider(manifest, logger))
-        chat_controller.set_ai_provider(_build_ai_provider(updated_config.ai, logger))
+        ai_provider = _build_ai_provider(updated_config.ai, logger)
+        chat_controller.set_ai_provider(ai_provider)
+        chat_controller.set_conversation_summarizer(
+            _build_conversation_summarizer(ai_provider, updated_config.ai)
+        )
         chat_controller.set_system_prompt(
             updated_config.personality.rendered_system_prompt()
         )
@@ -437,6 +452,16 @@ def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvide
 
     logger.info("Using mock AI provider.")
     return MockAIProvider()
+
+
+def _build_conversation_summarizer(
+    ai_provider: AIProvider,
+    ai_config: AIConfig,
+) -> ConversationSummarizer:
+    if ai_config.provider == "ollama":
+        return AIConversationSummarizer(ai_provider)
+
+    return HeuristicConversationSummarizer()
 
 
 def _stored_messages_to_chat_messages(

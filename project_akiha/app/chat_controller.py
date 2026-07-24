@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from inspect import isawaitable
 
 from project_akiha.core.memory import (
     ConversationRepository,
@@ -88,6 +89,13 @@ class ChatController:
         """Replace the provider used for future chat responses."""
         self._ai_provider = ai_provider
 
+    def set_conversation_summarizer(
+        self,
+        conversation_summarizer: ConversationSummarizer,
+    ) -> None:
+        """Replace the summarizer used for newly closed conversations."""
+        self._conversation_summarizer = conversation_summarizer
+
     def set_system_prompt(self, system_prompt: str) -> None:
         """Replace the system prompt used for future chat responses."""
         self._system_prompt = system_prompt.strip()
@@ -132,7 +140,7 @@ class ChatController:
             return
 
         if self._conversation_id is not None:
-            summary = self._conversation_summarizer.summarize(self.messages)
+            summary = await self._summarize_current_conversation()
             await self._conversation_repository.close_conversation(
                 self._conversation_id,
                 summary=summary or None,
@@ -141,6 +149,12 @@ class ChatController:
         conversation = await self._conversation_repository.create_conversation()
         self._conversation_id = conversation.id
         self._messages.clear()
+
+    async def _summarize_current_conversation(self) -> str:
+        summary = self._conversation_summarizer.summarize(self.messages)
+        if isawaitable(summary):
+            return await summary
+        return summary
 
     async def clear_current_conversation(self) -> None:
         """Clear the current transcript without starting a new conversation."""

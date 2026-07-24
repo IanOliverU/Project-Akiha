@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from typing import Protocol
 
 from project_akiha.core.memory.models import MessageRole
@@ -18,7 +18,10 @@ class SummarySourceMessage(Protocol):
 class ConversationSummarizer(Protocol):
     """Create a compact digest of a transcript."""
 
-    def summarize(self, messages: Sequence[SummarySourceMessage]) -> str:
+    def summarize(
+        self,
+        messages: Sequence[SummarySourceMessage],
+    ) -> str | Awaitable[str]:
         """Return a compact summary, or an empty string when there is nothing useful."""
 
 
