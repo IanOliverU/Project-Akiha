@@ -28,6 +28,8 @@ retrieved later and injected into prompts.
 - memory manager opened from Settings
 - recent memory review
 - saved memory search/filter UI
+- saved memory editing
+- saved memory importance and tag editing
 - delete selected memory
 - clear all memories with confirmation
 - optional memory approval before saving

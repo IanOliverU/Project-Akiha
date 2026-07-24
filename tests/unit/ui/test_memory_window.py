@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from project_akiha.core.memory import MemoryCandidate, MemoryEntry, PendingMemory
-from project_akiha.ui.memory_window import MemoryWindow
+from project_akiha.ui.memory_window import MemoryEditDialog, MemoryWindow, _parse_tags
 
 
 class MemoryWindowTest(unittest.TestCase):
@@ -72,6 +72,42 @@ class MemoryWindowTest(unittest.TestCase):
         window._memory_filter_input.setText("krita")
 
         self.assertIsNone(window.selected_memory_id())
+
+    def test_selected_memory_returns_full_memory_entry(self) -> None:
+        window = MemoryWindow()
+        window.update_memories(
+            (
+                _memory(1, "User prefers concise replies."),
+                _memory(2, "User uses Krita."),
+            )
+        )
+
+        window._memory_list.setCurrentRow(1)
+
+        selected = window.selected_memory()
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected.id, 2)
+        self.assertEqual(selected.content, "User uses Krita.")
+
+    def test_edit_dialog_returns_normalized_values(self) -> None:
+        dialog = MemoryEditDialog(
+            _memory(1, "User prefers concise replies.", tags=("preference",))
+        )
+
+        dialog._content_input.setPlainText(" Updated memory. ")
+        dialog._importance_input.setValue(5)
+        dialog._tags_input.setText("Preference, tool, tool")
+
+        self.assertEqual(
+            dialog.values(),
+            ("Updated memory.", 5, ("preference", "tool")),
+        )
+
+    def test_parse_tags_ignores_empty_and_duplicate_values(self) -> None:
+        self.assertEqual(
+            _parse_tags(" Preference, , Tool, preference "),
+            ("preference", "tool"),
+        )
 
 
 def _memory(

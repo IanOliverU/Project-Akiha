@@ -80,6 +80,15 @@ class MemoryRepository(Protocol):
     ) -> tuple[MemoryEntry, ...]:
         """Return memories relevant to a user query."""
 
+    async def update_memory(
+        self,
+        memory_id: int,
+        content: str,
+        importance: int,
+        tags: Sequence[str] = (),
+    ) -> MemoryEntry:
+        """Update one durable memory."""
+
     async def delete_memory(self, memory_id: int) -> None:
         """Delete one memory."""
 

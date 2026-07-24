@@ -70,6 +70,29 @@ class SQLiteMemoryRepository:
             limit,
         )
 
+    async def update_memory(
+        self,
+        memory_id: int,
+        content: str,
+        importance: int,
+        tags: Sequence[str] = (),
+    ) -> MemoryEntry:
+        """Update one durable memory."""
+        normalized_content = content.strip()
+        if not normalized_content:
+            raise ValueError("memory content cannot be empty.")
+        if not 1 <= importance <= 5:
+            raise ValueError("memory importance must be between 1 and 5.")
+
+        normalized_tags = _normalize_tags(tags)
+        return await asyncio.to_thread(
+            self._update_memory,
+            memory_id,
+            normalized_content,
+            importance,
+            normalized_tags,
+        )
+
     async def delete_memory(self, memory_id: int) -> None:
         """Delete one memory."""
         await asyncio.to_thread(self._delete_memory, memory_id)
@@ -183,6 +206,43 @@ class SQLiteMemoryRepository:
             connection.close()
 
         return tuple(_memory_from_row(row) for row in rows)
+
+    def _update_memory(
+        self,
+        memory_id: int,
+        content: str,
+        importance: int,
+        tags: tuple[str, ...],
+    ) -> MemoryEntry:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                UPDATE memories
+                SET content = ?,
+                    importance = ?,
+                    tags_json = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (content, importance, json.dumps(tags), timestamp, memory_id),
+            )
+            row = connection.execute(
+                """
+                SELECT id, content, source_conversation_id, importance, tags_json,
+                       created_at, updated_at, last_accessed_at
+                FROM memories
+                WHERE id = ?
+                """,
+                (memory_id,),
+            ).fetchone()
+            connection.commit()
+            if row is None:
+                raise ValueError("memory was not found.")
+            return _memory_from_row(row)
+        finally:
+            connection.close()
 
     def _delete_memory(self, memory_id: int) -> None:
         connection = self._connect()

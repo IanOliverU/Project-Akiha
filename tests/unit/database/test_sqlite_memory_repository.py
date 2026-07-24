@@ -87,6 +87,45 @@ class SQLiteMemoryRepositoryTest(unittest.TestCase):
             ["User prefers concise answers."],
         )
 
+    def test_update_memory_changes_content_importance_and_tags(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+            memory = asyncio.run(
+                repository.save_memory(
+                    "User likes long replies.",
+                    importance=2,
+                    tags=("style",),
+                )
+            )
+
+            updated = asyncio.run(
+                repository.update_memory(
+                    memory.id,
+                    content="User prefers concise replies.",
+                    importance=5,
+                    tags=("Preference", "style", "style"),
+                )
+            )
+
+        self.assertEqual(updated.id, memory.id)
+        self.assertEqual(updated.content, "User prefers concise replies.")
+        self.assertEqual(updated.importance, 5)
+        self.assertEqual(updated.tags, ("preference", "style"))
+        self.assertEqual(updated.created_at, memory.created_at)
+        self.assertNotEqual(updated.updated_at, "")
+
+    def test_update_memory_validates_input(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+            memory = asyncio.run(repository.save_memory("User uses Krita."))
+
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.update_memory(memory.id, "   ", 3))
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.update_memory(memory.id, "Valid.", 6))
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.update_memory(999, "Missing.", 3))
+
     def test_delete_memory_removes_it_from_retrieval(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")

@@ -207,6 +207,28 @@ def main() -> int:
         refresh_memory_window()
         memory_window.append_notice("Memory deleted.")
 
+    def edit_memory(
+        memory_id: int,
+        content: str,
+        importance: int,
+        tags: tuple[str, ...],
+    ) -> None:
+        try:
+            asyncio.run(
+                memory_repository.update_memory(
+                    memory_id=memory_id,
+                    content=content,
+                    importance=importance,
+                    tags=tags,
+                )
+            )
+        except ValueError as error:
+            memory_window.append_notice(str(error))
+            return
+
+        refresh_memory_window()
+        memory_window.append_notice("Memory updated.")
+
     def clear_memories() -> None:
         asyncio.run(memory_repository.clear_memories())
         refresh_memory_window()
@@ -332,6 +354,7 @@ def main() -> int:
     chat_window.clear_chat_requested.connect(clear_current_chat)
     chat_window.export_chat_requested.connect(export_current_chat)
     memory_window.refresh_requested.connect(refresh_memory_window)
+    memory_window.edit_requested.connect(edit_memory)
     memory_window.delete_requested.connect(delete_memory)
     memory_window.clear_requested.connect(clear_memories)
     memory_window.approve_requested.connect(approve_pending_memory)

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -11,7 +14,9 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTabWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +28,7 @@ class MemoryWindow(QWidget):
     """Small window for reviewing and deleting saved memories."""
 
     refresh_requested = Signal()
+    edit_requested = Signal(int, str, int, object)
     delete_requested = Signal(int)
     clear_requested = Signal()
     approve_requested = Signal(int)
@@ -57,6 +63,9 @@ class MemoryWindow(QWidget):
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_requested.emit)
 
+        edit_button = QPushButton("Edit")
+        edit_button.clicked.connect(self._request_edit_selected)
+
         delete_button = QPushButton("Delete")
         delete_button.clicked.connect(self._request_delete_selected)
 
@@ -74,6 +83,7 @@ class MemoryWindow(QWidget):
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(refresh_button)
+        button_layout.addWidget(edit_button)
         button_layout.addWidget(delete_button)
         button_layout.addWidget(clear_button)
         button_layout.addWidget(approve_button)
@@ -124,6 +134,17 @@ class MemoryWindow(QWidget):
         value = item.data(Qt.ItemDataRole.UserRole)
         return int(value) if value is not None else None
 
+    def selected_memory(self) -> MemoryEntry | None:
+        """Return the selected memory, if any."""
+        memory_id = self.selected_memory_id()
+        if memory_id is None:
+            return None
+
+        return next(
+            (memory for memory in self._memories if memory.id == memory_id),
+            None,
+        )
+
     def selected_pending_memory_id(self) -> int | None:
         """Return the selected pending memory id, if any."""
         item = self._pending_list.currentItem()
@@ -131,6 +152,17 @@ class MemoryWindow(QWidget):
             return None
         value = item.data(Qt.ItemDataRole.UserRole)
         return int(value) if value is not None else None
+
+    def _request_edit_selected(self) -> None:
+        memory = self.selected_memory()
+        if memory is None:
+            self.append_notice("Select a memory first.")
+            return
+
+        dialog = MemoryEditDialog(memory, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            content, importance, tags = dialog.values()
+            self.edit_requested.emit(memory.id, content, importance, tags)
 
     def _request_delete_selected(self) -> None:
         memory_id = self.selected_memory_id()
@@ -194,6 +226,60 @@ class MemoryWindow(QWidget):
         )
 
 
+class MemoryEditDialog(QDialog):
+    """Dialog for correcting a saved memory."""
+
+    def __init__(self, memory: MemoryEntry, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.setWindowTitle("Edit Memory")
+        self.setMinimumWidth(420)
+
+        self._content_input = QTextEdit()
+        self._content_input.setPlainText(memory.content)
+        self._content_input.setMinimumHeight(90)
+
+        self._importance_input = QSpinBox()
+        self._importance_input.setRange(1, 5)
+        self._importance_input.setValue(memory.importance)
+
+        self._tags_input = QLineEdit(", ".join(memory.tags))
+        self._tags_input.setPlaceholderText("preference, tool, style")
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_if_valid)
+        buttons.rejected.connect(self.reject)
+
+        form_layout = QFormLayout()
+        form_layout.addRow("Memory", self._content_input)
+        form_layout.addRow("Importance", self._importance_input)
+        form_layout.addRow("Tags", self._tags_input)
+
+        layout = QVBoxLayout()
+        layout.addLayout(form_layout)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+    def values(self) -> tuple[str, int, tuple[str, ...]]:
+        """Return edited memory values."""
+        return (
+            self._content_input.toPlainText().strip(),
+            self._importance_input.value(),
+            _parse_tags(self._tags_input.text()),
+        )
+
+    def _accept_if_valid(self) -> None:
+        content, _, _ = self.values()
+        if not content:
+            QMessageBox.warning(self, "Edit memory", "Memory cannot be empty.")
+            return
+
+        self.accept()
+
+
 def _format_memory(memory: MemoryEntry) -> str:
     tags = f" [{', '.join(memory.tags)}]" if memory.tags else ""
     return f"#{memory.id}  Importance {memory.importance}  {memory.content}{tags}"
@@ -236,6 +322,12 @@ def _pluralize(singular: str) -> str:
     if singular.endswith("memory"):
         return f"{singular.removesuffix('memory')}memories"
     return f"{singular}s"
+
+
+def _parse_tags(value: str) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(tag.strip().lower() for tag in value.split(",") if tag.strip())
+    )
 
 
 def _wrap_list(search_input: QLineEdit, memory_list: QListWidget) -> QWidget:
