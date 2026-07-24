@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.chat_controller import ChatController
+from project_akiha.app.mood_animation_controller import MoodAnimationController
 from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
@@ -19,6 +20,7 @@ from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryCon
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
+    MoodAnimationMapper,
     MoodEngine,
     NotificationPolicy,
     ProactiveDeliveryService,
@@ -144,6 +146,11 @@ def main() -> int:
     pet_controller = PetController(
         event_bus=event_bus,
         animation_state=animation_state,
+    )
+    mood_animation_controller = MoodAnimationController(
+        event_bus=event_bus,
+        mapper=MoodAnimationMapper(),
+        initial_animation_state=pet_controller.animation_state,
     )
     window_state_store = WindowStateStore(paths.state_dir / "pet_window.json")
     fallback_position = WindowPosition(
@@ -486,6 +493,7 @@ def main() -> int:
         memory_pipeline,
         memory_repository,
         memory_window,
+        mood_animation_controller,
         mood_controller,
         notification_policy,
         pet_controller,
