@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import ceil
 from pathlib import Path
 
 from PySide6.QtCore import QTime, QUrl, Signal
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QTabWidget,
     QTimeEdit,
     QVBoxLayout,
     QWidget,
@@ -91,21 +93,21 @@ class SettingsWindow(QWidget):
         self._behavior_enabled_input.setChecked(config.behavior.enabled)
         self._proactive_enabled_input = QCheckBox()
         self._proactive_enabled_input.setChecked(config.behavior.proactive_enabled)
-        self._idle_after_input = _build_spinbox(
-            30,
-            86400,
+        self._idle_after_input = _build_minutes_spinbox(
+            1,
+            1440,
             config.behavior.idle_after_seconds,
         )
-        self._away_after_input = _build_spinbox(
-            60,
-            86400,
+        self._away_after_input = _build_minutes_spinbox(
+            2,
+            1440,
             config.behavior.away_after_seconds,
         )
         self._idle_after_input.valueChanged.connect(self._sync_away_minimum)
-        self._sync_away_minimum(config.behavior.idle_after_seconds)
-        self._notification_cooldown_input = _build_spinbox(
-            60,
-            86400,
+        self._sync_away_minimum(_seconds_to_minutes(config.behavior.idle_after_seconds))
+        self._notification_cooldown_input = _build_minutes_spinbox(
+            1,
+            1440,
             config.behavior.minimum_seconds_between_notifications,
         )
         self._allow_notifications_while_away_input = QCheckBox()
@@ -116,9 +118,9 @@ class SettingsWindow(QWidget):
         self._scheduled_check_ins_enabled_input.setChecked(
             config.behavior.scheduled_check_ins_enabled
         )
-        self._scheduled_check_in_interval_input = _build_spinbox(
-            60,
-            86400,
+        self._scheduled_check_in_interval_input = _build_minutes_spinbox(
+            1,
+            1440,
             config.behavior.scheduled_check_in_interval_seconds,
         )
         self._quiet_hours_enabled_input = QCheckBox()
@@ -128,44 +130,11 @@ class SettingsWindow(QWidget):
         )
         self._quiet_hours_end_input = _build_time_input(config.behavior.quiet_hours_end)
 
-        form_layout = QFormLayout()
-        form_layout.addRow("Width", self._width_input)
-        form_layout.addRow("Height", self._height_input)
-        form_layout.addRow("FPS", self._fps_input)
-        form_layout.addRow("Walking speed", self._walking_speed_input)
-        form_layout.addRow("Start X", self._start_x_input)
-        form_layout.addRow("Start Y", self._start_y_input)
-        form_layout.addRow("Always on top", self._always_on_top_input)
-        form_layout.addRow("Animation manifest", self._build_manifest_row())
-        form_layout.addRow("AI provider", self._ai_provider_input)
-        form_layout.addRow("Ollama URL", self._ollama_base_url_input)
-        form_layout.addRow("Ollama model", self._ollama_model_input)
-        form_layout.addRow("AI timeout", self._ai_timeout_input)
-        form_layout.addRow("Companion name", self._character_name_input)
-        form_layout.addRow("System prompt", self._system_prompt_input)
-        form_layout.addRow("Memory enabled", self._memory_enabled_input)
-        form_layout.addRow("Approve memories", self._memory_approval_input)
-        form_layout.addRow("Memory retrieval limit", self._memory_retrieval_limit_input)
-        form_layout.addRow("Behavior enabled", self._behavior_enabled_input)
-        form_layout.addRow("Proactive enabled", self._proactive_enabled_input)
-        form_layout.addRow("Idle after seconds", self._idle_after_input)
-        form_layout.addRow("Away after seconds", self._away_after_input)
-        form_layout.addRow("Notification cooldown", self._notification_cooldown_input)
-        form_layout.addRow(
-            "Notify while away",
-            self._allow_notifications_while_away_input,
-        )
-        form_layout.addRow(
-            "Scheduled check-ins",
-            self._scheduled_check_ins_enabled_input,
-        )
-        form_layout.addRow(
-            "Check-in interval",
-            self._scheduled_check_in_interval_input,
-        )
-        form_layout.addRow("Quiet hours enabled", self._quiet_hours_enabled_input)
-        form_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
-        form_layout.addRow("Quiet hours end", self._quiet_hours_end_input)
+        tabs = QTabWidget()
+        tabs.addTab(self._build_pet_tab(), "Pet")
+        tabs.addTab(self._build_ai_tab(), "AI")
+        tabs.addTab(self._build_memory_tab(), "Memory")
+        tabs.addTab(self._build_behavior_tab(), "Behavior")
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -185,15 +154,8 @@ class SettingsWindow(QWidget):
         button_layout.addWidget(open_logs_button)
         button_layout.addWidget(memories_button)
 
-        form_container = QWidget()
-        form_container.setLayout(form_layout)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(form_container)
-
         layout = QVBoxLayout()
-        layout.addWidget(scroll_area)
+        layout.addWidget(tabs)
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
@@ -219,11 +181,15 @@ class SettingsWindow(QWidget):
         self._memory_retrieval_limit_input.setValue(config.memory.retrieval_limit)
         self._behavior_enabled_input.setChecked(config.behavior.enabled)
         self._proactive_enabled_input.setChecked(config.behavior.proactive_enabled)
-        self._idle_after_input.setValue(config.behavior.idle_after_seconds)
-        self._sync_away_minimum(config.behavior.idle_after_seconds)
-        self._away_after_input.setValue(config.behavior.away_after_seconds)
+        self._idle_after_input.setValue(
+            _seconds_to_minutes(config.behavior.idle_after_seconds)
+        )
+        self._sync_away_minimum(_seconds_to_minutes(config.behavior.idle_after_seconds))
+        self._away_after_input.setValue(
+            _seconds_to_minutes(config.behavior.away_after_seconds)
+        )
         self._notification_cooldown_input.setValue(
-            config.behavior.minimum_seconds_between_notifications
+            _seconds_to_minutes(config.behavior.minimum_seconds_between_notifications)
         )
         self._allow_notifications_while_away_input.setChecked(
             config.behavior.allow_notifications_while_away
@@ -232,7 +198,7 @@ class SettingsWindow(QWidget):
             config.behavior.scheduled_check_ins_enabled
         )
         self._scheduled_check_in_interval_input.setValue(
-            config.behavior.scheduled_check_in_interval_seconds
+            _seconds_to_minutes(config.behavior.scheduled_check_in_interval_seconds)
         )
         self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
         self._quiet_hours_start_input.setTime(
@@ -253,6 +219,59 @@ class SettingsWindow(QWidget):
         layout.addWidget(browse_button)
         row.setLayout(layout)
         return row
+
+    def _build_pet_tab(self) -> QWidget:
+        form_layout = QFormLayout()
+        form_layout.addRow("Width", self._width_input)
+        form_layout.addRow("Height", self._height_input)
+        form_layout.addRow("FPS", self._fps_input)
+        form_layout.addRow("Walking speed", self._walking_speed_input)
+        form_layout.addRow("Start X", self._start_x_input)
+        form_layout.addRow("Start Y", self._start_y_input)
+        form_layout.addRow("Always on top", self._always_on_top_input)
+        form_layout.addRow("Animation manifest", self._build_manifest_row())
+        return _build_scroll_tab(form_layout)
+
+    def _build_ai_tab(self) -> QWidget:
+        form_layout = QFormLayout()
+        form_layout.addRow("AI provider", self._ai_provider_input)
+        form_layout.addRow("Ollama URL", self._ollama_base_url_input)
+        form_layout.addRow("Ollama model", self._ollama_model_input)
+        form_layout.addRow("AI timeout", self._ai_timeout_input)
+        form_layout.addRow("Companion name", self._character_name_input)
+        form_layout.addRow("System prompt", self._system_prompt_input)
+        return _build_scroll_tab(form_layout)
+
+    def _build_memory_tab(self) -> QWidget:
+        form_layout = QFormLayout()
+        form_layout.addRow("Memory enabled", self._memory_enabled_input)
+        form_layout.addRow("Approve memories", self._memory_approval_input)
+        form_layout.addRow("Memory retrieval limit", self._memory_retrieval_limit_input)
+        return _build_scroll_tab(form_layout)
+
+    def _build_behavior_tab(self) -> QWidget:
+        form_layout = QFormLayout()
+        form_layout.addRow("Behavior enabled", self._behavior_enabled_input)
+        form_layout.addRow("Proactive nudges", self._proactive_enabled_input)
+        form_layout.addRow("Idle after", self._idle_after_input)
+        form_layout.addRow("Away after", self._away_after_input)
+        form_layout.addRow("Nudge cooldown", self._notification_cooldown_input)
+        form_layout.addRow(
+            "Notify while away",
+            self._allow_notifications_while_away_input,
+        )
+        form_layout.addRow(
+            "Scheduled check-ins",
+            self._scheduled_check_ins_enabled_input,
+        )
+        form_layout.addRow(
+            "Check-in interval",
+            self._scheduled_check_in_interval_input,
+        )
+        form_layout.addRow("Quiet hours enabled", self._quiet_hours_enabled_input)
+        form_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
+        form_layout.addRow("Quiet hours end", self._quiet_hours_end_input)
+        return _build_scroll_tab(form_layout)
 
     def _browse_manifest(self) -> None:
         selected_path, _ = QFileDialog.getOpenFileName(
@@ -301,10 +320,10 @@ class SettingsWindow(QWidget):
             BehaviorConfig(
                 enabled=self._behavior_enabled_input.isChecked(),
                 proactive_enabled=self._proactive_enabled_input.isChecked(),
-                idle_after_seconds=self._idle_after_input.value(),
-                away_after_seconds=self._away_after_input.value(),
+                idle_after_seconds=_minutes_to_seconds(self._idle_after_input.value()),
+                away_after_seconds=_minutes_to_seconds(self._away_after_input.value()),
                 minimum_seconds_between_notifications=(
-                    self._notification_cooldown_input.value()
+                    _minutes_to_seconds(self._notification_cooldown_input.value())
                 ),
                 allow_notifications_while_away=(
                     self._allow_notifications_while_away_input.isChecked()
@@ -313,7 +332,7 @@ class SettingsWindow(QWidget):
                     self._scheduled_check_ins_enabled_input.isChecked()
                 ),
                 scheduled_check_in_interval_seconds=(
-                    self._scheduled_check_in_interval_input.value()
+                    _minutes_to_seconds(self._scheduled_check_in_interval_input.value())
                 ),
                 quiet_hours_enabled=self._quiet_hours_enabled_input.isChecked(),
                 quiet_hours_start=_format_time_input(self._quiet_hours_start_input),
@@ -323,8 +342,8 @@ class SettingsWindow(QWidget):
         self.update_config(config)
         self.settings_saved.emit(config)
 
-    def _sync_away_minimum(self, idle_after_seconds: int) -> None:
-        self._away_after_input.setMinimum(idle_after_seconds + 1)
+    def _sync_away_minimum(self, idle_after_minutes: int) -> None:
+        self._away_after_input.setMinimum(idle_after_minutes + 1)
 
     def _open_logs(self) -> None:
         self._log_dir.mkdir(parents=True, exist_ok=True)
@@ -336,6 +355,30 @@ def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
     spinbox.setRange(minimum, maximum)
     spinbox.setValue(value)
     return spinbox
+
+
+def _build_minutes_spinbox(minimum: int, maximum: int, value_seconds: int) -> QSpinBox:
+    spinbox = _build_spinbox(minimum, maximum, _seconds_to_minutes(value_seconds))
+    spinbox.setSuffix(" min")
+    return spinbox
+
+
+def _build_scroll_tab(form_layout: QFormLayout) -> QScrollArea:
+    form_container = QWidget()
+    form_container.setLayout(form_layout)
+
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setWidget(form_container)
+    return scroll_area
+
+
+def _seconds_to_minutes(seconds: int) -> int:
+    return max(1, ceil(seconds / 60))
+
+
+def _minutes_to_seconds(minutes: int) -> int:
+    return minutes * 60
 
 
 def _build_time_input(value: str) -> QTimeEdit:
