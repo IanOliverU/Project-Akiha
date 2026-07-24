@@ -34,6 +34,7 @@ class SettingsWindow(QWidget):
 
     settings_saved = Signal(object)
     position_reset_requested = Signal()
+    memory_manager_requested = Signal()
 
     def __init__(
         self,
@@ -109,10 +110,14 @@ class SettingsWindow(QWidget):
         open_logs_button = QPushButton("Open logs")
         open_logs_button.clicked.connect(self._open_logs)
 
+        memories_button = QPushButton("Memories")
+        memories_button.clicked.connect(self.memory_manager_requested.emit)
+
         button_layout = QHBoxLayout()
         button_layout.addWidget(save_button)
         button_layout.addWidget(reset_position_button)
         button_layout.addWidget(open_logs_button)
+        button_layout.addWidget(memories_button)
 
         layout = QVBoxLayout()
         layout.addLayout(form_layout)

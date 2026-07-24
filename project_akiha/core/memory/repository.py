@@ -71,3 +71,6 @@ class MemoryRepository(Protocol):
 
     async def delete_memory(self, memory_id: int) -> None:
         """Delete one memory."""
+
+    async def clear_memories(self) -> None:
+        """Delete all memories."""

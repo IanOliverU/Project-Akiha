@@ -41,6 +41,7 @@ from project_akiha.services.window_placement import (
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
+from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.settings_window import SettingsWindow
@@ -130,6 +131,7 @@ def main() -> int:
         log_dir=paths.log_dir,
     )
     chat_window = ChatWindow()
+    memory_window = MemoryWindow()
     _populate_chat_window(
         chat_window=chat_window,
         messages=chat_controller.messages,
@@ -184,6 +186,26 @@ def main() -> int:
         settings_window.show()
         settings_window.raise_()
         settings_window.activateWindow()
+
+    def refresh_memory_window() -> None:
+        memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
+        memory_window.update_memories(memories)
+
+    def show_memory_manager() -> None:
+        refresh_memory_window()
+        memory_window.show()
+        memory_window.raise_()
+        memory_window.activateWindow()
+
+    def delete_memory(memory_id: int) -> None:
+        asyncio.run(memory_repository.delete_memory(memory_id))
+        refresh_memory_window()
+        memory_window.append_notice("Memory deleted.")
+
+    def clear_memories() -> None:
+        asyncio.run(memory_repository.clear_memories())
+        refresh_memory_window()
+        memory_window.append_notice("All memories cleared.")
 
     def show_chat(event: Event | None = None) -> None:
         del event
@@ -289,8 +311,12 @@ def main() -> int:
     chat_window.new_chat_requested.connect(start_new_chat)
     chat_window.clear_chat_requested.connect(clear_current_chat)
     chat_window.export_chat_requested.connect(export_current_chat)
+    memory_window.refresh_requested.connect(refresh_memory_window)
+    memory_window.delete_requested.connect(delete_memory)
+    memory_window.clear_requested.connect(clear_memories)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
+    settings_window.memory_manager_requested.connect(show_memory_manager)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
     app.aboutToQuit.connect(save_window_position)
 
@@ -308,6 +334,7 @@ def main() -> int:
         event_logger,
         memory_pipeline,
         memory_repository,
+        memory_window,
         pet_controller,
         settings_window,
         tray_icon,

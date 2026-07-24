@@ -74,6 +74,10 @@ class SQLiteMemoryRepository:
         """Delete one memory."""
         await asyncio.to_thread(self._delete_memory, memory_id)
 
+    async def clear_memories(self) -> None:
+        """Delete all memories."""
+        await asyncio.to_thread(self._clear_memories)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
@@ -184,6 +188,14 @@ class SQLiteMemoryRepository:
         connection = self._connect()
         try:
             connection.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+            connection.commit()
+        finally:
+            connection.close()
+
+    def _clear_memories(self) -> None:
+        connection = self._connect()
+        try:
+            connection.execute("DELETE FROM memories")
             connection.commit()
         finally:
             connection.close()

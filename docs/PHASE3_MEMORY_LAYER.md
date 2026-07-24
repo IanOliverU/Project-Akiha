@@ -25,10 +25,14 @@ retrieved later and injected into prompts.
 - relevant memory retrieval before provider calls
 - hidden memory context injection into system prompts
 - configurable memory retrieval limit
+- memory manager opened from Settings
+- recent memory review
+- delete selected memory
+- clear all memories with confirmation
 
 ## Not Yet In This Phase
 
-- memory review/approval UI
+- memory approval before saving
 - summarization of closed conversations
 - embeddings or vector search
 
@@ -71,6 +75,11 @@ replace or augment this stage later without changing storage or retrieval.
 
 The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.
+
+## Memory Management
+
+Settings can open the memory manager. The manager lists recent memories and can
+delete one selected memory or clear all memories after confirmation.
 
 ## Prompt Context
 

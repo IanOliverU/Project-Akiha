@@ -97,6 +97,17 @@ class SQLiteMemoryRepositoryTest(unittest.TestCase):
 
         self.assertEqual(memories, ())
 
+    def test_clear_memories_removes_all_memories(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+            asyncio.run(repository.save_memory("First memory."))
+            asyncio.run(repository.save_memory("Second memory."))
+
+            asyncio.run(repository.clear_memories())
+            memories = asyncio.run(repository.get_recent_memories(limit=10))
+
+        self.assertEqual(memories, ())
+
     def test_validates_memory_input(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
