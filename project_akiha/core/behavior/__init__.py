@@ -12,6 +12,7 @@ from project_akiha.core.behavior.delivery import (
     ProactiveDeliveryService,
     ProactiveDeliverySurface,
 )
+from project_akiha.core.behavior.history import BehaviorEvent
 from project_akiha.core.behavior.mood import CompanionMood, MoodEngine, MoodSnapshot
 from project_akiha.core.behavior.mood_animation import (
     MoodAnimationDecision,
@@ -33,6 +34,7 @@ __all__ = [
     "ActivitySnapshot",
     "ActivityState",
     "ActivityTracker",
+    "BehaviorEvent",
     "CompanionMood",
     "DeliveryChannel",
     "MoodEngine",

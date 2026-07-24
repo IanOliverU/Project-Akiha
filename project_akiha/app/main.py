@@ -40,7 +40,11 @@ from project_akiha.core.memory.extraction import (
     MemoryExtractor,
 )
 from project_akiha.core.state.animation import AnimationStateMachine
-from project_akiha.database import SQLiteConversationRepository, SQLiteMemoryRepository
+from project_akiha.database import (
+    SQLiteBehaviorRepository,
+    SQLiteConversationRepository,
+    SQLiteMemoryRepository,
+)
 from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
 from project_akiha.providers.ai.base import ChatMessage
 from project_akiha.providers.animation import (
@@ -49,6 +53,7 @@ from project_akiha.providers.animation import (
     PlaceholderAnimationProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
+from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.conversation_summary import AIConversationSummarizer
 from project_akiha.services.event_logger import EventLogger
@@ -112,6 +117,11 @@ def main() -> int:
     scheduled_check_in_controller = ScheduledCheckInController(
         event_bus,
         scheduled_check_in_engine,
+    )
+    behavior_repository = SQLiteBehaviorRepository(paths.database_path)
+    behavior_history_recorder = BehaviorHistoryRecorder(
+        event_bus=event_bus,
+        repository=behavior_repository,
     )
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
@@ -487,6 +497,8 @@ def main() -> int:
         activity_controller,
         activity_tick_timer,
         active_chat_threads,
+        behavior_history_recorder,
+        behavior_repository,
         chat_window,
         conversation_repository,
         event_logger,
