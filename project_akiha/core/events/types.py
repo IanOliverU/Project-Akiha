@@ -21,5 +21,6 @@ class EventType(StrEnum):
     USER_ACTIVITY_STATE_CHANGED = "activity.state_changed"
     PROACTIVE_SUGGESTION_READY = "proactive.suggestion_ready"
     PROACTIVE_SUGGESTION_DELIVERED = "proactive.suggestion_delivered"
+    MOOD_STATE_CHANGED = "mood.state_changed"
     STATE_CHANGED = "state.changed"
     ERROR_OCCURRED = "error.occurred"

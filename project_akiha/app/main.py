@@ -12,12 +12,14 @@ from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.chat_controller import ChatController
+from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
+    MoodEngine,
     NotificationPolicy,
     ProactiveDeliveryService,
     ProactiveSuggestionEngine,
@@ -95,6 +97,7 @@ def main() -> int:
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
+    mood_controller = MoodController(event_bus, MoodEngine())
     notification_policy = NotificationPolicy(config.behavior)
     proactive_controller = ProactiveController(
         event_bus,
@@ -483,6 +486,7 @@ def main() -> int:
         memory_pipeline,
         memory_repository,
         memory_window,
+        mood_controller,
         notification_policy,
         pet_controller,
         proactive_controller,
