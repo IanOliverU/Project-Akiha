@@ -17,6 +17,7 @@ retrieved later and injected into prompts.
 - `MemoryCandidate` model
 - `MemoryExtractor` protocol
 - `HeuristicMemoryExtractor`
+- AI-assisted memory extraction with deterministic fallback
 - `MemoryNormalizer` protocol and default implementation
 - `MemoryPolicy` protocol and default validation policy
 - `MemoryPipeline` orchestration for extraction, normalization, validation, and storage
@@ -46,7 +47,6 @@ retrieved later and injected into prompts.
 
 ## Not Yet In This Phase
 
-- AI-assisted memory extraction
 - embeddings or vector search
 
 ## Storage
@@ -81,10 +81,11 @@ Memory is handled as a pipeline rather than one large service:
 3. Validate confidence, source role, specificity, and duplicates.
 4. Store accepted memories through `MemoryRepository`.
 
-The current extractor is deterministic and conservative. It recognizes explicit
+The default extractor is deterministic and conservative. It recognizes explicit
 requests like `remember that ...`, preference statements like `I prefer ...`,
-and identity statements like `my name is ...`. Ollama-assisted extraction can
-replace or augment this stage later without changing storage or retrieval.
+and identity statements like `my name is ...`. When Ollama is configured, Akiha
+uses AI-assisted extraction and falls back to the deterministic extractor if the
+provider fails or returns invalid candidates.
 
 The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.

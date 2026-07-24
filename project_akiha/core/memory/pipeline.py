@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from inspect import isawaitable
 
 from project_akiha.core.memory.extraction import (
     HeuristicMemoryExtractor,
@@ -35,6 +36,10 @@ class MemoryPipeline:
         self._policy = policy or DefaultMemoryPolicy()
         self._duplicate_scan_limit = duplicate_scan_limit
 
+    def set_extractor(self, extractor: MemoryExtractor) -> None:
+        """Replace the extractor used for future memory collection."""
+        self._extractor = extractor
+
     async def process_messages(
         self,
         messages: Sequence[MemorySourceMessage],
@@ -57,9 +62,12 @@ class MemoryPipeline:
         messages: Sequence[MemorySourceMessage],
     ) -> tuple[MemoryCandidate, ...]:
         """Extract, normalize, and validate memory candidates."""
+        extracted_candidates = self._extractor.extract(messages)
+        if isawaitable(extracted_candidates):
+            extracted_candidates = await extracted_candidates
+
         candidates = tuple(
-            self._normalizer.normalize(candidate)
-            for candidate in self._extractor.extract(messages)
+            self._normalizer.normalize(candidate) for candidate in extracted_candidates
         )
         if not candidates:
             return ()

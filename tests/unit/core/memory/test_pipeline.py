@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from project_akiha.core.memory.models import MemoryEntry
+from project_akiha.core.memory.models import MemoryCandidate, MemoryEntry
 from project_akiha.core.memory.pipeline import MemoryPipeline
 from project_akiha.providers.ai import ChatMessage
 
@@ -98,6 +98,33 @@ class MemoryPipelineTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(saved, ())
         self.assertEqual(repository.saved_memories, [])
+
+    async def test_collect_candidates_supports_async_extractor(self) -> None:
+        class AsyncExtractor:
+            async def extract(
+                self,
+                messages: tuple[ChatMessage, ...],
+            ) -> tuple[MemoryCandidate, ...]:
+                del messages
+                return (
+                    MemoryCandidate(
+                        content="User uses Blender",
+                        source_role="user",
+                        confidence=0.9,
+                        importance=4,
+                        tags=("tool",),
+                    ),
+                )
+
+        repository = RecordingMemoryRepository()
+        pipeline = MemoryPipeline(repository, extractor=AsyncExtractor())
+
+        candidates = await pipeline.collect_candidates(
+            (ChatMessage(role="user", content="I use Blender."),)
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].content, "User uses Blender.")
 
 
 if __name__ == "__main__":

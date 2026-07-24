@@ -20,6 +20,10 @@ from project_akiha.core.memory import (
     MemoryPipeline,
     StoredMessage,
 )
+from project_akiha.core.memory.extraction import (
+    HeuristicMemoryExtractor,
+    MemoryExtractor,
+)
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.database import SQLiteConversationRepository, SQLiteMemoryRepository
 from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
@@ -34,6 +38,7 @@ from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.conversation_summary import AIConversationSummarizer
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
+from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
@@ -79,14 +84,17 @@ def main() -> int:
     event_logger = EventLogger(event_bus)
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
-    memory_pipeline = MemoryPipeline(memory_repository)
+    ai_provider = _build_ai_provider(config.ai, logger)
+    memory_pipeline = MemoryPipeline(
+        memory_repository,
+        extractor=_build_memory_extractor(ai_provider, config.ai),
+    )
     current_conversation = asyncio.run(
         conversation_repository.get_or_create_current_conversation()
     )
     recent_messages = asyncio.run(
         conversation_repository.get_recent_messages(current_conversation.id, limit=50)
     )
-    ai_provider = _build_ai_provider(config.ai, logger)
     chat_controller = ChatController(
         ai_provider,
         system_prompt=config.personality.rendered_system_prompt(),
@@ -168,6 +176,9 @@ def main() -> int:
         chat_controller.set_ai_provider(ai_provider)
         chat_controller.set_conversation_summarizer(
             _build_conversation_summarizer(ai_provider, updated_config.ai)
+        )
+        memory_pipeline.set_extractor(
+            _build_memory_extractor(ai_provider, updated_config.ai)
         )
         chat_controller.set_system_prompt(
             updated_config.personality.rendered_system_prompt()
@@ -462,6 +473,16 @@ def _build_conversation_summarizer(
         return AIConversationSummarizer(ai_provider)
 
     return HeuristicConversationSummarizer()
+
+
+def _build_memory_extractor(
+    ai_provider: AIProvider,
+    ai_config: AIConfig,
+) -> MemoryExtractor:
+    if ai_config.provider == "ollama":
+        return AIMemoryExtractor(ai_provider)
+
+    return HeuristicMemoryExtractor()
 
 
 def _stored_messages_to_chat_messages(

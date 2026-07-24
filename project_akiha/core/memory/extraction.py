@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from typing import Protocol
 
 from project_akiha.core.memory.models import MemoryCandidate, MessageRole
@@ -22,7 +22,7 @@ class MemoryExtractor(Protocol):
     def extract(
         self,
         messages: Sequence[MemorySourceMessage],
-    ) -> tuple[MemoryCandidate, ...]:
+    ) -> tuple[MemoryCandidate, ...] | Awaitable[tuple[MemoryCandidate, ...]]:
         """Return memory candidates found in the given messages."""
 
 
