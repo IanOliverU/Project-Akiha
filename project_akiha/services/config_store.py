@@ -31,14 +31,23 @@ def _serialize_config(config: AppConfig) -> str:
     ai = config.ai
     personality = config.personality
     memory = config.memory
+    behavior = config.behavior
     always_on_top = str(pet_window.always_on_top).lower()
     memory_enabled = str(memory.enabled).lower()
+    behavior_enabled = str(behavior.enabled).lower()
+    proactive_enabled = str(behavior.proactive_enabled).lower()
+    allow_notifications_while_away = str(
+        behavior.allow_notifications_while_away
+    ).lower()
+    quiet_hours_enabled = str(behavior.quiet_hours_enabled).lower()
     manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
     provider = _escape_toml_string(ai.provider)
     ollama_base_url = _escape_toml_string(ai.ollama_base_url)
     ollama_model = _escape_toml_string(ai.ollama_model)
     character_name = _escape_toml_string(personality.character_name)
     system_prompt = _escape_toml_string(personality.system_prompt)
+    quiet_hours_start = _escape_toml_string(behavior.quiet_hours_start)
+    quiet_hours_end = _escape_toml_string(behavior.quiet_hours_end)
 
     return (
         "[pet_window]\n"
@@ -65,6 +74,18 @@ def _serialize_config(config: AppConfig) -> str:
         f"enabled = {memory_enabled}\n"
         f"retrieval_limit = {memory.retrieval_limit}\n"
         f"require_approval = {str(memory.require_approval).lower()}\n"
+        "\n"
+        "[behavior]\n"
+        f"enabled = {behavior_enabled}\n"
+        f"proactive_enabled = {proactive_enabled}\n"
+        f"idle_after_seconds = {behavior.idle_after_seconds}\n"
+        f"away_after_seconds = {behavior.away_after_seconds}\n"
+        "minimum_seconds_between_notifications = "
+        f"{behavior.minimum_seconds_between_notifications}\n"
+        f"allow_notifications_while_away = {allow_notifications_while_away}\n"
+        f"quiet_hours_enabled = {quiet_hours_enabled}\n"
+        f'quiet_hours_start = "{quiet_hours_start}"\n'
+        f'quiet_hours_end = "{quiet_hours_end}"\n'
     )
 
 

@@ -95,6 +95,50 @@ class MemoryConfig:
             raise ValueError("memory.retrieval_limit must be greater than zero.")
 
 
+def _validate_hh_mm(value: str, field_name: str) -> None:
+    parts = value.split(":")
+    if len(parts) != 2 or not all(part.isdigit() for part in parts):
+        raise ValueError(f"{field_name} must use HH:MM format.")
+
+    hour = int(parts[0])
+    minute = int(parts[1])
+    if hour > 23 or minute > 59:
+        raise ValueError(f"{field_name} must use HH:MM format.")
+
+
+@dataclass(frozen=True, slots=True)
+class BehaviorConfig:
+    """Settings for Phase 4 activity awareness and proactive behavior."""
+
+    enabled: bool = True
+    proactive_enabled: bool = False
+    idle_after_seconds: int = 300
+    away_after_seconds: int = 900
+    minimum_seconds_between_notifications: int = 1800
+    allow_notifications_while_away: bool = False
+    quiet_hours_enabled: bool = False
+    quiet_hours_start: str = "22:00"
+    quiet_hours_end: str = "07:00"
+
+    def __post_init__(self) -> None:
+        """Validate behavior settings."""
+        if self.idle_after_seconds <= 0:
+            raise ValueError("behavior.idle_after_seconds must be greater than zero.")
+        if self.away_after_seconds <= self.idle_after_seconds:
+            message = (
+                "behavior.away_after_seconds must be greater than idle_after_seconds."
+            )
+            raise ValueError(message)
+        if self.minimum_seconds_between_notifications <= 0:
+            message = (
+                "behavior.minimum_seconds_between_notifications must be greater "
+                "than zero."
+            )
+            raise ValueError(message)
+        _validate_hh_mm(self.quiet_hours_start, "behavior.quiet_hours_start")
+        _validate_hh_mm(self.quiet_hours_end, "behavior.quiet_hours_end")
+
+
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
@@ -103,6 +147,7 @@ class AppConfig:
     ai: AIConfig = AIConfig()
     personality: PersonalityConfig = PersonalityConfig()
     memory: MemoryConfig = MemoryConfig()
+    behavior: BehaviorConfig = BehaviorConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -119,6 +164,10 @@ class AppConfig:
     def with_memory(self, memory: MemoryConfig) -> AppConfig:
         """Return a copy with updated memory settings."""
         return replace(self, memory=memory)
+
+    def with_behavior(self, behavior: BehaviorConfig) -> AppConfig:
+        """Return a copy with updated behavior settings."""
+        return replace(self, behavior=behavior)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -145,11 +194,16 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(memory_data, dict):
         raise ValueError("memory config must be a TOML table.")
 
+    behavior_data = data.get("behavior", {})
+    if not isinstance(behavior_data, dict):
+        raise ValueError("behavior config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
         personality=PersonalityConfig(**personality_data),
         memory=MemoryConfig(**memory_data),
+        behavior=BehaviorConfig(**behavior_data),
     )
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import QTime, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -15,7 +15,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
+    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
 from project_akiha.config import (
     AIConfig,
     AppConfig,
+    BehaviorConfig,
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
@@ -84,6 +87,37 @@ class SettingsWindow(QWidget):
             20,
             config.memory.retrieval_limit,
         )
+        self._behavior_enabled_input = QCheckBox()
+        self._behavior_enabled_input.setChecked(config.behavior.enabled)
+        self._proactive_enabled_input = QCheckBox()
+        self._proactive_enabled_input.setChecked(config.behavior.proactive_enabled)
+        self._idle_after_input = _build_spinbox(
+            30,
+            86400,
+            config.behavior.idle_after_seconds,
+        )
+        self._away_after_input = _build_spinbox(
+            60,
+            86400,
+            config.behavior.away_after_seconds,
+        )
+        self._idle_after_input.valueChanged.connect(self._sync_away_minimum)
+        self._sync_away_minimum(config.behavior.idle_after_seconds)
+        self._notification_cooldown_input = _build_spinbox(
+            60,
+            86400,
+            config.behavior.minimum_seconds_between_notifications,
+        )
+        self._allow_notifications_while_away_input = QCheckBox()
+        self._allow_notifications_while_away_input.setChecked(
+            config.behavior.allow_notifications_while_away
+        )
+        self._quiet_hours_enabled_input = QCheckBox()
+        self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
+        self._quiet_hours_start_input = _build_time_input(
+            config.behavior.quiet_hours_start
+        )
+        self._quiet_hours_end_input = _build_time_input(config.behavior.quiet_hours_end)
 
         form_layout = QFormLayout()
         form_layout.addRow("Width", self._width_input)
@@ -103,6 +137,18 @@ class SettingsWindow(QWidget):
         form_layout.addRow("Memory enabled", self._memory_enabled_input)
         form_layout.addRow("Approve memories", self._memory_approval_input)
         form_layout.addRow("Memory retrieval limit", self._memory_retrieval_limit_input)
+        form_layout.addRow("Behavior enabled", self._behavior_enabled_input)
+        form_layout.addRow("Proactive enabled", self._proactive_enabled_input)
+        form_layout.addRow("Idle after seconds", self._idle_after_input)
+        form_layout.addRow("Away after seconds", self._away_after_input)
+        form_layout.addRow("Notification cooldown", self._notification_cooldown_input)
+        form_layout.addRow(
+            "Notify while away",
+            self._allow_notifications_while_away_input,
+        )
+        form_layout.addRow("Quiet hours enabled", self._quiet_hours_enabled_input)
+        form_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
+        form_layout.addRow("Quiet hours end", self._quiet_hours_end_input)
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -122,8 +168,15 @@ class SettingsWindow(QWidget):
         button_layout.addWidget(open_logs_button)
         button_layout.addWidget(memories_button)
 
+        form_container = QWidget()
+        form_container.setLayout(form_layout)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(form_container)
+
         layout = QVBoxLayout()
-        layout.addLayout(form_layout)
+        layout.addWidget(scroll_area)
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
@@ -147,6 +200,24 @@ class SettingsWindow(QWidget):
         self._memory_enabled_input.setChecked(config.memory.enabled)
         self._memory_approval_input.setChecked(config.memory.require_approval)
         self._memory_retrieval_limit_input.setValue(config.memory.retrieval_limit)
+        self._behavior_enabled_input.setChecked(config.behavior.enabled)
+        self._proactive_enabled_input.setChecked(config.behavior.proactive_enabled)
+        self._idle_after_input.setValue(config.behavior.idle_after_seconds)
+        self._sync_away_minimum(config.behavior.idle_after_seconds)
+        self._away_after_input.setValue(config.behavior.away_after_seconds)
+        self._notification_cooldown_input.setValue(
+            config.behavior.minimum_seconds_between_notifications
+        )
+        self._allow_notifications_while_away_input.setChecked(
+            config.behavior.allow_notifications_while_away
+        )
+        self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
+        self._quiet_hours_start_input.setTime(
+            _parse_qtime(config.behavior.quiet_hours_start)
+        )
+        self._quiet_hours_end_input.setTime(
+            _parse_qtime(config.behavior.quiet_hours_end)
+        )
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -203,8 +274,28 @@ class SettingsWindow(QWidget):
                 require_approval=self._memory_approval_input.isChecked(),
             )
         )
+        config = config.with_behavior(
+            BehaviorConfig(
+                enabled=self._behavior_enabled_input.isChecked(),
+                proactive_enabled=self._proactive_enabled_input.isChecked(),
+                idle_after_seconds=self._idle_after_input.value(),
+                away_after_seconds=self._away_after_input.value(),
+                minimum_seconds_between_notifications=(
+                    self._notification_cooldown_input.value()
+                ),
+                allow_notifications_while_away=(
+                    self._allow_notifications_while_away_input.isChecked()
+                ),
+                quiet_hours_enabled=self._quiet_hours_enabled_input.isChecked(),
+                quiet_hours_start=_format_time_input(self._quiet_hours_start_input),
+                quiet_hours_end=_format_time_input(self._quiet_hours_end_input),
+            )
+        )
         self.update_config(config)
         self.settings_saved.emit(config)
+
+    def _sync_away_minimum(self, idle_after_seconds: int) -> None:
+        self._away_after_input.setMinimum(idle_after_seconds + 1)
 
     def _open_logs(self) -> None:
         self._log_dir.mkdir(parents=True, exist_ok=True)
@@ -216,3 +307,19 @@ def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
     spinbox.setRange(minimum, maximum)
     spinbox.setValue(value)
     return spinbox
+
+
+def _build_time_input(value: str) -> QTimeEdit:
+    time_input = QTimeEdit()
+    time_input.setDisplayFormat("HH:mm")
+    time_input.setTime(_parse_qtime(value))
+    return time_input
+
+
+def _parse_qtime(value: str) -> QTime:
+    hour, minute = value.split(":", maxsplit=1)
+    return QTime(int(hour), int(minute))
+
+
+def _format_time_input(time_input: QTimeEdit) -> str:
+    return time_input.time().toString("HH:mm")

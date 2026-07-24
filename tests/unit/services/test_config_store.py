@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from project_akiha.config import (
     AIConfig,
     AppConfig,
+    BehaviorConfig,
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
@@ -51,6 +52,17 @@ class UserConfigStoreTest(unittest.TestCase):
                         retrieval_limit=3,
                         require_approval=True,
                     ),
+                    behavior=BehaviorConfig(
+                        enabled=True,
+                        proactive_enabled=True,
+                        idle_after_seconds=60,
+                        away_after_seconds=180,
+                        minimum_seconds_between_notifications=900,
+                        allow_notifications_while_away=True,
+                        quiet_hours_enabled=True,
+                        quiet_hours_start="23:00",
+                        quiet_hours_end="08:00",
+                    ),
                 )
             )
 
@@ -76,6 +88,15 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
+        self.assertTrue(config.behavior.enabled)
+        self.assertTrue(config.behavior.proactive_enabled)
+        self.assertEqual(config.behavior.idle_after_seconds, 60)
+        self.assertEqual(config.behavior.away_after_seconds, 180)
+        self.assertEqual(config.behavior.minimum_seconds_between_notifications, 900)
+        self.assertTrue(config.behavior.allow_notifications_while_away)
+        self.assertTrue(config.behavior.quiet_hours_enabled)
+        self.assertEqual(config.behavior.quiet_hours_start, "23:00")
+        self.assertEqual(config.behavior.quiet_hours_end, "08:00")
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

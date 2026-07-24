@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.config import PersonalityConfig, load_config
+from project_akiha.config import BehaviorConfig, PersonalityConfig, load_config
 
 
 class SettingsTest(unittest.TestCase):
@@ -24,6 +24,10 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 5)
         self.assertFalse(config.memory.require_approval)
+        self.assertTrue(config.behavior.enabled)
+        self.assertFalse(config.behavior.proactive_enabled)
+        self.assertEqual(config.behavior.idle_after_seconds, 300)
+        self.assertEqual(config.behavior.away_after_seconds, 900)
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
@@ -42,7 +46,17 @@ class SettingsTest(unittest.TestCase):
                 "[memory]\n"
                 "enabled = false\n"
                 "retrieval_limit = 3\n"
-                "require_approval = true\n",
+                "require_approval = true\n"
+                "\n"
+                "[behavior]\n"
+                "proactive_enabled = true\n"
+                "idle_after_seconds = 60\n"
+                "away_after_seconds = 120\n"
+                "quiet_hours_enabled = true\n"
+                'quiet_hours_start = "23:00"\n'
+                'quiet_hours_end = "08:00"\n'
+                "minimum_seconds_between_notifications = 600\n"
+                "allow_notifications_while_away = true\n",
                 encoding="utf-8",
             )
 
@@ -56,6 +70,14 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
+        self.assertTrue(config.behavior.proactive_enabled)
+        self.assertEqual(config.behavior.idle_after_seconds, 60)
+        self.assertEqual(config.behavior.away_after_seconds, 120)
+        self.assertTrue(config.behavior.quiet_hours_enabled)
+        self.assertEqual(config.behavior.quiet_hours_start, "23:00")
+        self.assertEqual(config.behavior.quiet_hours_end, "08:00")
+        self.assertEqual(config.behavior.minimum_seconds_between_notifications, 600)
+        self.assertTrue(config.behavior.allow_notifications_while_away)
 
     def test_personality_prompt_replaces_only_character_name_token(self) -> None:
         personality = PersonalityConfig(
@@ -67,6 +89,14 @@ class SettingsTest(unittest.TestCase):
             personality.rendered_system_prompt(),
             "You are Aki. Keep literal braces: {json}.",
         )
+
+    def test_behavior_config_rejects_invalid_quiet_hours(self) -> None:
+        with self.assertRaises(ValueError):
+            BehaviorConfig(quiet_hours_start="25:00")
+
+    def test_behavior_config_rejects_away_threshold_before_idle(self) -> None:
+        with self.assertRaises(ValueError):
+            BehaviorConfig(idle_after_seconds=120, away_after_seconds=60)
 
 
 if __name__ == "__main__":

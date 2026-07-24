@@ -22,3 +22,14 @@ system_prompt = "You are {character_name}, a warm, concise desktop companion. Be
 enabled = true
 retrieval_limit = 5
 require_approval = false
+
+[behavior]
+enabled = true
+proactive_enabled = false
+idle_after_seconds = 300
+away_after_seconds = 900
+minimum_seconds_between_notifications = 1800
+allow_notifications_while_away = false
+quiet_hours_enabled = false
+quiet_hours_start = "22:00"
+quiet_hours_end = "07:00"
