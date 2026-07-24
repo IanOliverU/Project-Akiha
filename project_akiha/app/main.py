@@ -15,11 +15,13 @@ from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
+from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
     NotificationPolicy,
     ProactiveDeliveryService,
     ProactiveSuggestionEngine,
+    ScheduledCheckInEngine,
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
@@ -97,6 +99,14 @@ def main() -> int:
     proactive_controller = ProactiveController(
         event_bus,
         ProactiveSuggestionEngine(notification_policy),
+    )
+    scheduled_check_in_engine = ScheduledCheckInEngine(
+        notification_policy,
+        config.behavior,
+    )
+    scheduled_check_in_controller = ScheduledCheckInController(
+        event_bus,
+        scheduled_check_in_engine,
     )
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
@@ -208,7 +218,9 @@ def main() -> int:
         )
         activity_controller.apply_config(updated_config.behavior)
         notification_policy.update_config(updated_config.behavior)
+        scheduled_check_in_engine.update_config(updated_config.behavior)
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
+        scheduled_check_in_controller.tick(activity_controller.snapshot)
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -438,8 +450,12 @@ def main() -> int:
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
     app.aboutToQuit.connect(save_window_position)
 
+    def tick_behavior() -> None:
+        activity = activity_controller.tick()
+        scheduled_check_in_controller.tick(activity)
+
     activity_tick_timer = QTimer()
-    activity_tick_timer.timeout.connect(activity_controller.tick)
+    activity_tick_timer.timeout.connect(tick_behavior)
     activity_tick_timer.start(30_000)
 
     tray_icon = AkihaTrayIcon(
@@ -471,6 +487,8 @@ def main() -> int:
         pet_controller,
         proactive_controller,
         proactive_delivery_controller,
+        scheduled_check_in_controller,
+        scheduled_check_in_engine,
         settings_window,
         tray_icon,
         user_config_store,

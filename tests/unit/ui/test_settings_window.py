@@ -35,6 +35,8 @@ class SettingsWindowTest(unittest.TestCase):
             window._away_after_input.setValue(240)
             window._notification_cooldown_input.setValue(600)
             window._allow_notifications_while_away_input.setChecked(True)
+            window._scheduled_check_ins_enabled_input.setChecked(True)
+            window._scheduled_check_in_interval_input.setValue(1200)
             window._quiet_hours_enabled_input.setChecked(True)
             window._quiet_hours_start_input.setTime(QTime(21, 30))
             window._quiet_hours_end_input.setTime(QTime(8, 15))
@@ -50,6 +52,8 @@ class SettingsWindowTest(unittest.TestCase):
             600,
         )
         self.assertTrue(emitted[0].behavior.allow_notifications_while_away)
+        self.assertTrue(emitted[0].behavior.scheduled_check_ins_enabled)
+        self.assertEqual(emitted[0].behavior.scheduled_check_in_interval_seconds, 1200)
         self.assertTrue(emitted[0].behavior.quiet_hours_enabled)
         self.assertEqual(emitted[0].behavior.quiet_hours_start, "21:30")
         self.assertEqual(emitted[0].behavior.quiet_hours_end, "08:15")

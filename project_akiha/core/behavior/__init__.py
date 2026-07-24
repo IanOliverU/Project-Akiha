@@ -22,6 +22,7 @@ from project_akiha.core.behavior.proactive import (
     ProactiveSuggestion,
     ProactiveSuggestionEngine,
 )
+from project_akiha.core.behavior.schedule import ScheduledCheckInEngine
 
 __all__ = [
     "ActivitySnapshot",
@@ -38,4 +39,5 @@ __all__ = [
     "ProactiveDeliverySurface",
     "ProactiveSuggestion",
     "ProactiveSuggestionEngine",
+    "ScheduledCheckInEngine",
 ]

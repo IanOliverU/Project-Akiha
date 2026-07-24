@@ -59,6 +59,8 @@ class UserConfigStoreTest(unittest.TestCase):
                         away_after_seconds=180,
                         minimum_seconds_between_notifications=900,
                         allow_notifications_while_away=True,
+                        scheduled_check_ins_enabled=True,
+                        scheduled_check_in_interval_seconds=1200,
                         quiet_hours_enabled=True,
                         quiet_hours_start="23:00",
                         quiet_hours_end="08:00",
@@ -94,6 +96,8 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.behavior.away_after_seconds, 180)
         self.assertEqual(config.behavior.minimum_seconds_between_notifications, 900)
         self.assertTrue(config.behavior.allow_notifications_while_away)
+        self.assertTrue(config.behavior.scheduled_check_ins_enabled)
+        self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 1200)
         self.assertTrue(config.behavior.quiet_hours_enabled)
         self.assertEqual(config.behavior.quiet_hours_start, "23:00")
         self.assertEqual(config.behavior.quiet_hours_end, "08:00")

@@ -39,6 +39,7 @@ def _serialize_config(config: AppConfig) -> str:
     allow_notifications_while_away = str(
         behavior.allow_notifications_while_away
     ).lower()
+    scheduled_check_ins_enabled = str(behavior.scheduled_check_ins_enabled).lower()
     quiet_hours_enabled = str(behavior.quiet_hours_enabled).lower()
     manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
     provider = _escape_toml_string(ai.provider)
@@ -83,6 +84,9 @@ def _serialize_config(config: AppConfig) -> str:
         "minimum_seconds_between_notifications = "
         f"{behavior.minimum_seconds_between_notifications}\n"
         f"allow_notifications_while_away = {allow_notifications_while_away}\n"
+        f"scheduled_check_ins_enabled = {scheduled_check_ins_enabled}\n"
+        "scheduled_check_in_interval_seconds = "
+        f"{behavior.scheduled_check_in_interval_seconds}\n"
         f"quiet_hours_enabled = {quiet_hours_enabled}\n"
         f'quiet_hours_start = "{quiet_hours_start}"\n'
         f'quiet_hours_end = "{quiet_hours_end}"\n'

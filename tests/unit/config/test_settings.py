@@ -28,6 +28,8 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 300)
         self.assertEqual(config.behavior.away_after_seconds, 900)
+        self.assertFalse(config.behavior.scheduled_check_ins_enabled)
+        self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 3600)
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
@@ -56,7 +58,9 @@ class SettingsTest(unittest.TestCase):
                 'quiet_hours_start = "23:00"\n'
                 'quiet_hours_end = "08:00"\n'
                 "minimum_seconds_between_notifications = 600\n"
-                "allow_notifications_while_away = true\n",
+                "allow_notifications_while_away = true\n"
+                "scheduled_check_ins_enabled = true\n"
+                "scheduled_check_in_interval_seconds = 1200\n",
                 encoding="utf-8",
             )
 
@@ -78,6 +82,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.behavior.quiet_hours_end, "08:00")
         self.assertEqual(config.behavior.minimum_seconds_between_notifications, 600)
         self.assertTrue(config.behavior.allow_notifications_while_away)
+        self.assertTrue(config.behavior.scheduled_check_ins_enabled)
+        self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 1200)
 
     def test_personality_prompt_replaces_only_character_name_token(self) -> None:
         personality = PersonalityConfig(
@@ -97,6 +103,10 @@ class SettingsTest(unittest.TestCase):
     def test_behavior_config_rejects_away_threshold_before_idle(self) -> None:
         with self.assertRaises(ValueError):
             BehaviorConfig(idle_after_seconds=120, away_after_seconds=60)
+
+    def test_behavior_config_rejects_invalid_check_in_interval(self) -> None:
+        with self.assertRaises(ValueError):
+            BehaviorConfig(scheduled_check_in_interval_seconds=0)
 
 
 if __name__ == "__main__":

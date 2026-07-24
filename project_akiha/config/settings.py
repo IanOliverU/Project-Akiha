@@ -116,6 +116,8 @@ class BehaviorConfig:
     away_after_seconds: int = 900
     minimum_seconds_between_notifications: int = 1800
     allow_notifications_while_away: bool = False
+    scheduled_check_ins_enabled: bool = False
+    scheduled_check_in_interval_seconds: int = 3600
     quiet_hours_enabled: bool = False
     quiet_hours_start: str = "22:00"
     quiet_hours_end: str = "07:00"
@@ -132,6 +134,12 @@ class BehaviorConfig:
         if self.minimum_seconds_between_notifications <= 0:
             message = (
                 "behavior.minimum_seconds_between_notifications must be greater "
+                "than zero."
+            )
+            raise ValueError(message)
+        if self.scheduled_check_in_interval_seconds <= 0:
+            message = (
+                "behavior.scheduled_check_in_interval_seconds must be greater "
                 "than zero."
             )
             raise ValueError(message)

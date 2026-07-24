@@ -112,6 +112,15 @@ class SettingsWindow(QWidget):
         self._allow_notifications_while_away_input.setChecked(
             config.behavior.allow_notifications_while_away
         )
+        self._scheduled_check_ins_enabled_input = QCheckBox()
+        self._scheduled_check_ins_enabled_input.setChecked(
+            config.behavior.scheduled_check_ins_enabled
+        )
+        self._scheduled_check_in_interval_input = _build_spinbox(
+            60,
+            86400,
+            config.behavior.scheduled_check_in_interval_seconds,
+        )
         self._quiet_hours_enabled_input = QCheckBox()
         self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
         self._quiet_hours_start_input = _build_time_input(
@@ -145,6 +154,14 @@ class SettingsWindow(QWidget):
         form_layout.addRow(
             "Notify while away",
             self._allow_notifications_while_away_input,
+        )
+        form_layout.addRow(
+            "Scheduled check-ins",
+            self._scheduled_check_ins_enabled_input,
+        )
+        form_layout.addRow(
+            "Check-in interval",
+            self._scheduled_check_in_interval_input,
         )
         form_layout.addRow("Quiet hours enabled", self._quiet_hours_enabled_input)
         form_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
@@ -210,6 +227,12 @@ class SettingsWindow(QWidget):
         )
         self._allow_notifications_while_away_input.setChecked(
             config.behavior.allow_notifications_while_away
+        )
+        self._scheduled_check_ins_enabled_input.setChecked(
+            config.behavior.scheduled_check_ins_enabled
+        )
+        self._scheduled_check_in_interval_input.setValue(
+            config.behavior.scheduled_check_in_interval_seconds
         )
         self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
         self._quiet_hours_start_input.setTime(
@@ -285,6 +308,12 @@ class SettingsWindow(QWidget):
                 ),
                 allow_notifications_while_away=(
                     self._allow_notifications_while_away_input.isChecked()
+                ),
+                scheduled_check_ins_enabled=(
+                    self._scheduled_check_ins_enabled_input.isChecked()
+                ),
+                scheduled_check_in_interval_seconds=(
+                    self._scheduled_check_in_interval_input.value()
                 ),
                 quiet_hours_enabled=self._quiet_hours_enabled_input.isChecked(),
                 quiet_hours_start=_format_time_input(self._quiet_hours_start_input),
