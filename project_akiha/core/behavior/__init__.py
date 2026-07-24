@@ -11,6 +11,10 @@ from project_akiha.core.behavior.notification_policy import (
     NotificationRequest,
     NotificationUrgency,
 )
+from project_akiha.core.behavior.proactive import (
+    ProactiveSuggestion,
+    ProactiveSuggestionEngine,
+)
 
 __all__ = [
     "ActivitySnapshot",
@@ -20,4 +24,6 @@ __all__ = [
     "NotificationPolicy",
     "NotificationRequest",
     "NotificationUrgency",
+    "ProactiveSuggestion",
+    "ProactiveSuggestionEngine",
 ]

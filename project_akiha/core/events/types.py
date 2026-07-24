@@ -19,5 +19,6 @@ class EventType(StrEnum):
     SETTINGS_OPEN_REQUESTED = "settings.open_requested"
     USER_ACTIVITY_OBSERVED = "activity.observed"
     USER_ACTIVITY_STATE_CHANGED = "activity.state_changed"
+    PROACTIVE_SUGGESTION_READY = "proactive.suggestion_ready"
     STATE_CHANGED = "state.changed"
     ERROR_OCCURRED = "error.occurred"

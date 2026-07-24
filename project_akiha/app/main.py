@@ -13,8 +13,9 @@ from PySide6.QtWidgets import QApplication
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.pet_controller import PetController
+from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.config import AIConfig, AppConfig, load_config
-from project_akiha.core.behavior import NotificationPolicy
+from project_akiha.core.behavior import NotificationPolicy, ProactiveSuggestionEngine
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.memory import (
@@ -87,6 +88,10 @@ def main() -> int:
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
     notification_policy = NotificationPolicy(config.behavior)
+    proactive_controller = ProactiveController(
+        event_bus,
+        ProactiveSuggestionEngine(notification_policy),
+    )
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
     ai_provider = _build_ai_provider(config.ai, logger)
@@ -197,6 +202,7 @@ def main() -> int:
         )
         activity_controller.apply_config(updated_config.behavior)
         notification_policy.update_config(updated_config.behavior)
+        proactive_controller.evaluate_snapshot(activity_controller.snapshot)
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -449,6 +455,7 @@ def main() -> int:
         memory_window,
         notification_policy,
         pet_controller,
+        proactive_controller,
         settings_window,
         tray_icon,
         user_config_store,
