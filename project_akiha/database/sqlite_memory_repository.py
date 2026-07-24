@@ -51,6 +51,13 @@ class SQLiteMemoryRepository:
 
         return await asyncio.to_thread(self._get_recent_memories, limit)
 
+    async def get_archived_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
+        """Return archived memories ordered newest first."""
+        if limit <= 0:
+            raise ValueError("memory limit must be greater than zero.")
+
+        return await asyncio.to_thread(self._get_archived_memories, limit)
+
     async def retrieve_relevant_memories(
         self,
         query: str,
@@ -97,6 +104,14 @@ class SQLiteMemoryRepository:
         """Delete one memory."""
         await asyncio.to_thread(self._delete_memory, memory_id)
 
+    async def archive_memory(self, memory_id: int) -> None:
+        """Move one memory out of active retrieval."""
+        await asyncio.to_thread(self._archive_memory, memory_id)
+
+    async def restore_memory(self, memory_id: int) -> None:
+        """Move one archived memory back into active retrieval."""
+        await asyncio.to_thread(self._restore_memory, memory_id)
+
     async def clear_memories(self) -> None:
         """Delete all memories."""
         await asyncio.to_thread(self._clear_memories)
@@ -142,7 +157,7 @@ class SQLiteMemoryRepository:
             row = connection.execute(
                 """
                 SELECT id, content, source_conversation_id, importance, tags_json,
-                       created_at, updated_at, last_accessed_at
+                       created_at, updated_at, last_accessed_at, archived_at
                 FROM memories
                 WHERE id = ?
                 """,
@@ -159,9 +174,29 @@ class SQLiteMemoryRepository:
             rows = connection.execute(
                 """
                 SELECT id, content, source_conversation_id, importance, tags_json,
-                       created_at, updated_at, last_accessed_at
+                       created_at, updated_at, last_accessed_at, archived_at
                 FROM memories
+                WHERE archived_at IS NULL
                 ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        return tuple(_memory_from_row(row) for row in rows)
+
+    def _get_archived_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT id, content, source_conversation_id, importance, tags_json,
+                       created_at, updated_at, last_accessed_at, archived_at
+                FROM memories
+                WHERE archived_at IS NOT NULL
+                ORDER BY archived_at DESC, id DESC
                 LIMIT ?
                 """,
                 (limit,),
@@ -183,9 +218,10 @@ class SQLiteMemoryRepository:
             rows = connection.execute(
                 """
                 SELECT id, content, source_conversation_id, importance, tags_json,
-                       created_at, updated_at, last_accessed_at
+                       created_at, updated_at, last_accessed_at, archived_at
                 FROM memories
-                WHERE lower(content) LIKE ? OR lower(tags_json) LIKE ?
+                WHERE archived_at IS NULL
+                    AND (lower(content) LIKE ? OR lower(tags_json) LIKE ?)
                 ORDER BY importance DESC, updated_at DESC, id DESC
                 LIMIT ?
                 """,
@@ -231,7 +267,7 @@ class SQLiteMemoryRepository:
             row = connection.execute(
                 """
                 SELECT id, content, source_conversation_id, importance, tags_json,
-                       created_at, updated_at, last_accessed_at
+                       created_at, updated_at, last_accessed_at, archived_at
                 FROM memories
                 WHERE id = ?
                 """,
@@ -248,6 +284,40 @@ class SQLiteMemoryRepository:
         connection = self._connect()
         try:
             connection.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+            connection.commit()
+        finally:
+            connection.close()
+
+    def _archive_memory(self, memory_id: int) -> None:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                UPDATE memories
+                SET archived_at = ?,
+                    updated_at = ?
+                WHERE id = ? AND archived_at IS NULL
+                """,
+                (timestamp, timestamp, memory_id),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+    def _restore_memory(self, memory_id: int) -> None:
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                UPDATE memories
+                SET archived_at = NULL,
+                    updated_at = ?
+                WHERE id = ? AND archived_at IS NOT NULL
+                """,
+                (timestamp, memory_id),
+            )
             connection.commit()
         finally:
             connection.close()
@@ -271,6 +341,7 @@ def _memory_from_row(row: sqlite3.Row) -> MemoryEntry:
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
         last_accessed_at=cast(str | None, row["last_accessed_at"]),
+        archived_at=cast(str | None, row["archived_at"]),
     )
 
 

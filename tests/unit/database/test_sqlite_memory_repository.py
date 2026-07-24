@@ -126,6 +126,47 @@ class SQLiteMemoryRepositoryTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 asyncio.run(repository.update_memory(999, "Missing.", 3))
 
+    def test_archive_memory_excludes_it_from_active_retrieval(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+            first = asyncio.run(repository.save_memory("User uses Krita."))
+            asyncio.run(repository.save_memory("User likes dark mode."))
+
+            asyncio.run(repository.archive_memory(first.id))
+            active = asyncio.run(repository.get_recent_memories(limit=10))
+            archived = asyncio.run(repository.get_archived_memories(limit=10))
+            matches = asyncio.run(
+                repository.retrieve_relevant_memories("krita", limit=10)
+            )
+
+        self.assertEqual(
+            [memory.content for memory in active], ["User likes dark mode."]
+        )
+        self.assertEqual([memory.content for memory in archived], ["User uses Krita."])
+        self.assertEqual(matches, ())
+        self.assertIsNotNone(archived[0].archived_at)
+
+    def test_restore_memory_returns_it_to_active_retrieval(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+            memory = asyncio.run(repository.save_memory("User uses Krita."))
+
+            asyncio.run(repository.archive_memory(memory.id))
+            asyncio.run(repository.restore_memory(memory.id))
+            active = asyncio.run(repository.get_recent_memories(limit=10))
+            archived = asyncio.run(repository.get_archived_memories(limit=10))
+
+        self.assertEqual([memory.content for memory in active], ["User uses Krita."])
+        self.assertEqual(archived, ())
+        self.assertIsNone(active[0].archived_at)
+
+    def test_get_archived_memories_validates_limit(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")
+
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.get_archived_memories(limit=0))
+
     def test_delete_memory_removes_it_from_retrieval(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteMemoryRepository(Path(directory) / "akiha.sqlite3")

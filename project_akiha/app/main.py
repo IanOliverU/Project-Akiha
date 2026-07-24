@@ -193,7 +193,11 @@ def main() -> int:
 
     def refresh_memory_window() -> None:
         memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
+        archived_memories = asyncio.run(
+            memory_repository.get_archived_memories(limit=100)
+        )
         memory_window.update_memories(memories)
+        memory_window.update_archived_memories(archived_memories)
         memory_window.update_pending_memories(chat_controller.pending_memories)
 
     def show_memory_manager() -> None:
@@ -228,6 +232,16 @@ def main() -> int:
 
         refresh_memory_window()
         memory_window.append_notice("Memory updated.")
+
+    def archive_memory(memory_id: int) -> None:
+        asyncio.run(memory_repository.archive_memory(memory_id))
+        refresh_memory_window()
+        memory_window.append_notice("Memory archived.")
+
+    def restore_memory(memory_id: int) -> None:
+        asyncio.run(memory_repository.restore_memory(memory_id))
+        refresh_memory_window()
+        memory_window.append_notice("Memory restored.")
 
     def clear_memories() -> None:
         asyncio.run(memory_repository.clear_memories())
@@ -355,6 +369,8 @@ def main() -> int:
     chat_window.export_chat_requested.connect(export_current_chat)
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.edit_requested.connect(edit_memory)
+    memory_window.archive_requested.connect(archive_memory)
+    memory_window.restore_requested.connect(restore_memory)
     memory_window.delete_requested.connect(delete_memory)
     memory_window.clear_requested.connect(clear_memories)
     memory_window.approve_requested.connect(approve_pending_memory)

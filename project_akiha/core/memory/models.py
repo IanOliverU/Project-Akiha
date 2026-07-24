@@ -55,6 +55,7 @@ class MemoryEntry:
     created_at: str
     updated_at: str
     last_accessed_at: str | None
+    archived_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

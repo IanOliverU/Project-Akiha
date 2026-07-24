@@ -29,6 +29,8 @@ class MemoryWindow(QWidget):
 
     refresh_requested = Signal()
     edit_requested = Signal(int, str, int, object)
+    archive_requested = Signal(int)
+    restore_requested = Signal(int)
     delete_requested = Signal(int)
     clear_requested = Signal()
     approve_requested = Signal(int)
@@ -46,16 +48,25 @@ class MemoryWindow(QWidget):
         self._memory_filter_input.setPlaceholderText("Search saved memories")
         self._memory_filter_input.textChanged.connect(self._apply_memory_filter)
         self._memory_list = QListWidget()
+        self._archived_status_label = QLabel("No archived memories.")
+        self._archived_filter_input = QLineEdit()
+        self._archived_filter_input.setPlaceholderText("Search archived memories")
+        self._archived_filter_input.textChanged.connect(self._apply_archived_filter)
+        self._archived_list = QListWidget()
         self._pending_status_label = QLabel("No pending memories.")
         self._pending_filter_input = QLineEdit()
         self._pending_filter_input.setPlaceholderText("Search pending memories")
         self._pending_filter_input.textChanged.connect(self._apply_pending_filter)
         self._pending_list = QListWidget()
         self._memories: tuple[MemoryEntry, ...] = ()
+        self._archived_memories: tuple[MemoryEntry, ...] = ()
         self._pending_memories: tuple[PendingMemory, ...] = ()
 
         tabs = QTabWidget()
         tabs.addTab(_wrap_list(self._memory_filter_input, self._memory_list), "Saved")
+        tabs.addTab(
+            _wrap_list(self._archived_filter_input, self._archived_list), "Archived"
+        )
         tabs.addTab(
             _wrap_list(self._pending_filter_input, self._pending_list), "Pending"
         )
@@ -65,6 +76,12 @@ class MemoryWindow(QWidget):
 
         edit_button = QPushButton("Edit")
         edit_button.clicked.connect(self._request_edit_selected)
+
+        archive_button = QPushButton("Archive")
+        archive_button.clicked.connect(self._request_archive_selected)
+
+        restore_button = QPushButton("Restore")
+        restore_button.clicked.connect(self._request_restore_selected)
 
         delete_button = QPushButton("Delete")
         delete_button.clicked.connect(self._request_delete_selected)
@@ -84,6 +101,8 @@ class MemoryWindow(QWidget):
         button_layout = QHBoxLayout()
         button_layout.addWidget(refresh_button)
         button_layout.addWidget(edit_button)
+        button_layout.addWidget(archive_button)
+        button_layout.addWidget(restore_button)
         button_layout.addWidget(delete_button)
         button_layout.addWidget(clear_button)
         button_layout.addWidget(approve_button)
@@ -93,6 +112,7 @@ class MemoryWindow(QWidget):
 
         layout = QVBoxLayout()
         layout.addWidget(self._status_label)
+        layout.addWidget(self._archived_status_label)
         layout.addWidget(self._pending_status_label)
         layout.addWidget(tabs)
         layout.addLayout(button_layout)
@@ -108,6 +128,17 @@ class MemoryWindow(QWidget):
             self._memory_list.addItem(item)
 
         self._apply_memory_filter()
+
+    def update_archived_memories(self, memories: tuple[MemoryEntry, ...]) -> None:
+        """Replace the visible archived memory list."""
+        self._archived_memories = memories
+        self._archived_list.clear()
+        for memory in memories:
+            item = QListWidgetItem(_format_memory(memory))
+            item.setData(Qt.ItemDataRole.UserRole, memory.id)
+            self._archived_list.addItem(item)
+
+        self._apply_archived_filter()
 
     def update_pending_memories(
         self, pending_memories: tuple[PendingMemory, ...]
@@ -145,6 +176,14 @@ class MemoryWindow(QWidget):
             None,
         )
 
+    def selected_archived_memory_id(self) -> int | None:
+        """Return the selected archived memory id, if any."""
+        item = self._archived_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return int(value) if value is not None else None
+
     def selected_pending_memory_id(self) -> int | None:
         """Return the selected pending memory id, if any."""
         item = self._pending_list.currentItem()
@@ -163,6 +202,22 @@ class MemoryWindow(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             content, importance, tags = dialog.values()
             self.edit_requested.emit(memory.id, content, importance, tags)
+
+    def _request_archive_selected(self) -> None:
+        memory_id = self.selected_memory_id()
+        if memory_id is None:
+            self.append_notice("Select a memory first.")
+            return
+
+        self.archive_requested.emit(memory_id)
+
+    def _request_restore_selected(self) -> None:
+        memory_id = self.selected_archived_memory_id()
+        if memory_id is None:
+            self.append_notice("Select an archived memory first.")
+            return
+
+        self.restore_requested.emit(memory_id)
 
     def _request_delete_selected(self) -> None:
         memory_id = self.selected_memory_id()
@@ -212,6 +267,17 @@ class MemoryWindow(QWidget):
         visible_count = _apply_list_filter(self._memory_list, query)
         self._status_label.setText(
             _format_count_status(visible_count, len(self._memories), "memory")
+        )
+
+    def _apply_archived_filter(self) -> None:
+        query = self._archived_filter_input.text().strip()
+        visible_count = _apply_list_filter(self._archived_list, query)
+        self._archived_status_label.setText(
+            _format_count_status(
+                visible_count,
+                len(self._archived_memories),
+                "archived memory",
+            )
         )
 
     def _apply_pending_filter(self) -> None:

@@ -73,6 +73,9 @@ class MemoryRepository(Protocol):
     async def get_recent_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
         """Return recent memories ordered newest first."""
 
+    async def get_archived_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
+        """Return archived memories ordered newest first."""
+
     async def retrieve_relevant_memories(
         self,
         query: str,
@@ -91,6 +94,12 @@ class MemoryRepository(Protocol):
 
     async def delete_memory(self, memory_id: int) -> None:
         """Delete one memory."""
+
+    async def archive_memory(self, memory_id: int) -> None:
+        """Move one memory out of active retrieval."""
+
+    async def restore_memory(self, memory_id: int) -> None:
+        """Move one archived memory back into active retrieval."""
 
     async def clear_memories(self) -> None:
         """Delete all memories."""

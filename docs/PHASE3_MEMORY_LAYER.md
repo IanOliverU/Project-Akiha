@@ -30,6 +30,8 @@ retrieved later and injected into prompts.
 - saved memory search/filter UI
 - saved memory editing
 - saved memory importance and tag editing
+- saved memory archiving
+- archived memory review, search/filter, and restore
 - delete selected memory
 - clear all memories with confirmation
 - optional memory approval before saving
@@ -98,7 +100,8 @@ raw transcripts.
 ## Memory Management
 
 Settings can open the memory manager. The manager lists recent memories and can
-delete one selected memory or clear all memories after confirmation.
+edit, archive, delete one selected memory, or clear all memories after confirmation.
+Archived memories are excluded from active retrieval but can be reviewed and restored.
 
 When approval is enabled in Settings, extracted memory candidates are queued in
 the Pending tab instead of being saved immediately. Pending memories can be

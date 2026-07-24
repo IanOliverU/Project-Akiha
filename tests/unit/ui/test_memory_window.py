@@ -59,6 +59,24 @@ class MemoryWindowTest(unittest.TestCase):
             "1 of 2 pending memories",
         )
 
+    def test_filters_archived_memories(self) -> None:
+        window = MemoryWindow()
+        window.update_archived_memories(
+            (
+                _memory(1, "User prefers concise replies."),
+                _memory(2, "User uses Krita."),
+            )
+        )
+
+        window._archived_filter_input.setText("krita")
+
+        self.assertTrue(window._archived_list.item(0).isHidden())
+        self.assertFalse(window._archived_list.item(1).isHidden())
+        self.assertEqual(
+            window._archived_status_label.text(),
+            "1 of 2 archived memories",
+        )
+
     def test_filter_clears_hidden_saved_selection(self) -> None:
         window = MemoryWindow()
         window.update_memories(
@@ -72,6 +90,20 @@ class MemoryWindowTest(unittest.TestCase):
         window._memory_filter_input.setText("krita")
 
         self.assertIsNone(window.selected_memory_id())
+
+    def test_filter_clears_hidden_archived_selection(self) -> None:
+        window = MemoryWindow()
+        window.update_archived_memories(
+            (
+                _memory(1, "User prefers concise replies."),
+                _memory(2, "User uses Krita."),
+            )
+        )
+        window._archived_list.setCurrentRow(0)
+
+        window._archived_filter_input.setText("krita")
+
+        self.assertIsNone(window.selected_archived_memory_id())
 
     def test_selected_memory_returns_full_memory_entry(self) -> None:
         window = MemoryWindow()
@@ -88,6 +120,14 @@ class MemoryWindowTest(unittest.TestCase):
         self.assertIsNotNone(selected)
         self.assertEqual(selected.id, 2)
         self.assertEqual(selected.content, "User uses Krita.")
+
+    def test_selected_archived_memory_id_returns_current_archived_item(self) -> None:
+        window = MemoryWindow()
+        window.update_archived_memories((_memory(3, "Archived memory."),))
+
+        window._archived_list.setCurrentRow(0)
+
+        self.assertEqual(window.selected_archived_memory_id(), 3)
 
     def test_edit_dialog_returns_normalized_values(self) -> None:
         dialog = MemoryEditDialog(

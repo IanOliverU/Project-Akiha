@@ -36,6 +36,9 @@ class DatabaseMigratorTest(unittest.TestCase):
                     row[1]
                     for row in connection.execute("PRAGMA table_info(conversations)")
                 }
+                memory_columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(memories)")
+                }
             finally:
                 connection.close()
 
@@ -44,7 +47,8 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("messages", table_names)
         self.assertIn("memories", table_names)
         self.assertIn("summary", conversation_columns)
-        self.assertEqual(versions, [(1,), (2,), (3,)])
+        self.assertIn("archived_at", memory_columns)
+        self.assertEqual(versions, [(1,), (2,), (3,), (4,)])
 
 
 if __name__ == "__main__":
