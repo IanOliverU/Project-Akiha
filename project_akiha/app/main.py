@@ -14,9 +14,9 @@ from project_akiha.app.pet_controller import PetController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
-from project_akiha.core.memory import StoredMessage
+from project_akiha.core.memory import MemoryPipeline, StoredMessage
 from project_akiha.core.state.animation import AnimationStateMachine
-from project_akiha.database import SQLiteConversationRepository
+from project_akiha.database import SQLiteConversationRepository, SQLiteMemoryRepository
 from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
 from project_akiha.providers.ai.base import ChatMessage
 from project_akiha.providers.animation import (
@@ -71,6 +71,8 @@ def main() -> int:
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
     conversation_repository = SQLiteConversationRepository(paths.database_path)
+    memory_repository = SQLiteMemoryRepository(paths.database_path)
+    memory_pipeline = MemoryPipeline(memory_repository)
     current_conversation = asyncio.run(
         conversation_repository.get_or_create_current_conversation()
     )
@@ -83,6 +85,8 @@ def main() -> int:
         conversation_repository=conversation_repository,
         conversation_id=current_conversation.id,
         initial_messages=_stored_messages_to_chat_messages(recent_messages),
+        memory_pipeline=memory_pipeline,
+        memory_enabled=config.memory.enabled,
     )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
@@ -148,6 +152,7 @@ def main() -> int:
         chat_controller.set_system_prompt(
             updated_config.personality.rendered_system_prompt()
         )
+        chat_controller.set_memory_enabled(updated_config.memory.enabled)
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -296,6 +301,8 @@ def main() -> int:
         chat_window,
         conversation_repository,
         event_logger,
+        memory_pipeline,
+        memory_repository,
         pet_controller,
         settings_window,
         tray_icon,

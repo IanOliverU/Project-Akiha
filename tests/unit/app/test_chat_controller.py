@@ -37,6 +37,28 @@ class StaticProvider:
         return True
 
 
+class FailingProvider:
+    """Test provider that fails before producing a response."""
+
+    async def generate_response(self, messages: tuple[ChatMessage, ...]) -> str:
+        """Raise a provider failure."""
+        del messages
+        raise RuntimeError("provider failed")
+
+    async def stream_response(
+        self,
+        messages: tuple[ChatMessage, ...],
+    ) -> AsyncIterator[str]:
+        """Raise a provider failure."""
+        del messages
+        raise RuntimeError("provider failed")
+        yield ""
+
+    async def is_available(self) -> bool:
+        """Return false for test use."""
+        return False
+
+
 class RecordingConversationRepository:
     """Test repository that records saved messages."""
 
@@ -106,6 +128,22 @@ class RecordingConversationRepository:
         """Return persisted messages for export."""
         del conversation_id
         return self.export_messages
+
+
+class RecordingMemoryPipeline:
+    """Test memory pipeline that records processed messages."""
+
+    def __init__(self) -> None:
+        self.processed_messages: list[tuple[tuple[ChatMessage, ...], int | None]] = []
+
+    async def process_messages(
+        self,
+        messages: tuple[ChatMessage, ...],
+        source_conversation_id: int | None = None,
+    ) -> tuple[object, ...]:
+        """Record processed chat messages."""
+        self.processed_messages.append((messages, source_conversation_id))
+        return ()
 
 
 class ChatControllerTest(unittest.TestCase):
@@ -295,6 +333,65 @@ class ChatControllerTest(unittest.TestCase):
             asyncio.run(controller.get_export_messages()),
             (ChatMessage(role="user", content="memory only"),),
         )
+
+    def test_submit_user_message_processes_memory_after_completed_exchange(
+        self,
+    ) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("remembered"),
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+
+        self.assertEqual(len(memory_pipeline.processed_messages), 1)
+        messages, source_conversation_id = memory_pipeline.processed_messages[0]
+        self.assertEqual(source_conversation_id, 7)
+        self.assertEqual(
+            messages,
+            (
+                ChatMessage(role="user", content="Remember that I use Krita."),
+                ChatMessage(role="assistant", content="remembered"),
+            ),
+        )
+
+    def test_memory_pipeline_is_skipped_when_disabled(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("remembered"),
+            memory_pipeline=memory_pipeline,
+            memory_enabled=False,
+        )
+
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+
+        self.assertEqual(memory_pipeline.processed_messages, [])
+
+    def test_memory_pipeline_can_be_disabled_at_runtime(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("remembered"),
+            memory_pipeline=memory_pipeline,
+        )
+
+        controller.set_memory_enabled(False)
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+
+        self.assertEqual(memory_pipeline.processed_messages, [])
+
+    def test_failed_provider_response_does_not_process_memory(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            FailingProvider(),
+            memory_pipeline=memory_pipeline,
+        )
+
+        with self.assertRaises(RuntimeError):
+            asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+
+        self.assertEqual(memory_pipeline.processed_messages, [])
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:

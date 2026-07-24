@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from project_akiha.core.memory import ConversationRepository
+from project_akiha.core.memory import ConversationRepository, MemoryPipeline
 from project_akiha.providers.ai import AIProvider, ChatMessage
 
 
@@ -27,11 +27,15 @@ class ChatController:
         conversation_repository: ConversationRepository | None = None,
         conversation_id: int | None = None,
         initial_messages: tuple[ChatMessage, ...] = (),
+        memory_pipeline: MemoryPipeline | None = None,
+        memory_enabled: bool = True,
     ) -> None:
         self._ai_provider = ai_provider
         self._system_prompt = system_prompt.strip()
         self._conversation_repository = conversation_repository
         self._conversation_id = conversation_id
+        self._memory_pipeline = memory_pipeline
+        self._memory_enabled = memory_enabled
         self._messages: list[ChatMessage] = [
             message for message in initial_messages if message.role != "system"
         ]
@@ -48,6 +52,10 @@ class ChatController:
     def set_system_prompt(self, system_prompt: str) -> None:
         """Replace the system prompt used for future chat responses."""
         self._system_prompt = system_prompt.strip()
+
+    def set_memory_enabled(self, is_enabled: bool) -> None:
+        """Set whether completed chat turns may create memories."""
+        self._memory_enabled = is_enabled
 
     async def start_new_conversation(self) -> None:
         """Close the current conversation and begin a fresh transcript."""
@@ -100,6 +108,7 @@ class ChatController:
         )
         assistant_message = self._append_assistant_message(response)
         await self._persist_message(assistant_message)
+        await self._process_memory((user_message, assistant_message))
 
         return ChatExchange(
             user_message=user_message,
@@ -120,6 +129,7 @@ class ChatController:
 
         assistant_message = self._append_assistant_message("".join(chunks))
         await self._persist_message(assistant_message)
+        await self._process_memory((user_message, assistant_message))
 
     def _messages_for_provider(self) -> tuple[ChatMessage, ...]:
         if not self._system_prompt:
@@ -155,4 +165,13 @@ class ChatController:
             conversation_id=self._conversation_id,
             role=message.role,
             content=message.content,
+        )
+
+    async def _process_memory(self, messages: tuple[ChatMessage, ...]) -> None:
+        if not self._memory_enabled or self._memory_pipeline is None:
+            return
+
+        await self._memory_pipeline.process_messages(
+            messages,
+            source_conversation_id=self._conversation_id,
         )

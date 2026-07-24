@@ -20,6 +20,8 @@ retrieved later and injected into prompts.
 - `MemoryNormalizer` protocol and default implementation
 - `MemoryPolicy` protocol and default validation policy
 - `MemoryPipeline` orchestration for extraction, normalization, validation, and storage
+- memory enable/disable setting
+- automatic memory pipeline runs after completed chat turns
 
 ## Not Yet In This Phase
 
@@ -27,7 +29,6 @@ retrieved later and injected into prompts.
 - prompt injection of relevant memories
 - summarization of closed conversations
 - embeddings or vector search
-- chat integration for automatic pipeline runs after responses
 
 ## Storage
 
@@ -65,3 +66,6 @@ The current extractor is deterministic and conservative. It recognizes explicit
 requests like `remember that ...`, preference statements like `I prefer ...`,
 and identity statements like `my name is ...`. Ollama-assisted extraction can
 replace or augment this stage later without changing storage or retrieval.
+
+The pipeline is wired into completed chat turns only. Failed or cancelled
+responses do not create memories, and the feature can be disabled from Settings.

@@ -82,12 +82,20 @@ class PersonalityConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryConfig:
+    """Settings for the Phase 3 memory pipeline."""
+
+    enabled: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
     pet_window: PetWindowConfig = PetWindowConfig()
     ai: AIConfig = AIConfig()
     personality: PersonalityConfig = PersonalityConfig()
+    memory: MemoryConfig = MemoryConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -100,6 +108,10 @@ class AppConfig:
     def with_personality(self, personality: PersonalityConfig) -> AppConfig:
         """Return a copy with updated personality settings."""
         return replace(self, personality=personality)
+
+    def with_memory(self, memory: MemoryConfig) -> AppConfig:
+        """Return a copy with updated memory settings."""
+        return replace(self, memory=memory)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -122,10 +134,15 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(personality_data, dict):
         raise ValueError("personality config must be a TOML table.")
 
+    memory_data = data.get("memory", {})
+    if not isinstance(memory_data, dict):
+        raise ValueError("memory config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
         personality=PersonalityConfig(**personality_data),
+        memory=MemoryConfig(**memory_data),
     )
 
 

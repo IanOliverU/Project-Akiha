@@ -21,6 +21,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.ai.provider, "mock")
         self.assertEqual(config.personality.character_name, "Akiha")
         self.assertIn("Akiha", config.personality.rendered_system_prompt())
+        self.assertTrue(config.memory.enabled)
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
@@ -34,7 +35,10 @@ class SettingsTest(unittest.TestCase):
                 "\n"
                 "[personality]\n"
                 'character_name = "Mei"\n'
-                'system_prompt = "You are {character_name}."\n',
+                'system_prompt = "You are {character_name}."\n'
+                "\n"
+                "[memory]\n"
+                "enabled = false\n",
                 encoding="utf-8",
             )
 
@@ -45,6 +49,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.ai.provider, "ollama")
         self.assertEqual(config.personality.character_name, "Mei")
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
+        self.assertFalse(config.memory.enabled)
 
     def test_personality_prompt_replaces_only_character_name_token(self) -> None:
         personality = PersonalityConfig(

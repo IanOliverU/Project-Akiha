@@ -20,7 +20,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from project_akiha.config import AIConfig, AppConfig, PersonalityConfig, PetWindowConfig
+from project_akiha.config import (
+    AIConfig,
+    AppConfig,
+    MemoryConfig,
+    PersonalityConfig,
+    PetWindowConfig,
+)
 
 
 class SettingsWindow(QWidget):
@@ -68,6 +74,8 @@ class SettingsWindow(QWidget):
         self._character_name_input = QLineEdit(config.personality.character_name)
         self._system_prompt_input = QPlainTextEdit(config.personality.system_prompt)
         self._system_prompt_input.setMinimumHeight(96)
+        self._memory_enabled_input = QCheckBox()
+        self._memory_enabled_input.setChecked(config.memory.enabled)
 
         form_layout = QFormLayout()
         form_layout.addRow("Width", self._width_input)
@@ -84,6 +92,7 @@ class SettingsWindow(QWidget):
         form_layout.addRow("AI timeout", self._ai_timeout_input)
         form_layout.addRow("Companion name", self._character_name_input)
         form_layout.addRow("System prompt", self._system_prompt_input)
+        form_layout.addRow("Memory enabled", self._memory_enabled_input)
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -121,6 +130,7 @@ class SettingsWindow(QWidget):
         self._ai_timeout_input.setValue(config.ai.request_timeout_seconds)
         self._character_name_input.setText(config.personality.character_name)
         self._system_prompt_input.setPlainText(config.personality.system_prompt)
+        self._memory_enabled_input.setChecked(config.memory.enabled)
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -169,6 +179,9 @@ class SettingsWindow(QWidget):
                 character_name=self._character_name_input.text(),
                 system_prompt=self._system_prompt_input.toPlainText(),
             )
+        )
+        config = config.with_memory(
+            MemoryConfig(enabled=self._memory_enabled_input.isChecked())
         )
         self.update_config(config)
         self.settings_saved.emit(config)

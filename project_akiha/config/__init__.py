@@ -3,6 +3,7 @@
 from project_akiha.config.settings import (
     AIConfig,
     AppConfig,
+    MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
     load_config,
@@ -11,6 +12,7 @@ from project_akiha.config.settings import (
 __all__ = [
     "AIConfig",
     "AppConfig",
+    "MemoryConfig",
     "PetWindowConfig",
     "PersonalityConfig",
     "load_config",

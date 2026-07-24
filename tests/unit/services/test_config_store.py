@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from project_akiha.config import (
     AIConfig,
     AppConfig,
+    MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
     load_config,
@@ -45,6 +46,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         character_name="Mei",
                         system_prompt="You are {character_name}.",
                     ),
+                    memory=MemoryConfig(enabled=False),
                 )
             )
 
@@ -67,6 +69,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.personality.character_name, "Mei")
         self.assertEqual(config.personality.system_prompt, "You are {character_name}.")
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
+        self.assertFalse(config.memory.enabled)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

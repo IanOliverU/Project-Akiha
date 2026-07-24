@@ -30,7 +30,9 @@ def _serialize_config(config: AppConfig) -> str:
     pet_window = config.pet_window
     ai = config.ai
     personality = config.personality
+    memory = config.memory
     always_on_top = str(pet_window.always_on_top).lower()
+    memory_enabled = str(memory.enabled).lower()
     manifest_path = _escape_toml_string(pet_window.animation_manifest_path)
     provider = _escape_toml_string(ai.provider)
     ollama_base_url = _escape_toml_string(ai.ollama_base_url)
@@ -58,6 +60,9 @@ def _serialize_config(config: AppConfig) -> str:
         "[personality]\n"
         f'character_name = "{character_name}"\n'
         f'system_prompt = "{system_prompt}"\n'
+        "\n"
+        "[memory]\n"
+        f"enabled = {memory_enabled}\n"
     )
 
 
