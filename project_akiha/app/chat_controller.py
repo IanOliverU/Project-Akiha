@@ -7,7 +7,9 @@ from dataclasses import dataclass
 
 from project_akiha.core.memory import (
     ConversationRepository,
+    ConversationSummarizer,
     DefaultMemoryContextAssembler,
+    HeuristicConversationSummarizer,
     MemoryContextAssembler,
     MemoryPipeline,
     MemoryRepository,
@@ -40,6 +42,7 @@ class ChatController:
         memory_enabled: bool = True,
         memory_retrieval_limit: int = 5,
         memory_requires_approval: bool = False,
+        conversation_summarizer: ConversationSummarizer | None = None,
     ) -> None:
         self._ai_provider = ai_provider
         self._system_prompt = system_prompt.strip()
@@ -53,6 +56,9 @@ class ChatController:
         self._memory_enabled = memory_enabled
         self._memory_retrieval_limit = memory_retrieval_limit
         self._memory_requires_approval = memory_requires_approval
+        self._conversation_summarizer = (
+            conversation_summarizer or HeuristicConversationSummarizer()
+        )
         self._pending_memories: list[PendingMemory] = []
         self._next_pending_memory_id = 1
         self._messages: list[ChatMessage] = [
@@ -117,8 +123,10 @@ class ChatController:
             return
 
         if self._conversation_id is not None:
+            summary = self._conversation_summarizer.summarize(self.messages)
             await self._conversation_repository.close_conversation(
-                self._conversation_id
+                self._conversation_id,
+                summary=summary or None,
             )
 
         conversation = await self._conversation_repository.create_conversation()

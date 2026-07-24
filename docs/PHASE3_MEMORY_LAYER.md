@@ -31,10 +31,13 @@ retrieved later and injected into prompts.
 - clear all memories with confirmation
 - optional memory approval before saving
 - pending memory review, approve, reject, and clear actions
+- `ConversationSummarizer` protocol
+- deterministic closed-conversation summaries
+- SQLite conversation `summary` storage through migration `0003_conversation_summaries.sql`
 
 ## Not Yet In This Phase
 
-- summarization of closed conversations
+- AI-assisted summary generation
 - embeddings or vector search
 
 ## Storage
@@ -76,6 +79,11 @@ replace or augment this stage later without changing storage or retrieval.
 
 The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.
+
+When a new chat is started, the previous conversation is closed with a compact
+summary. The current implementation is deterministic and local; it records the
+visible message count and the first user topics without sending transcript
+content to an external summarizer.
 
 ## Memory Management
 

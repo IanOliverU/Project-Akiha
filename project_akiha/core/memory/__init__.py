@@ -17,11 +17,17 @@ from project_akiha.core.memory.repository import (
     ConversationRepository,
     MemoryRepository,
 )
+from project_akiha.core.memory.summarization import (
+    ConversationSummarizer,
+    HeuristicConversationSummarizer,
+)
 
 __all__ = [
     "Conversation",
     "ConversationRepository",
+    "ConversationSummarizer",
     "DefaultMemoryContextAssembler",
+    "HeuristicConversationSummarizer",
     "MemoryCandidate",
     "MemoryContextAssembler",
     "MemoryEntry",

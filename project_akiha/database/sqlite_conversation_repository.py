@@ -31,9 +31,18 @@ class SQLiteConversationRepository:
         """Return the newest open conversation, creating one when needed."""
         return await asyncio.to_thread(self._get_or_create_current_conversation)
 
-    async def close_conversation(self, conversation_id: int) -> None:
+    async def close_conversation(
+        self,
+        conversation_id: int,
+        summary: str | None = None,
+    ) -> None:
         """Mark a conversation as closed."""
-        await asyncio.to_thread(self._close_conversation, conversation_id)
+        normalized_summary = summary.strip() if summary is not None else None
+        await asyncio.to_thread(
+            self._close_conversation,
+            conversation_id,
+            normalized_summary or None,
+        )
 
     async def clear_conversation_messages(self, conversation_id: int) -> None:
         """Delete all messages in a conversation."""
@@ -96,7 +105,7 @@ class SQLiteConversationRepository:
             conversation_id = int(cursor.lastrowid)
             row = connection.execute(
                 """
-                SELECT id, title, created_at, updated_at, closed_at
+                SELECT id, title, created_at, updated_at, closed_at, summary
                 FROM conversations
                 WHERE id = ?
                 """,
@@ -111,7 +120,7 @@ class SQLiteConversationRepository:
         connection = self._connect()
         try:
             row = connection.execute("""
-                SELECT id, title, created_at, updated_at, closed_at
+                SELECT id, title, created_at, updated_at, closed_at, summary
                 FROM conversations
                 WHERE closed_at IS NULL
                 ORDER BY updated_at DESC, id DESC
@@ -130,7 +139,7 @@ class SQLiteConversationRepository:
                 conversation_id = int(cursor.lastrowid)
                 row = connection.execute(
                     """
-                    SELECT id, title, created_at, updated_at, closed_at
+                    SELECT id, title, created_at, updated_at, closed_at, summary
                     FROM conversations
                     WHERE id = ?
                     """,
@@ -142,17 +151,17 @@ class SQLiteConversationRepository:
         finally:
             connection.close()
 
-    def _close_conversation(self, conversation_id: int) -> None:
+    def _close_conversation(self, conversation_id: int, summary: str | None) -> None:
         timestamp = _utc_timestamp()
         connection = self._connect()
         try:
             connection.execute(
                 """
                 UPDATE conversations
-                SET closed_at = ?, updated_at = ?
+                SET closed_at = ?, updated_at = ?, summary = ?
                 WHERE id = ? AND closed_at IS NULL
                 """,
-                (timestamp, timestamp, conversation_id),
+                (timestamp, timestamp, summary, conversation_id),
             )
             connection.commit()
         finally:
@@ -270,6 +279,7 @@ def _conversation_from_row(row: sqlite3.Row) -> Conversation:
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
         closed_at=cast(str | None, row["closed_at"]),
+        summary=cast(str | None, row["summary"]),
     )
 
 

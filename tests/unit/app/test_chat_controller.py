@@ -83,6 +83,7 @@ class RecordingConversationRepository:
             created_at="now",
             updated_at="now",
             closed_at=None,
+            summary=None,
         )
         self.next_conversation_id += 1
         return conversation
@@ -95,10 +96,16 @@ class RecordingConversationRepository:
             created_at="now",
             updated_at="now",
             closed_at=None,
+            summary=None,
         )
 
-    async def close_conversation(self, conversation_id: int) -> None:
+    async def close_conversation(
+        self,
+        conversation_id: int,
+        summary: str | None = None,
+    ) -> None:
         """Record a closed conversation."""
+        del summary
         self.closed_conversation_ids.append(conversation_id)
 
     async def clear_conversation_messages(self, conversation_id: int) -> None:
@@ -330,6 +337,49 @@ class ChatControllerTest(unittest.TestCase):
         self.assertEqual(repository.closed_conversation_ids, [7])
         self.assertEqual(controller.messages[0].content, "fresh")
         self.assertEqual(repository.saved_messages[0], (10, "user", "fresh"))
+
+    def test_start_new_conversation_summarizes_closed_history(self) -> None:
+        class RecordingSummarizer:
+            def __init__(self) -> None:
+                self.messages: tuple[ChatMessage, ...] = ()
+
+            def summarize(self, messages: tuple[ChatMessage, ...]) -> str:
+                self.messages = messages
+                return "User planned the next feature."
+
+        class SummaryRepository(RecordingConversationRepository):
+            def __init__(self) -> None:
+                super().__init__()
+                self.closed_summaries: list[tuple[int, str | None]] = []
+
+            async def close_conversation(
+                self,
+                conversation_id: int,
+                summary: str | None = None,
+            ) -> None:
+                self.closed_summaries.append((conversation_id, summary))
+
+        repository = SummaryRepository()
+        summarizer = RecordingSummarizer()
+        initial_messages = (
+            ChatMessage(role="user", content="old request"),
+            ChatMessage(role="assistant", content="old reply"),
+        )
+        controller = ChatController(
+            StaticProvider("done"),
+            conversation_repository=repository,
+            conversation_id=7,
+            initial_messages=initial_messages,
+            conversation_summarizer=summarizer,
+        )
+
+        asyncio.run(controller.start_new_conversation())
+
+        self.assertEqual(summarizer.messages, initial_messages)
+        self.assertEqual(
+            repository.closed_summaries,
+            [(7, "User planned the next feature.")],
+        )
 
     def test_start_new_conversation_clears_history_without_repository(self) -> None:
         controller = ChatController(

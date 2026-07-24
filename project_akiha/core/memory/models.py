@@ -17,6 +17,7 @@ class Conversation:
     created_at: str
     updated_at: str
     closed_at: str | None
+    summary: str | None
 
 
 @dataclass(frozen=True, slots=True)

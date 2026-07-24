@@ -22,7 +22,11 @@ class ConversationRepository(Protocol):
     async def get_or_create_current_conversation(self) -> Conversation:
         """Return the open conversation used for the current chat session."""
 
-    async def close_conversation(self, conversation_id: int) -> None:
+    async def close_conversation(
+        self,
+        conversation_id: int,
+        summary: str | None = None,
+    ) -> None:
         """Mark a conversation as closed."""
 
     async def clear_conversation_messages(self, conversation_id: int) -> None:

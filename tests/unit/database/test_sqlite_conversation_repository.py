@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -58,6 +59,35 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
 
         self.assertNotEqual(first.id, second.id)
         self.assertEqual(second.title, "Current chat")
+
+    def test_close_conversation_stores_summary(self) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "akiha.sqlite3"
+            repository = SQLiteConversationRepository(database_path)
+            conversation = asyncio.run(repository.get_or_create_current_conversation())
+
+            asyncio.run(
+                repository.close_conversation(
+                    conversation.id,
+                    summary="User discussed tray settings.",
+                )
+            )
+
+            connection = sqlite3.connect(database_path)
+            try:
+                row = connection.execute(
+                    """
+                    SELECT closed_at, summary
+                    FROM conversations
+                    WHERE id = ?
+                    """,
+                    (conversation.id,),
+                ).fetchone()
+            finally:
+                connection.close()
+
+        self.assertIsNotNone(row[0])
+        self.assertEqual(row[1], "User discussed tray settings.")
 
     def test_create_conversation_rejects_empty_title(self) -> None:
         with TemporaryDirectory() as directory:

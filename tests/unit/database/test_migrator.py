@@ -32,6 +32,10 @@ class DatabaseMigratorTest(unittest.TestCase):
                 versions = connection.execute(
                     "SELECT version FROM schema_version ORDER BY version"
                 ).fetchall()
+                conversation_columns = {
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(conversations)")
+                }
             finally:
                 connection.close()
 
@@ -39,7 +43,8 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("conversations", table_names)
         self.assertIn("messages", table_names)
         self.assertIn("memories", table_names)
-        self.assertEqual(versions, [(1,), (2,)])
+        self.assertIn("summary", conversation_columns)
+        self.assertEqual(versions, [(1,), (2,), (3,)])
 
 
 if __name__ == "__main__":
