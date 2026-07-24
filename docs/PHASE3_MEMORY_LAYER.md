@@ -27,10 +27,12 @@ retrieved later and injected into prompts.
 - configurable memory retrieval limit
 - memory manager opened from Settings
 - recent memory review
+- saved memory search/filter UI
 - delete selected memory
 - clear all memories with confirmation
 - optional memory approval before saving
 - pending memory review, approve, reject, and clear actions
+- pending memory search/filter UI
 - `ConversationSummarizer` protocol
 - deterministic closed-conversation summaries
 - SQLite conversation `summary` storage through migration `0003_conversation_summaries.sql`

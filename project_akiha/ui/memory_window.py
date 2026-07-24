@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -35,13 +36,23 @@ class MemoryWindow(QWidget):
         self.setMinimumSize(520, 420)
 
         self._status_label = QLabel("No memories loaded.")
+        self._memory_filter_input = QLineEdit()
+        self._memory_filter_input.setPlaceholderText("Search saved memories")
+        self._memory_filter_input.textChanged.connect(self._apply_memory_filter)
         self._memory_list = QListWidget()
         self._pending_status_label = QLabel("No pending memories.")
+        self._pending_filter_input = QLineEdit()
+        self._pending_filter_input.setPlaceholderText("Search pending memories")
+        self._pending_filter_input.textChanged.connect(self._apply_pending_filter)
         self._pending_list = QListWidget()
+        self._memories: tuple[MemoryEntry, ...] = ()
+        self._pending_memories: tuple[PendingMemory, ...] = ()
 
         tabs = QTabWidget()
-        tabs.addTab(_wrap_list(self._memory_list), "Saved")
-        tabs.addTab(_wrap_list(self._pending_list), "Pending")
+        tabs.addTab(_wrap_list(self._memory_filter_input, self._memory_list), "Saved")
+        tabs.addTab(
+            _wrap_list(self._pending_filter_input, self._pending_list), "Pending"
+        )
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_requested.emit)
@@ -79,29 +90,27 @@ class MemoryWindow(QWidget):
 
     def update_memories(self, memories: tuple[MemoryEntry, ...]) -> None:
         """Replace the visible memory list."""
+        self._memories = memories
         self._memory_list.clear()
         for memory in memories:
             item = QListWidgetItem(_format_memory(memory))
             item.setData(Qt.ItemDataRole.UserRole, memory.id)
             self._memory_list.addItem(item)
 
-        count = len(memories)
-        noun = "memory" if count == 1 else "memories"
-        self._status_label.setText(f"{count} {noun}")
+        self._apply_memory_filter()
 
     def update_pending_memories(
         self, pending_memories: tuple[PendingMemory, ...]
     ) -> None:
         """Replace the visible pending memory list."""
+        self._pending_memories = pending_memories
         self._pending_list.clear()
         for pending_memory in pending_memories:
             item = QListWidgetItem(_format_pending_memory(pending_memory))
             item.setData(Qt.ItemDataRole.UserRole, pending_memory.id)
             self._pending_list.addItem(item)
 
-        count = len(pending_memories)
-        noun = "pending memory" if count == 1 else "pending memories"
-        self._pending_status_label.setText(f"{count} {noun}")
+        self._apply_pending_filter()
 
     def append_notice(self, message: str) -> None:
         """Show a short status message."""
@@ -166,6 +175,24 @@ class MemoryWindow(QWidget):
 
         self.reject_requested.emit(pending_memory_id)
 
+    def _apply_memory_filter(self) -> None:
+        query = self._memory_filter_input.text().strip()
+        visible_count = _apply_list_filter(self._memory_list, query)
+        self._status_label.setText(
+            _format_count_status(visible_count, len(self._memories), "memory")
+        )
+
+    def _apply_pending_filter(self) -> None:
+        query = self._pending_filter_input.text().strip()
+        visible_count = _apply_list_filter(self._pending_list, query)
+        self._pending_status_label.setText(
+            _format_count_status(
+                visible_count,
+                len(self._pending_memories),
+                "pending memory",
+            )
+        )
+
 
 def _format_memory(memory: MemoryEntry) -> str:
     tags = f" [{', '.join(memory.tags)}]" if memory.tags else ""
@@ -179,10 +206,43 @@ def _format_pending_memory(pending_memory: PendingMemory) -> str:
     return f"{prefix}  {candidate.content}{tags}"
 
 
-def _wrap_list(memory_list: QListWidget) -> QWidget:
+def _apply_list_filter(memory_list: QListWidget, query: str) -> int:
+    normalized_query = query.casefold()
+    visible_count = 0
+    for index in range(memory_list.count()):
+        item = memory_list.item(index)
+        is_match = not normalized_query or normalized_query in item.text().casefold()
+        item.setHidden(not is_match)
+        if is_match:
+            visible_count += 1
+
+    current_item = memory_list.currentItem()
+    if current_item is not None and current_item.isHidden():
+        memory_list.setCurrentRow(-1)
+
+    return visible_count
+
+
+def _format_count_status(visible_count: int, total_count: int, singular: str) -> str:
+    plural = _pluralize(singular)
+    noun = singular if total_count == 1 else plural
+    if visible_count == total_count:
+        return f"{total_count} {noun}"
+
+    return f"{visible_count} of {total_count} {noun}"
+
+
+def _pluralize(singular: str) -> str:
+    if singular.endswith("memory"):
+        return f"{singular.removesuffix('memory')}memories"
+    return f"{singular}s"
+
+
+def _wrap_list(search_input: QLineEdit, memory_list: QListWidget) -> QWidget:
     widget = QWidget()
     layout = QVBoxLayout()
     layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(search_input)
     layout.addWidget(memory_list)
     widget.setLayout(layout)
     return widget
