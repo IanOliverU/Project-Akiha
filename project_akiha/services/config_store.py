@@ -64,6 +64,7 @@ def _serialize_config(config: AppConfig) -> str:
         "[memory]\n"
         f"enabled = {memory_enabled}\n"
         f"retrieval_limit = {memory.retrieval_limit}\n"
+        f"require_approval = {str(memory.require_approval).lower()}\n"
     )
 
 

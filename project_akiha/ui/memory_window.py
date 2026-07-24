@@ -10,11 +10,12 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from project_akiha.core.memory import MemoryEntry
+from project_akiha.core.memory import MemoryEntry, PendingMemory
 
 
 class MemoryWindow(QWidget):
@@ -23,6 +24,9 @@ class MemoryWindow(QWidget):
     refresh_requested = Signal()
     delete_requested = Signal(int)
     clear_requested = Signal()
+    approve_requested = Signal(int)
+    reject_requested = Signal(int)
+    clear_pending_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -32,6 +36,12 @@ class MemoryWindow(QWidget):
 
         self._status_label = QLabel("No memories loaded.")
         self._memory_list = QListWidget()
+        self._pending_status_label = QLabel("No pending memories.")
+        self._pending_list = QListWidget()
+
+        tabs = QTabWidget()
+        tabs.addTab(_wrap_list(self._memory_list), "Saved")
+        tabs.addTab(_wrap_list(self._pending_list), "Pending")
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_requested.emit)
@@ -42,15 +52,28 @@ class MemoryWindow(QWidget):
         clear_button = QPushButton("Clear all")
         clear_button.clicked.connect(self._request_clear_all)
 
+        approve_button = QPushButton("Approve")
+        approve_button.clicked.connect(self._request_approve_selected)
+
+        reject_button = QPushButton("Reject")
+        reject_button.clicked.connect(self._request_reject_selected)
+
+        clear_pending_button = QPushButton("Clear pending")
+        clear_pending_button.clicked.connect(self.clear_pending_requested.emit)
+
         button_layout = QHBoxLayout()
         button_layout.addWidget(refresh_button)
         button_layout.addWidget(delete_button)
         button_layout.addWidget(clear_button)
+        button_layout.addWidget(approve_button)
+        button_layout.addWidget(reject_button)
+        button_layout.addWidget(clear_pending_button)
         button_layout.addStretch()
 
         layout = QVBoxLayout()
         layout.addWidget(self._status_label)
-        layout.addWidget(self._memory_list)
+        layout.addWidget(self._pending_status_label)
+        layout.addWidget(tabs)
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
@@ -66,6 +89,20 @@ class MemoryWindow(QWidget):
         noun = "memory" if count == 1 else "memories"
         self._status_label.setText(f"{count} {noun}")
 
+    def update_pending_memories(
+        self, pending_memories: tuple[PendingMemory, ...]
+    ) -> None:
+        """Replace the visible pending memory list."""
+        self._pending_list.clear()
+        for pending_memory in pending_memories:
+            item = QListWidgetItem(_format_pending_memory(pending_memory))
+            item.setData(Qt.ItemDataRole.UserRole, pending_memory.id)
+            self._pending_list.addItem(item)
+
+        count = len(pending_memories)
+        noun = "pending memory" if count == 1 else "pending memories"
+        self._pending_status_label.setText(f"{count} {noun}")
+
     def append_notice(self, message: str) -> None:
         """Show a short status message."""
         self._status_label.setText(message)
@@ -73,6 +110,14 @@ class MemoryWindow(QWidget):
     def selected_memory_id(self) -> int | None:
         """Return the selected memory id, if any."""
         item = self._memory_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return int(value) if value is not None else None
+
+    def selected_pending_memory_id(self) -> int | None:
+        """Return the selected pending memory id, if any."""
+        item = self._pending_list.currentItem()
         if item is None:
             return None
         value = item.data(Qt.ItemDataRole.UserRole)
@@ -105,7 +150,39 @@ class MemoryWindow(QWidget):
         if answer == QMessageBox.StandardButton.Yes:
             self.clear_requested.emit()
 
+    def _request_approve_selected(self) -> None:
+        pending_memory_id = self.selected_pending_memory_id()
+        if pending_memory_id is None:
+            self.append_notice("Select a pending memory first.")
+            return
+
+        self.approve_requested.emit(pending_memory_id)
+
+    def _request_reject_selected(self) -> None:
+        pending_memory_id = self.selected_pending_memory_id()
+        if pending_memory_id is None:
+            self.append_notice("Select a pending memory first.")
+            return
+
+        self.reject_requested.emit(pending_memory_id)
+
 
 def _format_memory(memory: MemoryEntry) -> str:
     tags = f" [{', '.join(memory.tags)}]" if memory.tags else ""
     return f"#{memory.id}  Importance {memory.importance}  {memory.content}{tags}"
+
+
+def _format_pending_memory(pending_memory: PendingMemory) -> str:
+    candidate = pending_memory.candidate
+    tags = f" [{', '.join(candidate.tags)}]" if candidate.tags else ""
+    prefix = f"#{pending_memory.id}  Importance {candidate.importance}"
+    return f"{prefix}  {candidate.content}{tags}"
+
+
+def _wrap_list(memory_list: QListWidget) -> QWidget:
+    widget = QWidget()
+    layout = QVBoxLayout()
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(memory_list)
+    widget.setLayout(layout)
+    return widget

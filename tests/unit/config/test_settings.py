@@ -23,6 +23,7 @@ class SettingsTest(unittest.TestCase):
         self.assertIn("Akiha", config.personality.rendered_system_prompt())
         self.assertTrue(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 5)
+        self.assertFalse(config.memory.require_approval)
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
@@ -40,7 +41,8 @@ class SettingsTest(unittest.TestCase):
                 "\n"
                 "[memory]\n"
                 "enabled = false\n"
-                "retrieval_limit = 3\n",
+                "retrieval_limit = 3\n"
+                "require_approval = true\n",
                 encoding="utf-8",
             )
 
@@ -53,6 +55,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
+        self.assertTrue(config.memory.require_approval)
 
     def test_personality_prompt_replaces_only_character_name_token(self) -> None:
         personality = PersonalityConfig(

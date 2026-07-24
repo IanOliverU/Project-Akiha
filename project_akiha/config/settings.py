@@ -87,6 +87,7 @@ class MemoryConfig:
 
     enabled: bool = True
     retrieval_limit: int = 5
+    require_approval: bool = False
 
     def __post_init__(self) -> None:
         """Validate memory settings."""

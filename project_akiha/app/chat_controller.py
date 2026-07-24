@@ -11,6 +11,7 @@ from project_akiha.core.memory import (
     MemoryContextAssembler,
     MemoryPipeline,
     MemoryRepository,
+    PendingMemory,
 )
 from project_akiha.providers.ai import AIProvider, ChatMessage
 
@@ -38,6 +39,7 @@ class ChatController:
         memory_context_assembler: MemoryContextAssembler | None = None,
         memory_enabled: bool = True,
         memory_retrieval_limit: int = 5,
+        memory_requires_approval: bool = False,
     ) -> None:
         self._ai_provider = ai_provider
         self._system_prompt = system_prompt.strip()
@@ -50,6 +52,9 @@ class ChatController:
         )
         self._memory_enabled = memory_enabled
         self._memory_retrieval_limit = memory_retrieval_limit
+        self._memory_requires_approval = memory_requires_approval
+        self._pending_memories: list[PendingMemory] = []
+        self._next_pending_memory_id = 1
         self._messages: list[ChatMessage] = [
             message for message in initial_messages if message.role != "system"
         ]
@@ -58,6 +63,11 @@ class ChatController:
     def messages(self) -> tuple[ChatMessage, ...]:
         """Return the current chat history."""
         return tuple(self._messages)
+
+    @property
+    def pending_memories(self) -> tuple[PendingMemory, ...]:
+        """Return memories waiting for user approval."""
+        return tuple(self._pending_memories)
 
     def set_ai_provider(self, ai_provider: AIProvider) -> None:
         """Replace the provider used for future chat responses."""
@@ -76,6 +86,29 @@ class ChatController:
         if limit <= 0:
             raise ValueError("memory retrieval limit must be greater than zero.")
         self._memory_retrieval_limit = limit
+
+    def set_memory_requires_approval(self, requires_approval: bool) -> None:
+        """Set whether extracted memories wait for user approval."""
+        self._memory_requires_approval = requires_approval
+
+    async def approve_pending_memory(self, pending_memory_id: int) -> None:
+        """Save one pending memory candidate."""
+        pending_memory = self._pop_pending_memory(pending_memory_id)
+        if self._memory_pipeline is None:
+            return
+
+        await self._memory_pipeline.save_candidate(
+            pending_memory.candidate,
+            source_conversation_id=pending_memory.source_conversation_id,
+        )
+
+    def reject_pending_memory(self, pending_memory_id: int) -> None:
+        """Discard one pending memory candidate."""
+        self._pop_pending_memory(pending_memory_id)
+
+    def clear_pending_memories(self) -> None:
+        """Discard all pending memory candidates."""
+        self._pending_memories.clear()
 
     async def start_new_conversation(self) -> None:
         """Close the current conversation and begin a fresh transcript."""
@@ -211,7 +244,27 @@ class ChatController:
         if not self._memory_enabled or self._memory_pipeline is None:
             return
 
-        await self._memory_pipeline.process_messages(
-            messages,
-            source_conversation_id=self._conversation_id,
-        )
+        if not self._memory_requires_approval:
+            await self._memory_pipeline.process_messages(
+                messages,
+                source_conversation_id=self._conversation_id,
+            )
+            return
+
+        candidates = await self._memory_pipeline.collect_candidates(messages)
+        for candidate in candidates:
+            self._pending_memories.append(
+                PendingMemory(
+                    id=self._next_pending_memory_id,
+                    candidate=candidate,
+                    source_conversation_id=self._conversation_id,
+                )
+            )
+            self._next_pending_memory_id += 1
+
+    def _pop_pending_memory(self, pending_memory_id: int) -> PendingMemory:
+        for index, pending_memory in enumerate(self._pending_memories):
+            if pending_memory.id == pending_memory_id:
+                return self._pending_memories.pop(index)
+
+        raise ValueError("pending memory was not found.")

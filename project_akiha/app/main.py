@@ -90,6 +90,7 @@ def main() -> int:
         memory_repository=memory_repository,
         memory_enabled=config.memory.enabled,
         memory_retrieval_limit=config.memory.retrieval_limit,
+        memory_requires_approval=config.memory.require_approval,
     )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
@@ -160,6 +161,9 @@ def main() -> int:
         chat_controller.set_memory_retrieval_limit(
             updated_config.memory.retrieval_limit
         )
+        chat_controller.set_memory_requires_approval(
+            updated_config.memory.require_approval
+        )
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:
@@ -190,6 +194,7 @@ def main() -> int:
     def refresh_memory_window() -> None:
         memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
         memory_window.update_memories(memories)
+        memory_window.update_pending_memories(chat_controller.pending_memories)
 
     def show_memory_manager() -> None:
         refresh_memory_window()
@@ -206,6 +211,21 @@ def main() -> int:
         asyncio.run(memory_repository.clear_memories())
         refresh_memory_window()
         memory_window.append_notice("All memories cleared.")
+
+    def approve_pending_memory(pending_memory_id: int) -> None:
+        asyncio.run(chat_controller.approve_pending_memory(pending_memory_id))
+        refresh_memory_window()
+        memory_window.append_notice("Pending memory approved.")
+
+    def reject_pending_memory(pending_memory_id: int) -> None:
+        chat_controller.reject_pending_memory(pending_memory_id)
+        refresh_memory_window()
+        memory_window.append_notice("Pending memory rejected.")
+
+    def clear_pending_memories() -> None:
+        chat_controller.clear_pending_memories()
+        refresh_memory_window()
+        memory_window.append_notice("Pending memories cleared.")
 
     def show_chat(event: Event | None = None) -> None:
         del event
@@ -314,6 +334,9 @@ def main() -> int:
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.delete_requested.connect(delete_memory)
     memory_window.clear_requested.connect(clear_memories)
+    memory_window.approve_requested.connect(approve_pending_memory)
+    memory_window.reject_requested.connect(reject_pending_memory)
+    memory_window.clear_pending_requested.connect(clear_pending_memories)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     settings_window.memory_manager_requested.connect(show_memory_manager)

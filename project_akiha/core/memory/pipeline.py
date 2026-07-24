@@ -9,7 +9,7 @@ from project_akiha.core.memory.extraction import (
     MemoryExtractor,
     MemorySourceMessage,
 )
-from project_akiha.core.memory.models import MemoryEntry
+from project_akiha.core.memory.models import MemoryCandidate, MemoryEntry
 from project_akiha.core.memory.normalization import (
     DefaultMemoryNormalizer,
     MemoryNormalizer,
@@ -41,6 +41,22 @@ class MemoryPipeline:
         source_conversation_id: int | None = None,
     ) -> tuple[MemoryEntry, ...]:
         """Extract, validate, and persist memories from messages."""
+        candidates = await self.collect_candidates(messages)
+        saved_memories: list[MemoryEntry] = []
+        for candidate in candidates:
+            saved_memory = await self.save_candidate(
+                candidate,
+                source_conversation_id=source_conversation_id,
+            )
+            saved_memories.append(saved_memory)
+
+        return tuple(saved_memories)
+
+    async def collect_candidates(
+        self,
+        messages: Sequence[MemorySourceMessage],
+    ) -> tuple[MemoryCandidate, ...]:
+        """Extract, normalize, and validate memory candidates."""
         candidates = tuple(
             self._normalizer.normalize(candidate)
             for candidate in self._extractor.extract(messages)
@@ -51,20 +67,46 @@ class MemoryPipeline:
         existing_memories = await self._repository.get_recent_memories(
             self._duplicate_scan_limit
         )
-        saved_memories: list[MemoryEntry] = []
+        accepted_candidates: list[MemoryCandidate] = []
         for candidate in candidates:
             if not self._policy.accepts(
                 candidate,
-                (*existing_memories, *saved_memories),
+                (
+                    *existing_memories,
+                    *(
+                        _candidate_to_memory_entry(accepted_candidate)
+                        for accepted_candidate in accepted_candidates
+                    ),
+                ),
             ):
                 continue
 
-            saved_memory = await self._repository.save_memory(
-                content=candidate.content,
-                source_conversation_id=source_conversation_id,
-                importance=candidate.importance,
-                tags=candidate.tags,
-            )
-            saved_memories.append(saved_memory)
+            accepted_candidates.append(candidate)
 
-        return tuple(saved_memories)
+        return tuple(accepted_candidates)
+
+    async def save_candidate(
+        self,
+        candidate: MemoryCandidate,
+        source_conversation_id: int | None = None,
+    ) -> MemoryEntry:
+        """Persist one approved memory candidate."""
+        return await self._repository.save_memory(
+            content=candidate.content,
+            source_conversation_id=source_conversation_id,
+            importance=candidate.importance,
+            tags=candidate.tags,
+        )
+
+
+def _candidate_to_memory_entry(candidate: MemoryCandidate) -> MemoryEntry:
+    return MemoryEntry(
+        id=0,
+        content=candidate.content,
+        source_conversation_id=None,
+        importance=candidate.importance,
+        tags=candidate.tags,
+        created_at="",
+        updated_at="",
+        last_accessed_at=None,
+    )

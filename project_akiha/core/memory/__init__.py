@@ -9,6 +9,7 @@ from project_akiha.core.memory.models import (
     MemoryCandidate,
     MemoryEntry,
     MessageRole,
+    PendingMemory,
     StoredMessage,
 )
 from project_akiha.core.memory.pipeline import MemoryPipeline
@@ -27,5 +28,6 @@ __all__ = [
     "MemoryPipeline",
     "MemoryRepository",
     "MessageRole",
+    "PendingMemory",
     "StoredMessage",
 ]

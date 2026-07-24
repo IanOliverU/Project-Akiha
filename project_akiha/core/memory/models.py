@@ -53,3 +53,12 @@ class MemoryCandidate:
     confidence: float = 1.0
     importance: int = 3
     tags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PendingMemory:
+    """A candidate waiting for user approval before storage."""
+
+    id: int
+    candidate: MemoryCandidate
+    source_conversation_id: int | None

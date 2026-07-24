@@ -29,10 +29,11 @@ retrieved later and injected into prompts.
 - recent memory review
 - delete selected memory
 - clear all memories with confirmation
+- optional memory approval before saving
+- pending memory review, approve, reject, and clear actions
 
 ## Not Yet In This Phase
 
-- memory approval before saving
 - summarization of closed conversations
 - embeddings or vector search
 
@@ -80,6 +81,10 @@ responses do not create memories, and the feature can be disabled from Settings.
 
 Settings can open the memory manager. The manager lists recent memories and can
 delete one selected memory or clear all memories after confirmation.
+
+When approval is enabled in Settings, extracted memory candidates are queued in
+the Pending tab instead of being saved immediately. Pending memories can be
+approved, rejected, or cleared.
 
 ## Prompt Context
 

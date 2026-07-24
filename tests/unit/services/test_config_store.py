@@ -46,7 +46,11 @@ class UserConfigStoreTest(unittest.TestCase):
                         character_name="Mei",
                         system_prompt="You are {character_name}.",
                     ),
-                    memory=MemoryConfig(enabled=False, retrieval_limit=3),
+                    memory=MemoryConfig(
+                        enabled=False,
+                        retrieval_limit=3,
+                        require_approval=True,
+                    ),
                 )
             )
 
@@ -71,6 +75,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
+        self.assertTrue(config.memory.require_approval)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

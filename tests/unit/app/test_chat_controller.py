@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.memory import (
     Conversation,
+    MemoryCandidate,
     MemoryEntry,
     MessageRole,
     StoredMessage,
@@ -140,6 +141,8 @@ class RecordingMemoryPipeline:
 
     def __init__(self) -> None:
         self.processed_messages: list[tuple[tuple[ChatMessage, ...], int | None]] = []
+        self.candidates: tuple[MemoryCandidate, ...] = ()
+        self.saved_candidates: list[tuple[MemoryCandidate, int | None]] = []
 
     async def process_messages(
         self,
@@ -149,6 +152,32 @@ class RecordingMemoryPipeline:
         """Record processed chat messages."""
         self.processed_messages.append((messages, source_conversation_id))
         return ()
+
+    async def collect_candidates(
+        self,
+        messages: tuple[ChatMessage, ...],
+    ) -> tuple[MemoryCandidate, ...]:
+        """Return configured candidates."""
+        del messages
+        return self.candidates
+
+    async def save_candidate(
+        self,
+        candidate: MemoryCandidate,
+        source_conversation_id: int | None = None,
+    ) -> MemoryEntry:
+        """Record an approved candidate."""
+        self.saved_candidates.append((candidate, source_conversation_id))
+        return MemoryEntry(
+            id=len(self.saved_candidates),
+            content=candidate.content,
+            source_conversation_id=source_conversation_id,
+            importance=candidate.importance,
+            tags=candidate.tags,
+            created_at="now",
+            updated_at="now",
+            last_accessed_at=None,
+        )
 
 
 class RecordingMemoryRepository:
@@ -442,6 +471,78 @@ class ChatControllerTest(unittest.TestCase):
             asyncio.run(controller.submit_user_message("Remember that I use Krita."))
 
         self.assertEqual(memory_pipeline.processed_messages, [])
+
+    def test_memory_approval_queues_candidates_without_saving(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        memory_pipeline.candidates = (
+            MemoryCandidate(
+                content="User uses Krita.",
+                source_role="user",
+                importance=4,
+                tags=("explicit",),
+            ),
+        )
+        controller = ChatController(
+            StaticProvider("remembered"),
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+            memory_requires_approval=True,
+        )
+
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+
+        self.assertEqual(memory_pipeline.processed_messages, [])
+        self.assertEqual(len(controller.pending_memories), 1)
+        self.assertEqual(
+            controller.pending_memories[0].candidate.content, "User uses Krita."
+        )
+        self.assertEqual(controller.pending_memories[0].source_conversation_id, 7)
+        self.assertEqual(memory_pipeline.saved_candidates, [])
+
+    def test_approve_pending_memory_saves_candidate(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        memory_pipeline.candidates = (
+            MemoryCandidate(content="User uses Krita.", source_role="user"),
+        )
+        controller = ChatController(
+            StaticProvider("remembered"),
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+            memory_requires_approval=True,
+        )
+
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+        pending_memory_id = controller.pending_memories[0].id
+        asyncio.run(controller.approve_pending_memory(pending_memory_id))
+
+        self.assertEqual(controller.pending_memories, ())
+        self.assertEqual(
+            memory_pipeline.saved_candidates,
+            [(MemoryCandidate(content="User uses Krita.", source_role="user"), 7)],
+        )
+
+    def test_reject_pending_memory_discards_candidate(self) -> None:
+        memory_pipeline = RecordingMemoryPipeline()
+        memory_pipeline.candidates = (
+            MemoryCandidate(content="User uses Krita.", source_role="user"),
+        )
+        controller = ChatController(
+            StaticProvider("remembered"),
+            memory_pipeline=memory_pipeline,
+            memory_requires_approval=True,
+        )
+
+        asyncio.run(controller.submit_user_message("Remember that I use Krita."))
+        controller.reject_pending_memory(controller.pending_memories[0].id)
+
+        self.assertEqual(controller.pending_memories, ())
+        self.assertEqual(memory_pipeline.saved_candidates, [])
+
+    def test_missing_pending_memory_is_rejected(self) -> None:
+        controller = ChatController(StaticProvider("remembered"))
+
+        with self.assertRaises(ValueError):
+            controller.reject_pending_memory(999)
 
     def test_relevant_memories_are_sent_to_provider_system_prompt(self) -> None:
         provider = StaticProvider("done")
