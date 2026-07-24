@@ -86,6 +86,12 @@ class MemoryConfig:
     """Settings for the Phase 3 memory pipeline."""
 
     enabled: bool = True
+    retrieval_limit: int = 5
+
+    def __post_init__(self) -> None:
+        """Validate memory settings."""
+        if self.retrieval_limit <= 0:
+            raise ValueError("memory.retrieval_limit must be greater than zero.")
 
 
 @dataclass(frozen=True, slots=True)

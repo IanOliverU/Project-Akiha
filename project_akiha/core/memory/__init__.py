@@ -1,5 +1,9 @@
 """Framework-free memory and conversation models."""
 
+from project_akiha.core.memory.context import (
+    DefaultMemoryContextAssembler,
+    MemoryContextAssembler,
+)
 from project_akiha.core.memory.models import (
     Conversation,
     MemoryCandidate,
@@ -16,7 +20,9 @@ from project_akiha.core.memory.repository import (
 __all__ = [
     "Conversation",
     "ConversationRepository",
+    "DefaultMemoryContextAssembler",
     "MemoryCandidate",
+    "MemoryContextAssembler",
     "MemoryEntry",
     "MemoryPipeline",
     "MemoryRepository",

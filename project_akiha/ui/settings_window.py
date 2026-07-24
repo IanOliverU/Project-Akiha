@@ -76,6 +76,11 @@ class SettingsWindow(QWidget):
         self._system_prompt_input.setMinimumHeight(96)
         self._memory_enabled_input = QCheckBox()
         self._memory_enabled_input.setChecked(config.memory.enabled)
+        self._memory_retrieval_limit_input = _build_spinbox(
+            1,
+            20,
+            config.memory.retrieval_limit,
+        )
 
         form_layout = QFormLayout()
         form_layout.addRow("Width", self._width_input)
@@ -93,6 +98,7 @@ class SettingsWindow(QWidget):
         form_layout.addRow("Companion name", self._character_name_input)
         form_layout.addRow("System prompt", self._system_prompt_input)
         form_layout.addRow("Memory enabled", self._memory_enabled_input)
+        form_layout.addRow("Memory retrieval limit", self._memory_retrieval_limit_input)
 
         save_button = QPushButton("Save")
         save_button.clicked.connect(self._save)
@@ -131,6 +137,7 @@ class SettingsWindow(QWidget):
         self._character_name_input.setText(config.personality.character_name)
         self._system_prompt_input.setPlainText(config.personality.system_prompt)
         self._memory_enabled_input.setChecked(config.memory.enabled)
+        self._memory_retrieval_limit_input.setValue(config.memory.retrieval_limit)
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -181,7 +188,10 @@ class SettingsWindow(QWidget):
             )
         )
         config = config.with_memory(
-            MemoryConfig(enabled=self._memory_enabled_input.isChecked())
+            MemoryConfig(
+                enabled=self._memory_enabled_input.isChecked(),
+                retrieval_limit=self._memory_retrieval_limit_input.value(),
+            )
         )
         self.update_config(config)
         self.settings_saved.emit(config)

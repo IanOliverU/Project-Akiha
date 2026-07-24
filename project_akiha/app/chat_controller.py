@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from project_akiha.core.memory import ConversationRepository, MemoryPipeline
+from project_akiha.core.memory import (
+    ConversationRepository,
+    DefaultMemoryContextAssembler,
+    MemoryContextAssembler,
+    MemoryPipeline,
+    MemoryRepository,
+)
 from project_akiha.providers.ai import AIProvider, ChatMessage
 
 
@@ -28,14 +34,22 @@ class ChatController:
         conversation_id: int | None = None,
         initial_messages: tuple[ChatMessage, ...] = (),
         memory_pipeline: MemoryPipeline | None = None,
+        memory_repository: MemoryRepository | None = None,
+        memory_context_assembler: MemoryContextAssembler | None = None,
         memory_enabled: bool = True,
+        memory_retrieval_limit: int = 5,
     ) -> None:
         self._ai_provider = ai_provider
         self._system_prompt = system_prompt.strip()
         self._conversation_repository = conversation_repository
         self._conversation_id = conversation_id
         self._memory_pipeline = memory_pipeline
+        self._memory_repository = memory_repository
+        self._memory_context_assembler = (
+            memory_context_assembler or DefaultMemoryContextAssembler()
+        )
         self._memory_enabled = memory_enabled
+        self._memory_retrieval_limit = memory_retrieval_limit
         self._messages: list[ChatMessage] = [
             message for message in initial_messages if message.role != "system"
         ]
@@ -56,6 +70,12 @@ class ChatController:
     def set_memory_enabled(self, is_enabled: bool) -> None:
         """Set whether completed chat turns may create memories."""
         self._memory_enabled = is_enabled
+
+    def set_memory_retrieval_limit(self, limit: int) -> None:
+        """Set how many relevant memories may be injected into prompts."""
+        if limit <= 0:
+            raise ValueError("memory retrieval limit must be greater than zero.")
+        self._memory_retrieval_limit = limit
 
     async def start_new_conversation(self) -> None:
         """Close the current conversation and begin a fresh transcript."""
@@ -103,9 +123,8 @@ class ChatController:
         user_message = self._append_user_message(content)
         await self._persist_message(user_message)
 
-        response = await self._ai_provider.generate_response(
-            self._messages_for_provider()
-        )
+        provider_messages = await self._messages_for_provider(user_message.content)
+        response = await self._ai_provider.generate_response(provider_messages)
         assistant_message = self._append_assistant_message(response)
         await self._persist_message(assistant_message)
         await self._process_memory((user_message, assistant_message))
@@ -121,9 +140,8 @@ class ChatController:
         await self._persist_message(user_message)
         chunks: list[str] = []
 
-        async for chunk in self._ai_provider.stream_response(
-            self._messages_for_provider()
-        ):
+        provider_messages = await self._messages_for_provider(user_message.content)
+        async for chunk in self._ai_provider.stream_response(provider_messages):
             chunks.append(chunk)
             yield chunk
 
@@ -131,14 +149,36 @@ class ChatController:
         await self._persist_message(assistant_message)
         await self._process_memory((user_message, assistant_message))
 
-    def _messages_for_provider(self) -> tuple[ChatMessage, ...]:
-        if not self._system_prompt:
+    async def _messages_for_provider(self, user_query: str) -> tuple[ChatMessage, ...]:
+        system_prompt = await self._render_system_prompt(user_query)
+        if not system_prompt:
             return self.messages
 
         return (
-            ChatMessage(role="system", content=self._system_prompt),
+            ChatMessage(role="system", content=system_prompt),
             *self._messages,
         )
+
+    async def _render_system_prompt(self, user_query: str) -> str:
+        parts = [self._system_prompt] if self._system_prompt else []
+        memory_context = await self._render_memory_context(user_query)
+        if memory_context:
+            parts.append(memory_context)
+        return "\n\n".join(parts)
+
+    async def _render_memory_context(self, user_query: str) -> str:
+        if (
+            not self._memory_enabled
+            or self._memory_repository is None
+            or not user_query.strip()
+        ):
+            return ""
+
+        memories = await self._memory_repository.retrieve_relevant_memories(
+            user_query,
+            limit=self._memory_retrieval_limit,
+        )
+        return self._memory_context_assembler.assemble(memories)
 
     def _append_user_message(self, content: str) -> ChatMessage:
         normalized_content = content.strip()

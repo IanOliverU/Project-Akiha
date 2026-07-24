@@ -63,6 +63,7 @@ def _serialize_config(config: AppConfig) -> str:
         "\n"
         "[memory]\n"
         f"enabled = {memory_enabled}\n"
+        f"retrieval_limit = {memory.retrieval_limit}\n"
     )
 
 

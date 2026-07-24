@@ -22,11 +22,13 @@ retrieved later and injected into prompts.
 - `MemoryPipeline` orchestration for extraction, normalization, validation, and storage
 - memory enable/disable setting
 - automatic memory pipeline runs after completed chat turns
+- relevant memory retrieval before provider calls
+- hidden memory context injection into system prompts
+- configurable memory retrieval limit
 
 ## Not Yet In This Phase
 
 - memory review/approval UI
-- prompt injection of relevant memories
 - summarization of closed conversations
 - embeddings or vector search
 
@@ -69,3 +71,9 @@ replace or augment this stage later without changing storage or retrieval.
 
 The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.
+
+## Prompt Context
+
+Before provider calls, the current user message is used to retrieve relevant
+memories. Retrieved memories are rendered into a hidden system prompt section
+and are not added to visible chat history or transcript export.

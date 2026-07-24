@@ -7,7 +7,12 @@ import unittest
 from collections.abc import AsyncIterator
 
 from project_akiha.app.chat_controller import ChatController
-from project_akiha.core.memory import Conversation, MessageRole, StoredMessage
+from project_akiha.core.memory import (
+    Conversation,
+    MemoryEntry,
+    MessageRole,
+    StoredMessage,
+)
 from project_akiha.providers.ai import ChatMessage, MockAIProvider
 
 
@@ -144,6 +149,51 @@ class RecordingMemoryPipeline:
         """Record processed chat messages."""
         self.processed_messages.append((messages, source_conversation_id))
         return ()
+
+
+class RecordingMemoryRepository:
+    """Test memory repository that records retrieval calls."""
+
+    def __init__(self) -> None:
+        self.relevant_memories: tuple[MemoryEntry, ...] = ()
+        self.retrieval_calls: list[tuple[str, int]] = []
+
+    async def save_memory(
+        self,
+        content: str,
+        source_conversation_id: int | None = None,
+        importance: int = 3,
+        tags: tuple[str, ...] = (),
+    ) -> MemoryEntry:
+        """Return a saved test memory."""
+        return MemoryEntry(
+            id=1,
+            content=content,
+            source_conversation_id=source_conversation_id,
+            importance=importance,
+            tags=tuple(tags),
+            created_at="now",
+            updated_at="now",
+            last_accessed_at=None,
+        )
+
+    async def get_recent_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
+        """Return no recent memories for test use."""
+        del limit
+        return ()
+
+    async def retrieve_relevant_memories(
+        self,
+        query: str,
+        limit: int,
+    ) -> tuple[MemoryEntry, ...]:
+        """Return configured relevant memories."""
+        self.retrieval_calls.append((query, limit))
+        return self.relevant_memories
+
+    async def delete_memory(self, memory_id: int) -> None:
+        """Ignore deletion for test use."""
+        del memory_id
 
 
 class ChatControllerTest(unittest.TestCase):
@@ -392,6 +442,95 @@ class ChatControllerTest(unittest.TestCase):
             asyncio.run(controller.submit_user_message("Remember that I use Krita."))
 
         self.assertEqual(memory_pipeline.processed_messages, [])
+
+    def test_relevant_memories_are_sent_to_provider_system_prompt(self) -> None:
+        provider = StaticProvider("done")
+        memory_repository = RecordingMemoryRepository()
+        memory_repository.relevant_memories = (
+            MemoryEntry(
+                id=1,
+                content="User prefers concise replies.",
+                source_conversation_id=None,
+                importance=3,
+                tags=("preference",),
+                created_at="now",
+                updated_at="now",
+                last_accessed_at=None,
+            ),
+        )
+        controller = ChatController(
+            provider,
+            system_prompt="Base persona.",
+            memory_repository=memory_repository,
+            memory_retrieval_limit=2,
+        )
+
+        asyncio.run(controller.submit_user_message("How should you answer?"))
+
+        self.assertEqual(
+            memory_repository.retrieval_calls,
+            [("How should you answer?", 2)],
+        )
+        self.assertEqual(provider.generate_messages[0].role, "system")
+        self.assertIn("Base persona.", provider.generate_messages[0].content)
+        self.assertIn(
+            "Relevant memories about the user:",
+            provider.generate_messages[0].content,
+        )
+        self.assertIn(
+            "User prefers concise replies.",
+            provider.generate_messages[0].content,
+        )
+        self.assertEqual(
+            [message.role for message in controller.messages], ["user", "assistant"]
+        )
+
+    def test_memory_context_is_skipped_when_memory_disabled(self) -> None:
+        provider = StaticProvider("done")
+        memory_repository = RecordingMemoryRepository()
+        memory_repository.relevant_memories = (
+            MemoryEntry(
+                id=1,
+                content="User prefers concise replies.",
+                source_conversation_id=None,
+                importance=3,
+                tags=("preference",),
+                created_at="now",
+                updated_at="now",
+                last_accessed_at=None,
+            ),
+        )
+        controller = ChatController(
+            provider,
+            system_prompt="Base persona.",
+            memory_repository=memory_repository,
+            memory_enabled=False,
+        )
+
+        asyncio.run(controller.submit_user_message("How should you answer?"))
+
+        self.assertEqual(memory_repository.retrieval_calls, [])
+        self.assertEqual(provider.generate_messages[0].content, "Base persona.")
+
+    def test_memory_retrieval_limit_can_be_updated(self) -> None:
+        provider = StaticProvider("done")
+        memory_repository = RecordingMemoryRepository()
+        controller = ChatController(
+            provider,
+            memory_repository=memory_repository,
+            memory_retrieval_limit=5,
+        )
+
+        controller.set_memory_retrieval_limit(1)
+        asyncio.run(controller.submit_user_message("Any preference?"))
+
+        self.assertEqual(memory_repository.retrieval_calls, [("Any preference?", 1)])
+
+    def test_invalid_memory_retrieval_limit_is_rejected(self) -> None:
+        controller = ChatController(StaticProvider("done"))
+
+        with self.assertRaises(ValueError):
+            controller.set_memory_retrieval_limit(0)
 
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:

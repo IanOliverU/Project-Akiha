@@ -86,7 +86,9 @@ def main() -> int:
         conversation_id=current_conversation.id,
         initial_messages=_stored_messages_to_chat_messages(recent_messages),
         memory_pipeline=memory_pipeline,
+        memory_repository=memory_repository,
         memory_enabled=config.memory.enabled,
+        memory_retrieval_limit=config.memory.retrieval_limit,
     )
     animation_state = AnimationStateMachine()
     pet_controller = PetController(
@@ -153,6 +155,9 @@ def main() -> int:
             updated_config.personality.rendered_system_prompt()
         )
         chat_controller.set_memory_enabled(updated_config.memory.enabled)
+        chat_controller.set_memory_retrieval_limit(
+            updated_config.memory.retrieval_limit
+        )
         logger.info("Saved user config to %s", user_config_store.config_path)
 
     def reset_window_position() -> None:

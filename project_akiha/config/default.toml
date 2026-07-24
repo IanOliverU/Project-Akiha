@@ -20,3 +20,4 @@ system_prompt = "You are {character_name}, a warm, concise desktop companion. Be
 
 [memory]
 enabled = true
+retrieval_limit = 5
