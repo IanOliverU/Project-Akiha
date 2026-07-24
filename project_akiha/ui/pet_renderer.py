@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QTransform
 
 from project_akiha.providers.animation.base import AnimationFrame
 
@@ -81,6 +81,8 @@ class SpritePetRenderer:
                 frame.source_width,
                 frame.source_height,
             )
+        if frame.mirrored_horizontally:
+            pixmap = pixmap.transformed(QTransform().scale(-1, 1))
 
         target_size = painter.viewport().size()
         scaled_pixmap = pixmap.scaled(

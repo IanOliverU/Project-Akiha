@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QContextMenuEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QMenu, QWidget
@@ -11,6 +13,7 @@ from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation import AnimationProvider
+from project_akiha.providers.animation.base import AnimationFrame
 from project_akiha.ui.pet_renderer import PetRenderer
 
 
@@ -142,11 +145,17 @@ class PetWindow(QWidget):
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        animation_frame = self._animation_frame_for_current_state()
+        self._renderer.paint(painter, animation_frame)
+
+    def _animation_frame_for_current_state(self) -> AnimationFrame:
         animation_frame = self._animation_provider.frame_for(
             state=self._current_state,
             frame_number=self._frame_number,
         )
-        self._renderer.paint(painter, animation_frame)
+        if self._current_state == AnimationState.WALKING and self._walk_direction < 0:
+            return replace(animation_frame, mirrored_horizontally=True)
+        return animation_frame
 
     def _advance_frame(self) -> None:
         self._frame_number += 1
