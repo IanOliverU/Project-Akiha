@@ -4,7 +4,9 @@ from project_akiha.core.memory.context import (
     ConversationSummaryContextAssembler,
     DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
+    DefaultRelationshipContextAssembler,
     MemoryContextAssembler,
+    RelationshipContextAssembler,
 )
 from project_akiha.core.memory.embedding import (
     EmbeddingProvider,
@@ -20,6 +22,11 @@ from project_akiha.core.memory.models import (
     StoredMessage,
 )
 from project_akiha.core.memory.pipeline import MemoryPipeline
+from project_akiha.core.memory.relationship import (
+    DefaultRelationshipMemoryModeler,
+    RelationshipMemoryModeler,
+    RelationshipProfile,
+)
 from project_akiha.core.memory.repository import (
     ConversationRepository,
     MemoryRepository,
@@ -37,6 +44,8 @@ __all__ = [
     "ConversationSummarizer",
     "DefaultConversationSummaryContextAssembler",
     "DefaultMemoryContextAssembler",
+    "DefaultRelationshipMemoryModeler",
+    "DefaultRelationshipContextAssembler",
     "EmbeddingProvider",
     "HashingEmbeddingProvider",
     "HeuristicConversationSummarizer",
@@ -47,5 +56,8 @@ __all__ = [
     "MemoryRepository",
     "MessageRole",
     "PendingMemory",
+    "RelationshipContextAssembler",
+    "RelationshipMemoryModeler",
+    "RelationshipProfile",
     "StoredMessage",
 ]

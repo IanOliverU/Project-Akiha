@@ -12,11 +12,15 @@ from project_akiha.core.memory import (
     ConversationSummaryContextAssembler,
     DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
+    DefaultRelationshipContextAssembler,
+    DefaultRelationshipMemoryModeler,
     HeuristicConversationSummarizer,
     MemoryContextAssembler,
     MemoryPipeline,
     MemoryRepository,
     PendingMemory,
+    RelationshipContextAssembler,
+    RelationshipMemoryModeler,
 )
 from project_akiha.providers.ai import AIProvider, ChatMessage
 
@@ -45,6 +49,8 @@ class ChatController:
         conversation_summary_context_assembler: (
             ConversationSummaryContextAssembler | None
         ) = None,
+        relationship_modeler: RelationshipMemoryModeler | None = None,
+        relationship_context_assembler: RelationshipContextAssembler | None = None,
         memory_enabled: bool = True,
         memory_retrieval_limit: int = 5,
         memory_requires_approval: bool = False,
@@ -62,6 +68,12 @@ class ChatController:
         self._conversation_summary_context_assembler = (
             conversation_summary_context_assembler
             or DefaultConversationSummaryContextAssembler()
+        )
+        self._relationship_modeler = (
+            relationship_modeler or DefaultRelationshipMemoryModeler()
+        )
+        self._relationship_context_assembler = (
+            relationship_context_assembler or DefaultRelationshipContextAssembler()
         )
         self._memory_enabled = memory_enabled
         self._memory_retrieval_limit = memory_retrieval_limit
@@ -245,7 +257,13 @@ class ChatController:
             user_query,
             limit=self._memory_retrieval_limit,
         )
-        return self._memory_context_assembler.assemble(memories)
+        memory_context = self._memory_context_assembler.assemble(memories)
+        relationship_context = self._relationship_context_assembler.assemble(
+            self._relationship_modeler.model(memories)
+        )
+        return "\n\n".join(
+            part for part in (memory_context, relationship_context) if part
+        )
 
     async def _render_conversation_summary_context(self) -> str:
         if not self._memory_enabled or self._conversation_repository is None:

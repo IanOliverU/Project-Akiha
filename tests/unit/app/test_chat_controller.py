@@ -678,6 +678,37 @@ class ChatControllerTest(unittest.TestCase):
             [message.role for message in controller.messages], ["user", "assistant"]
         )
 
+    def test_relationship_context_is_sent_to_provider_system_prompt(self) -> None:
+        provider = StaticProvider("done")
+        memory_repository = RecordingMemoryRepository()
+        memory_repository.relevant_memories = (
+            MemoryEntry(
+                id=1,
+                content="User prefers concise replies.",
+                source_conversation_id=None,
+                importance=3,
+                tags=("preference",),
+                created_at="now",
+                updated_at="now",
+                last_accessed_at=None,
+            ),
+        )
+        controller = ChatController(
+            provider,
+            memory_repository=memory_repository,
+        )
+
+        asyncio.run(controller.submit_user_message("How should you answer?"))
+
+        self.assertIn(
+            "Relationship context about the user:",
+            provider.generate_messages[0].content,
+        )
+        self.assertIn(
+            "- Preferences: User prefers concise replies.",
+            provider.generate_messages[0].content,
+        )
+
     def test_recent_conversation_summaries_are_sent_to_provider_system_prompt(
         self,
     ) -> None:

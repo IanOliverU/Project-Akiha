@@ -7,8 +7,10 @@ import unittest
 from project_akiha.core.memory.context import (
     DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
+    DefaultRelationshipContextAssembler,
 )
 from project_akiha.core.memory.models import ConversationSummary, MemoryEntry
+from project_akiha.core.memory.relationship import RelationshipProfile
 
 
 class DefaultMemoryContextAssemblerTest(unittest.TestCase):
@@ -70,6 +72,34 @@ class DefaultConversationSummaryContextAssemblerTest(unittest.TestCase):
         self.assertEqual(
             context,
             "Recent conversation summaries:\n- User discussed Phase 3 memory work.",
+        )
+
+
+class DefaultRelationshipContextAssemblerTest(unittest.TestCase):
+    """Verify relationship prompt rendering."""
+
+    def test_assemble_returns_empty_string_without_profile_values(self) -> None:
+        assembler = DefaultRelationshipContextAssembler()
+
+        self.assertEqual(assembler.assemble(RelationshipProfile()), "")
+
+    def test_assemble_renders_non_empty_profile_sections(self) -> None:
+        assembler = DefaultRelationshipContextAssembler()
+
+        context = assembler.assemble(
+            RelationshipProfile(
+                identity=("User's name is Yuki.",),
+                preferences=("User prefers concise replies.",),
+                emotional_cues=("User feels overwhelmed by large tasks.",),
+            )
+        )
+
+        self.assertEqual(
+            context,
+            "Relationship context about the user:\n"
+            "- Identity: User's name is Yuki.\n"
+            "- Preferences: User prefers concise replies.\n"
+            "- Emotional cues: User feels overwhelmed by large tasks.",
         )
 
 

@@ -27,6 +27,8 @@ retrieved later and injected into prompts.
 - automatic memory pipeline runs after completed chat turns
 - relevant memory retrieval before provider calls
 - hidden memory context injection into system prompts
+- relationship/emotional memory modeling from retrieved memories
+- hidden relationship context injection into system prompts
 - configurable memory retrieval limit
 - memory manager opened from Settings
 - recent memory review
@@ -51,6 +53,7 @@ retrieved later and injected into prompts.
 
 - external embedding providers
 - persistent vector index beyond SQLite row storage
+- autonomous reflection or learning jobs
 
 ## Storage
 
@@ -118,6 +121,11 @@ approved, rejected, or cleared.
 Before provider calls, the current user message is used to retrieve relevant
 memories. Retrieved memories are rendered into a hidden system prompt section
 and are not added to visible chat history or transcript export.
+
+Relevant memories are also classified into relationship context such as identity,
+preferences, goals, tools, boundaries, and emotional cues. This derived context
+is rendered as a separate hidden prompt section so Akiha can respond with better
+continuity without treating it as a separate persistent state.
 
 When available, recent conversation summaries are added as a separate hidden
 system prompt section. This is controlled by the same memory-enabled setting.
