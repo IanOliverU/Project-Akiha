@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.memory import (
     Conversation,
+    ConversationSummary,
     MemoryCandidate,
     MemoryEntry,
     MessageRole,
@@ -71,6 +72,8 @@ class RecordingConversationRepository:
     def __init__(self) -> None:
         self.saved_messages: list[tuple[int, MessageRole, str]] = []
         self.export_messages: tuple[StoredMessage, ...] = ()
+        self.conversation_summaries: tuple[ConversationSummary, ...] = ()
+        self.summary_retrieval_calls: list[int] = []
         self.closed_conversation_ids: list[int] = []
         self.cleared_conversation_ids: list[int] = []
         self.next_conversation_id = 10
@@ -141,6 +144,14 @@ class RecordingConversationRepository:
         """Return persisted messages for export."""
         del conversation_id
         return self.export_messages
+
+    async def get_recent_conversation_summaries(
+        self,
+        limit: int,
+    ) -> tuple[ConversationSummary, ...]:
+        """Return configured conversation summaries."""
+        self.summary_retrieval_calls.append(limit)
+        return self.conversation_summaries
 
 
 class RecordingMemoryPipeline:
@@ -636,6 +647,44 @@ class ChatControllerTest(unittest.TestCase):
             [message.role for message in controller.messages], ["user", "assistant"]
         )
 
+    def test_recent_conversation_summaries_are_sent_to_provider_system_prompt(
+        self,
+    ) -> None:
+        provider = StaticProvider("done")
+        conversation_repository = RecordingConversationRepository()
+        conversation_repository.conversation_summaries = (
+            ConversationSummary(
+                id=3,
+                title="Previous chat",
+                summary="User discussed Phase 3 memory work.",
+                created_at="then",
+                updated_at="then",
+                closed_at="then",
+            ),
+        )
+        controller = ChatController(
+            provider,
+            conversation_repository=conversation_repository,
+            conversation_id=7,
+            memory_retrieval_limit=2,
+        )
+
+        asyncio.run(controller.submit_user_message("What were we doing?"))
+
+        self.assertEqual(conversation_repository.summary_retrieval_calls, [2])
+        self.assertEqual(provider.generate_messages[0].role, "system")
+        self.assertIn(
+            "Recent conversation summaries:",
+            provider.generate_messages[0].content,
+        )
+        self.assertIn(
+            "User discussed Phase 3 memory work.",
+            provider.generate_messages[0].content,
+        )
+        self.assertEqual(
+            [message.role for message in controller.messages], ["user", "assistant"]
+        )
+
     def test_memory_context_is_skipped_when_memory_disabled(self) -> None:
         provider = StaticProvider("done")
         memory_repository = RecordingMemoryRepository()
@@ -661,6 +710,32 @@ class ChatControllerTest(unittest.TestCase):
         asyncio.run(controller.submit_user_message("How should you answer?"))
 
         self.assertEqual(memory_repository.retrieval_calls, [])
+        self.assertEqual(provider.generate_messages[0].content, "Base persona.")
+
+    def test_conversation_summary_context_is_skipped_when_memory_disabled(self) -> None:
+        provider = StaticProvider("done")
+        conversation_repository = RecordingConversationRepository()
+        conversation_repository.conversation_summaries = (
+            ConversationSummary(
+                id=3,
+                title="Previous chat",
+                summary="User discussed Phase 3 memory work.",
+                created_at="then",
+                updated_at="then",
+                closed_at="then",
+            ),
+        )
+        controller = ChatController(
+            provider,
+            system_prompt="Base persona.",
+            conversation_repository=conversation_repository,
+            conversation_id=7,
+            memory_enabled=False,
+        )
+
+        asyncio.run(controller.submit_user_message("What were we doing?"))
+
+        self.assertEqual(conversation_repository.summary_retrieval_calls, [])
         self.assertEqual(provider.generate_messages[0].content, "Base persona.")
 
     def test_memory_retrieval_limit_can_be_updated(self) -> None:

@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from project_akiha.core.memory import (
     ConversationRepository,
     ConversationSummarizer,
+    ConversationSummaryContextAssembler,
+    DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
     HeuristicConversationSummarizer,
     MemoryContextAssembler,
@@ -39,6 +41,9 @@ class ChatController:
         memory_pipeline: MemoryPipeline | None = None,
         memory_repository: MemoryRepository | None = None,
         memory_context_assembler: MemoryContextAssembler | None = None,
+        conversation_summary_context_assembler: (
+            ConversationSummaryContextAssembler | None
+        ) = None,
         memory_enabled: bool = True,
         memory_retrieval_limit: int = 5,
         memory_requires_approval: bool = False,
@@ -52,6 +57,10 @@ class ChatController:
         self._memory_repository = memory_repository
         self._memory_context_assembler = (
             memory_context_assembler or DefaultMemoryContextAssembler()
+        )
+        self._conversation_summary_context_assembler = (
+            conversation_summary_context_assembler
+            or DefaultConversationSummaryContextAssembler()
         )
         self._memory_enabled = memory_enabled
         self._memory_retrieval_limit = memory_retrieval_limit
@@ -205,6 +214,9 @@ class ChatController:
         memory_context = await self._render_memory_context(user_query)
         if memory_context:
             parts.append(memory_context)
+        conversation_summary_context = await self._render_conversation_summary_context()
+        if conversation_summary_context:
+            parts.append(conversation_summary_context)
         return "\n\n".join(parts)
 
     async def _render_memory_context(self, user_query: str) -> str:
@@ -220,6 +232,17 @@ class ChatController:
             limit=self._memory_retrieval_limit,
         )
         return self._memory_context_assembler.assemble(memories)
+
+    async def _render_conversation_summary_context(self) -> str:
+        if not self._memory_enabled or self._conversation_repository is None:
+            return ""
+
+        summaries = (
+            await self._conversation_repository.get_recent_conversation_summaries(
+                limit=self._memory_retrieval_limit,
+            )
+        )
+        return self._conversation_summary_context_assembler.assemble(summaries)
 
     def _append_user_message(self, content: str) -> ChatMessage:
         normalized_content = content.strip()

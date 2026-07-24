@@ -1,11 +1,14 @@
 """Framework-free memory and conversation models."""
 
 from project_akiha.core.memory.context import (
+    ConversationSummaryContextAssembler,
+    DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
     MemoryContextAssembler,
 )
 from project_akiha.core.memory.models import (
     Conversation,
+    ConversationSummary,
     MemoryCandidate,
     MemoryEntry,
     MessageRole,
@@ -25,7 +28,10 @@ from project_akiha.core.memory.summarization import (
 __all__ = [
     "Conversation",
     "ConversationRepository",
+    "ConversationSummary",
+    "ConversationSummaryContextAssembler",
     "ConversationSummarizer",
+    "DefaultConversationSummaryContextAssembler",
     "DefaultMemoryContextAssembler",
     "HeuristicConversationSummarizer",
     "MemoryCandidate",

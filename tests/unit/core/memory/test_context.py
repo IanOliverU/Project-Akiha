@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import unittest
 
-from project_akiha.core.memory.context import DefaultMemoryContextAssembler
-from project_akiha.core.memory.models import MemoryEntry
+from project_akiha.core.memory.context import (
+    DefaultConversationSummaryContextAssembler,
+    DefaultMemoryContextAssembler,
+)
+from project_akiha.core.memory.models import ConversationSummary, MemoryEntry
 
 
 class DefaultMemoryContextAssemblerTest(unittest.TestCase):
@@ -37,6 +40,36 @@ class DefaultMemoryContextAssemblerTest(unittest.TestCase):
         self.assertEqual(
             context,
             "Relevant memories about the user:\n- User prefers concise replies.",
+        )
+
+
+class DefaultConversationSummaryContextAssemblerTest(unittest.TestCase):
+    """Verify closed-conversation summary prompt rendering."""
+
+    def test_assemble_returns_empty_string_without_summaries(self) -> None:
+        assembler = DefaultConversationSummaryContextAssembler()
+
+        self.assertEqual(assembler.assemble(()), "")
+
+    def test_assemble_renders_summary_bullets(self) -> None:
+        assembler = DefaultConversationSummaryContextAssembler()
+
+        context = assembler.assemble(
+            (
+                ConversationSummary(
+                    id=1,
+                    title="Previous chat",
+                    summary="User discussed Phase 3 memory work.",
+                    created_at="then",
+                    updated_at="then",
+                    closed_at="then",
+                ),
+            )
+        )
+
+        self.assertEqual(
+            context,
+            "Recent conversation summaries:\n- User discussed Phase 3 memory work.",
         )
 
 

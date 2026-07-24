@@ -89,6 +89,34 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
         self.assertIsNotNone(row[0])
         self.assertEqual(row[1], "User discussed tray settings.")
 
+    def test_get_recent_conversation_summaries_returns_closed_summaries(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            first = asyncio.run(repository.create_conversation("First"))
+            second = asyncio.run(repository.create_conversation("Second"))
+            third = asyncio.run(repository.create_conversation("Third"))
+
+            asyncio.run(repository.close_conversation(first.id, summary="First topic."))
+            asyncio.run(repository.close_conversation(second.id))
+            asyncio.run(repository.close_conversation(third.id, summary="Third topic."))
+
+            summaries = asyncio.run(
+                repository.get_recent_conversation_summaries(limit=5)
+            )
+
+        self.assertEqual(
+            [summary.summary for summary in summaries],
+            ["Third topic.", "First topic."],
+        )
+        self.assertEqual([summary.title for summary in summaries], ["Third", "First"])
+
+    def test_rejects_invalid_conversation_summary_limit(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+
+            with self.assertRaises(ValueError):
+                asyncio.run(repository.get_recent_conversation_summaries(limit=0))
+
     def test_create_conversation_rejects_empty_title(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")

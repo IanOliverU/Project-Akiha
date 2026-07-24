@@ -34,6 +34,8 @@ retrieved later and injected into prompts.
 - `ConversationSummarizer` protocol
 - deterministic closed-conversation summaries
 - SQLite conversation `summary` storage through migration `0003_conversation_summaries.sql`
+- recent closed-conversation summary retrieval
+- hidden conversation-summary context injection into system prompts
 
 ## Not Yet In This Phase
 
@@ -85,6 +87,10 @@ summary. The current implementation is deterministic and local; it records the
 visible message count and the first user topics without sending transcript
 content to an external summarizer.
 
+Recent closed-conversation summaries can also be rendered into hidden prompt
+context. This gives Akiha lightweight continuity across chats without replaying
+raw transcripts.
+
 ## Memory Management
 
 Settings can open the memory manager. The manager lists recent memories and can
@@ -99,3 +105,6 @@ approved, rejected, or cleared.
 Before provider calls, the current user message is used to retrieve relevant
 memories. Retrieved memories are rendered into a hidden system prompt section
 and are not added to visible chat history or transcript export.
+
+When available, recent conversation summaries are added as a separate hidden
+system prompt section. This is controlled by the same memory-enabled setting.

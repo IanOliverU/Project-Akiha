@@ -7,6 +7,7 @@ from typing import Protocol
 
 from project_akiha.core.memory.models import (
     Conversation,
+    ConversationSummary,
     MemoryEntry,
     MessageRole,
     StoredMessage,
@@ -49,6 +50,12 @@ class ConversationRepository(Protocol):
 
     async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
         """Return all transcript messages in chronological order."""
+
+    async def get_recent_conversation_summaries(
+        self,
+        limit: int,
+    ) -> tuple[ConversationSummary, ...]:
+        """Return recent closed-conversation summaries."""
 
 
 class MemoryRepository(Protocol):

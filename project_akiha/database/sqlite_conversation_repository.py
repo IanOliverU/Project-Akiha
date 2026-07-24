@@ -8,7 +8,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from project_akiha.core.memory import Conversation, MessageRole, StoredMessage
+from project_akiha.core.memory import (
+    Conversation,
+    ConversationSummary,
+    MessageRole,
+    StoredMessage,
+)
 from project_akiha.database.migrator import DatabaseMigrator
 
 
@@ -84,6 +89,19 @@ class SQLiteConversationRepository:
     async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
         """Return all transcript messages in chronological order."""
         return await asyncio.to_thread(self._get_messages, conversation_id)
+
+    async def get_recent_conversation_summaries(
+        self,
+        limit: int,
+    ) -> tuple[ConversationSummary, ...]:
+        """Return recent closed-conversation summaries."""
+        if limit <= 0:
+            raise ValueError("conversation summary limit must be greater than zero.")
+
+        return await asyncio.to_thread(
+            self._get_recent_conversation_summaries,
+            limit,
+        )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
@@ -271,6 +289,29 @@ class SQLiteConversationRepository:
 
         return tuple(_message_from_row(row) for row in rows)
 
+    def _get_recent_conversation_summaries(
+        self,
+        limit: int,
+    ) -> tuple[ConversationSummary, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT id, title, summary, created_at, updated_at, closed_at
+                FROM conversations
+                WHERE closed_at IS NOT NULL
+                    AND summary IS NOT NULL
+                    AND TRIM(summary) != ''
+                ORDER BY closed_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        return tuple(_conversation_summary_from_row(row) for row in rows)
+
 
 def _conversation_from_row(row: sqlite3.Row) -> Conversation:
     return Conversation(
@@ -290,6 +331,17 @@ def _message_from_row(row: sqlite3.Row) -> StoredMessage:
         role=cast(MessageRole, row["role"]),
         content=str(row["content"]),
         created_at=str(row["created_at"]),
+    )
+
+
+def _conversation_summary_from_row(row: sqlite3.Row) -> ConversationSummary:
+    return ConversationSummary(
+        id=int(row["id"]),
+        title=str(row["title"]),
+        summary=str(row["summary"]),
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+        closed_at=str(row["closed_at"]),
     )
 
 

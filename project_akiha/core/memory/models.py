@@ -21,6 +21,18 @@ class Conversation:
 
 
 @dataclass(frozen=True, slots=True)
+class ConversationSummary:
+    """A compact summary of a closed conversation."""
+
+    id: int
+    title: str
+    summary: str
+    created_at: str
+    updated_at: str
+    closed_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class StoredMessage:
     """A persisted message from a conversation transcript."""
 
