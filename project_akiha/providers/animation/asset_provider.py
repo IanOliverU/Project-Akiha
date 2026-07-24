@@ -23,15 +23,27 @@ class AnimationClip:
     frame_paths: tuple[Path, ...]
     ticks_per_frame: int
     y_offset: int = 0
+    source_rects: tuple[tuple[int, int, int, int] | None, ...] = ()
 
     def frame_for(self, frame_number: int) -> AnimationFrame:
         """Return the frame represented by the global clock tick."""
         frame_index = (frame_number // self.ticks_per_frame) % len(self.frame_paths)
+        source_rect = self.source_rects[frame_index] if self.source_rects else None
+        source_x, source_y, source_width, source_height = source_rect or (
+            0,
+            0,
+            None,
+            None,
+        )
         return AnimationFrame(
             state=self.state,
             frame_index=frame_index,
             y_offset=self.y_offset,
             image_path=self.frame_paths[frame_index],
+            source_x=source_x,
+            source_y=source_y,
+            source_width=source_width,
+            source_height=source_height,
         )
 
 
@@ -101,11 +113,11 @@ def _parse_clip(
     if not isinstance(state_data, dict):
         raise AnimationManifestError(f"Animation {state_name} must be a table.")
 
-    frames = state_data.get("frames")
-    if not isinstance(frames, list) or not frames:
-        raise AnimationManifestError(f"Animation {state_name} requires frames.")
-    if not all(isinstance(frame, str) and frame for frame in frames):
-        raise AnimationManifestError(f"Animation {state_name} frames must be strings.")
+    frame_paths, source_rects = _parse_frame_sources(
+        state_name=state_name,
+        state_data=state_data,
+        manifest_dir=manifest_dir,
+    )
 
     ticks_per_frame = state_data.get("ticks_per_frame", 1)
     if type(ticks_per_frame) is not int or ticks_per_frame <= 0:
@@ -121,7 +133,70 @@ def _parse_clip(
 
     return AnimationClip(
         state=_parse_state(state_name),
-        frame_paths=tuple(manifest_dir / frame for frame in frames),
+        frame_paths=frame_paths,
         ticks_per_frame=ticks_per_frame,
         y_offset=y_offset,
+        source_rects=source_rects,
     )
+
+
+def _parse_frame_sources(
+    state_name: str,
+    state_data: dict[str, Any],
+    manifest_dir: Path,
+) -> tuple[tuple[Path, ...], tuple[tuple[int, int, int, int] | None, ...]]:
+    frames = state_data.get("frames")
+    filmstrip = state_data.get("filmstrip")
+    if frames is not None and filmstrip is not None:
+        raise AnimationManifestError(
+            f"Animation {state_name} cannot define both frames and filmstrip."
+        )
+
+    if filmstrip is not None:
+        return _parse_filmstrip(state_name, state_data, manifest_dir)
+
+    if not isinstance(frames, list) or not frames:
+        raise AnimationManifestError(f"Animation {state_name} requires frames.")
+    if not all(isinstance(frame, str) and frame for frame in frames):
+        raise AnimationManifestError(f"Animation {state_name} frames must be strings.")
+
+    return tuple(manifest_dir / frame for frame in frames), ()
+
+
+def _parse_filmstrip(
+    state_name: str,
+    state_data: dict[str, Any],
+    manifest_dir: Path,
+) -> tuple[tuple[Path, ...], tuple[tuple[int, int, int, int] | None, ...]]:
+    filmstrip = state_data.get("filmstrip")
+    if not isinstance(filmstrip, str) or not filmstrip:
+        raise AnimationManifestError(
+            f"Animation {state_name} filmstrip must be a string."
+        )
+
+    frame_width = _positive_int(
+        state_data.get("frame_width"), "frame_width", state_name
+    )
+    frame_height = _positive_int(
+        state_data.get("frame_height"),
+        "frame_height",
+        state_name,
+    )
+    frame_count = _positive_int(
+        state_data.get("frame_count"), "frame_count", state_name
+    )
+    image_path = manifest_dir / filmstrip
+    frame_paths = tuple(image_path for _ in range(frame_count))
+    source_rects = tuple(
+        (index * frame_width, 0, frame_width, frame_height)
+        for index in range(frame_count)
+    )
+    return frame_paths, source_rects
+
+
+def _positive_int(value: Any, field_name: str, state_name: str) -> int:
+    if type(value) is not int or value <= 0:
+        raise AnimationManifestError(
+            f"Animation {state_name} {field_name} must be a positive integer."
+        )
+    return value

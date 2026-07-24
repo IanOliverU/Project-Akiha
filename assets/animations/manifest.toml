@@ -9,8 +9,11 @@ ticks_per_frame = 24
 y_offset = 0
 
 [animations.walking]
-frames = ["akiha/idle/000.png"]
-ticks_per_frame = 12
+filmstrip = "akiha/walking/akiha_walk_filmstrip.png"
+frame_width = 256
+frame_height = 256
+frame_count = 25
+ticks_per_frame = 3
 y_offset = 0
 
 [animations.sleeping]

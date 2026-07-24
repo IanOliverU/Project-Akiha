@@ -74,6 +74,14 @@ class SpritePetRenderer:
             self._fallback_renderer.paint(painter, frame)
             return
 
+        if frame.source_width is not None and frame.source_height is not None:
+            pixmap = pixmap.copy(
+                frame.source_x,
+                frame.source_y,
+                frame.source_width,
+                frame.source_height,
+            )
+
         target_size = painter.viewport().size()
         scaled_pixmap = pixmap.scaled(
             target_size,

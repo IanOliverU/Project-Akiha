@@ -13,7 +13,10 @@
 # y_offset = 0
 #
 # [animations.walking]
-# frames = ["walking/000.png", "walking/001.png"]
+# filmstrip = "walking/walk_filmstrip.png"
+# frame_width = 256
+# frame_height = 256
+# frame_count = 8
 # ticks_per_frame = 3
 # y_offset = 0
 #

@@ -51,11 +51,68 @@ class AssetAnimationProviderTest(unittest.TestCase):
 
         self.assertEqual(frame.state, AnimationState.IDLE)
 
+    def test_loads_filmstrip_animation_frames(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.walking]\n"
+                'filmstrip = "walking/walk.png"\n'
+                "frame_width = 256\n"
+                "frame_height = 128\n"
+                "frame_count = 3\n"
+                "ticks_per_frame = 2\n",
+                encoding="utf-8",
+            )
+
+            provider = AssetAnimationProvider.from_manifest(manifest_path)
+            frame = provider.frame_for(AnimationState.WALKING, frame_number=4)
+
+        self.assertEqual(frame.state, AnimationState.WALKING)
+        self.assertEqual(frame.frame_index, 2)
+        self.assertEqual(
+            frame.image_path, manifest_path.parent / "walking" / "walk.png"
+        )
+        self.assertEqual(frame.source_x, 512)
+        self.assertEqual(frame.source_y, 0)
+        self.assertEqual(frame.source_width, 256)
+        self.assertEqual(frame.source_height, 128)
+
     def test_rejects_unknown_state(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
             manifest_path.write_text(
                 "[animations.dancing]\n" 'frames = ["dancing/000.png"]\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AnimationManifestError):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_clip_with_both_frames_and_filmstrip(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                'filmstrip = "idle/strip.png"\n'
+                "frame_width = 1\n"
+                "frame_height = 1\n"
+                "frame_count = 1\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AnimationManifestError):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_filmstrip_without_positive_dimensions(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.walking]\n"
+                'filmstrip = "walking/walk.png"\n'
+                "frame_width = 0\n"
+                "frame_height = 128\n"
+                "frame_count = 3\n",
                 encoding="utf-8",
             )
 

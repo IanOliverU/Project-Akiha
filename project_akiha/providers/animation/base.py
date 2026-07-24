@@ -17,6 +17,10 @@ class AnimationFrame:
     frame_index: int
     y_offset: int = 0
     image_path: Path | None = None
+    source_x: int = 0
+    source_y: int = 0
+    source_width: int | None = None
+    source_height: int | None = None
 
 
 class AnimationProvider(Protocol):
