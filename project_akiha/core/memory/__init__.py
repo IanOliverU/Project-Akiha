@@ -6,6 +6,10 @@ from project_akiha.core.memory.context import (
     DefaultMemoryContextAssembler,
     MemoryContextAssembler,
 )
+from project_akiha.core.memory.embedding import (
+    EmbeddingProvider,
+    HashingEmbeddingProvider,
+)
 from project_akiha.core.memory.models import (
     Conversation,
     ConversationSummary,
@@ -33,6 +37,8 @@ __all__ = [
     "ConversationSummarizer",
     "DefaultConversationSummaryContextAssembler",
     "DefaultMemoryContextAssembler",
+    "EmbeddingProvider",
+    "HashingEmbeddingProvider",
     "HeuristicConversationSummarizer",
     "MemoryCandidate",
     "MemoryContextAssembler",

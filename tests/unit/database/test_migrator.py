@@ -48,7 +48,8 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("memories", table_names)
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
-        self.assertEqual(versions, [(1,), (2,), (3,), (4,)])
+        self.assertIn("embedding_json", memory_columns)
+        self.assertEqual(versions, [(1,), (2,), (3,), (4,), (5,)])
 
 
 if __name__ == "__main__":

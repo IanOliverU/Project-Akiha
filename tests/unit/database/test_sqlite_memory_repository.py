@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from project_akiha.database import SQLiteConversationRepository, SQLiteMemoryRepository
+
+
+class KeywordEmbeddingProvider:
+    """Test embedding provider with predictable semantic buckets."""
+
+    def embed(self, text: str) -> tuple[float, ...]:
+        normalized = text.lower()
+        if "krita" in normalized or "art app" in normalized:
+            return (1.0, 0.0)
+        if "dark" in normalized:
+            return (0.0, 1.0)
+        return (0.0, 0.0)
 
 
 class SQLiteMemoryRepositoryTest(unittest.TestCase):
@@ -86,6 +99,42 @@ class SQLiteMemoryRepositoryTest(unittest.TestCase):
             [memory.content for memory in style_matches],
             ["User prefers concise answers."],
         )
+
+    def test_retrieve_relevant_memories_uses_vector_similarity(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteMemoryRepository(
+                Path(directory) / "akiha.sqlite3",
+                embedding_provider=KeywordEmbeddingProvider(),
+            )
+            asyncio.run(repository.save_memory("User uses Krita.", tags=("tool",)))
+            asyncio.run(repository.save_memory("User likes dark mode."))
+
+            matches = asyncio.run(
+                repository.retrieve_relevant_memories("What art app do I use?", limit=5)
+            )
+
+        self.assertEqual([memory.content for memory in matches], ["User uses Krita."])
+
+    def test_save_memory_stores_embedding_payload(self) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "akiha.sqlite3"
+            repository = SQLiteMemoryRepository(
+                database_path,
+                embedding_provider=KeywordEmbeddingProvider(),
+            )
+
+            memory = asyncio.run(repository.save_memory("User uses Krita."))
+
+            connection = sqlite3.connect(database_path)
+            try:
+                row = connection.execute(
+                    "SELECT embedding_json FROM memories WHERE id = ?",
+                    (memory.id,),
+                ).fetchone()
+            finally:
+                connection.close()
+
+        self.assertEqual(row[0], "[1.0, 0.0]")
 
     def test_update_memory_changes_content_importance_and_tags(self) -> None:
         with TemporaryDirectory() as directory:

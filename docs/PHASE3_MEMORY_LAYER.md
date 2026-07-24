@@ -12,6 +12,8 @@ retrieved later and injected into prompts.
 - `SQLiteMemoryRepository`
 - Recent memory retrieval
 - Simple keyword/tag relevance retrieval
+- Local hashing embeddings for memory retrieval
+- Vector-scored memory retrieval foundation
 - Memory deletion
 - Source conversation references
 - `MemoryCandidate` model
@@ -47,7 +49,8 @@ retrieved later and injected into prompts.
 
 ## Not Yet In This Phase
 
-- embeddings or vector search
+- external embedding providers
+- persistent vector index beyond SQLite row storage
 
 ## Storage
 
@@ -62,15 +65,16 @@ history and durable remembered facts from becoming the same thing.
 
 ## Retrieval
 
-The first retrieval path is simple SQL:
+The first retrieval path combines simple SQL storage with local scoring:
 
 - recent memories by `updated_at`
 - relevant memories by `content` or `tags_json` substring match
-- relevance ordered by `importance`, then recency
+- local hashing embeddings stored as JSON
+- vector similarity, lexical overlap, importance, and recency ranking
 
-This is enough for the first memory prompt-injection pass. Embeddings can be
-added later behind the repository interface if simple retrieval becomes
-insufficient.
+The current embedding provider is deterministic and dependency-free. It gives
+the repository a vector-search shape now, while leaving room to replace it with
+an external embedding provider or a dedicated vector index later.
 
 ## Pipeline
 

@@ -4,21 +4,32 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sqlite3
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from project_akiha.core.memory import MemoryEntry
+from project_akiha.core.memory import (
+    EmbeddingProvider,
+    HashingEmbeddingProvider,
+    MemoryEntry,
+)
+from project_akiha.core.memory.embedding import cosine_similarity
 from project_akiha.database.migrator import DatabaseMigrator
 
 
 class SQLiteMemoryRepository:
     """Persist durable memories in the local SQLite database."""
 
-    def __init__(self, database_path: Path) -> None:
+    def __init__(
+        self,
+        database_path: Path,
+        embedding_provider: EmbeddingProvider | None = None,
+    ) -> None:
         self._database_path = database_path
+        self._embedding_provider = embedding_provider or HashingEmbeddingProvider()
         DatabaseMigrator(database_path).apply_pending()
 
     async def save_memory(
@@ -130,6 +141,11 @@ class SQLiteMemoryRepository:
         tags: tuple[str, ...],
     ) -> MemoryEntry:
         timestamp = _utc_timestamp()
+        embedding_json = _embedding_json(
+            self._embedding_provider,
+            content,
+            tags,
+        )
         connection = self._connect()
         try:
             cursor = connection.execute(
@@ -139,16 +155,18 @@ class SQLiteMemoryRepository:
                     source_conversation_id,
                     importance,
                     tags_json,
+                    embedding_json,
                     created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     content,
                     source_conversation_id,
                     importance,
                     json.dumps(tags),
+                    embedding_json,
                     timestamp,
                     timestamp,
                 ),
@@ -211,22 +229,27 @@ class SQLiteMemoryRepository:
         query: str,
         limit: int,
     ) -> tuple[MemoryEntry, ...]:
-        pattern = f"%{query}%"
         timestamp = _utc_timestamp()
+        query_vector = self._embedding_provider.embed(query)
         connection = self._connect()
         try:
             rows = connection.execute(
                 """
                 SELECT id, content, source_conversation_id, importance, tags_json,
-                       created_at, updated_at, last_accessed_at, archived_at
+                       created_at, updated_at, last_accessed_at, archived_at,
+                       embedding_json
                 FROM memories
                 WHERE archived_at IS NULL
-                    AND (lower(content) LIKE ? OR lower(tags_json) LIKE ?)
-                ORDER BY importance DESC, updated_at DESC, id DESC
-                LIMIT ?
+                ORDER BY updated_at DESC, id DESC
                 """,
-                (pattern, pattern, limit),
             ).fetchall()
+            ranked_rows = _rank_relevant_rows(
+                rows,
+                query=query,
+                query_vector=query_vector,
+                embedding_provider=self._embedding_provider,
+            )
+            rows = ranked_rows[:limit]
             memory_ids = [int(row["id"]) for row in rows]
             if memory_ids:
                 connection.executemany(
@@ -251,6 +274,11 @@ class SQLiteMemoryRepository:
         tags: tuple[str, ...],
     ) -> MemoryEntry:
         timestamp = _utc_timestamp()
+        embedding_json = _embedding_json(
+            self._embedding_provider,
+            content,
+            tags,
+        )
         connection = self._connect()
         try:
             connection.execute(
@@ -259,10 +287,18 @@ class SQLiteMemoryRepository:
                 SET content = ?,
                     importance = ?,
                     tags_json = ?,
+                    embedding_json = ?,
                     updated_at = ?
                 WHERE id = ?
                 """,
-                (content, importance, json.dumps(tags), timestamp, memory_id),
+                (
+                    content,
+                    importance,
+                    json.dumps(tags),
+                    embedding_json,
+                    timestamp,
+                    memory_id,
+                ),
             )
             row = connection.execute(
                 """
@@ -345,10 +381,114 @@ def _memory_from_row(row: sqlite3.Row) -> MemoryEntry:
     )
 
 
+def _rank_relevant_rows(
+    rows: list[sqlite3.Row],
+    query: str,
+    query_vector: tuple[float, ...],
+    embedding_provider: EmbeddingProvider,
+) -> list[sqlite3.Row]:
+    query_terms = set(_tokenize(query))
+    ranked: list[tuple[float, sqlite3.Row]] = []
+    for row in rows:
+        content = str(row["content"])
+        tags = tuple(json.loads(str(row["tags_json"])))
+        searchable_text = _memory_search_text(content, tags)
+        score = _lexical_score(
+            query=query,
+            query_terms=query_terms,
+            searchable_text=searchable_text,
+        )
+        score += _vector_score(
+            row=row,
+            searchable_text=searchable_text,
+            query_vector=query_vector,
+            embedding_provider=embedding_provider,
+        )
+        score += int(row["importance"]) * 0.01
+
+        if score > 0.05:
+            ranked.append((score, row))
+
+    ranked.sort(
+        key=lambda item: (
+            item[0],
+            str(item[1]["updated_at"]),
+            int(item[1]["id"]),
+        ),
+        reverse=True,
+    )
+    return [row for _, row in ranked]
+
+
+def _lexical_score(
+    query: str,
+    query_terms: set[str],
+    searchable_text: str,
+) -> float:
+    normalized_text = searchable_text.casefold()
+    score = 0.0
+    if query in normalized_text:
+        score += 1.0
+
+    text_terms = set(_tokenize(searchable_text))
+    if query_terms:
+        score += len(query_terms & text_terms) / len(query_terms)
+
+    return score
+
+
+def _vector_score(
+    row: sqlite3.Row,
+    searchable_text: str,
+    query_vector: tuple[float, ...],
+    embedding_provider: EmbeddingProvider,
+) -> float:
+    memory_vector = _row_embedding(row)
+    if not memory_vector:
+        memory_vector = embedding_provider.embed(searchable_text)
+
+    return max(0.0, cosine_similarity(query_vector, memory_vector))
+
+
+def _row_embedding(row: sqlite3.Row) -> tuple[float, ...]:
+    embedding_json = row["embedding_json"]
+    if embedding_json is None:
+        return ()
+
+    try:
+        values = json.loads(str(embedding_json))
+    except json.JSONDecodeError:
+        return ()
+
+    if not isinstance(values, list):
+        return ()
+
+    return tuple(float(value) for value in values)
+
+
+def _embedding_json(
+    embedding_provider: EmbeddingProvider,
+    content: str,
+    tags: tuple[str, ...],
+) -> str:
+    return json.dumps(embedding_provider.embed(_memory_search_text(content, tags)))
+
+
+def _memory_search_text(content: str, tags: tuple[str, ...]) -> str:
+    if not tags:
+        return content
+
+    return f"{content} {' '.join(tags)}"
+
+
 def _normalize_tags(tags: Sequence[str]) -> tuple[str, ...]:
     return tuple(
         dict.fromkeys(tag.strip().lower() for tag in tags if tag.strip()).keys()
     )
+
+
+def _tokenize(text: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[a-z0-9']+", text.casefold()))
 
 
 def _utc_timestamp() -> str:
