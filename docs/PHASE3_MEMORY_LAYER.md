@@ -14,14 +14,20 @@ retrieved later and injected into prompts.
 - Simple keyword/tag relevance retrieval
 - Memory deletion
 - Source conversation references
+- `MemoryCandidate` model
+- `MemoryExtractor` protocol
+- `HeuristicMemoryExtractor`
+- `MemoryNormalizer` protocol and default implementation
+- `MemoryPolicy` protocol and default validation policy
+- `MemoryPipeline` orchestration for extraction, normalization, validation, and storage
 
 ## Not Yet In This Phase
 
-- automatic memory extraction from messages
 - memory review/approval UI
 - prompt injection of relevant memories
 - summarization of closed conversations
 - embeddings or vector search
+- chat integration for automatic pipeline runs after responses
 
 ## Storage
 
@@ -45,3 +51,17 @@ The first retrieval path is simple SQL:
 This is enough for the first memory prompt-injection pass. Embeddings can be
 added later behind the repository interface if simple retrieval becomes
 insufficient.
+
+## Pipeline
+
+Memory is handled as a pipeline rather than one large service:
+
+1. Extract candidates from user-authored messages.
+2. Normalize content, tags, and importance.
+3. Validate confidence, source role, specificity, and duplicates.
+4. Store accepted memories through `MemoryRepository`.
+
+The current extractor is deterministic and conservative. It recognizes explicit
+requests like `remember that ...`, preference statements like `I prefer ...`,
+and identity statements like `my name is ...`. Ollama-assisted extraction can
+replace or augment this stage later without changing storage or retrieval.

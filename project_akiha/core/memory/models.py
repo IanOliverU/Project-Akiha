@@ -42,3 +42,14 @@ class MemoryEntry:
     created_at: str
     updated_at: str
     last_accessed_at: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryCandidate:
+    """A possible memory extracted from conversation text."""
+
+    content: str
+    source_role: MessageRole
+    confidence: float = 1.0
+    importance: int = 3
+    tags: tuple[str, ...] = ()
