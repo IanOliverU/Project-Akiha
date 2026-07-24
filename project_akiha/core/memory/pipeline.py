@@ -66,8 +66,18 @@ class MemoryPipeline:
         if isawaitable(extracted_candidates):
             extracted_candidates = await extracted_candidates
 
-        candidates = tuple(
+        extracted_candidates = tuple(
             self._normalizer.normalize(candidate) for candidate in extracted_candidates
+        )
+        return await self.validate_candidates(extracted_candidates)
+
+    async def validate_candidates(
+        self,
+        candidates: Sequence[MemoryCandidate],
+    ) -> tuple[MemoryCandidate, ...]:
+        """Normalize and validate candidates without running extraction."""
+        candidates = tuple(
+            self._normalizer.normalize(candidate) for candidate in candidates
         )
         if not candidates:
             return ()

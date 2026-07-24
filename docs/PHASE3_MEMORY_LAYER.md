@@ -29,6 +29,7 @@ retrieved later and injected into prompts.
 - hidden memory context injection into system prompts
 - relationship/emotional memory modeling from retrieved memories
 - hidden relationship context injection into system prompts
+- manual reflection jobs for approval-gated learning
 - configurable memory retrieval limit
 - memory manager opened from Settings
 - recent memory review
@@ -53,7 +54,7 @@ retrieved later and injected into prompts.
 
 - external embedding providers
 - persistent vector index beyond SQLite row storage
-- autonomous reflection or learning jobs
+- fully autonomous background reflection scheduling
 
 ## Storage
 
@@ -97,6 +98,11 @@ provider fails or returns invalid candidates.
 The pipeline is wired into completed chat turns only. Failed or cancelled
 responses do not create memories, and the feature can be disabled from Settings.
 
+Reflection is available as a manual Memory Manager action. It reviews recent
+closed-conversation summaries, produces conservative memory candidates, validates
+them through the memory pipeline, and queues them in Pending for user approval.
+Reflection never writes memories directly.
+
 When a new chat is started, the previous conversation is closed with a compact
 summary. The mock provider uses the deterministic local summarizer. When Ollama
 is configured, Akiha uses an AI-assisted summarizer and falls back to the
@@ -115,6 +121,10 @@ Archived memories are excluded from active retrieval but can be reviewed and res
 When approval is enabled in Settings, extracted memory candidates are queued in
 the Pending tab instead of being saved immediately. Pending memories can be
 approved, rejected, or cleared.
+
+The Reflect action also queues pending memories. This keeps learning explicit
+and reviewable while still allowing Akiha to propose useful long-term context
+from prior chat summaries.
 
 ## Prompt Context
 

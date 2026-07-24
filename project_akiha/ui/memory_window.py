@@ -33,6 +33,7 @@ class MemoryWindow(QWidget):
     restore_requested = Signal(int)
     delete_requested = Signal(int)
     clear_requested = Signal()
+    reflect_requested = Signal()
     approve_requested = Signal(int)
     reject_requested = Signal(int)
     clear_pending_requested = Signal()
@@ -89,6 +90,9 @@ class MemoryWindow(QWidget):
         clear_button = QPushButton("Clear all")
         clear_button.clicked.connect(self._request_clear_all)
 
+        reflect_button = QPushButton("Reflect")
+        reflect_button.clicked.connect(self.reflect_requested.emit)
+
         approve_button = QPushButton("Approve")
         approve_button.clicked.connect(self._request_approve_selected)
 
@@ -105,6 +109,7 @@ class MemoryWindow(QWidget):
         button_layout.addWidget(restore_button)
         button_layout.addWidget(delete_button)
         button_layout.addWidget(clear_button)
+        button_layout.addWidget(reflect_button)
         button_layout.addWidget(approve_button)
         button_layout.addWidget(reject_button)
         button_layout.addWidget(clear_pending_button)

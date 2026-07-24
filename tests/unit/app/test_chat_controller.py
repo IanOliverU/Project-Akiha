@@ -161,6 +161,7 @@ class RecordingMemoryPipeline:
         self.processed_messages: list[tuple[tuple[ChatMessage, ...], int | None]] = []
         self.candidates: tuple[MemoryCandidate, ...] = ()
         self.saved_candidates: list[tuple[MemoryCandidate, int | None]] = []
+        self.validated_candidates: tuple[MemoryCandidate, ...] = ()
 
     async def process_messages(
         self,
@@ -197,12 +198,21 @@ class RecordingMemoryPipeline:
             last_accessed_at=None,
         )
 
+    async def validate_candidates(
+        self,
+        candidates: tuple[MemoryCandidate, ...],
+    ) -> tuple[MemoryCandidate, ...]:
+        """Return candidates as validated for test use."""
+        self.validated_candidates = candidates
+        return candidates
+
 
 class RecordingMemoryRepository:
     """Test memory repository that records retrieval calls."""
 
     def __init__(self) -> None:
         self.relevant_memories: tuple[MemoryEntry, ...] = ()
+        self.recent_memories: tuple[MemoryEntry, ...] = ()
         self.retrieval_calls: list[tuple[str, int]] = []
 
     async def save_memory(
@@ -227,7 +237,7 @@ class RecordingMemoryRepository:
     async def get_recent_memories(self, limit: int) -> tuple[MemoryEntry, ...]:
         """Return no recent memories for test use."""
         del limit
-        return ()
+        return self.recent_memories
 
     async def retrieve_relevant_memories(
         self,
@@ -635,6 +645,48 @@ class ChatControllerTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             controller.reject_pending_memory(999)
+
+    def test_reflect_on_memories_queues_pending_candidates(self) -> None:
+        conversation_repository = RecordingConversationRepository()
+        conversation_repository.conversation_summaries = (
+            ConversationSummary(
+                id=3,
+                title="Previous chat",
+                summary="User discussed Phase 3 reflection work.",
+                created_at="then",
+                updated_at="then",
+                closed_at="then",
+            ),
+        )
+        memory_repository = RecordingMemoryRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("done"),
+            conversation_repository=conversation_repository,
+            conversation_id=7,
+            memory_repository=memory_repository,
+            memory_pipeline=memory_pipeline,
+        )
+
+        queued_count = asyncio.run(controller.reflect_on_memories())
+
+        self.assertEqual(queued_count, 1)
+        self.assertEqual(len(controller.pending_memories), 1)
+        self.assertEqual(
+            controller.pending_memories[0].candidate.content,
+            "Recent context: User discussed Phase 3 reflection work.",
+        )
+        self.assertEqual(controller.pending_memories[0].source_conversation_id, None)
+
+    def test_reflect_on_memories_is_skipped_when_memory_disabled(self) -> None:
+        controller = ChatController(
+            StaticProvider("done"),
+            memory_enabled=False,
+        )
+
+        queued_count = asyncio.run(controller.reflect_on_memories())
+
+        self.assertEqual(queued_count, 0)
 
     def test_relevant_memories_are_sent_to_provider_system_prompt(self) -> None:
         provider = StaticProvider("done")

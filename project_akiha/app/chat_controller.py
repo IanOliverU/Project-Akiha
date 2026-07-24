@@ -12,11 +12,14 @@ from project_akiha.core.memory import (
     ConversationSummaryContextAssembler,
     DefaultConversationSummaryContextAssembler,
     DefaultMemoryContextAssembler,
+    DefaultMemoryReflector,
     DefaultRelationshipContextAssembler,
     DefaultRelationshipMemoryModeler,
     HeuristicConversationSummarizer,
+    MemoryCandidate,
     MemoryContextAssembler,
     MemoryPipeline,
+    MemoryReflector,
     MemoryRepository,
     PendingMemory,
     RelationshipContextAssembler,
@@ -51,6 +54,7 @@ class ChatController:
         ) = None,
         relationship_modeler: RelationshipMemoryModeler | None = None,
         relationship_context_assembler: RelationshipContextAssembler | None = None,
+        memory_reflector: MemoryReflector | None = None,
         memory_enabled: bool = True,
         memory_retrieval_limit: int = 5,
         memory_requires_approval: bool = False,
@@ -75,6 +79,7 @@ class ChatController:
         self._relationship_context_assembler = (
             relationship_context_assembler or DefaultRelationshipContextAssembler()
         )
+        self._memory_reflector = memory_reflector or DefaultMemoryReflector()
         self._memory_enabled = memory_enabled
         self._memory_retrieval_limit = memory_retrieval_limit
         self._memory_requires_approval = memory_requires_approval
@@ -144,6 +149,33 @@ class ChatController:
     def clear_pending_memories(self) -> None:
         """Discard all pending memory candidates."""
         self._pending_memories.clear()
+
+    async def reflect_on_memories(
+        self,
+        summary_limit: int = 5,
+        memory_limit: int = 100,
+    ) -> int:
+        """Queue reflection-generated memory candidates for approval."""
+        if (
+            not self._memory_enabled
+            or self._memory_pipeline is None
+            or self._memory_repository is None
+            or self._conversation_repository is None
+        ):
+            return 0
+
+        memories = await self._memory_repository.get_recent_memories(memory_limit)
+        summaries = (
+            await self._conversation_repository.get_recent_conversation_summaries(
+                summary_limit
+            )
+        )
+        candidates = self._memory_reflector.reflect(memories, summaries)
+        candidates = await self._memory_pipeline.validate_candidates(candidates)
+        for candidate in candidates:
+            self._queue_pending_memory(candidate, source_conversation_id=None)
+
+        return len(candidates)
 
     async def start_new_conversation(self) -> None:
         """Close the current conversation and begin a fresh transcript."""
@@ -316,14 +348,24 @@ class ChatController:
 
         candidates = await self._memory_pipeline.collect_candidates(messages)
         for candidate in candidates:
-            self._pending_memories.append(
-                PendingMemory(
-                    id=self._next_pending_memory_id,
-                    candidate=candidate,
-                    source_conversation_id=self._conversation_id,
-                )
+            self._queue_pending_memory(
+                candidate,
+                source_conversation_id=self._conversation_id,
             )
-            self._next_pending_memory_id += 1
+
+    def _queue_pending_memory(
+        self,
+        candidate: MemoryCandidate,
+        source_conversation_id: int | None,
+    ) -> None:
+        self._pending_memories.append(
+            PendingMemory(
+                id=self._next_pending_memory_id,
+                candidate=candidate,
+                source_conversation_id=source_conversation_id,
+            )
+        )
+        self._next_pending_memory_id += 1
 
     def _pop_pending_memory(self, pending_memory_id: int) -> PendingMemory:
         for index, pending_memory in enumerate(self._pending_memories):

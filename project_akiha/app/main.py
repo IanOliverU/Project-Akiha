@@ -274,6 +274,16 @@ def main() -> int:
         refresh_memory_window()
         memory_window.append_notice("All memories cleared.")
 
+    def reflect_on_memories() -> None:
+        queued_count = asyncio.run(chat_controller.reflect_on_memories())
+        refresh_memory_window()
+        if queued_count == 0:
+            memory_window.append_notice("No reflection memories found.")
+            return
+
+        noun = "memory" if queued_count == 1 else "memories"
+        memory_window.append_notice(f"{queued_count} reflection {noun} queued.")
+
     def approve_pending_memory(pending_memory_id: int) -> None:
         asyncio.run(chat_controller.approve_pending_memory(pending_memory_id))
         refresh_memory_window()
@@ -399,6 +409,7 @@ def main() -> int:
     memory_window.restore_requested.connect(restore_memory)
     memory_window.delete_requested.connect(delete_memory)
     memory_window.clear_requested.connect(clear_memories)
+    memory_window.reflect_requested.connect(reflect_on_memories)
     memory_window.approve_requested.connect(approve_pending_memory)
     memory_window.reject_requested.connect(reject_pending_memory)
     memory_window.clear_pending_requested.connect(clear_pending_memories)
