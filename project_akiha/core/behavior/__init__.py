@@ -5,6 +5,13 @@ from project_akiha.core.behavior.activity import (
     ActivityState,
     ActivityTracker,
 )
+from project_akiha.core.behavior.delivery import (
+    DeliveryChannel,
+    ProactiveDeliveryRequest,
+    ProactiveDeliveryResult,
+    ProactiveDeliveryService,
+    ProactiveDeliverySurface,
+)
 from project_akiha.core.behavior.notification_policy import (
     NotificationDecision,
     NotificationPolicy,
@@ -20,10 +27,15 @@ __all__ = [
     "ActivitySnapshot",
     "ActivityState",
     "ActivityTracker",
+    "DeliveryChannel",
     "NotificationDecision",
     "NotificationPolicy",
     "NotificationRequest",
     "NotificationUrgency",
+    "ProactiveDeliveryRequest",
+    "ProactiveDeliveryResult",
+    "ProactiveDeliveryService",
+    "ProactiveDeliverySurface",
     "ProactiveSuggestion",
     "ProactiveSuggestionEngine",
 ]

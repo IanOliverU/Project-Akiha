@@ -14,8 +14,13 @@ from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
+from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.config import AIConfig, AppConfig, load_config
-from project_akiha.core.behavior import NotificationPolicy, ProactiveSuggestionEngine
+from project_akiha.core.behavior import (
+    NotificationPolicy,
+    ProactiveDeliveryService,
+    ProactiveSuggestionEngine,
+)
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.memory import (
@@ -59,6 +64,7 @@ from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
+from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.tray import AkihaTrayIcon
 
@@ -442,6 +448,14 @@ def main() -> int:
         settings_window=settings_window,
     )
     tray_icon.show()
+    proactive_delivery_controller = ProactiveDeliveryController(
+        event_bus=event_bus,
+        delivery_service=ProactiveDeliveryService(),
+        surface=QtProactiveDeliverySurface(
+            chat_window=chat_window,
+            tray_icon=tray_icon,
+        ),
+    )
     app._akiha_services = (
         chat_controller,
         activity_controller,
@@ -456,6 +470,7 @@ def main() -> int:
         notification_policy,
         pet_controller,
         proactive_controller,
+        proactive_delivery_controller,
         settings_window,
         tray_icon,
         user_config_store,

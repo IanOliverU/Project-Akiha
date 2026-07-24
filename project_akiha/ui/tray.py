@@ -78,6 +78,15 @@ class AkihaTrayIcon(QSystemTrayIcon):
         self._chat_window.raise_()
         self._chat_window.activateWindow()
 
+    def show_companion_message(self, title: str, message: str) -> None:
+        """Show a non-modal companion tray message."""
+        self.showMessage(
+            title,
+            message,
+            QSystemTrayIcon.MessageIcon.Information,
+            5000,
+        )
+
 
 def _build_icon() -> QIcon:
     pixmap = QPixmap(64, 64)
