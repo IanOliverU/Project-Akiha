@@ -23,9 +23,9 @@ class QtProactiveDeliverySurface:
         """Return whether chat is currently visible."""
         return self._chat_window.isVisible()
 
-    def append_chat_notice(self, message: str) -> None:
-        """Append a quiet notice to the chat transcript."""
-        self._chat_window.append_notice(message)
+    def append_chat_suggestion(self, kind: str, message: str) -> None:
+        """Append a proactive suggestion to the chat transcript."""
+        self._chat_window.append_proactive_suggestion(message, kind)
 
     def can_show_tray_message(self) -> bool:
         """Return whether tray messages are available."""

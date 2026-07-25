@@ -23,7 +23,10 @@ class ProactiveDeliveryControllerTest(unittest.TestCase):
 
         bus.publish(EventType.PROACTIVE_SUGGESTION_READY, _payload())
 
-        self.assertEqual(surface.chat_notices, ("Need a short break?",))
+        self.assertEqual(
+            surface.chat_suggestions,
+            (("idle_check_in", "Need a short break?"),),
+        )
         self.assertEqual(len(delivered), 1)
         self.assertTrue(delivered[0].payload["delivered"])
         self.assertEqual(delivered[0].payload["channel"], "chat_notice")
@@ -50,7 +53,7 @@ class ProactiveDeliveryControllerTest(unittest.TestCase):
 
         bus.publish(EventType.PROACTIVE_SUGGESTION_READY, {"message": "Missing fields"})
 
-        self.assertEqual(surface.chat_notices, ())
+        self.assertEqual(surface.chat_suggestions, ())
         self.assertEqual(delivered, [])
 
     def test_failed_delivery_still_publishes_result(self) -> None:
@@ -76,12 +79,12 @@ class _Surface:
     ) -> None:
         self._chat_visible = chat_visible
         self._tray_available = tray_available
-        self._chat_notices: list[str] = []
+        self._chat_suggestions: list[tuple[str, str]] = []
         self._tray_messages: list[tuple[str, str]] = []
 
     @property
-    def chat_notices(self) -> tuple[str, ...]:
-        return tuple(self._chat_notices)
+    def chat_suggestions(self) -> tuple[tuple[str, str], ...]:
+        return tuple(self._chat_suggestions)
 
     @property
     def tray_messages(self) -> tuple[tuple[str, str], ...]:
@@ -90,8 +93,8 @@ class _Surface:
     def is_chat_visible(self) -> bool:
         return self._chat_visible
 
-    def append_chat_notice(self, message: str) -> None:
-        self._chat_notices.append(message)
+    def append_chat_suggestion(self, kind: str, message: str) -> None:
+        self._chat_suggestions.append((kind, message))
 
     def can_show_tray_message(self) -> bool:
         return self._tray_available

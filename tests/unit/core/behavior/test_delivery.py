@@ -23,7 +23,10 @@ class ProactiveDeliveryServiceTest(unittest.TestCase):
 
         self.assertTrue(result.delivered)
         self.assertEqual(result.channel, DeliveryChannel.CHAT_NOTICE)
-        self.assertEqual(surface.chat_notices, ("Need a short break?",))
+        self.assertEqual(
+            surface.chat_suggestions,
+            (("idle_check_in", "Need a short break?"),),
+        )
         self.assertEqual(surface.tray_messages, ())
 
     def test_delivers_to_tray_when_chat_is_hidden(self) -> None:
@@ -33,7 +36,7 @@ class ProactiveDeliveryServiceTest(unittest.TestCase):
 
         self.assertTrue(result.delivered)
         self.assertEqual(result.channel, DeliveryChannel.TRAY_MESSAGE)
-        self.assertEqual(surface.chat_notices, ())
+        self.assertEqual(surface.chat_suggestions, ())
         self.assertEqual(surface.tray_messages, (("Akiha", "Need a short break?"),))
 
     def test_drops_when_no_surface_is_available(self) -> None:
@@ -60,7 +63,7 @@ class ProactiveDeliveryServiceTest(unittest.TestCase):
 
         self.assertFalse(result.delivered)
         self.assertEqual(result.reason, "empty_message")
-        self.assertEqual(surface.chat_notices, ())
+        self.assertEqual(surface.chat_suggestions, ())
         self.assertEqual(surface.tray_messages, ())
 
 
@@ -73,12 +76,12 @@ class _Surface:
     ) -> None:
         self._chat_visible = chat_visible
         self._tray_available = tray_available
-        self._chat_notices: list[str] = []
+        self._chat_suggestions: list[tuple[str, str]] = []
         self._tray_messages: list[tuple[str, str]] = []
 
     @property
-    def chat_notices(self) -> tuple[str, ...]:
-        return tuple(self._chat_notices)
+    def chat_suggestions(self) -> tuple[tuple[str, str], ...]:
+        return tuple(self._chat_suggestions)
 
     @property
     def tray_messages(self) -> tuple[tuple[str, str], ...]:
@@ -87,8 +90,8 @@ class _Surface:
     def is_chat_visible(self) -> bool:
         return self._chat_visible
 
-    def append_chat_notice(self, message: str) -> None:
-        self._chat_notices.append(message)
+    def append_chat_suggestion(self, kind: str, message: str) -> None:
+        self._chat_suggestions.append((kind, message))
 
     def can_show_tray_message(self) -> bool:
         return self._tray_available

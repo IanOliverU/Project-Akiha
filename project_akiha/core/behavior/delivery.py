@@ -44,8 +44,8 @@ class ProactiveDeliverySurface(Protocol):
     def is_chat_visible(self) -> bool:
         """Return whether chat is currently visible to the user."""
 
-    def append_chat_notice(self, message: str) -> None:
-        """Append a quiet notice to chat."""
+    def append_chat_suggestion(self, kind: str, message: str) -> None:
+        """Append a proactive suggestion to chat."""
 
     def can_show_tray_message(self) -> bool:
         """Return whether tray messages are available."""
@@ -74,7 +74,7 @@ class ProactiveDeliveryService:
             )
 
         if surface.is_chat_visible():
-            surface.append_chat_notice(request.message)
+            surface.append_chat_suggestion(request.kind, request.message)
             return ProactiveDeliveryResult(
                 delivered=True,
                 channel=DeliveryChannel.CHAT_NOTICE,

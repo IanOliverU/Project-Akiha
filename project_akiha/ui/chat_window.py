@@ -39,6 +39,8 @@ class ChatWindow(QWidget):
             .speaker-user { color: #175cd3; font-weight: 700; }
             .speaker-assistant { color: #7a2e8f; font-weight: 700; }
             .notice { color: #666666; }
+            .proactive-title { color: #7a2e8f; font-weight: 700; }
+            .proactive-body { color: #2f3136; }
             .error { color: #b00020; font-weight: 600; }
             """)
 
@@ -113,6 +115,14 @@ class ChatWindow(QWidget):
         """Append a low-emphasis status message to the transcript."""
         self._history_view.append(f'<span class="notice">{escape(content)}</span>')
 
+    def append_proactive_suggestion(self, content: str, kind: str) -> None:
+        """Append a proactive companion suggestion to the transcript."""
+        title = _proactive_title(kind)
+        self._history_view.append(
+            f'<span class="proactive-title">{escape(title)}</span>: '
+            f'<span class="proactive-body">{escape(content)}</span>'
+        )
+
     def set_status(self, status: str) -> None:
         """Show the current chat status."""
         self._status_label.setText(status)
@@ -166,3 +176,11 @@ def _speaker_class(speaker: str) -> str:
     if speaker == "You":
         return "speaker-user"
     return "speaker-assistant"
+
+
+def _proactive_title(kind: str) -> str:
+    labels = {
+        "idle_check_in": "Akiha check-in",
+        "scheduled_check_in": "Akiha scheduled check-in",
+    }
+    return labels.get(kind, "Akiha suggestion")
