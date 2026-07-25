@@ -79,6 +79,77 @@ class SQLiteBehaviorRepositoryTest(unittest.TestCase):
 
         self.assertEqual(events, ())
 
+    def test_clear_events_matching_deletes_event_type(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteBehaviorRepository(Path(directory) / "akiha.sqlite3")
+            asyncio.run(repository.record_event("proactive.suggestion_ready", {}))
+            kept = asyncio.run(repository.record_event("mood.state_changed", {}))
+
+            deleted_count = asyncio.run(
+                repository.clear_events_matching(
+                    event_type="proactive.suggestion_ready"
+                )
+            )
+            events = asyncio.run(repository.get_recent_events(limit=10))
+
+        self.assertEqual(deleted_count, 1)
+        self.assertEqual([event.id for event in events], [kept.id])
+
+    def test_clear_events_matching_deletes_kind(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteBehaviorRepository(Path(directory) / "akiha.sqlite3")
+            asyncio.run(
+                repository.record_event(
+                    "proactive.suggestion_ready",
+                    {},
+                    kind="idle_check_in",
+                )
+            )
+            kept = asyncio.run(
+                repository.record_event(
+                    "proactive.suggestion_ready",
+                    {},
+                    kind="scheduled_check_in",
+                )
+            )
+
+            deleted_count = asyncio.run(
+                repository.clear_events_matching(kind="idle_check_in")
+            )
+            events = asyncio.run(repository.get_recent_events(limit=10))
+
+        self.assertEqual(deleted_count, 1)
+        self.assertEqual([event.id for event in events], [kept.id])
+
+    def test_clear_events_matching_combines_filters(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteBehaviorRepository(Path(directory) / "akiha.sqlite3")
+            asyncio.run(
+                repository.record_event(
+                    "proactive.suggestion_ready",
+                    {},
+                    kind="idle_check_in",
+                )
+            )
+            kept = asyncio.run(
+                repository.record_event(
+                    "proactive.suggestion_delivered",
+                    {},
+                    kind="idle_check_in",
+                )
+            )
+
+            deleted_count = asyncio.run(
+                repository.clear_events_matching(
+                    event_type="proactive.suggestion_ready",
+                    kind="idle_check_in",
+                )
+            )
+            events = asyncio.run(repository.get_recent_events(limit=10))
+
+        self.assertEqual(deleted_count, 1)
+        self.assertEqual([event.id for event in events], [kept.id])
+
     def test_migration_creates_behavior_events_table(self) -> None:
         with TemporaryDirectory() as directory:
             database_path = Path(directory) / "akiha.sqlite3"

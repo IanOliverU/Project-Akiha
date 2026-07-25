@@ -367,6 +367,19 @@ def main() -> int:
         refresh_behavior_history_window()
         behavior_history_window.append_notice("Behavior history cleared.")
 
+    def clear_matching_behavior_history(event_type: str, kind: str) -> None:
+        deleted_count = asyncio.run(
+            behavior_repository.clear_events_matching(
+                event_type=event_type or None,
+                kind=kind or None,
+            )
+        )
+        refresh_behavior_history_window()
+        noun = "event" if deleted_count == 1 else "events"
+        behavior_history_window.append_notice(
+            f"{deleted_count} matching behavior {noun} cleared."
+        )
+
     def show_chat(event: Event | None = None) -> None:
         del event
         chat_window.show()
@@ -483,6 +496,9 @@ def main() -> int:
     memory_window.clear_pending_requested.connect(clear_pending_memories)
     behavior_history_window.refresh_requested.connect(refresh_behavior_history_window)
     behavior_history_window.clear_requested.connect(clear_behavior_history)
+    behavior_history_window.clear_matching_requested.connect(
+        clear_matching_behavior_history
+    )
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     settings_window.memory_manager_requested.connect(show_memory_manager)

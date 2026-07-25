@@ -55,6 +55,21 @@ class SQLiteBehaviorRepository:
         """Delete all behavior history."""
         await asyncio.to_thread(self._clear_events)
 
+    async def clear_events_matching(
+        self,
+        *,
+        event_type: str | None = None,
+        kind: str | None = None,
+    ) -> int:
+        """Delete behavior events matching optional event type and kind filters."""
+        normalized_event_type = _normalize_optional_filter(event_type)
+        normalized_kind = _normalize_optional_filter(kind)
+        return await asyncio.to_thread(
+            self._clear_events_matching,
+            normalized_event_type,
+            normalized_kind,
+        )
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
@@ -117,6 +132,32 @@ class SQLiteBehaviorRepository:
         finally:
             connection.close()
 
+    def _clear_events_matching(
+        self,
+        event_type: str | None,
+        kind: str | None,
+    ) -> int:
+        clauses: list[str] = []
+        parameters: list[str] = []
+        if event_type is not None:
+            clauses.append("event_type = ?")
+            parameters.append(event_type)
+        if kind is not None:
+            clauses.append("kind = ?")
+            parameters.append(kind)
+
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        connection = self._connect()
+        try:
+            cursor = connection.execute(
+                f"DELETE FROM behavior_events {where_clause}",
+                parameters,
+            )
+            connection.commit()
+            return int(cursor.rowcount)
+        finally:
+            connection.close()
+
 
 def _event_from_row(row: sqlite3.Row) -> BehaviorEvent:
     payload = json.loads(str(row["payload_json"]))
@@ -134,3 +175,11 @@ def _event_from_row(row: sqlite3.Row) -> BehaviorEvent:
 
 def _utc_timestamp() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _normalize_optional_filter(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    return normalized or None
