@@ -70,6 +70,7 @@ from project_akiha.services.window_placement import (
     clamp_window_position,
 )
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
+from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.memory_window import MemoryWindow
@@ -198,6 +199,7 @@ def main() -> int:
     )
     chat_window = ChatWindow()
     memory_window = MemoryWindow()
+    behavior_history_window = BehaviorHistoryWindow()
     _populate_chat_window(
         chat_window=chat_window,
         messages=chat_controller.messages,
@@ -350,6 +352,21 @@ def main() -> int:
         refresh_memory_window()
         memory_window.append_notice("Pending memories cleared.")
 
+    def refresh_behavior_history_window() -> None:
+        events = asyncio.run(behavior_repository.get_recent_events(limit=200))
+        behavior_history_window.update_events(events)
+
+    def show_behavior_history() -> None:
+        refresh_behavior_history_window()
+        behavior_history_window.show()
+        behavior_history_window.raise_()
+        behavior_history_window.activateWindow()
+
+    def clear_behavior_history() -> None:
+        asyncio.run(behavior_repository.clear_events())
+        refresh_behavior_history_window()
+        behavior_history_window.append_notice("Behavior history cleared.")
+
     def show_chat(event: Event | None = None) -> None:
         del event
         chat_window.show()
@@ -464,9 +481,12 @@ def main() -> int:
     memory_window.approve_requested.connect(approve_pending_memory)
     memory_window.reject_requested.connect(reject_pending_memory)
     memory_window.clear_pending_requested.connect(clear_pending_memories)
+    behavior_history_window.refresh_requested.connect(refresh_behavior_history_window)
+    behavior_history_window.clear_requested.connect(clear_behavior_history)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     settings_window.memory_manager_requested.connect(show_memory_manager)
+    settings_window.behavior_history_requested.connect(show_behavior_history)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
     app.aboutToQuit.connect(save_window_position)
 
@@ -483,6 +503,7 @@ def main() -> int:
         chat_window=chat_window,
         settings_window=settings_window,
     )
+    tray_icon.behavior_history_requested.connect(show_behavior_history)
     tray_icon.show()
     proactive_delivery_controller = ProactiveDeliveryController(
         event_bus=event_bus,
@@ -497,6 +518,7 @@ def main() -> int:
         activity_controller,
         activity_tick_timer,
         active_chat_threads,
+        behavior_history_window,
         behavior_history_recorder,
         behavior_repository,
         chat_window,

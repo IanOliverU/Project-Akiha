@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 
 
 class AkihaTrayIcon(QSystemTrayIcon):
     """Tray icon with basic Phase 1 window controls."""
+
+    behavior_history_requested = Signal()
 
     def __init__(
         self,
@@ -45,6 +47,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         settings_action = QAction("Settings", menu)
         settings_action.triggered.connect(self._show_settings)
         menu.addAction(settings_action)
+
+        behavior_history_action = QAction("Behavior history", menu)
+        behavior_history_action.triggered.connect(self.behavior_history_requested.emit)
+        menu.addAction(behavior_history_action)
 
         menu.addSeparator()
 
