@@ -43,6 +43,10 @@ dist\nuitka\main.dist\Akiha.exe
 - [ ] The pet is draggable.
 - [ ] Dragging the pet does not leave visual artifacts.
 
+Automated packaged smoke already checks the executable subsystem and verifies
+that the running process does not own a visible Windows console window. This
+manual check is still kept as a human visual confirmation.
+
 ## Tray Controls
 
 - [ ] The Project Akiha tray icon appears.

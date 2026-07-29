@@ -74,6 +74,91 @@ function Invoke-SmokeLogCheck {
     }
 }
 
+function Add-WindowInspectorType {
+    if (([System.Management.Automation.PSTypeName]"AkihaWindowInspector").Type) {
+        return
+    }
+
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class AkihaWindowInspector
+{
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder className, int maxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder windowText, int maxCount);
+}
+"@
+}
+
+function Get-VisibleProcessWindows {
+    param(
+        [int]$ProcessId
+    )
+
+    Add-WindowInspectorType
+    $Windows = New-Object System.Collections.Generic.List[object]
+    $Callback = [AkihaWindowInspector+EnumWindowsProc]{
+        param(
+            [IntPtr]$WindowHandle,
+            [IntPtr]$Parameter
+        )
+
+        $OwnerProcessId = 0
+        [AkihaWindowInspector]::GetWindowThreadProcessId(
+            $WindowHandle,
+            [ref]$OwnerProcessId
+        ) | Out-Null
+
+        if ($OwnerProcessId -eq $ProcessId -and [AkihaWindowInspector]::IsWindowVisible($WindowHandle)) {
+            $ClassName = New-Object System.Text.StringBuilder 256
+            $WindowTitle = New-Object System.Text.StringBuilder 256
+            [AkihaWindowInspector]::GetClassName($WindowHandle, $ClassName, $ClassName.Capacity) | Out-Null
+            [AkihaWindowInspector]::GetWindowText($WindowHandle, $WindowTitle, $WindowTitle.Capacity) | Out-Null
+            $Windows.Add([pscustomobject]@{
+                Handle = $WindowHandle
+                ClassName = $ClassName.ToString()
+                Title = $WindowTitle.ToString()
+            }) | Out-Null
+        }
+
+        return $true
+    }
+
+    [AkihaWindowInspector]::EnumWindows($Callback, [IntPtr]::Zero) | Out-Null
+    return $Windows
+}
+
+function Invoke-PackagedWindowCheck {
+    param(
+        [int]$ProcessId
+    )
+
+    $Windows = @(Get-VisibleProcessWindows -ProcessId $ProcessId)
+    $ConsoleWindows = @($Windows | Where-Object { $_.ClassName -eq "ConsoleWindowClass" })
+    if ($ConsoleWindows.Count -gt 0) {
+        $ConsoleWindows | Format-Table -AutoSize
+        throw "Packaged app opened a visible console window."
+    }
+
+    Write-Host "Window check OK: no visible console window for process $ProcessId."
+}
+
 function Set-Utf8NoBomContent {
     param(
         [string]$Path,
@@ -152,6 +237,7 @@ function Invoke-PackagedAppSmokeRun {
         Test-RequiredPath $LogPath "Log file"
         Test-RequiredPath $DatabasePath "Database"
         Invoke-DatabaseSchemaCheck -PythonExe $PythonExe -DatabasePath $DatabasePath
+        Invoke-PackagedWindowCheck -ProcessId $Process.Id
 
         $CloseRequested = $Process.CloseMainWindow()
         Start-Sleep -Seconds $ShutdownSeconds

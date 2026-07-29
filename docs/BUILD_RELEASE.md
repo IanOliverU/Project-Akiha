@@ -156,6 +156,7 @@ The smoke script verifies:
 
 - packaged artifact contents
 - Windows GUI executable subsystem
+- no visible `ConsoleWindowClass` window owned by the packaged process
 - packaged app startup
 - local data directory creation
 - log file creation
