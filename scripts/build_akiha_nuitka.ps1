@@ -52,6 +52,7 @@ try {
         --output-filename=Akiha `
         --include-data-dir=assets=assets `
         --include-data-dir=project_akiha/config=project_akiha/config `
+        --include-data-dir=project_akiha/database/migrations=project_akiha/database/migrations `
         project_akiha/app/main.py
     } "Nuitka build"
 }

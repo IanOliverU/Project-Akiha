@@ -24,9 +24,10 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
   - `assets/animations`
   - `assets/animations/manifest.toml`
   - `project_akiha/config/default.toml`
+  - `project_akiha/database/migrations/*.sql`
 - [x] Confirm PySide6 plugins are bundled correctly.
 - [ ] Confirm the packaged app starts without a console window.
-- [ ] Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
+- [x] Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
 
 Validation note, 2026-07-29:
 
@@ -35,24 +36,32 @@ Validation note, 2026-07-29:
 - `scripts/build_akiha_nuitka.ps1 -SkipQualityChecks -OutputDir
   dist\nuitka-phase6-validation` produced
   `dist\nuitka-phase6-validation\main.dist\Akiha.exe`.
-- `assets/animations/manifest.toml` and `project_akiha/config/default.toml` were
-  present in the standalone output.
+- `assets/animations/manifest.toml`, `project_akiha/config/default.toml`, and
+  `project_akiha/database/migrations/*.sql` were present in the standalone
+  output.
+- `scripts/smoke_packaged_app.ps1 -ExePath
+  dist\nuitka-phase6-smoke\main.dist\Akiha.exe` passed against an isolated
+  `LOCALAPPDATA` directory. The packaged app created logs and a SQLite database
+  with the expected behavior, conversation, memory, message, and schema tables.
+- The non-interactive smoke script successfully requested `CloseMainWindow()`,
+  but still had to force-stop the process. Manual tray Quit validation remains
+  part of the runtime smoke checklist.
 - Nuitka 4.1.3 reports Python 3.14 support as experimental. Continue with this
   environment for local validation, but consider Python 3.13 before public
   release if packaging instability appears.
 
 ### 2. Runtime Smoke Tests
 
-- Start the app from source.
-- Start the packaged app.
-- Confirm the pet appears and can be dragged.
-- Confirm tray controls work.
-- Confirm Settings opens and saves.
-- Confirm Chat opens and can send a mock-provider message.
-- Confirm Memory Manager opens.
-- Confirm Behavior History opens.
-- Confirm proactive behavior does not crash when timers tick.
-- Confirm Quit saves pet position and stops active chat workers.
+- [ ] Start the app from source.
+- [x] Start the packaged app.
+- [ ] Confirm the pet appears and can be dragged.
+- [ ] Confirm tray controls work.
+- [ ] Confirm Settings opens and saves.
+- [ ] Confirm Chat opens and can send a mock-provider message.
+- [ ] Confirm Memory Manager opens.
+- [ ] Confirm Behavior History opens.
+- [ ] Confirm proactive behavior does not crash when timers tick.
+- [ ] Confirm Quit saves pet position and stops active chat workers.
 
 ### 3. Startup And Shutdown Hardening
 
@@ -97,6 +106,8 @@ Validation note, 2026-07-29:
   - dev
   - package
 - Decide whether to add a lockfile workflow later.
+- Use `scripts/smoke_packaged_app.ps1` after packaging to verify packaged
+  startup, local data creation, log creation, and SQLite schema creation.
 - Run the quality gate before every packaged build:
 
 ```powershell

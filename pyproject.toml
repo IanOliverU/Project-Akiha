@@ -39,4 +39,4 @@ build-backend = "setuptools.build_meta"
 include = ["project_akiha*"]
 
 [tool.setuptools.package-data]
-project_akiha = ["config/*.toml"]
+project_akiha = ["config/*.toml", "database/migrations/*.sql"]
