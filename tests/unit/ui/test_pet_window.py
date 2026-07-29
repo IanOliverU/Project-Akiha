@@ -11,7 +11,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from project_akiha.config import PetWindowConfig
+from project_akiha.core.behavior import CompanionMood, MoodVisualCue
 from project_akiha.core.events.bus import EventBus
+from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation.base import AnimationFrame
 from project_akiha.ui.pet_window import PetWindow
@@ -55,9 +57,38 @@ class PetWindowTest(unittest.TestCase):
 
         self.assertFalse(frame.mirrored_horizontally)
 
-    def _make_window(self) -> PetWindow:
+    def test_mood_event_updates_visual_cue(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+
+        event_bus.publish(
+            EventType.MOOD_STATE_CHANGED,
+            {"mood": CompanionMood.CHECKING_IN.value},
+        )
+
+        self.assertEqual(
+            self._window._mood_visual_cue_for_current_mood(),
+            MoodVisualCue.CHECKING_IN,
+        )
+
+    def test_invalid_mood_event_keeps_current_visual_cue(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+        event_bus.publish(
+            EventType.MOOD_STATE_CHANGED,
+            {"mood": CompanionMood.WAITING.value},
+        )
+
+        event_bus.publish(EventType.MOOD_STATE_CHANGED, {"mood": "unknown"})
+
+        self.assertEqual(
+            self._window._mood_visual_cue_for_current_mood(),
+            MoodVisualCue.WAITING,
+        )
+
+    def _make_window(self, event_bus: EventBus | None = None) -> PetWindow:
         window = PetWindow(
-            event_bus=EventBus(),
+            event_bus=event_bus or EventBus(),
             config=PetWindowConfig(always_on_top=False),
             animation_provider=_StaticAnimationProvider(),
             renderer=_NullRenderer(),

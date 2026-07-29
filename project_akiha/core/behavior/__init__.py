@@ -18,6 +18,7 @@ from project_akiha.core.behavior.mood_animation import (
     MoodAnimationDecision,
     MoodAnimationMapper,
 )
+from project_akiha.core.behavior.mood_visual import MoodVisualCue, MoodVisualCueMapper
 from project_akiha.core.behavior.notification_policy import (
     NotificationDecision,
     NotificationPolicy,
@@ -41,6 +42,8 @@ __all__ = [
     "MoodAnimationDecision",
     "MoodAnimationMapper",
     "MoodSnapshot",
+    "MoodVisualCue",
+    "MoodVisualCueMapper",
     "NotificationDecision",
     "NotificationPolicy",
     "NotificationRequest",

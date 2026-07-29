@@ -4,11 +4,25 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QContextMenuEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QContextMenuEvent,
+    QFont,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPen,
+)
 from PySide6.QtWidgets import QMenu, QWidget
 
 from project_akiha.config import PetWindowConfig
+from project_akiha.core.behavior import (
+    CompanionMood,
+    MoodVisualCue,
+    MoodVisualCueMapper,
+)
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
@@ -37,6 +51,8 @@ class PetWindow(QWidget):
         self._drag_offset: QPoint | None = None
         self._frame_number = 0
         self._walk_direction = 1
+        self._current_mood = CompanionMood.CALM
+        self._mood_visual_mapper = MoodVisualCueMapper()
 
         self.setWindowTitle("Project Akiha")
         self.setFixedSize(config.width, config.height)
@@ -47,6 +63,10 @@ class PetWindow(QWidget):
         self._timer.timeout.connect(self._advance_frame)
         self._timer.start(1000 // config.frames_per_second)
         self._event_bus.subscribe(EventType.STATE_CHANGED, self._handle_state_changed)
+        self._event_bus.subscribe(
+            EventType.MOOD_STATE_CHANGED,
+            self._handle_mood_changed,
+        )
 
     def apply_config(self, config: PetWindowConfig) -> None:
         """Apply runtime-safe pet window settings."""
@@ -147,6 +167,7 @@ class PetWindow(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         animation_frame = self._animation_frame_for_current_state()
         self._renderer.paint(painter, animation_frame)
+        self._paint_mood_visual(painter, self._mood_visual_cue_for_current_mood())
 
     def _animation_frame_for_current_state(self) -> AnimationFrame:
         animation_frame = self._animation_provider.frame_for(
@@ -215,3 +236,76 @@ class PetWindow(QWidget):
                 return
             else:
                 self.update()
+
+    def _handle_mood_changed(self, event: Event) -> None:
+        mood = event.payload.get("mood")
+        if not isinstance(mood, str):
+            return
+
+        try:
+            self._current_mood = CompanionMood(mood)
+        except ValueError:
+            return
+
+        self.update()
+
+    def _mood_visual_cue_for_current_mood(self) -> MoodVisualCue:
+        return self._mood_visual_mapper.cue_for(self._current_mood)
+
+    def _paint_mood_visual(self, painter: QPainter, cue: MoodVisualCue) -> None:
+        if cue == MoodVisualCue.NONE:
+            return
+
+        bubble_rect = QRectF(max(8, self.width() - 58), 10, 44, 32)
+        color = _mood_visual_color(cue)
+
+        painter.save()
+        painter.setBrush(QColor(color.red(), color.green(), color.blue(), 180))
+        painter.setPen(QPen(QColor(44, 28, 36, 150), 2))
+        painter.drawRoundedRect(bubble_rect, 12, 12)
+
+        painter.setPen(QPen(QColor(44, 28, 36), 2))
+        if cue == MoodVisualCue.ATTENTION:
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 13, bubble_rect.y() + 8, 18, 18)
+            )
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 18, bubble_rect.y() + 13, 8, 8)
+            )
+        elif cue == MoodVisualCue.WAITING:
+            for offset in (10, 20, 30):
+                painter.drawEllipse(
+                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 15, 4, 4)
+                )
+        elif cue == MoodVisualCue.CHECKING_IN:
+            painter.drawRoundedRect(
+                QRectF(bubble_rect.x() + 10, bubble_rect.y() + 9, 24, 14),
+                5,
+                5,
+            )
+            painter.drawLine(
+                int(bubble_rect.x() + 18),
+                int(bubble_rect.y() + 23),
+                int(bubble_rect.x() + 15),
+                int(bubble_rect.y() + 28),
+            )
+        elif cue in {MoodVisualCue.RESTING, MoodVisualCue.SLEEPY}:
+            font = QFont()
+            font.setBold(True)
+            font.setPointSize(10 if cue == MoodVisualCue.RESTING else 12)
+            painter.setFont(font)
+            text = "..." if cue == MoodVisualCue.RESTING else "Zz"
+            painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, text)
+
+        painter.restore()
+
+
+def _mood_visual_color(cue: MoodVisualCue) -> QColor:
+    colors = {
+        MoodVisualCue.ATTENTION: QColor(144, 202, 249),
+        MoodVisualCue.WAITING: QColor(255, 224, 130),
+        MoodVisualCue.RESTING: QColor(179, 157, 219),
+        MoodVisualCue.CHECKING_IN: QColor(255, 171, 145),
+        MoodVisualCue.SLEEPY: QColor(159, 168, 218),
+    }
+    return colors[cue]
