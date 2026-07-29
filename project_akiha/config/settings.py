@@ -216,8 +216,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
-    with path.open("rb") as file:
-        return tomllib.load(file)
+    return tomllib.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def _deep_merge(

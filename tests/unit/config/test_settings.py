@@ -85,6 +85,18 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(config.behavior.scheduled_check_ins_enabled)
         self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 1200)
 
+    def test_user_config_accepts_utf8_bom(self) -> None:
+        with TemporaryDirectory() as directory:
+            config_path = Path(directory) / "user_config.toml"
+            config_path.write_text(
+                "\ufeff[personality]\n" 'character_name = "Mei"\n',
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path)
+
+        self.assertEqual(config.personality.character_name, "Mei")
+
     def test_personality_prompt_replaces_only_character_name_token(self) -> None:
         personality = PersonalityConfig(
             character_name="Aki",

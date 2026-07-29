@@ -2,7 +2,8 @@ param(
     [string]$ExePath = "dist\nuitka-phase6-smoke\main.dist\Akiha.exe",
     [string]$SmokeRoot = "",
     [int]$StartupSeconds = 8,
-    [int]$ShutdownSeconds = 3
+    [int]$ShutdownSeconds = 3,
+    [switch]$RunExistingDataPass
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,42 +19,12 @@ function Test-RequiredPath {
     }
 }
 
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
-Push-Location $ProjectRoot
-try {
-    $ResolvedExePath = (Resolve-Path $ExePath).Path
-    $WorkingDir = Split-Path -Parent $ResolvedExePath
-    if (-not $SmokeRoot) {
-        $SmokeRoot = Join-Path `
-            (Split-Path -Parent (Split-Path -Parent $ResolvedExePath)) `
-            ("smoke-localappdata-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
-    }
+function Invoke-DatabaseSchemaCheck {
+    param(
+        [string]$DatabasePath
+    )
 
-    New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
-
-    $OldLocalAppData = $env:LOCALAPPDATA
-    $env:LOCALAPPDATA = $SmokeRoot
-    try {
-        $Process = Start-Process `
-            -FilePath $ResolvedExePath `
-            -WorkingDirectory $WorkingDir `
-            -PassThru
-
-        Start-Sleep -Seconds $StartupSeconds
-        if ($Process.HasExited) {
-            throw "Packaged app exited during startup with code $($Process.ExitCode)."
-        }
-
-        $DataDir = Join-Path $SmokeRoot "Akiha"
-        $LogPath = Join-Path $DataDir "logs\app.log"
-        $DatabasePath = Join-Path $DataDir "akiha.sqlite3"
-        $StateDir = Join-Path $DataDir "state"
-
-        Test-RequiredPath $DataDir "Data directory"
-        Test-RequiredPath $LogPath "Log file"
-        Test-RequiredPath $DatabasePath "Database"
-
-        $SchemaCheck = @'
+    $SchemaCheck = @'
 import sqlite3
 import sys
 
@@ -84,10 +55,89 @@ if missing:
 
 print(f"Database tables OK: {sorted(expected_tables)}")
 '@
-        $SchemaCheck | python - $DatabasePath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Database schema smoke check failed."
+    $SchemaCheck | python - $DatabasePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Database schema smoke check failed."
+    }
+}
+
+function Set-Utf8NoBomContent {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+
+    $Encoding = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText($Path, $Content, $Encoding)
+}
+
+function Write-SmokeExistingData {
+    param(
+        [string]$SmokeRoot
+    )
+
+    $DataDir = Join-Path $SmokeRoot "Akiha"
+    $StateDir = Join-Path $DataDir "state"
+    New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+
+    $UserConfigPath = Join-Path $DataDir "user_config.toml"
+    Set-Utf8NoBomContent $UserConfigPath @'
+[pet_window]
+start_x = 96
+start_y = 128
+
+[ai]
+provider = "mock"
+
+[personality]
+character_name = "Akiha"
+'@
+
+    $PetStatePath = Join-Path $StateDir "pet_window.json"
+    Set-Utf8NoBomContent $PetStatePath @'
+{
+  "x": 96,
+  "y": 128
+}
+'@
+}
+
+function Invoke-PackagedAppSmokeRun {
+    param(
+        [string]$RunLabel,
+        [string]$ResolvedExePath,
+        [string]$WorkingDir,
+        [string]$SmokeRoot,
+        [int]$StartupSeconds,
+        [int]$ShutdownSeconds
+    )
+
+    $DataDir = Join-Path $SmokeRoot "Akiha"
+    $LogPath = Join-Path $DataDir "logs\app.log"
+    $DatabasePath = Join-Path $DataDir "akiha.sqlite3"
+    $StateDir = Join-Path $DataDir "state"
+    $UserConfigPath = Join-Path $DataDir "user_config.toml"
+
+    $DataDirExistedBeforeStart = Test-Path $DataDir
+    $UserConfigExistedBeforeStart = Test-Path $UserConfigPath
+    $DatabaseExistedBeforeStart = Test-Path $DatabasePath
+    $StateDirExistedBeforeStart = Test-Path $StateDir
+
+    $Process = Start-Process `
+        -FilePath $ResolvedExePath `
+        -WorkingDirectory $WorkingDir `
+        -PassThru
+
+    try {
+        Start-Sleep -Seconds $StartupSeconds
+        if ($Process.HasExited) {
+            throw "Packaged app exited during startup with code $($Process.ExitCode)."
         }
+
+        Test-RequiredPath $DataDir "Data directory"
+        Test-RequiredPath $LogPath "Log file"
+        Test-RequiredPath $DatabasePath "Database"
+        Invoke-DatabaseSchemaCheck $DatabasePath
 
         $CloseRequested = $Process.CloseMainWindow()
         Start-Sleep -Seconds $ShutdownSeconds
@@ -99,17 +149,66 @@ print(f"Database tables OK: {sorted(expected_tables)}")
         }
 
         [pscustomobject]@{
+            RunLabel = $RunLabel
             ExePath = $ResolvedExePath
             ProcessId = $Process.Id
             SmokeLocalAppData = $SmokeRoot
+            DataDirExistedBeforeStart = $DataDirExistedBeforeStart
+            UserConfigExistedBeforeStart = $UserConfigExistedBeforeStart
+            DatabaseExistedBeforeStart = $DatabaseExistedBeforeStart
+            StateDirExistedBeforeStart = $StateDirExistedBeforeStart
             DataDirExists = Test-Path $DataDir
             LogExists = Test-Path $LogPath
             DatabaseExists = Test-Path $DatabasePath
             StateDirExists = Test-Path $StateDir
+            UserConfigExists = Test-Path $UserConfigPath
             CloseMainWindowRequested = $CloseRequested
             ForcedStop = $ForcedStop
             ExitCode = $Process.ExitCode
         } | Format-List
+    }
+    finally {
+        if (-not $Process.HasExited) {
+            Stop-Process -Id $Process.Id -Force
+            $Process.WaitForExit()
+        }
+    }
+}
+
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Push-Location $ProjectRoot
+try {
+    $ResolvedExePath = (Resolve-Path $ExePath).Path
+    $WorkingDir = Split-Path -Parent $ResolvedExePath
+    if (-not $SmokeRoot) {
+        $SmokeRoot = Join-Path `
+            (Split-Path -Parent (Split-Path -Parent $ResolvedExePath)) `
+            ("smoke-localappdata-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+    }
+
+    New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
+
+    $OldLocalAppData = $env:LOCALAPPDATA
+    $env:LOCALAPPDATA = $SmokeRoot
+    try {
+        Invoke-PackagedAppSmokeRun `
+            -RunLabel "fresh-data" `
+            -ResolvedExePath $ResolvedExePath `
+            -WorkingDir $WorkingDir `
+            -SmokeRoot $SmokeRoot `
+            -StartupSeconds $StartupSeconds `
+            -ShutdownSeconds $ShutdownSeconds
+
+        if ($RunExistingDataPass) {
+            Write-SmokeExistingData $SmokeRoot
+            Invoke-PackagedAppSmokeRun `
+                -RunLabel "existing-data" `
+                -ResolvedExePath $ResolvedExePath `
+                -WorkingDir $WorkingDir `
+                -SmokeRoot $SmokeRoot `
+                -StartupSeconds $StartupSeconds `
+                -ShutdownSeconds $ShutdownSeconds
+        }
     }
     finally {
         $env:LOCALAPPDATA = $OldLocalAppData

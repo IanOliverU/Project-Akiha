@@ -40,9 +40,11 @@ Validation note, 2026-07-29:
   `project_akiha/database/migrations/*.sql` were present in the standalone
   output.
 - `scripts/smoke_packaged_app.ps1 -ExePath
-  dist\nuitka-phase6-smoke\main.dist\Akiha.exe` passed against an isolated
-  `LOCALAPPDATA` directory. The packaged app created logs and a SQLite database
-  with the expected behavior, conversation, memory, message, and schema tables.
+  dist\nuitka-phase6-smoke\main.dist\Akiha.exe -RunExistingDataPass` passed
+  against an isolated `LOCALAPPDATA` directory. The packaged app created logs
+  and a SQLite database with the expected behavior, conversation, memory,
+  message, and schema tables, then started again with existing user config,
+  state, and database files.
 - The non-interactive smoke script successfully requested `CloseMainWindow()`,
   but still had to force-stop the process. Manual tray Quit validation remains
   part of the runtime smoke checklist.
@@ -66,7 +68,7 @@ Validation note, 2026-07-29:
 ### 3. Startup And Shutdown Hardening
 
 - [x] Verify startup with no existing `%LOCALAPPDATA%\Akiha\` folder.
-- [ ] Verify startup with existing config/state/database files.
+- [x] Verify startup with existing config/state/database files.
 - [x] Verify startup with a missing animation manifest.
 - [x] Verify startup with missing or invalid sprite files.
 - [ ] Verify shutdown during idle state.
@@ -82,6 +84,9 @@ Startup hardening note, 2026-07-29:
   load failure and falls back to the placeholder animation provider.
 - `tests.unit.app.test_animation_bootstrap` covers missing manifests, missing
   sprite references, and valid sprite manifests.
+- User config loading now accepts UTF-8 files with a byte-order mark, which
+  protects startup when config files are edited by Windows tools that emit a
+  BOM.
 
 ### 4. Diagnostics And Logs
 
@@ -114,8 +119,9 @@ Startup hardening note, 2026-07-29:
   - dev
   - package
 - Decide whether to add a lockfile workflow later.
-- Use `scripts/smoke_packaged_app.ps1` after packaging to verify packaged
-  startup, local data creation, log creation, and SQLite schema creation.
+- Use `scripts/smoke_packaged_app.ps1 -RunExistingDataPass` after packaging to
+  verify packaged startup, local data creation, log creation, SQLite schema
+  creation, and restart with existing local data.
 - Run the quality gate before every packaged build:
 
 ```powershell
