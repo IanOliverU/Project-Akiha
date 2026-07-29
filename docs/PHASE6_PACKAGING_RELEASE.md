@@ -74,6 +74,8 @@ Runtime smoke note, 2026-07-29:
   have automated offscreen unit coverage. Manual packaged tray validation
   remains required because Windows tray behavior must be checked in the real
   packaged app.
+- Manual packaged runtime checks are documented in
+  `docs/MANUAL_PACKAGED_SMOKE.md`.
 
 ### 3. Startup And Shutdown Hardening
 
@@ -99,6 +101,10 @@ Startup hardening note, 2026-07-29:
   BOM.
 - `main()` logs unrecoverable startup failures to
   `%LOCALAPPDATA%\Akiha\logs\app.log` before reraising the original exception.
+- Shutdown cleanup is isolated in `project_akiha.app.shutdown` and has automated
+  coverage for idle cleanup, cooperative chat cancellation, unfinished chat
+  workers, position-save failures, timer-stop failures, and thread cancellation
+  failures.
 
 ### 4. Diagnostics And Logs
 
@@ -225,12 +231,20 @@ Distribution note, 2026-07-29:
 
 ### 9. Documentation Pass
 
-- Update `README.md` after packaging validation.
-- Add a Phase 6 completion summary when this phase is done.
-- Document source run, packaged run, and uninstall/reset steps.
-- Document local data reset steps.
-- Document known limitations.
-- Prepare release notes for the first packaged build.
+- [x] Update `README.md` after packaging validation.
+- [ ] Add a Phase 6 completion summary when this phase is done.
+- [x] Document source run, packaged run, and uninstall/reset steps.
+- [x] Document local data reset steps.
+- [x] Document known limitations.
+- [x] Prepare release notes for the first packaged build.
+
+Documentation note, 2026-07-29:
+
+- Build workflow is documented in `docs/BUILD_RELEASE.md`.
+- Local data and reset behavior are documented in `docs/LOCAL_DATA_PRIVACY.md`.
+- Distribution behavior is documented in `docs/DISTRIBUTION_DECISION.md`.
+- Manual packaged smoke is documented in `docs/MANUAL_PACKAGED_SMOKE.md`.
+- Draft release notes are documented in `docs/RELEASE_NOTES_DRAFT.md`.
 
 ## Exit Criteria
 

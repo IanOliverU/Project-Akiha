@@ -77,6 +77,46 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertEqual(threads, [])
         self.assertIn("Failed to save", captured.output[0])
 
+    def test_shutdown_continues_when_timer_stop_fails(self) -> None:
+        timer = _FailingTimer()
+        thread = _Thread(finished=True)
+        threads = [thread]
+        logger = logging.getLogger("test_shutdown_timer_failure")
+
+        with self.assertLogs(logger, level="ERROR") as captured:
+            result = shutdown_runtime(
+                activity_timer=timer,
+                active_chat_threads=threads,
+                save_window_position=lambda: None,
+                logger=logger,
+                thread_wait_ms=25,
+            )
+
+        self.assertFalse(result.timer_stopped)
+        self.assertTrue(result.position_saved)
+        self.assertTrue(thread.cancelled)
+        self.assertEqual(threads, [])
+        self.assertIn("Failed to stop activity timer", captured.output[0])
+
+    def test_shutdown_reports_thread_cancellation_failure(self) -> None:
+        timer = _Timer()
+        threads = [_FailingThread()]
+        logger = logging.getLogger("test_shutdown_thread_failure")
+
+        with self.assertLogs(logger, level="ERROR") as captured:
+            result = shutdown_runtime(
+                activity_timer=timer,
+                active_chat_threads=threads,
+                save_window_position=lambda: None,
+                logger=logger,
+                thread_wait_ms=25,
+            )
+
+        self.assertEqual(result.cancelled_threads, 1)
+        self.assertEqual(result.unfinished_threads, 1)
+        self.assertEqual(threads, [])
+        self.assertIn("Failed to stop chat response thread", captured.output[0])
+
 
 class _Timer:
     def __init__(self) -> None:
@@ -84,6 +124,11 @@ class _Timer:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+class _FailingTimer:
+    def stop(self) -> None:
+        raise RuntimeError("timer failed")
 
 
 class _Thread:
@@ -98,6 +143,15 @@ class _Thread:
     def wait(self, time: int = 0) -> bool:
         self.wait_time = time
         return self.finished
+
+
+class _FailingThread:
+    def cancel(self) -> None:
+        raise RuntimeError("thread failed")
+
+    def wait(self, time: int = 0) -> bool:
+        del time
+        return False
 
 
 if __name__ == "__main__":

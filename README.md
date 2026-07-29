@@ -258,4 +258,6 @@ Build and release workflow details: `docs/BUILD_RELEASE.md`
 
 Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 
+Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
+
 Release notes draft: `docs/RELEASE_NOTES_DRAFT.md`

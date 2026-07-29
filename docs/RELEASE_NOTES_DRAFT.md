@@ -35,6 +35,7 @@ diagnostics.
 - Build workflow: `docs/BUILD_RELEASE.md`
 - Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 - Local data and privacy: `docs/LOCAL_DATA_PRIVACY.md`
+- Manual packaged smoke: `docs/MANUAL_PACKAGED_SMOKE.md`
 
 ## Known Limitations
 
@@ -51,12 +52,4 @@ diagnostics.
 
 ## Manual Smoke Checklist Before Finalizing
 
-- Confirm the packaged app starts without a console window.
-- Confirm the pet appears and can be dragged.
-- Confirm tray controls work.
-- Confirm Settings opens and saves.
-- Confirm Chat opens and can send a mock-provider message.
-- Confirm Memory Manager opens.
-- Confirm Behavior History opens.
-- Confirm proactive behavior does not crash when timers tick.
-- Confirm Quit saves pet position and stops active chat workers.
+Use `docs/MANUAL_PACKAGED_SMOKE.md` before finalizing the standalone preview.

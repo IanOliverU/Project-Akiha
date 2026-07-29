@@ -143,6 +143,18 @@ The smoke script is non-interactive. It may request `CloseMainWindow()` and then
 force-stop the process. Manual tray Quit validation remains required before
 Phase 6 is complete.
 
+## Manual Packaged Smoke
+
+After automated source and packaged smoke tests pass, run the manual checklist:
+
+```text
+docs/MANUAL_PACKAGED_SMOKE.md
+```
+
+The manual pass verifies real Windows UI behavior that automated offscreen tests
+cannot prove, including visible console behavior, tray interactions, window
+opening, drag behavior, and graceful Tray Quit.
+
 ## Lockfile Decision
 
 No lockfile workflow is being added in Phase 6. The project is still small, and
