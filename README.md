@@ -255,3 +255,7 @@ pip install -e .[package]
 Packaging is part of the active Phase 6 work.
 
 Build and release workflow details: `docs/BUILD_RELEASE.md`
+
+Distribution decision: `docs/DISTRIBUTION_DECISION.md`
+
+Release notes draft: `docs/RELEASE_NOTES_DRAFT.md`

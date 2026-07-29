@@ -180,15 +180,27 @@ Dependency and build note, 2026-07-29:
 
 ### 7. Installer And Distribution Prep
 
-- Decide whether Phase 6 ships a standalone folder or installer first.
-- If installer:
+- [x] Decide whether Phase 6 ships a standalone folder or installer first.
+- [x] Defer installer-specific choices to the post-standalone backlog:
   - choose installer tooling
   - define install location
   - define shortcut behavior
   - define uninstall behavior
   - confirm local user data is preserved or clearly removed by choice
-- Document Ollama as optional and separately installed.
-- Do not bundle Ollama in the first packaged build.
+- [x] Document Ollama as optional and separately installed.
+- [x] Do not bundle Ollama in the first packaged build.
+
+Distribution note, 2026-07-29:
+
+- Phase 6 ships a standalone folder first. Installer work is postponed until
+  after the standalone package passes manual smoke testing and daily-use
+  feedback.
+- Removing or replacing the standalone folder does not remove local user data,
+  which remains under `%LOCALAPPDATA%\Akiha\`.
+- Distribution behavior and future installer backlog are documented in
+  `docs/DISTRIBUTION_DECISION.md`.
+- Draft release notes for the first standalone package are in
+  `docs/RELEASE_NOTES_DRAFT.md`.
 
 ### 8. Security Checklist
 

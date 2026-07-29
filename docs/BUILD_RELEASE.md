@@ -85,6 +85,9 @@ python -m nuitka --version --zig --assume-yes-for-downloads
 
 ## Standalone Package Build
 
+The first Phase 6 release artifact is a standalone folder. See
+`docs/DISTRIBUTION_DECISION.md` for the standalone-vs-installer decision.
+
 ```powershell
 pip install -e .[package]
 .\scripts\build_akiha_nuitka.ps1
