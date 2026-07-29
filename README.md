@@ -30,9 +30,10 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 6 are complete. Phase 7 is planned and begins the next roadmap
-with a local-first voice layer. The current standalone release-candidate build
-uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
+Phases 1 through 6 are complete. Phase 7 is in progress with local microphone
+capture and faster-whisper STT implemented. The current standalone
+release-candidate build uses Python 3.13 and has passed automated readiness plus
+manual packaged smoke.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -42,7 +43,7 @@ uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
-| Phase 7 | Planned | Local-first voice plumbing and Akiha voice identity |
+| Phase 7 | In progress | Local-first voice plumbing and Akiha voice identity |
 
 ## Tech Stack
 
@@ -64,11 +65,14 @@ uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
 ### AI And Companion Systems
 
 ![Ollama](https://img.shields.io/badge/Ollama-optional_local_AI-000000?logo=ollama&logoColor=white)
+![faster-whisper](https://img.shields.io/badge/faster--whisper-local_STT-2E7D32)
 ![Local First](https://img.shields.io/badge/Local--first-companion-2E7D32)
 ![Event Driven](https://img.shields.io/badge/Event--driven-core-5B5BD6)
 
 - **MockAIProvider** keeps development deterministic and usable without a model.
 - **OllamaProvider** supports optional local non-cloud chat streaming.
+- **faster-whisper** provides optional local push-to-talk transcription on the
+  Python 3.13 voice environment.
 - **EventBus** connects UI, app controllers, memory, behavior, mood, and
   animation changes without direct cross-module coupling.
 - **Provider and repository interfaces** keep AI and persistence swappable.
@@ -238,6 +242,7 @@ Runtime data is stored under `%LOCALAPPDATA%\Akiha\`.
 | SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` |
 | App logs | `%LOCALAPPDATA%\Akiha\logs\app.log` |
+| Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` |
 
 Details: `docs/LOCAL_DATA_PRIVACY.md`
 
@@ -247,6 +252,12 @@ Install the app in editable mode:
 
 ```powershell
 pip install -e .[dev]
+```
+
+For optional local speech recognition, use Python 3.13:
+
+```powershell
+.\.venv313\Scripts\python.exe -m pip install -e ".[voice]"
 ```
 
 Start Akiha:

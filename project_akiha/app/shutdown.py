@@ -41,6 +41,7 @@ class ShutdownResult:
     unfinished_threads: int
     timer_stopped: bool
     voice_capture_stopped: bool
+    voice_transcription_stopped: bool
 
 
 def shutdown_runtime(
@@ -51,6 +52,7 @@ def shutdown_runtime(
     logger: logging.Logger,
     thread_wait_ms: int = 2000,
     voice_capture: CancellableVoiceCapture | None = None,
+    voice_transcription: CancellableVoiceCapture | None = None,
 ) -> ShutdownResult:
     """Stop long-running app resources before Qt exits."""
     timer_stopped = _stop_timer(activity_timer, logger)
@@ -61,12 +63,17 @@ def shutdown_runtime(
         thread_wait_ms=thread_wait_ms,
     )
     voice_capture_stopped = _cancel_voice_capture(voice_capture, logger)
+    voice_transcription_stopped = _cancel_voice_transcription(
+        voice_transcription,
+        logger,
+    )
     return ShutdownResult(
         position_saved=position_saved,
         cancelled_threads=cancelled_threads,
         unfinished_threads=unfinished_threads,
         timer_stopped=timer_stopped,
         voice_capture_stopped=voice_capture_stopped,
+        voice_transcription_stopped=voice_transcription_stopped,
     )
 
 
@@ -126,5 +133,19 @@ def _cancel_voice_capture(
         voice_capture.cancel()
     except Exception:
         logger.exception("Failed to stop microphone capture during shutdown.")
+        return False
+    return True
+
+
+def _cancel_voice_transcription(
+    voice_transcription: CancellableVoiceCapture | None,
+    logger: logging.Logger,
+) -> bool:
+    if voice_transcription is None:
+        return True
+    try:
+        voice_transcription.cancel()
+    except Exception:
+        logger.exception("Failed to stop voice transcription during shutdown.")
         return False
     return True

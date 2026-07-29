@@ -95,8 +95,8 @@ Suggested configuration includes:
 
 - [x] Add a push-to-talk command surface in the chat window.
 - [x] Add start, stop, cancel, and timeout handling for microphone capture.
-- [ ] Add a local speech-to-text service.
-- [ ] Add a `faster-whisper` provider adapter.
+- [x] Add a local speech-to-text service.
+- [x] Add a `faster-whisper` provider adapter.
 - [x] Insert accepted transcripts into the existing chat input path.
 - [x] Prevent accidental sends for empty or failed transcripts.
 - [x] Keep microphone capture off until the user starts push-to-talk.
@@ -131,7 +131,7 @@ Suggested configuration includes:
 - [ ] Add a test voice action with a short Japanese phrase.
 - [ ] Show clear diagnostics for a missing backend, unavailable model, missing
   microphone, failed synthesis, and failed playback.
-- [ ] Log technical voice failures without logging captured audio or unnecessary
+- [x] Log technical voice failures without logging captured audio or unnecessary
   transcript content.
 
 ### Automated Coverage
@@ -164,8 +164,7 @@ Foundation note, 2026-07-29:
   voice is disabled, applies updated voice configuration without a restart, and
   publishes privacy-safe state, transcript, and error events.
 - Push-to-talk request, stop, and cancel events drive listening and thinking
-  state transitions. Actual microphone capture remains in the next
-  implementation plate.
+  state transitions and the bounded microphone-capture lifecycle.
 - Speech requests enter synthesis state and expose explicit playback-start,
   stop, error, and recovery transitions for the upcoming TTS service.
 - Input transcription and output synthesis retain separate operation ownership,
@@ -184,8 +183,19 @@ Foundation note, 2026-07-29:
 - Capture supports explicit stop, cancellation, device errors, empty-capture
   errors, and a configurable timeout. Shutdown always attempts to release the
   microphone and records the cleanup result.
-- Until the local STT service is connected, a completed recording reports
-  `speech_input_unavailable` instead of remaining stuck in the thinking state.
+- If the optional STT dependency or model is unavailable, the recording reports
+  a visible provider error instead of remaining stuck in the thinking state.
+- Local STT now runs through `SpeechInputService` and a dedicated Qt worker, so
+  model loading and transcription do not block the UI thread.
+- `FasterWhisperProvider` wraps captured PCM in an in-memory WAV stream, uses
+  CPU/int8 inference, caches its model under
+  `%LOCALAPPDATA%\Akiha\models\faster-whisper\`, and loads both the dependency
+  and model lazily.
+- Successful transcripts return through the existing editable Chat input path.
+  Cancellation discards late provider results instead of inserting them.
+- The optional `voice` dependency group installs faster-whisper on Python 3.13.
+  Normal Windows Python 3.14 remains a backend-unavailable source environment
+  until its native dependency wheels are consistently supported.
 
 ### Phase 7A Smoke Checkpoint
 

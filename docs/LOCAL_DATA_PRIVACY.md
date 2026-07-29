@@ -21,6 +21,7 @@ Ollama over HTTP. The default Ollama URL points to the user's PC at
 | SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, and behavior history. |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` | Last saved pet position. |
 | Logs | `%LOCALAPPDATA%\Akiha\logs\app.log` | Startup, diagnostics, provider failures, migration failures, and runtime support logs. |
+| Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` | Optional downloaded speech-recognition model files. |
 
 Logs rotate at 1,000,000 bytes with 3 backups.
 
@@ -61,6 +62,20 @@ folder. Startup logs also include a compact diagnostics summary with important
 paths and file existence/size metadata. The diagnostics summary does not read or
 print private chat, memory, or config contents.
 
+## Voice Capture
+
+Phase 7 microphone input is push-to-talk only.
+
+- The microphone opens only after the user requests listening.
+- PCM audio remains in memory and is discarded after transcription,
+  cancellation, timeout, failure, or shutdown.
+- Raw microphone bytes are not published through the application event bus,
+  written to logs, or saved as audio files.
+- Recognized text is inserted into the editable Chat input and is not sent until
+  the user submits it.
+- faster-whisper runs locally. Its model may be downloaded on first use and is
+  cached under `%LOCALAPPDATA%\Akiha\models\faster-whisper\`.
+
 ## Reset
 
 To reset all local Project Akiha data, quit the app first, then remove:
@@ -69,9 +84,9 @@ To reset all local Project Akiha data, quit the app first, then remove:
 %LOCALAPPDATA%\Akiha\
 ```
 
-This removes user config, chat history, memories, behavior history, logs, and
-pet window state. If only the pet position should be reset, use Settings ->
-Reset position instead.
+This removes user config, chat history, memories, behavior history, logs, local
+voice models, and pet window state. If only the pet position should be reset,
+use Settings -> Reset position instead.
 
 ## First Packaged Build Privacy Decision
 
@@ -79,5 +94,5 @@ The first packaged build remains local-first and does not include a blocking
 first-run privacy modal. Privacy behavior is documented here and visible through
 Settings diagnostics actions.
 
-Revisit a first-run privacy notice before adding cloud AI providers, voice
-capture, sync, plugins, or local assistant commands.
+Revisit a first-run privacy notice before adding cloud AI providers, persistent
+or always-listening voice capture, sync, plugins, or local assistant commands.

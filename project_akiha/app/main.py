@@ -23,7 +23,10 @@ from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInCont
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
-from project_akiha.config import AIConfig, AppConfig, load_config
+from project_akiha.app.voice_transcription_controller import (
+    VoiceTranscriptionController,
+)
+from project_akiha.config import AIConfig, AppConfig, VoiceConfig, load_config
 from project_akiha.core.behavior import (
     CompanionMood,
     CompanionPresenceMapper,
@@ -59,7 +62,7 @@ from project_akiha.providers.animation import (
     AssetAnimationProvider,
     PlaceholderAnimationProvider,
 )
-from project_akiha.providers.voice import QtMicrophoneCapture
+from project_akiha.providers.voice import FasterWhisperProvider, QtMicrophoneCapture
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -72,6 +75,7 @@ from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.speech_input import SpeechInputService
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
@@ -239,11 +243,18 @@ def _run_application() -> int:
         initial_operation=voice_controller.operation,
     )
     microphone_capture = QtMicrophoneCapture(device_name=config.voice.input_device)
+    speech_input_service = _build_speech_input_service(config.voice, paths.model_dir)
+    voice_transcription_controller = VoiceTranscriptionController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        service=speech_input_service,
+    )
     voice_capture_controller = VoiceCaptureController(
         event_bus=event_bus,
         voice_controller=voice_controller,
         capture=microphone_capture,
         config=config.voice,
+        on_audio_captured=voice_transcription_controller.submit,
     )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
@@ -288,6 +299,9 @@ def _run_application() -> int:
         activity_controller.apply_config(updated_config.behavior)
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
+        voice_transcription_controller.apply_service(
+            _build_speech_input_service(updated_config.voice, paths.model_dir)
+        )
         voice_capture_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
@@ -585,16 +599,18 @@ def _run_application() -> int:
             save_window_position=save_window_position,
             logger=logger,
             voice_capture=voice_capture_controller,
+            voice_transcription=voice_transcription_controller,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
             "cancelled_threads=%s, unfinished_threads=%s, "
-            "voice_capture_stopped=%s.",
+            "voice_capture_stopped=%s, voice_transcription_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
             result.unfinished_threads,
             result.voice_capture_stopped,
+            result.voice_transcription_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -664,6 +680,7 @@ def _run_application() -> int:
         user_config_store,
         voice_capture_controller,
         voice_controller,
+        voice_transcription_controller,
         window_state_store,
     )
 
@@ -725,6 +742,19 @@ def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvide
 
     logger.info("Using mock AI provider.")
     return MockAIProvider()
+
+
+def _build_speech_input_service(
+    voice_config: VoiceConfig,
+    model_dir: Path,
+) -> SpeechInputService:
+    return SpeechInputService(
+        FasterWhisperProvider(
+            model_size=voice_config.input_model,
+            language=voice_config.input_language,
+            download_root=model_dir / "faster-whisper",
+        )
+    )
 
 
 def _build_conversation_summarizer(

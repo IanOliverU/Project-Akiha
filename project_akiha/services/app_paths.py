@@ -26,6 +26,11 @@ class AppPaths:
         return self.data_dir / "state"
 
     @property
+    def model_dir(self) -> Path:
+        """Return the directory for optional local AI and voice models."""
+        return self.data_dir / "models"
+
+    @property
     def user_config_path(self) -> Path:
         """Return the mutable user config path."""
         return self.data_dir / "user_config.toml"

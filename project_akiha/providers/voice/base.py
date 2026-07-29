@@ -115,6 +115,14 @@ class MicrophoneCaptureError(RuntimeError):
         self.code = code.strip() or "microphone_error"
 
 
+class VoiceProviderError(RuntimeError):
+    """A provider failure with a stable diagnostic code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code.strip() or "voice_provider_error"
+
+
 class MicrophoneCapture(Protocol):
     """Capture PCM audio only while push-to-talk is active."""
 
