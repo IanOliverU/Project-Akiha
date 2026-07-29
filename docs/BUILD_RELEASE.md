@@ -207,3 +207,7 @@ For a full local reset, quit Akiha and remove:
 ```text
 %LOCALAPPDATA%\Akiha\
 ```
+
+## Future Backlog
+
+Post-Phase-6 ideas are organized in `docs/POST_PHASE6_BACKLOG.md`.

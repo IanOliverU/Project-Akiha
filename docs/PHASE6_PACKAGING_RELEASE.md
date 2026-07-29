@@ -266,6 +266,7 @@ Documentation note, 2026-07-29:
 - Local data and reset behavior are documented in `docs/LOCAL_DATA_PRIVACY.md`.
 - Distribution behavior is documented in `docs/DISTRIBUTION_DECISION.md`.
 - Security posture is documented in `docs/SECURITY_REVIEW.md`.
+- Post-Phase-6 ideas are organized in `docs/POST_PHASE6_BACKLOG.md`.
 - Manual packaged smoke is documented in `docs/MANUAL_PACKAGED_SMOKE.md`.
 - Manual smoke reports can be created from
   `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md` with
@@ -287,15 +288,5 @@ Phase 6 should be considered done when:
 ## Post-Phase-6 Backlog
 
 The current roadmap ends at Phase 6. Future work can continue, but it should be
-treated as a new roadmap rather than silently expanding Phase 6.
-
-Possible future roadmap areas:
-
-- Local assistant commands with permission gates.
-- Voice input and output.
-- Richer character animation assets.
-- Live2D or another advanced model backend.
-- Plugin API.
-- Cloud model providers.
-- Multi-character support.
-- Optional sync or backup.
+treated as a new roadmap rather than silently expanding Phase 6. Post-Phase-6
+ideas are organized in `docs/POST_PHASE6_BACKLOG.md`.

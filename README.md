@@ -267,6 +267,8 @@ Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 
 Security review: `docs/SECURITY_REVIEW.md`
 
+Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
+
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
 
 Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
