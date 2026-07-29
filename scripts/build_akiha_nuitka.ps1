@@ -55,6 +55,11 @@ try {
         --include-data-dir=project_akiha/database/migrations=project_akiha/database/migrations `
         project_akiha/app/main.py
     } "Nuitka build"
+
+    $BuiltExePath = Join-Path $OutputDir "main.dist\Akiha.exe"
+    Invoke-CheckedCommand {
+        python -m project_akiha.tools.verify_windows_gui_subsystem $BuiltExePath
+    } "Windows GUI subsystem check"
 }
 finally {
     Pop-Location

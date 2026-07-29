@@ -120,6 +120,9 @@ Windows console mode, and bundled data directories for:
 - `project_akiha/config`
 - `project_akiha/database/migrations`
 
+After the build finishes, the script verifies that `Akiha.exe` uses the Windows
+GUI subsystem instead of the Windows console subsystem.
+
 ## Packaged Smoke Test
 
 After a standalone build, run:
@@ -132,6 +135,7 @@ After a standalone build, run:
 
 The smoke script verifies:
 
+- Windows GUI executable subsystem
 - packaged app startup
 - local data directory creation
 - log file creation

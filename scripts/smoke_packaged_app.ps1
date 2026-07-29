@@ -21,6 +21,7 @@ function Test-RequiredPath {
 
 function Invoke-DatabaseSchemaCheck {
     param(
+        [string]$PythonExe,
         [string]$DatabasePath
     )
 
@@ -55,7 +56,7 @@ if missing:
 
 print(f"Database tables OK: {sorted(expected_tables)}")
 '@
-    $SchemaCheck | python - $DatabasePath
+    $SchemaCheck | & $PythonExe - $DatabasePath
     if ($LASTEXITCODE -ne 0) {
         throw "Database schema smoke check failed."
     }
@@ -105,6 +106,7 @@ character_name = "Akiha"
 function Invoke-PackagedAppSmokeRun {
     param(
         [string]$RunLabel,
+        [string]$PythonExe,
         [string]$ResolvedExePath,
         [string]$WorkingDir,
         [string]$SmokeRoot,
@@ -137,7 +139,7 @@ function Invoke-PackagedAppSmokeRun {
         Test-RequiredPath $DataDir "Data directory"
         Test-RequiredPath $LogPath "Log file"
         Test-RequiredPath $DatabasePath "Database"
-        Invoke-DatabaseSchemaCheck $DatabasePath
+        Invoke-DatabaseSchemaCheck -PythonExe $PythonExe -DatabasePath $DatabasePath
 
         $CloseRequested = $Process.CloseMainWindow()
         Start-Sleep -Seconds $ShutdownSeconds
@@ -180,6 +182,16 @@ Push-Location $ProjectRoot
 try {
     $ResolvedExePath = (Resolve-Path $ExePath).Path
     $WorkingDir = Split-Path -Parent $ResolvedExePath
+    $PythonExe = (& python -c "import sys; print(sys.executable)").Trim()
+    if (-not $PythonExe) {
+        throw "Unable to resolve the current Python executable."
+    }
+
+    & $PythonExe -m project_akiha.tools.verify_windows_gui_subsystem $ResolvedExePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Packaged executable is not a Windows GUI subsystem app."
+    }
+
     if (-not $SmokeRoot) {
         $SmokeRoot = Join-Path `
             (Split-Path -Parent (Split-Path -Parent $ResolvedExePath)) `
@@ -193,6 +205,7 @@ try {
     try {
         Invoke-PackagedAppSmokeRun `
             -RunLabel "fresh-data" `
+            -PythonExe $PythonExe `
             -ResolvedExePath $ResolvedExePath `
             -WorkingDir $WorkingDir `
             -SmokeRoot $SmokeRoot `
@@ -203,6 +216,7 @@ try {
             Write-SmokeExistingData $SmokeRoot
             Invoke-PackagedAppSmokeRun `
                 -RunLabel "existing-data" `
+                -PythonExe $PythonExe `
                 -ResolvedExePath $ResolvedExePath `
                 -WorkingDir $WorkingDir `
                 -SmokeRoot $SmokeRoot `
