@@ -17,7 +17,7 @@ diagnostics.
 - Chat window with streaming responses, cancellation, new chat, clear chat, and
   transcript export.
 - Mock AI provider for offline deterministic use.
-- Optional local Ollama provider when Ollama is installed separately.
+- Optional Ollama HTTP provider when Ollama is installed separately.
 - SQLite persistence for conversations, messages, summaries, memories,
   embeddings, and behavior history.
 - Memory Manager for active, archived, and pending memories.
@@ -35,6 +35,7 @@ diagnostics.
 - Build workflow: `docs/BUILD_RELEASE.md`
 - Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 - Local data and privacy: `docs/LOCAL_DATA_PRIVACY.md`
+- Security review: `docs/SECURITY_REVIEW.md`
 - Manual packaged smoke: `docs/MANUAL_PACKAGED_SMOKE.md`
 
 ## Known Limitations

@@ -226,12 +226,20 @@ Distribution note, 2026-07-29:
 
 ### 8. Security Checklist
 
-- Keep AI output away from direct execution paths.
-- Confirm no shell execution path is exposed to the model.
-- Keep future assistant commands behind explicit command validation.
-- Keep logs useful without leaking unnecessary sensitive data.
-- Consider code signing before public distribution.
-- Consider dependency auditing before public distribution.
+- [x] Keep AI output away from direct execution paths.
+- [x] Confirm no shell execution path is exposed to the model.
+- [x] Keep future assistant commands behind explicit command validation.
+- [x] Keep logs useful without leaking unnecessary sensitive data.
+- [x] Validate Ollama URLs as HTTP/HTTPS provider endpoints.
+- [x] Consider code signing before public distribution.
+- [x] Consider dependency auditing before public distribution.
+
+Security note, 2026-07-29:
+
+- Phase 6 security posture and deferred public-distribution items are documented
+  in `docs/SECURITY_REVIEW.md`.
+- Future assistant commands remain deferred to the post-Phase-6 backlog and must
+  be added behind explicit command validation and permission gates.
 
 ### 9. Documentation Pass
 
@@ -247,6 +255,7 @@ Documentation note, 2026-07-29:
 - Build workflow is documented in `docs/BUILD_RELEASE.md`.
 - Local data and reset behavior are documented in `docs/LOCAL_DATA_PRIVACY.md`.
 - Distribution behavior is documented in `docs/DISTRIBUTION_DECISION.md`.
+- Security posture is documented in `docs/SECURITY_REVIEW.md`.
 - Manual packaged smoke is documented in `docs/MANUAL_PACKAGED_SMOKE.md`.
 - Draft release notes are documented in `docs/RELEASE_NOTES_DRAFT.md`.
 

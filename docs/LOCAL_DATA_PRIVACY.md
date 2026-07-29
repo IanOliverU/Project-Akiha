@@ -8,9 +8,10 @@ profile under:
 ```
 
 The current app does not include cloud sync. Chat requests only leave the
-machine when the user chooses a provider that talks to an external service. As
-of Phase 6, the implemented providers are the local mock provider and optional
-Ollama running on the user's PC.
+machine when the user chooses a provider URL that points outside the PC. As of
+Phase 6, the implemented providers are the local mock provider and optional
+Ollama over HTTP. The default Ollama URL points to the user's PC at
+`http://localhost:11434`.
 
 ## Stored Data
 

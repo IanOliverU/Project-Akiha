@@ -6,6 +6,7 @@ import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,11 @@ class AIConfig:
             raise ValueError("ai.provider must be either 'mock' or 'ollama'.")
         if not self.ollama_base_url:
             raise ValueError("ai.ollama_base_url cannot be empty.")
+        parsed_ollama_url = urlparse(self.ollama_base_url)
+        if parsed_ollama_url.scheme not in {"http", "https"}:
+            raise ValueError("ai.ollama_base_url must use http or https.")
+        if not parsed_ollama_url.netloc:
+            raise ValueError("ai.ollama_base_url must include a host.")
         if not self.ollama_model:
             raise ValueError("ai.ollama_model cannot be empty.")
         if self.request_timeout_seconds <= 0:

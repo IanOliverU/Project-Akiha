@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.config import BehaviorConfig, PersonalityConfig, load_config
+from project_akiha.config import (
+    AIConfig,
+    BehaviorConfig,
+    PersonalityConfig,
+    load_config,
+)
 
 
 class SettingsTest(unittest.TestCase):
@@ -119,6 +124,14 @@ class SettingsTest(unittest.TestCase):
     def test_behavior_config_rejects_invalid_check_in_interval(self) -> None:
         with self.assertRaises(ValueError):
             BehaviorConfig(scheduled_check_in_interval_seconds=0)
+
+    def test_ai_config_rejects_non_http_ollama_url(self) -> None:
+        with self.assertRaises(ValueError):
+            AIConfig(ollama_base_url="file:///tmp/ollama.sock")
+
+    def test_ai_config_rejects_ollama_url_without_host(self) -> None:
+        with self.assertRaises(ValueError):
+            AIConfig(ollama_base_url="http:///api")
 
 
 if __name__ == "__main__":
