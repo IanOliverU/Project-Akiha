@@ -16,16 +16,30 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
 
 ### 1. Packaging Pipeline
 
-- Validate the existing Nuitka standalone build path on the current app.
-- Rename or replace `scripts/build_phase1_nuitka.ps1` so it is no longer tied to
-  Phase 1 wording.
-- Ensure package data is included:
+- [x] Validate the existing Nuitka standalone build path on the current app.
+- [x] Use `scripts/build_akiha_nuitka.ps1` as the Phase 6 packaging entry point.
+- [x] Keep `scripts/build_phase1_nuitka.ps1` only as a compatibility wrapper.
+- [x] Use Nuitka with Zig on the current Windows/Python 3.14 environment.
+- [x] Ensure package data is included:
   - `assets/animations`
   - `assets/animations/manifest.toml`
   - `project_akiha/config/default.toml`
-- Confirm PySide6 plugins are bundled correctly.
-- Confirm the packaged app starts without a console window.
-- Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
+- [x] Confirm PySide6 plugins are bundled correctly.
+- [ ] Confirm the packaged app starts without a console window.
+- [ ] Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
+
+Validation note, 2026-07-29:
+
+- `scripts/build_akiha_nuitka.ps1 -SkipBuild` passed the quality gate and Nuitka
+  availability check.
+- `scripts/build_akiha_nuitka.ps1 -SkipQualityChecks -OutputDir
+  dist\nuitka-phase6-validation` produced
+  `dist\nuitka-phase6-validation\main.dist\Akiha.exe`.
+- `assets/animations/manifest.toml` and `project_akiha/config/default.toml` were
+  present in the standalone output.
+- Nuitka 4.1.3 reports Python 3.14 support as experimental. Continue with this
+  environment for local validation, but consider Python 3.13 before public
+  release if packaging instability appears.
 
 ### 2. Runtime Smoke Tests
 
@@ -84,6 +98,20 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
   - package
 - Decide whether to add a lockfile workflow later.
 - Run the quality gate before every packaged build:
+
+```powershell
+pip install -e .[package]
+.\scripts\build_akiha_nuitka.ps1
+```
+
+Use this command when you want to validate the script and quality gate without
+creating a packaged build:
+
+```powershell
+.\scripts\build_akiha_nuitka.ps1 -SkipBuild
+```
+
+Run the quality gate before every packaged build:
 
 ```powershell
 python -m unittest discover tests

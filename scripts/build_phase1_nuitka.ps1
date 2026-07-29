@@ -1,16 +1,12 @@
 param(
-    [string]$OutputDir = "dist\nuitka"
+    [string]$OutputDir = "dist\nuitka",
+    [switch]$SkipQualityChecks,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
 
-python -m nuitka `
-    --standalone `
-    --assume-yes-for-downloads `
-    --enable-plugin=pyside6 `
-    --windows-console-mode=disable `
-    --output-dir=$OutputDir `
-    --include-data-dir=assets=assets `
-    --include-data-dir=project_akiha/config=project_akiha/config `
-    project_akiha/app/main.py
-
+& "$PSScriptRoot\build_akiha_nuitka.ps1" `
+    -OutputDir $OutputDir `
+    -SkipQualityChecks:$SkipQualityChecks `
+    -SkipBuild:$SkipBuild

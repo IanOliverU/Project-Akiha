@@ -247,7 +247,7 @@ Nuitka packaging prep is available through the package extras:
 
 ```powershell
 pip install -e .[package]
-.\scripts\build_phase1_nuitka.ps1
+.\scripts\build_akiha_nuitka.ps1
 ```
 
-Packaging is not the active project phase yet; it remains part of Phase 6.
+Packaging is part of the active Phase 6 work.
