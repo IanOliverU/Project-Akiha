@@ -65,15 +65,23 @@ Validation note, 2026-07-29:
 
 ### 3. Startup And Shutdown Hardening
 
-- Verify startup with no existing `%LOCALAPPDATA%\Akiha\` folder.
-- Verify startup with existing config/state/database files.
-- Verify startup with a missing animation manifest.
-- Verify startup with missing or invalid sprite files.
-- Verify shutdown during idle state.
-- Verify shutdown while chat is generating.
-- Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
+- [x] Verify startup with no existing `%LOCALAPPDATA%\Akiha\` folder.
+- [ ] Verify startup with existing config/state/database files.
+- [x] Verify startup with a missing animation manifest.
+- [x] Verify startup with missing or invalid sprite files.
+- [ ] Verify shutdown during idle state.
+- [ ] Verify shutdown while chat is generating.
+- [ ] Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
   open.
-- Ensure top-level startup failures are logged clearly.
+- [ ] Ensure top-level startup failures are logged clearly.
+
+Startup hardening note, 2026-07-29:
+
+- Animation manifests now fail fast when referenced frame or filmstrip image
+  files are missing. The app-level animation provider builder logs the manifest
+  load failure and falls back to the placeholder animation provider.
+- `tests.unit.app.test_animation_bootstrap` covers missing manifests, missing
+  sprite references, and valid sprite manifests.
 
 ### 4. Diagnostics And Logs
 

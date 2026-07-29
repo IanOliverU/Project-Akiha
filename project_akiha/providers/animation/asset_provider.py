@@ -178,7 +178,9 @@ def _parse_frame_sources(
     if not all(isinstance(frame, str) and frame for frame in frames):
         raise AnimationManifestError(f"Animation {state_name} frames must be strings.")
 
-    return tuple(manifest_dir / frame for frame in frames), ()
+    frame_paths = tuple(manifest_dir / frame for frame in frames)
+    _ensure_files_exist(frame_paths, state_name)
+    return frame_paths, ()
 
 
 def _parse_filmstrip(
@@ -204,6 +206,7 @@ def _parse_filmstrip(
         state_data.get("frame_count"), "frame_count", state_name
     )
     image_path = manifest_dir / filmstrip
+    _ensure_files_exist((image_path,), state_name)
     frame_paths = tuple(image_path for _ in range(frame_count))
     source_rects = tuple(
         (index * frame_width, 0, frame_width, frame_height)
@@ -218,3 +221,12 @@ def _positive_int(value: Any, field_name: str, state_name: str) -> int:
             f"Animation {state_name} {field_name} must be a positive integer."
         )
     return value
+
+
+def _ensure_files_exist(paths: tuple[Path, ...], state_name: str) -> None:
+    missing_paths = [path for path in paths if not path.is_file()]
+    if missing_paths:
+        missing = ", ".join(str(path) for path in missing_paths)
+        raise AnimationManifestError(
+            f"Animation {state_name} references missing image file(s): {missing}."
+        )

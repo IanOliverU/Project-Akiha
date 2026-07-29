@@ -19,6 +19,8 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_loads_manifest_and_resolves_relative_frame_paths(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            _touch(Path(directory) / "idle" / "001.png")
             manifest_path.write_text(
                 "[animations.idle]\n"
                 'frames = ["idle/000.png", "idle/001.png"]\n'
@@ -43,6 +45,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_falls_back_to_idle_for_missing_state(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
             manifest_path.write_text(
                 "[animations.idle]\n"
                 'frames = ["idle/000.png"]\n'
@@ -58,6 +61,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_loads_filmstrip_animation_frames(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "walking" / "walk.png")
             manifest_path.write_text(
                 "[animations.walking]\n"
                 'filmstrip = "walking/walk.png"\n'
@@ -84,6 +88,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_rejects_unknown_state(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "dancing" / "000.png")
             manifest_path.write_text(
                 "[animations.dancing]\n" 'frames = ["dancing/000.png"]\n',
                 encoding="utf-8",
@@ -95,6 +100,8 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_rejects_clip_with_both_frames_and_filmstrip(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            _touch(Path(directory) / "idle" / "strip.png")
             manifest_path.write_text(
                 "[animations.idle]\n"
                 'frames = ["idle/000.png"]\n'
@@ -111,6 +118,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_rejects_filmstrip_without_positive_dimensions(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "walking" / "walk.png")
             manifest_path.write_text(
                 "[animations.walking]\n"
                 'filmstrip = "walking/walk.png"\n'
@@ -137,6 +145,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_rejects_non_integer_x_offset(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
             manifest_path.write_text(
                 "[animations.idle]\n"
                 'frames = ["idle/000.png"]\n'
@@ -150,6 +159,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
     def test_rejects_non_positive_scale_percent(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
             manifest_path.write_text(
                 "[animations.idle]\n"
                 'frames = ["idle/000.png"]\n'
@@ -159,6 +169,37 @@ class AssetAnimationProviderTest(unittest.TestCase):
 
             with self.assertRaises(AnimationManifestError):
                 AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_missing_frame_image(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.idle]\n" 'frames = ["idle/missing.png"]\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "missing image"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_missing_filmstrip_image(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.walking]\n"
+                'filmstrip = "walking/missing.png"\n'
+                "frame_width = 256\n"
+                "frame_height = 128\n"
+                "frame_count = 3\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "missing image"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+
+def _touch(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
 
 
 if __name__ == "__main__":
