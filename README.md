@@ -150,6 +150,8 @@ Make Akiha aware of user activity and capable of careful proactive behavior.
 - Behavior event history stored in SQLite.
 - Behavior history recording for proactive suggestions and delivery outcomes.
 
+Details: `docs/PHASE4_ACTIVITY_MOOD_PROACTIVE.md`
+
 ### Phase 5: Companion Experience Polish And Interaction Depth
 
 Improve the user-facing companion experience now that the core systems exist.
@@ -164,6 +166,8 @@ Improve the user-facing companion experience now that the core systems exist.
 - Integration tests for the full proactive flow.
 - Startup and shutdown robustness review.
 - Phase 6 packaging checklist.
+
+Details: `docs/PHASE5_COMPANION_POLISH.md`
 
 ### Phase 6: Packaging, Release Hardening, And Maintainability
 
