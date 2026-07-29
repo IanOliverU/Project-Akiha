@@ -161,6 +161,12 @@ After automated source and packaged smoke tests pass, run the manual checklist:
 docs/MANUAL_PACKAGED_SMOKE.md
 ```
 
+Create a timestamped manual smoke report:
+
+```powershell
+.\scripts\new_manual_smoke_report.ps1
+```
+
 The manual pass verifies real Windows UI behavior that automated offscreen tests
 cannot prove, including visible console behavior, tray interactions, window
 opening, drag behavior, and graceful Tray Quit.

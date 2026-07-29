@@ -254,6 +254,7 @@ Security note, 2026-07-29:
 - [x] Document source run, packaged run, and uninstall/reset steps.
 - [x] Document local data reset steps.
 - [x] Document known limitations.
+- [x] Add a manual packaged smoke report template.
 - [x] Prepare release notes for the first packaged build.
 
 Documentation note, 2026-07-29:
@@ -263,6 +264,9 @@ Documentation note, 2026-07-29:
 - Distribution behavior is documented in `docs/DISTRIBUTION_DECISION.md`.
 - Security posture is documented in `docs/SECURITY_REVIEW.md`.
 - Manual packaged smoke is documented in `docs/MANUAL_PACKAGED_SMOKE.md`.
+- Manual smoke reports can be created from
+  `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md` with
+  `scripts/new_manual_smoke_report.ps1`.
 - Draft release notes are documented in `docs/RELEASE_NOTES_DRAFT.md`.
 
 ## Exit Criteria

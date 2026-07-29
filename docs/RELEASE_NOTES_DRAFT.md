@@ -37,6 +37,7 @@ diagnostics.
 - Local data and privacy: `docs/LOCAL_DATA_PRIVACY.md`
 - Security review: `docs/SECURITY_REVIEW.md`
 - Manual packaged smoke: `docs/MANUAL_PACKAGED_SMOKE.md`
+- Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
 
 ## Known Limitations
 

@@ -3,6 +3,15 @@
 Use this checklist after a fresh standalone package build and automated packaged
 smoke pass.
 
+Create a timestamped report before starting the manual pass:
+
+```powershell
+.\scripts\new_manual_smoke_report.ps1
+```
+
+The script copies `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md` into
+`dist\manual-smoke-reports\`.
+
 ## Prerequisites
 
 Build the standalone package:
@@ -103,6 +112,8 @@ dist\nuitka\main.dist\Akiha.exe
 The manual packaged smoke passes when every checked item above succeeds and the
 app log contains no unexpected startup, provider, migration, or shutdown
 tracebacks.
+
+Record the final result in the generated manual smoke report.
 
 Known acceptable caveat:
 

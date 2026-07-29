@@ -262,4 +262,6 @@ Security review: `docs/SECURITY_REVIEW.md`
 
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
 
+Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
+
 Release notes draft: `docs/RELEASE_NOTES_DRAFT.md`
