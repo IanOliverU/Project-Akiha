@@ -92,7 +92,7 @@ Startup hardening note, 2026-07-29:
 
 - [x] Review log file locations and rotation behavior.
 - [x] Add a user-facing way to open diagnostics if needed.
-- [ ] Confirm provider failures are logged without crashing the UI.
+- [x] Confirm provider failures are logged without crashing the UI.
 - [ ] Confirm migration failures are visible in logs.
 - [x] Consider adding a compact diagnostics summary for support/debugging.
 
@@ -103,6 +103,9 @@ Diagnostics note, 2026-07-29:
 - Settings now exposes both log and data-folder open actions.
 - Startup logs include a compact diagnostics snapshot with the local data,
   logs, database, user config, and state paths without reading private content.
+- Chat provider failures are caught by the worker thread, logged as AI provider
+  response failures, and surfaced as visible chat errors without raising through
+  the UI path.
 
 ### 5. Data And Privacy Review
 

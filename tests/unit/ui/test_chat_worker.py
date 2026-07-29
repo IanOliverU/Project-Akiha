@@ -24,6 +24,16 @@ class StreamingController:
             yield chunk
 
 
+class FailingController:
+    """Test controller that raises during provider streaming."""
+
+    async def stream_user_message(self, message: str) -> AsyncIterator[str]:
+        """Raise a streaming failure for test use."""
+        del message
+        raise RuntimeError("provider failed")
+        yield ""
+
+
 class ChatResponseThreadTest(unittest.TestCase):
     """Verify chat worker streaming and cancellation behavior."""
 
@@ -54,6 +64,23 @@ class ChatResponseThreadTest(unittest.TestCase):
 
         self.assertTrue(was_cancelled)
         self.assertEqual(chunks, ["one"])
+
+    def test_run_emits_failure_when_provider_stream_fails(self) -> None:
+        thread = ChatResponseThread(FailingController(), "hello")
+        failures: list[str] = []
+        ready_count = 0
+
+        def mark_ready(_result: object) -> None:
+            nonlocal ready_count
+            ready_count += 1
+
+        thread.response_failed.connect(failures.append)
+        thread.response_ready.connect(mark_ready)
+
+        thread.run()
+
+        self.assertEqual(failures, ["provider failed"])
+        self.assertEqual(ready_count, 0)
 
 
 if __name__ == "__main__":

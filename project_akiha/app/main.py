@@ -6,6 +6,7 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import Protocol
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -86,6 +87,11 @@ from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.tray import AkihaTrayIcon
+
+
+class _ChatErrorSurface(Protocol):
+    def append_error(self, content: str) -> None:
+        """Append a visible chat error."""
 
 
 def main() -> int:
@@ -418,8 +424,7 @@ def main() -> int:
             chat_window.append_stream_delta(chunk)
 
         def handle_error(error_message: str) -> None:
-            logger.error("Chat message failed: %s", error_message)
-            chat_window.append_error(error_message)
+            _handle_chat_failure(error_message, chat_window, logger)
 
         def handle_cancelled() -> None:
             logger.info("Chat response cancelled by user.")
@@ -624,6 +629,17 @@ def _build_animation_provider(
     except AnimationManifestError as error:
         logger.warning("Animation manifest failed to load: %s", error)
         return PlaceholderAnimationProvider()
+
+
+def _handle_chat_failure(
+    error_message: str,
+    chat_window: _ChatErrorSurface,
+    logger: logging.Logger,
+) -> None:
+    """Log a provider failure and surface it in the chat window."""
+    message = error_message.strip() or "Unknown chat provider failure."
+    logger.error("AI provider response failed: %s", message)
+    chat_window.append_error(message)
 
 
 def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvider:
