@@ -75,7 +75,7 @@ Validation note, 2026-07-29:
 - [ ] Verify shutdown while chat is generating.
 - [ ] Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
   open.
-- [ ] Ensure top-level startup failures are logged clearly.
+- [x] Ensure top-level startup failures are logged clearly.
 
 Startup hardening note, 2026-07-29:
 
@@ -87,6 +87,8 @@ Startup hardening note, 2026-07-29:
 - User config loading now accepts UTF-8 files with a byte-order mark, which
   protects startup when config files are edited by Windows tools that emit a
   BOM.
+- `main()` logs unrecoverable startup failures to
+  `%LOCALAPPDATA%\Akiha\logs\app.log` before reraising the original exception.
 
 ### 4. Diagnostics And Logs
 

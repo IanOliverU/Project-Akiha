@@ -95,6 +95,15 @@ class _ChatErrorSurface(Protocol):
 
 
 def main() -> int:
+    """Run the application and log unrecoverable startup failures."""
+    try:
+        return _run_application()
+    except Exception:
+        _log_startup_failure()
+        raise
+
+
+def _run_application() -> int:
     """Build the application graph and start the Qt event loop."""
     app = QApplication(sys.argv)
     app.setApplicationName("Project Akiha")
@@ -640,6 +649,20 @@ def _handle_chat_failure(
     message = error_message.strip() or "Unknown chat provider failure."
     logger.error("AI provider response failed: %s", message)
     chat_window.append_error(message)
+
+
+def _log_startup_failure() -> None:
+    """Best-effort logging for unrecoverable startup failures."""
+    try:
+        paths = get_app_paths()
+        configure_logging(paths.log_dir)
+        logging.getLogger("project_akiha.app").exception(
+            "Project Akiha failed during startup."
+        )
+    except Exception:
+        logging.getLogger("project_akiha.app").exception(
+            "Project Akiha failed during startup, and startup logging failed."
+        )
 
 
 def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvider:
