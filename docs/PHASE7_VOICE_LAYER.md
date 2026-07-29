@@ -124,9 +124,9 @@ Suggested configuration includes:
 
 ### Settings And Diagnostics
 
-- [ ] Add a Voice section to Settings.
-- [ ] Add input and output device selectors.
-- [ ] Add provider, endpoint, model, and speaker controls.
+- [x] Add a Voice section to Settings.
+- [x] Add input and output device selectors.
+- [x] Add provider, endpoint, model, and speaker controls.
 - [ ] Add a test microphone action.
 - [ ] Add a test voice action with a short Japanese phrase.
 - [ ] Show clear diagnostics for a missing backend, unavailable model, missing
@@ -239,6 +239,12 @@ Foundation note, 2026-07-29:
   do not enter synthesis.
 - Chat display and persisted conversation text remain unchanged. Phase 7B can
   later style a temporary copy after this completion boundary and before TTS.
+- Settings now exposes a dedicated Voice tab with a live master switch,
+  push-to-talk and automatic-reply switches, provider configuration, editable
+  device selectors, speaker ID, volume, speaking rate, and timeout controls.
+- Saving Voice settings applies them immediately and persists them for future
+  launches. Voice remains opt-in for fresh installs because its local STT and
+  TTS backends may not be present.
 
 ### Phase 7A Smoke Checkpoint
 

@@ -67,6 +67,65 @@ class SettingsWindowTest(unittest.TestCase):
 
         self.assertEqual(window._away_after_input.minimum(), 13)
 
+    def test_saves_voice_controls(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+
+            window._voice_enabled_input.setChecked(True)
+            window._automatic_speech_enabled_input.setChecked(True)
+            window._voice_input_model_input.setText("medium")
+            window._voice_input_language_input.setCurrentText("ja")
+            window._voice_input_device_input.setCurrentText("USB microphone")
+            window._voice_output_base_url_input.setText("http://localhost:50021")
+            window._voice_output_voice_id_input.setText("14")
+            window._voice_output_device_input.setCurrentText("Desktop speakers")
+            window._voice_volume_input.setValue(75)
+            window._voice_speaking_rate_input.setValue(1.2)
+            window._voice_capture_timeout_input.setValue(12)
+            window._voice_request_timeout_input.setValue(10)
+
+            window._save()
+
+        voice = emitted[0].voice
+        self.assertTrue(voice.enabled)
+        self.assertTrue(voice.automatic_speech_enabled)
+        self.assertEqual(voice.input_provider, "faster-whisper")
+        self.assertEqual(voice.input_model, "medium")
+        self.assertEqual(voice.input_language, "ja")
+        self.assertEqual(voice.input_device, "USB microphone")
+        self.assertEqual(voice.output_provider, "voicevox")
+        self.assertEqual(voice.output_base_url, "http://localhost:50021")
+        self.assertEqual(voice.output_voice_id, "14")
+        self.assertEqual(voice.output_device, "Desktop speakers")
+        self.assertEqual(voice.volume_percent, 75)
+        self.assertEqual(voice.speaking_rate, 1.2)
+        self.assertEqual(voice.capture_timeout_seconds, 12)
+        self.assertEqual(voice.request_timeout_seconds, 10)
+
+    def test_voice_controls_follow_master_switch(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+
+            self.assertFalse(window._automatic_speech_enabled_input.isEnabled())
+            window._voice_enabled_input.setChecked(True)
+
+        self.assertTrue(window._automatic_speech_enabled_input.isEnabled())
+        self.assertTrue(window._voice_output_base_url_input.isEnabled())
+
+    def test_system_default_devices_save_as_empty_names(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+
+            window._voice_enabled_input.setChecked(True)
+            window._save()
+
+        self.assertEqual(emitted[0].voice.input_device, "")
+        self.assertEqual(emitted[0].voice.output_device, "")
+
     def test_open_directory_creates_path_and_opens_url(self) -> None:
         opened_urls: list[str] = []
 
