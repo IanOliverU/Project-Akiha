@@ -136,12 +136,12 @@ Data and privacy note, 2026-07-29:
 
 ### 6. Dependency And Build Review
 
-- Confirm supported Python version.
-- Confirm dependency groups:
+- [x] Confirm supported Python version.
+- [x] Confirm dependency groups:
   - runtime
   - dev
   - package
-- Decide whether to add a lockfile workflow later.
+- [x] Decide whether to add a lockfile workflow later.
 - Use `scripts/smoke_packaged_app.ps1 -RunExistingDataPass` after packaging to
   verify packaged startup, local data creation, log creation, SQLite schema
   creation, and restart with existing local data.
@@ -167,6 +167,16 @@ python -m ruff check project_akiha tests
 python -m black --check project_akiha tests
 python -m compileall project_akiha tests
 ```
+
+Dependency and build note, 2026-07-29:
+
+- Build workflow, dependency groups, supported Python notes, quality gate,
+  packaging command, packaged smoke command, and lockfile decision are documented
+  in `docs/BUILD_RELEASE.md`.
+- The `package` extra includes Ruff, Black, and Nuitka so
+  `pip install -e .[package]` installs the tools used by the packaging script.
+- No lockfile workflow is being added in Phase 6. Revisit this when provider,
+  voice, installer, or reproducible public release requirements grow.
 
 ### 7. Installer And Distribution Prep
 
