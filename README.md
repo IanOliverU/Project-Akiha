@@ -30,7 +30,7 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 4 are complete. Phase 5 is the next active phase.
+Phases 1 through 5 are complete. Phase 6 is the next active phase.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -38,8 +38,8 @@ Phases 1 through 4 are complete. Phase 5 is the next active phase.
 | Phase 2 | Done | Chat foundation and AI provider wiring |
 | Phase 3 | Done | Memory pipeline and memory management |
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
-| Phase 5 | Next | Companion experience polish and interaction depth |
-| Phase 6 | Planned | Packaging, release hardening, and maintainability |
+| Phase 5 | Done | Companion experience polish and interaction depth |
+| Phase 6 | Next | Packaging, release hardening, and maintainability |
 
 ## Tech Stack
 
@@ -163,6 +163,7 @@ Improve the user-facing companion experience now that the core systems exist.
 - Richer companion presence and interaction polish.
 - Integration tests for the full proactive flow.
 - Startup and shutdown robustness review.
+- Phase 6 packaging checklist.
 
 ### Phase 6: Packaging, Release Hardening, And Maintainability
 
@@ -175,6 +176,8 @@ Prepare Akiha for longer-term use and eventual distribution.
 - Dependency, privacy, and local-data review.
 - Security checklist for future assistant capabilities.
 - Final documentation pass and release notes.
+
+Details: `docs/PHASE6_PACKAGING_RELEASE.md`
 
 ## Architecture
 

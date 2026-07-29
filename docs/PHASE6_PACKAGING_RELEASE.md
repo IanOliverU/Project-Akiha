@@ -1,0 +1,151 @@
+# Phase 6 Packaging, Release Hardening, And Maintainability
+
+Phase 6 prepares Project Akiha for longer-term daily use and eventual Windows
+distribution. Phases 1 through 5 focused on product capability: desktop pet,
+chat, memory, activity, mood, proactive behavior, and companion polish. Phase 6
+focuses on reliability, packaging, diagnostics, privacy, and release readiness.
+
+## Phase Goal
+
+Turn the current developer-runnable app into a hardened Windows desktop build
+that can be installed, launched, debugged, and maintained with confidence.
+
+Phase 6 is not complete yet. This checklist defines the work we should do next.
+
+## Checklist
+
+### 1. Packaging Pipeline
+
+- Validate the existing Nuitka standalone build path on the current app.
+- Rename or replace `scripts/build_phase1_nuitka.ps1` so it is no longer tied to
+  Phase 1 wording.
+- Ensure package data is included:
+  - `assets/animations`
+  - `assets/animations/manifest.toml`
+  - `project_akiha/config/default.toml`
+- Confirm PySide6 plugins are bundled correctly.
+- Confirm the packaged app starts without a console window.
+- Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
+
+### 2. Runtime Smoke Tests
+
+- Start the app from source.
+- Start the packaged app.
+- Confirm the pet appears and can be dragged.
+- Confirm tray controls work.
+- Confirm Settings opens and saves.
+- Confirm Chat opens and can send a mock-provider message.
+- Confirm Memory Manager opens.
+- Confirm Behavior History opens.
+- Confirm proactive behavior does not crash when timers tick.
+- Confirm Quit saves pet position and stops active chat workers.
+
+### 3. Startup And Shutdown Hardening
+
+- Verify startup with no existing `%LOCALAPPDATA%\Akiha\` folder.
+- Verify startup with existing config/state/database files.
+- Verify startup with a missing animation manifest.
+- Verify startup with missing or invalid sprite files.
+- Verify shutdown during idle state.
+- Verify shutdown while chat is generating.
+- Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
+  open.
+- Ensure top-level startup failures are logged clearly.
+
+### 4. Diagnostics And Logs
+
+- Review log file locations and rotation behavior.
+- Add a user-facing way to open diagnostics if needed.
+- Confirm provider failures are logged without crashing the UI.
+- Confirm migration failures are visible in logs.
+- Consider adding a compact diagnostics summary for support/debugging.
+
+### 5. Data And Privacy Review
+
+- Document local storage clearly:
+  - user config
+  - SQLite conversations
+  - memories
+  - behavior history
+  - logs
+  - pet window state
+- Confirm transcript export behavior.
+- Confirm memory deletion, archiving, pending review, and clear actions behave as
+  documented.
+- Confirm behavior history cleanup behaves as documented.
+- Decide whether packaged builds need a first-run privacy note.
+
+### 6. Dependency And Build Review
+
+- Confirm supported Python version.
+- Confirm dependency groups:
+  - runtime
+  - dev
+  - package
+- Decide whether to add a lockfile workflow later.
+- Run the quality gate before every packaged build:
+
+```powershell
+python -m unittest discover tests
+python -m ruff check project_akiha tests
+python -m black --check project_akiha tests
+python -m compileall project_akiha tests
+```
+
+### 7. Installer And Distribution Prep
+
+- Decide whether Phase 6 ships a standalone folder or installer first.
+- If installer:
+  - choose installer tooling
+  - define install location
+  - define shortcut behavior
+  - define uninstall behavior
+  - confirm local user data is preserved or clearly removed by choice
+- Document Ollama as optional and separately installed.
+- Do not bundle Ollama in the first packaged build.
+
+### 8. Security Checklist
+
+- Keep AI output away from direct execution paths.
+- Confirm no shell execution path is exposed to the model.
+- Keep future assistant commands behind explicit command validation.
+- Keep logs useful without leaking unnecessary sensitive data.
+- Consider code signing before public distribution.
+- Consider dependency auditing before public distribution.
+
+### 9. Documentation Pass
+
+- Update `README.md` after packaging validation.
+- Add a Phase 6 completion summary when this phase is done.
+- Document source run, packaged run, and uninstall/reset steps.
+- Document local data reset steps.
+- Document known limitations.
+- Prepare release notes for the first packaged build.
+
+## Exit Criteria
+
+Phase 6 should be considered done when:
+
+- The app builds successfully as a Windows standalone package.
+- The packaged app passes the runtime smoke tests.
+- Startup and shutdown behavior is verified.
+- Local data behavior is documented.
+- Diagnostics and logs are easy to find.
+- README and release notes match the actual packaged app.
+- The project has a clear post-Phase-6 backlog instead of open-ended phase creep.
+
+## Post-Phase-6 Backlog
+
+The current roadmap ends at Phase 6. Future work can continue, but it should be
+treated as a new roadmap rather than silently expanding Phase 6.
+
+Possible future roadmap areas:
+
+- Local assistant commands with permission gates.
+- Voice input and output.
+- Richer character animation assets.
+- Live2D or another advanced model backend.
+- Plugin API.
+- Cloud model providers.
+- Multi-character support.
+- Optional sync or backup.
