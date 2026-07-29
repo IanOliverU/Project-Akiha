@@ -23,6 +23,7 @@ from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInCont
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
+from project_akiha.app.voice_playback_controller import VoicePlaybackController
 from project_akiha.app.voice_synthesis_controller import VoiceSynthesisController
 from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
@@ -65,6 +66,7 @@ from project_akiha.providers.animation import (
 )
 from project_akiha.providers.voice import (
     FasterWhisperProvider,
+    QtAudioPlayback,
     QtMicrophoneCapture,
     UnavailableVoiceOutputProvider,
     VoiceVoxProvider,
@@ -256,10 +258,20 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         service=speech_input_service,
     )
+    audio_playback = QtAudioPlayback(
+        device_name=config.voice.output_device,
+        volume_percent=config.voice.volume_percent,
+    )
+    voice_playback_controller = VoicePlaybackController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        playback=audio_playback,
+    )
     voice_synthesis_controller = VoiceSynthesisController(
         event_bus=event_bus,
         voice_controller=voice_controller,
         service=_build_speech_output_service(config.voice),
+        on_audio_synthesized=voice_playback_controller.play,
     )
     voice_capture_controller = VoiceCaptureController(
         event_bus=event_bus,
@@ -317,6 +329,7 @@ def _run_application() -> int:
         voice_synthesis_controller.apply_service(
             _build_speech_output_service(updated_config.voice)
         )
+        voice_playback_controller.apply_config(updated_config.voice)
         voice_capture_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
@@ -616,12 +629,13 @@ def _run_application() -> int:
             voice_capture=voice_capture_controller,
             voice_transcription=voice_transcription_controller,
             voice_synthesis=voice_synthesis_controller,
+            voice_playback=voice_playback_controller,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
             "cancelled_threads=%s, unfinished_threads=%s, "
             "voice_capture_stopped=%s, voice_transcription_stopped=%s, "
-            "voice_synthesis_stopped=%s.",
+            "voice_synthesis_stopped=%s, voice_playback_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -629,6 +643,7 @@ def _run_application() -> int:
             result.voice_capture_stopped,
             result.voice_transcription_stopped,
             result.voice_synthesis_stopped,
+            result.voice_playback_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -698,6 +713,7 @@ def _run_application() -> int:
         user_config_store,
         voice_capture_controller,
         voice_controller,
+        voice_playback_controller,
         voice_synthesis_controller,
         voice_transcription_controller,
         window_state_store,

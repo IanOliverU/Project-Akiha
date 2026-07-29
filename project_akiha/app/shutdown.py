@@ -43,6 +43,7 @@ class ShutdownResult:
     voice_capture_stopped: bool
     voice_transcription_stopped: bool
     voice_synthesis_stopped: bool
+    voice_playback_stopped: bool
 
 
 def shutdown_runtime(
@@ -55,6 +56,7 @@ def shutdown_runtime(
     voice_capture: CancellableVoiceCapture | None = None,
     voice_transcription: CancellableVoiceCapture | None = None,
     voice_synthesis: CancellableVoiceCapture | None = None,
+    voice_playback: CancellableVoiceCapture | None = None,
 ) -> ShutdownResult:
     """Stop long-running app resources before Qt exits."""
     timer_stopped = _stop_timer(activity_timer, logger)
@@ -70,6 +72,7 @@ def shutdown_runtime(
         logger,
     )
     voice_synthesis_stopped = _cancel_voice_synthesis(voice_synthesis, logger)
+    voice_playback_stopped = _cancel_voice_playback(voice_playback, logger)
     return ShutdownResult(
         position_saved=position_saved,
         cancelled_threads=cancelled_threads,
@@ -78,6 +81,7 @@ def shutdown_runtime(
         voice_capture_stopped=voice_capture_stopped,
         voice_transcription_stopped=voice_transcription_stopped,
         voice_synthesis_stopped=voice_synthesis_stopped,
+        voice_playback_stopped=voice_playback_stopped,
     )
 
 
@@ -165,5 +169,19 @@ def _cancel_voice_synthesis(
         voice_synthesis.cancel()
     except Exception:
         logger.exception("Failed to stop voice synthesis during shutdown.")
+        return False
+    return True
+
+
+def _cancel_voice_playback(
+    voice_playback: CancellableVoiceCapture | None,
+    logger: logging.Logger,
+) -> bool:
+    if voice_playback is None:
+        return True
+    try:
+        voice_playback.cancel()
+    except Exception:
+        logger.exception("Failed to stop voice playback during shutdown.")
         return False
     return True

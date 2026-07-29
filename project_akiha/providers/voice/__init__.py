@@ -1,6 +1,8 @@
 """Voice provider interfaces and shared value objects."""
 
 from project_akiha.providers.voice.base import (
+    AudioPlayback,
+    AudioPlaybackError,
     CapturedAudio,
     MicrophoneCapture,
     MicrophoneCaptureError,
@@ -16,6 +18,7 @@ from project_akiha.providers.voice.base import (
 )
 from project_akiha.providers.voice.faster_whisper import FasterWhisperProvider
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
+from project_akiha.providers.voice.qt_playback import QtAudioPlayback
 from project_akiha.providers.voice.unavailable import UnavailableVoiceOutputProvider
 from project_akiha.providers.voice.voicevox import (
     UrllibVoiceVoxTransport,
@@ -25,6 +28,8 @@ from project_akiha.providers.voice.voicevox import (
 )
 
 __all__ = [
+    "AudioPlayback",
+    "AudioPlaybackError",
     "CapturedAudio",
     "MicrophoneCapture",
     "MicrophoneCaptureError",
@@ -38,6 +43,7 @@ __all__ = [
     "VoiceProviderStatus",
     "VoiceTranscript",
     "QtMicrophoneCapture",
+    "QtAudioPlayback",
     "FasterWhisperProvider",
     "UnavailableVoiceOutputProvider",
     "UrllibVoiceVoxTransport",

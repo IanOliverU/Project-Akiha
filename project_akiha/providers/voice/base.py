@@ -123,6 +123,14 @@ class VoiceProviderError(RuntimeError):
         self.code = code.strip() or "voice_provider_error"
 
 
+class AudioPlaybackError(RuntimeError):
+    """A privacy-safe audio playback failure."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code.strip() or "audio_playback_error"
+
+
 class MicrophoneCapture(Protocol):
     """Capture PCM audio only while push-to-talk is active."""
 
@@ -173,3 +181,27 @@ class VoiceOutputProvider(Protocol):
 
     async def health(self) -> VoiceProviderHealth:
         """Return whether the provider is ready for synthesis."""
+
+
+class AudioPlayback(Protocol):
+    """Play temporary synthesized audio without owning voice state."""
+
+    @property
+    def is_active(self) -> bool:
+        """Return whether audio is loading or playing."""
+
+    def apply_settings(self, device_name: str, volume_percent: int) -> None:
+        """Apply output settings, stopping active playback if necessary."""
+
+    def play(
+        self,
+        audio: SynthesizedAudio,
+        *,
+        on_started: Callable[[], None],
+        on_finished: Callable[[], None],
+        on_error: Callable[[str, str], None],
+    ) -> None:
+        """Start temporary audio playback."""
+
+    def stop(self) -> None:
+        """Stop playback and release temporary audio."""

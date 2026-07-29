@@ -106,11 +106,11 @@ Suggested configuration includes:
 - [x] Add a text-to-speech orchestration service.
 - [x] Add a VOICEVOX local HTTP provider adapter.
 - [x] Add provider health and speaker discovery checks.
-- [ ] Add audio synthesis and playback support.
+- [x] Add audio synthesis and playback support.
 - [ ] Add stop-speaking and replay controls.
-- [ ] Prevent overlapping playback unless explicitly supported later.
+- [x] Prevent overlapping playback unless explicitly supported later.
 - [ ] Allow automatic speech for assistant replies to be disabled.
-- [ ] Clean up temporary audio safely after playback.
+- [x] Clean up temporary audio safely after playback.
 
 ### State And Companion Integration
 
@@ -140,11 +140,11 @@ Suggested configuration includes:
 - [x] Test input and output provider contracts.
 - [x] Test unavailable-provider and disabled-voice behavior.
 - [x] Test push-to-talk state transitions and cancellation.
-- [ ] Test synthesis, playback, stop, and cleanup paths.
+- [x] Test synthesis, playback, stop, and cleanup paths.
 - [ ] Test voice event publication and companion-state restoration.
 - [ ] Test diagnostics for backend, synthesis, microphone, and playback
   failures.
-- [ ] Test shutdown while listening, transcribing, synthesizing, and speaking.
+- [x] Test shutdown while listening, transcribing, synthesizing, and speaking.
 
 Foundation note, 2026-07-29:
 
@@ -212,6 +212,15 @@ Foundation note, 2026-07-29:
 - HTTP errors do not echo request URLs because VOICEVOX places spoken text in
   the audio-query URL. The text and generated WAV remain outside application
   events and technical logs.
+- `QtAudioPlayback` sends synthesized WAV bytes to `QMediaPlayer` through an
+  open in-memory `QBuffer`; no temporary voice file is created.
+- `QAudioOutput` applies the configured output device and volume. Playback
+  enters speaking state only after Qt reports that audio started, and natural
+  end-of-media restores the voice state.
+- Manual stop, settings changes, invalid media, device errors, duplicate
+  playback, and shutdown all release the in-memory buffer. The application
+  shutdown report now verifies playback cleanup independently from synthesis
+  worker cleanup.
 
 ### Phase 7A Smoke Checkpoint
 
