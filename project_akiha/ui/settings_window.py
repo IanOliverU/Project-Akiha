@@ -46,11 +46,13 @@ class SettingsWindow(QWidget):
         self,
         config: AppConfig,
         log_dir: Path,
+        data_dir: Path | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._config = config
         self._log_dir = log_dir
+        self._data_dir = data_dir or log_dir.parent
 
         self.setWindowTitle("Project Akiha Settings")
         self.setMinimumWidth(420)
@@ -146,6 +148,9 @@ class SettingsWindow(QWidget):
         open_logs_button = QPushButton("Open logs")
         open_logs_button.clicked.connect(self._open_logs)
 
+        open_data_button = QPushButton("Open data")
+        open_data_button.clicked.connect(self._open_data_dir)
+
         memories_button = QPushButton("Memories")
         memories_button.clicked.connect(self.memory_manager_requested.emit)
 
@@ -156,6 +161,7 @@ class SettingsWindow(QWidget):
         button_layout.addWidget(save_button)
         button_layout.addWidget(reset_position_button)
         button_layout.addWidget(open_logs_button)
+        button_layout.addWidget(open_data_button)
         button_layout.addWidget(memories_button)
         button_layout.addWidget(behavior_history_button)
 
@@ -351,8 +357,10 @@ class SettingsWindow(QWidget):
         self._away_after_input.setMinimum(idle_after_minutes + 1)
 
     def _open_logs(self) -> None:
-        self._log_dir.mkdir(parents=True, exist_ok=True)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._log_dir)))
+        _open_directory(self._log_dir)
+
+    def _open_data_dir(self) -> None:
+        _open_directory(self._data_dir)
 
 
 def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -400,3 +408,8 @@ def _parse_qtime(value: str) -> QTime:
 
 def _format_time_input(time_input: QTimeEdit) -> str:
     return time_input.time().toString("HH:mm")
+
+
+def _open_directory(path: Path) -> bool:
+    path.mkdir(parents=True, exist_ok=True)
+    return QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))

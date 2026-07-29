@@ -90,11 +90,19 @@ Startup hardening note, 2026-07-29:
 
 ### 4. Diagnostics And Logs
 
-- Review log file locations and rotation behavior.
-- Add a user-facing way to open diagnostics if needed.
-- Confirm provider failures are logged without crashing the UI.
-- Confirm migration failures are visible in logs.
-- Consider adding a compact diagnostics summary for support/debugging.
+- [x] Review log file locations and rotation behavior.
+- [x] Add a user-facing way to open diagnostics if needed.
+- [ ] Confirm provider failures are logged without crashing the UI.
+- [ ] Confirm migration failures are visible in logs.
+- [x] Consider adding a compact diagnostics summary for support/debugging.
+
+Diagnostics note, 2026-07-29:
+
+- Logs are written to `%LOCALAPPDATA%\Akiha\logs\app.log` with rotating file
+  handling at 1,000,000 bytes and 3 backups.
+- Settings now exposes both log and data-folder open actions.
+- Startup logs include a compact diagnostics snapshot with the local data,
+  logs, database, user config, and state paths without reading private content.
 
 ### 5. Data And Privacy Review
 

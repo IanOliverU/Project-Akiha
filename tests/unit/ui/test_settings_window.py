@@ -13,6 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication
 
+import project_akiha.ui.settings_window as settings_window_module
 from project_akiha.config import AppConfig
 from project_akiha.ui.settings_window import SettingsWindow
 
@@ -65,6 +66,29 @@ class SettingsWindowTest(unittest.TestCase):
             window._idle_after_input.setValue(12)
 
         self.assertEqual(window._away_after_input.minimum(), 13)
+
+    def test_open_directory_creates_path_and_opens_url(self) -> None:
+        opened_urls: list[str] = []
+
+        class FakeDesktopServices:
+            @staticmethod
+            def openUrl(url: object) -> bool:
+                opened_urls.append(url.toLocalFile())
+                return True
+
+        original_desktop_services = settings_window_module.QDesktopServices
+        settings_window_module.QDesktopServices = FakeDesktopServices
+        try:
+            with TemporaryDirectory() as directory:
+                target = Path(directory) / "Akiha" / "logs"
+
+                result = settings_window_module._open_directory(target)
+
+                self.assertTrue(result)
+                self.assertTrue(target.exists())
+                self.assertEqual(Path(opened_urls[0]), target)
+        finally:
+            settings_window_module.QDesktopServices = original_desktop_services
 
 
 if __name__ == "__main__":

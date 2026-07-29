@@ -7,6 +7,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+LOG_MAX_BYTES = 1_000_000
+LOG_BACKUP_COUNT = 3
 
 
 def configure_logging(
@@ -24,8 +26,8 @@ def configure_logging(
     if not _has_handler_for_path(logger, log_path):
         handler = RotatingFileHandler(
             log_path,
-            maxBytes=1_000_000,
-            backupCount=3,
+            maxBytes=LOG_MAX_BYTES,
+            backupCount=LOG_BACKUP_COUNT,
             encoding="utf-8",
         )
         handler.setFormatter(logging.Formatter(LOG_FORMAT))

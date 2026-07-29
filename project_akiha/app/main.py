@@ -59,6 +59,10 @@ from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.conversation_summary import AIConversationSummarizer
+from project_akiha.services.diagnostics import (
+    build_diagnostics_snapshot,
+    render_diagnostics_summary,
+)
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
@@ -98,6 +102,10 @@ def main() -> int:
     log_path = configure_logging(paths.log_dir)
     logger = logging.getLogger("project_akiha.app")
     logger.info("Starting Project Akiha. Log path: %s", log_path)
+    logger.info(
+        "Diagnostics snapshot:\n%s",
+        render_diagnostics_summary(build_diagnostics_snapshot(paths)),
+    )
 
     user_config_store = UserConfigStore(paths.user_config_path)
     config = load_config(
@@ -200,6 +208,7 @@ def main() -> int:
     settings_window = SettingsWindow(
         config=config,
         log_dir=paths.log_dir,
+        data_dir=paths.data_dir,
     )
     chat_window = ChatWindow()
     memory_window = MemoryWindow()
