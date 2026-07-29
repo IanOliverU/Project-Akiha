@@ -83,6 +83,26 @@ python -m compileall project_akiha tests
 python -m nuitka --version --zig --assume-yes-for-downloads
 ```
 
+## Source Smoke Test
+
+Run this when startup/local-data behavior needs to be checked without creating a
+standalone package:
+
+```powershell
+.\scripts\smoke_source_app.ps1
+```
+
+The source smoke script verifies:
+
+- source app startup
+- local data directory creation
+- log file creation
+- SQLite database creation
+- expected SQLite tables
+
+The source smoke script is non-interactive. It may request `CloseMainWindow()`
+and then force-stop the process.
+
 ## Standalone Package Build
 
 The first Phase 6 release artifact is a standalone folder. See

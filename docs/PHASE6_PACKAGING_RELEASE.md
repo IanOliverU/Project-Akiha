@@ -48,13 +48,16 @@ Validation note, 2026-07-29:
 - The non-interactive smoke script successfully requested `CloseMainWindow()`,
   but still had to force-stop the process. Manual tray Quit validation remains
   part of the runtime smoke checklist.
+- `scripts/smoke_source_app.ps1` passed against an isolated `LOCALAPPDATA`
+  directory. The source app created logs and a SQLite database with the expected
+  behavior, conversation, memory, message, and schema tables.
 - Nuitka 4.1.3 reports Python 3.14 support as experimental. Continue with this
   environment for local validation, but consider Python 3.13 before public
   release if packaging instability appears.
 
 ### 2. Runtime Smoke Tests
 
-- [ ] Start the app from source.
+- [x] Start the app from source.
 - [x] Start the packaged app.
 - [ ] Confirm the pet appears and can be dragged.
 - [ ] Confirm tray controls work.
