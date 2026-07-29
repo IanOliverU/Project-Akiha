@@ -200,6 +200,11 @@ try {
         throw "Unable to resolve the current Python executable."
     }
 
+    & $PythonExe -m project_akiha.tools.verify_packaged_artifact $WorkingDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "Packaged artifact validation failed."
+    }
+
     & $PythonExe -m project_akiha.tools.verify_windows_gui_subsystem $ResolvedExePath
     if ($LASTEXITCODE -ne 0) {
         throw "Packaged executable is not a Windows GUI subsystem app."

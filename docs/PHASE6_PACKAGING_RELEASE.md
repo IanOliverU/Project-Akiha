@@ -26,6 +26,7 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
   - `project_akiha/config/default.toml`
   - `project_akiha/database/migrations/*.sql`
 - [x] Confirm PySide6 plugins are bundled correctly.
+- [x] Confirm standalone artifact includes runtime files and bundled app data.
 - [x] Confirm the packaged executable uses the Windows GUI subsystem.
 - [ ] Manually confirm the packaged app starts without a visible console window.
 - [x] Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
@@ -43,6 +44,9 @@ Validation note, 2026-07-29:
 - `scripts/build_akiha_nuitka.ps1` and `scripts/smoke_packaged_app.ps1` verify
   that `Akiha.exe` uses the Windows GUI subsystem rather than the console
   subsystem.
+- `scripts/build_akiha_nuitka.ps1` and `scripts/smoke_packaged_app.ps1` verify
+  that the standalone folder contains `Akiha.exe`, bundled assets, default
+  config, database migrations, and PySide6 runtime folders.
 - `scripts/smoke_packaged_app.ps1 -ExePath
   dist\nuitka-phase6-smoke\main.dist\Akiha.exe -RunExistingDataPass` passed
   against an isolated `LOCALAPPDATA` directory. The packaged app created logs

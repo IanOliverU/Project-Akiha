@@ -124,6 +124,9 @@ Windows console mode, and bundled data directories for:
 After the build finishes, the script verifies that `Akiha.exe` uses the Windows
 GUI subsystem instead of the Windows console subsystem.
 
+The script also validates that the standalone artifact contains the expected
+runtime folders, bundled assets, default config, and database migrations.
+
 ## Packaged Smoke Test
 
 After a standalone build, run:
@@ -136,6 +139,7 @@ After a standalone build, run:
 
 The smoke script verifies:
 
+- packaged artifact contents
 - Windows GUI executable subsystem
 - packaged app startup
 - local data directory creation

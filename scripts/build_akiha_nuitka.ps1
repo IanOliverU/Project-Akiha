@@ -60,6 +60,11 @@ try {
     Invoke-CheckedCommand {
         python -m project_akiha.tools.verify_windows_gui_subsystem $BuiltExePath
     } "Windows GUI subsystem check"
+
+    $BuiltArtifactDir = Join-Path $OutputDir "main.dist"
+    Invoke-CheckedCommand {
+        python -m project_akiha.tools.verify_packaged_artifact $BuiltArtifactDir
+    } "Packaged artifact check"
 }
 finally {
     Pop-Location
