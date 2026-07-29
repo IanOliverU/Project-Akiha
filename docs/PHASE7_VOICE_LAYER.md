@@ -94,12 +94,12 @@ Suggested configuration includes:
 ### Speech Input
 
 - [x] Add a push-to-talk command surface in the chat window.
-- [ ] Add start, stop, cancel, and timeout handling for microphone capture.
+- [x] Add start, stop, cancel, and timeout handling for microphone capture.
 - [ ] Add a local speech-to-text service.
 - [ ] Add a `faster-whisper` provider adapter.
 - [x] Insert accepted transcripts into the existing chat input path.
 - [x] Prevent accidental sends for empty or failed transcripts.
-- [ ] Keep microphone capture off until the user starts push-to-talk.
+- [x] Keep microphone capture off until the user starts push-to-talk.
 
 ### Speech Output
 
@@ -176,6 +176,16 @@ Foundation note, 2026-07-29:
   the current input cursor for review and is never sent automatically.
 - A framework-free chat voice presenter validates state, transcript, and error
   event payloads before updating Qt controls.
+- Qt Multimedia now provides bounded 16 kHz mono PCM microphone capture without
+  adding another native audio dependency. The input device is opened only after
+  an accepted push-to-talk request.
+- Captured PCM stays on a direct callback path and is never published through
+  `EventBus`, preventing the event logger from serializing raw microphone data.
+- Capture supports explicit stop, cancellation, device errors, empty-capture
+  errors, and a configurable timeout. Shutdown always attempts to release the
+  microphone and records the cleanup result.
+- Until the local STT service is connected, a completed recording reports
+  `speech_input_unavailable` instead of remaining stuck in the thinking state.
 
 ### Phase 7A Smoke Checkpoint
 

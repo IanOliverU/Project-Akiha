@@ -21,6 +21,7 @@ from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
+from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
@@ -58,6 +59,7 @@ from project_akiha.providers.animation import (
     AssetAnimationProvider,
     PlaceholderAnimationProvider,
 )
+from project_akiha.providers.voice import QtMicrophoneCapture
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -236,6 +238,13 @@ def _run_application() -> int:
         initial_state=voice_controller.state.value,
         initial_operation=voice_controller.operation,
     )
+    microphone_capture = QtMicrophoneCapture(device_name=config.voice.input_device)
+    voice_capture_controller = VoiceCaptureController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        capture=microphone_capture,
+        config=config.voice,
+    )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
     _populate_chat_window(
@@ -279,6 +288,7 @@ def _run_application() -> int:
         activity_controller.apply_config(updated_config.behavior)
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
+        voice_capture_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
@@ -574,14 +584,17 @@ def _run_application() -> int:
             active_chat_threads=active_chat_threads,
             save_window_position=save_window_position,
             logger=logger,
+            voice_capture=voice_capture_controller,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
-            "cancelled_threads=%s, unfinished_threads=%s.",
+            "cancelled_threads=%s, unfinished_threads=%s, "
+            "voice_capture_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
             result.unfinished_threads,
+            result.voice_capture_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -649,6 +662,7 @@ def _run_application() -> int:
         settings_window,
         tray_icon,
         user_config_store,
+        voice_capture_controller,
         voice_controller,
         window_state_store,
     )

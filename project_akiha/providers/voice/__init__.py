@@ -2,6 +2,8 @@
 
 from project_akiha.providers.voice.base import (
     CapturedAudio,
+    MicrophoneCapture,
+    MicrophoneCaptureError,
     SpeechSynthesisRequest,
     SynthesizedAudio,
     VoiceInputProvider,
@@ -11,9 +13,12 @@ from project_akiha.providers.voice.base import (
     VoiceProviderStatus,
     VoiceTranscript,
 )
+from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 
 __all__ = [
     "CapturedAudio",
+    "MicrophoneCapture",
+    "MicrophoneCaptureError",
     "SpeechSynthesisRequest",
     "SynthesizedAudio",
     "VoiceInputProvider",
@@ -22,4 +27,5 @@ __all__ = [
     "VoiceProviderHealth",
     "VoiceProviderStatus",
     "VoiceTranscript",
+    "QtMicrophoneCapture",
 ]

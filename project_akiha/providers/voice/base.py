@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
@@ -105,6 +105,40 @@ class VoiceOption:
             raise ValueError("Voice option identifier cannot be empty.")
         if not self.name.strip():
             raise ValueError("Voice option name cannot be empty.")
+
+
+class MicrophoneCaptureError(RuntimeError):
+    """A privacy-safe microphone capture failure."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code.strip() or "microphone_error"
+
+
+class MicrophoneCapture(Protocol):
+    """Capture PCM audio only while push-to-talk is active."""
+
+    @property
+    def is_capturing(self) -> bool:
+        """Return whether microphone capture is currently active."""
+
+    def set_device_name(self, device_name: str) -> None:
+        """Select an input device for the next capture."""
+
+    def start(
+        self,
+        *,
+        timeout_seconds: int,
+        on_timeout: Callable[[], None],
+        on_error: Callable[[str, str], None],
+    ) -> None:
+        """Start temporary microphone capture."""
+
+    def stop(self) -> CapturedAudio:
+        """Stop capture and return the temporary PCM audio."""
+
+    def cancel(self) -> None:
+        """Discard any temporary captured audio."""
 
 
 class VoiceInputProvider(Protocol):

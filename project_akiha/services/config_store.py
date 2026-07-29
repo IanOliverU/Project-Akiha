@@ -115,6 +115,7 @@ def _serialize_config(config: AppConfig) -> str:
         f"{str(voice.automatic_speech_enabled).lower()}\n"
         f"volume_percent = {voice.volume_percent}\n"
         f"speaking_rate = {voice.speaking_rate}\n"
+        f"capture_timeout_seconds = {voice.capture_timeout_seconds}\n"
         f"request_timeout_seconds = {voice.request_timeout_seconds}\n"
     )
 

@@ -50,4 +50,5 @@ output_device = ""
 automatic_speech_enabled = false
 volume_percent = 100
 speaking_rate = 1.0
+capture_timeout_seconds = 30
 request_timeout_seconds = 30

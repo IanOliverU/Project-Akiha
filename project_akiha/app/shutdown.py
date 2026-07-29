@@ -25,6 +25,13 @@ class CancellableThread(Protocol):
         """Wait for completion and return whether the thread finished."""
 
 
+class CancellableVoiceCapture(Protocol):
+    """Voice capture resource that can release the microphone."""
+
+    def cancel(self) -> None:
+        """Stop capture and discard temporary audio."""
+
+
 @dataclass(frozen=True, slots=True)
 class ShutdownResult:
     """Summary of shutdown cleanup work."""
@@ -33,6 +40,7 @@ class ShutdownResult:
     cancelled_threads: int
     unfinished_threads: int
     timer_stopped: bool
+    voice_capture_stopped: bool
 
 
 def shutdown_runtime(
@@ -42,6 +50,7 @@ def shutdown_runtime(
     save_window_position: Callable[[], None],
     logger: logging.Logger,
     thread_wait_ms: int = 2000,
+    voice_capture: CancellableVoiceCapture | None = None,
 ) -> ShutdownResult:
     """Stop long-running app resources before Qt exits."""
     timer_stopped = _stop_timer(activity_timer, logger)
@@ -51,11 +60,13 @@ def shutdown_runtime(
         logger=logger,
         thread_wait_ms=thread_wait_ms,
     )
+    voice_capture_stopped = _cancel_voice_capture(voice_capture, logger)
     return ShutdownResult(
         position_saved=position_saved,
         cancelled_threads=cancelled_threads,
         unfinished_threads=unfinished_threads,
         timer_stopped=timer_stopped,
+        voice_capture_stopped=voice_capture_stopped,
     )
 
 
@@ -103,3 +114,17 @@ def _cancel_chat_threads(
 
     active_chat_threads.clear()
     return cancelled_threads, unfinished_threads
+
+
+def _cancel_voice_capture(
+    voice_capture: CancellableVoiceCapture | None,
+    logger: logging.Logger,
+) -> bool:
+    if voice_capture is None:
+        return True
+    try:
+        voice_capture.cancel()
+    except Exception:
+        logger.exception("Failed to stop microphone capture during shutdown.")
+        return False
+    return True

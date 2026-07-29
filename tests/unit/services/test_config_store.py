@@ -80,6 +80,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         automatic_speech_enabled=True,
                         volume_percent=75,
                         speaking_rate=1.2,
+                        capture_timeout_seconds=12,
                         request_timeout_seconds=10,
                     ),
                 )
@@ -131,6 +132,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertEqual(config.voice.volume_percent, 75)
         self.assertEqual(config.voice.speaking_rate, 1.2)
+        self.assertEqual(config.voice.capture_timeout_seconds, 12)
         self.assertEqual(config.voice.request_timeout_seconds, 10)
 
     def test_escapes_manifest_path_for_toml(self) -> None:

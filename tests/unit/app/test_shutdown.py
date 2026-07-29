@@ -34,6 +34,7 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertEqual(result.unfinished_threads, 0)
         self.assertTrue(result.position_saved)
         self.assertTrue(result.timer_stopped)
+        self.assertTrue(result.voice_capture_stopped)
         self.assertEqual(threads, [])
 
     def test_shutdown_reports_unfinished_threads(self) -> None:
@@ -117,6 +118,35 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertEqual(threads, [])
         self.assertIn("Failed to stop chat response thread", captured.output[0])
 
+    def test_shutdown_cancels_active_voice_capture(self) -> None:
+        capture = _VoiceCapture()
+
+        result = shutdown_runtime(
+            activity_timer=_Timer(),
+            active_chat_threads=[],
+            save_window_position=lambda: None,
+            logger=logging.getLogger("test_shutdown_voice"),
+            voice_capture=capture,
+        )
+
+        self.assertTrue(capture.cancelled)
+        self.assertTrue(result.voice_capture_stopped)
+
+    def test_shutdown_reports_voice_capture_failure(self) -> None:
+        logger = logging.getLogger("test_shutdown_voice_failure")
+
+        with self.assertLogs(logger, level="ERROR") as captured:
+            result = shutdown_runtime(
+                activity_timer=_Timer(),
+                active_chat_threads=[],
+                save_window_position=lambda: None,
+                logger=logger,
+                voice_capture=_FailingVoiceCapture(),
+            )
+
+        self.assertFalse(result.voice_capture_stopped)
+        self.assertIn("microphone capture", captured.output[0])
+
 
 class _Timer:
     def __init__(self) -> None:
@@ -152,6 +182,19 @@ class _FailingThread:
     def wait(self, time: int = 0) -> bool:
         del time
         return False
+
+
+class _VoiceCapture:
+    def __init__(self) -> None:
+        self.cancelled = False
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+class _FailingVoiceCapture:
+    def cancel(self) -> None:
+        raise RuntimeError("capture failed")
 
 
 if __name__ == "__main__":

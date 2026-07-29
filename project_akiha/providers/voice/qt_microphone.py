@@ -1,0 +1,239 @@
+"""Qt Multimedia microphone capture for push-to-talk."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+from PySide6.QtCore import QObject, QTimer
+from PySide6.QtMultimedia import (
+    QAudio,
+    QAudioDevice,
+    QAudioFormat,
+    QAudioSource,
+    QMediaDevices,
+)
+
+from project_akiha.providers.voice.base import (
+    CapturedAudio,
+    MicrophoneCaptureError,
+)
+
+_SAMPLE_RATE_HZ = 16_000
+_CHANNELS = 1
+_SAMPLE_WIDTH_BYTES = 2
+
+
+class QtMicrophoneCapture(QObject):
+    """Capture temporary 16 kHz mono PCM through Qt Multimedia."""
+
+    def __init__(
+        self,
+        device_name: str = "",
+        parent: QObject | None = None,
+        *,
+        device_resolver: Callable[[str], Any] | None = None,
+        source_factory: Callable[[Any, QAudioFormat, QObject], Any] | None = None,
+        timer_factory: Callable[[QObject], Any] | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._device_name = device_name
+        self._device_resolver = device_resolver or _resolve_input_device
+        self._source_factory = source_factory or _build_audio_source
+        self._timer = (timer_factory or QTimer)(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._handle_timeout)
+
+        self._source: Any | None = None
+        self._io_device: Any | None = None
+        self._buffer = bytearray()
+        self._is_capturing = False
+        self._on_timeout: Callable[[], None] | None = None
+        self._on_error: Callable[[str, str], None] | None = None
+
+    @property
+    def is_capturing(self) -> bool:
+        """Return whether push-to-talk capture is active."""
+        return self._is_capturing
+
+    def set_device_name(self, device_name: str) -> None:
+        """Select an input device for the next capture."""
+        if self._is_capturing:
+            raise MicrophoneCaptureError(
+                "capture_busy",
+                "Cannot change microphone while capture is active.",
+            )
+        self._device_name = device_name
+
+    def start(
+        self,
+        *,
+        timeout_seconds: int,
+        on_timeout: Callable[[], None],
+        on_error: Callable[[str, str], None],
+    ) -> None:
+        """Start a bounded push-to-talk recording."""
+        if self._is_capturing:
+            raise MicrophoneCaptureError(
+                "capture_busy",
+                "Microphone capture is already active.",
+            )
+        if timeout_seconds <= 0:
+            raise MicrophoneCaptureError(
+                "invalid_capture_timeout",
+                "Microphone capture timeout must be greater than zero.",
+            )
+
+        device = self._device_resolver(self._device_name)
+        if device.isNull():
+            raise MicrophoneCaptureError(
+                "microphone_unavailable",
+                "No microphone input device is available.",
+            )
+
+        audio_format = _build_audio_format()
+        if not device.isFormatSupported(audio_format):
+            raise MicrophoneCaptureError(
+                "microphone_format_unsupported",
+                "The selected microphone does not support 16 kHz mono audio.",
+            )
+
+        self._buffer.clear()
+        self._on_timeout = on_timeout
+        self._on_error = on_error
+        try:
+            self._source = self._source_factory(device, audio_format, self)
+            self._source.stateChanged.connect(self._handle_source_state_changed)
+            self._is_capturing = True
+            self._io_device = self._source.start()
+            if self._io_device is None:
+                raise MicrophoneCaptureError(
+                    "microphone_open_failed",
+                    "The selected microphone could not be opened.",
+                )
+            self._io_device.readyRead.connect(self._read_available)
+            self._timer.start(timeout_seconds * 1000)
+        except MicrophoneCaptureError:
+            self._cleanup()
+            raise
+        except Exception as error:
+            self._cleanup()
+            raise MicrophoneCaptureError(
+                "microphone_start_failed",
+                f"Microphone capture failed to start: {error}",
+            ) from error
+
+    def stop(self) -> CapturedAudio:
+        """Stop capture and return the accumulated temporary PCM data."""
+        if not self._is_capturing:
+            raise MicrophoneCaptureError(
+                "capture_not_active",
+                "Microphone capture is not active.",
+            )
+
+        try:
+            self._read_available()
+            captured = bytes(self._buffer)
+        except Exception as error:
+            self._cleanup()
+            raise MicrophoneCaptureError(
+                "microphone_read_failed",
+                f"Microphone capture could not be read: {error}",
+            ) from error
+
+        self._cleanup()
+        if not captured:
+            raise MicrophoneCaptureError(
+                "empty_capture",
+                "No microphone audio was captured.",
+            )
+        return CapturedAudio(
+            data=captured,
+            sample_rate_hz=_SAMPLE_RATE_HZ,
+            channels=_CHANNELS,
+            sample_width_bytes=_SAMPLE_WIDTH_BYTES,
+        )
+
+    def cancel(self) -> None:
+        """Discard temporary PCM data and release the microphone."""
+        if not self._is_capturing and self._source is None:
+            return
+        self._cleanup()
+
+    def _read_available(self) -> None:
+        if self._io_device is None:
+            return
+        chunk = bytes(self._io_device.readAll())
+        if chunk:
+            self._buffer.extend(chunk)
+
+    def _handle_timeout(self) -> None:
+        if not self._is_capturing:
+            return
+        callback = self._on_timeout
+        self._cleanup()
+        if callback is not None:
+            callback()
+
+    def _handle_source_state_changed(self, state: QAudio.State) -> None:
+        if not self._is_capturing or state != QAudio.State.StoppedState:
+            return
+
+        error = self._source.error() if self._source is not None else None
+        callback = self._on_error
+        detail = _audio_error_message(error)
+        self._cleanup()
+        if callback is not None:
+            callback("microphone_device_error", detail)
+
+    def _cleanup(self) -> None:
+        self._is_capturing = False
+        self._timer.stop()
+        source = self._source
+        self._source = None
+        self._io_device = None
+        self._on_timeout = None
+        self._on_error = None
+        self._buffer.clear()
+        if source is not None:
+            source.stop()
+            if isinstance(source, QObject):
+                source.deleteLater()
+
+
+def _build_audio_format() -> QAudioFormat:
+    audio_format = QAudioFormat()
+    audio_format.setSampleRate(_SAMPLE_RATE_HZ)
+    audio_format.setChannelCount(_CHANNELS)
+    audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+    return audio_format
+
+
+def _resolve_input_device(device_name: str) -> QAudioDevice:
+    requested_name = device_name.strip().casefold()
+    if not requested_name:
+        return QMediaDevices.defaultAudioInput()
+
+    for device in QMediaDevices.audioInputs():
+        if device.description().strip().casefold() == requested_name:
+            return device
+    return QAudioDevice()
+
+
+def _build_audio_source(
+    device: QAudioDevice,
+    audio_format: QAudioFormat,
+    parent: QObject,
+) -> QAudioSource:
+    return QAudioSource(device, audio_format, parent)
+
+
+def _audio_error_message(error: QAudio.Error | None) -> str:
+    messages = {
+        QAudio.Error.OpenError: "The microphone could not be opened.",
+        QAudio.Error.IOError: "The microphone stopped because of an I/O error.",
+        QAudio.Error.UnderrunError: "The microphone audio buffer underrun.",
+        QAudio.Error.FatalError: "The microphone stopped after a fatal error.",
+        QAudio.Error.NoError: "The microphone stopped unexpectedly.",
+    }
+    return messages.get(error, "The microphone stopped unexpectedly.")
