@@ -260,6 +260,9 @@ Packaging is part of the active Phase 6 work.
 
 Build and release workflow details: `docs/BUILD_RELEASE.md`
 
+Phase 6 release readiness wrapper:
+`.\scripts\phase6_release_readiness.ps1 -RunExistingDataPass`
+
 Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 
 Security review: `docs/SECURITY_REVIEW.md`

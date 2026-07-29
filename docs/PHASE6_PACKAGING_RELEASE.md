@@ -173,6 +173,9 @@ Data and privacy note, 2026-07-29:
 - Use `scripts/smoke_packaged_app.ps1 -RunExistingDataPass` after packaging to
   verify packaged startup, local data creation, log creation, SQLite schema
   creation, and restart with existing local data.
+- Use `scripts/phase6_release_readiness.ps1 -RunExistingDataPass` before the
+  final manual packaged smoke pass to run the quality gate, source smoke,
+  packaged smoke, and manual report creation in one sequence.
 - Run the quality gate before every packaged build:
 
 ```powershell

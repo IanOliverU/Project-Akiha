@@ -83,6 +83,19 @@ python -m compileall project_akiha tests
 python -m nuitka --version --zig --assume-yes-for-downloads
 ```
 
+## Release Readiness Wrapper
+
+Run this before the final manual packaged smoke pass:
+
+```powershell
+.\scripts\phase6_release_readiness.ps1 `
+  -ExePath dist\nuitka\main.dist\Akiha.exe `
+  -RunExistingDataPass
+```
+
+The wrapper runs the quality gate, source smoke, packaged smoke when the
+packaged executable exists, and creates a timestamped manual smoke report.
+
 ## Source Smoke Test
 
 Run this when startup/local-data behavior needs to be checked without creating a
