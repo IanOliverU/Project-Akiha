@@ -112,18 +112,27 @@ Diagnostics note, 2026-07-29:
 
 ### 5. Data And Privacy Review
 
-- Document local storage clearly:
+- [x] Document local storage clearly:
   - user config
   - SQLite conversations
   - memories
   - behavior history
   - logs
   - pet window state
-- Confirm transcript export behavior.
-- Confirm memory deletion, archiving, pending review, and clear actions behave as
+- [x] Confirm transcript export behavior.
+- [x] Confirm memory deletion, archiving, pending review, and clear actions behave as
   documented.
-- Confirm behavior history cleanup behaves as documented.
-- Decide whether packaged builds need a first-run privacy note.
+- [x] Confirm behavior history cleanup behaves as documented.
+- [x] Decide whether packaged builds need a first-run privacy note.
+
+Data and privacy note, 2026-07-29:
+
+- Local storage, transcript export behavior, memory controls, behavior history
+  cleanup, diagnostics behavior, and reset steps are documented in
+  `docs/LOCAL_DATA_PRIVACY.md`.
+- The first packaged build remains local-first and does not need a blocking
+  first-run privacy modal. Revisit a first-run notice before adding cloud AI
+  providers, voice capture, sync, plugins, or local assistant commands.
 
 ### 6. Dependency And Build Review
 

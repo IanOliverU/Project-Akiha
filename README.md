@@ -212,6 +212,8 @@ Runtime data is stored under `%LOCALAPPDATA%\Akiha\`.
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` |
 | App logs | `%LOCALAPPDATA%\Akiha\logs\app.log` |
 
+Details: `docs/LOCAL_DATA_PRIVACY.md`
+
 ## Run
 
 Install the app in editable mode:
