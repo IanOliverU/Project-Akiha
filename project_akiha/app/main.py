@@ -528,6 +528,10 @@ def _run_application() -> int:
     )
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
+    event_bus.subscribe(
+        EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, show_behavior_history
+    )
+    event_bus.subscribe(EventType.APP_QUIT_REQUESTED, lambda event: app.quit())
     settings_window.memory_manager_requested.connect(show_memory_manager)
     settings_window.behavior_history_requested.connect(show_behavior_history)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
@@ -562,6 +566,7 @@ def _run_application() -> int:
         pet_window=window,
         chat_window=chat_window,
         settings_window=settings_window,
+        quit_callback=app.quit,
     )
 
     def apply_presence(event: Event) -> None:

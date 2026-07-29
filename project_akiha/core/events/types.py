@@ -17,6 +17,8 @@ class EventType(StrEnum):
     PET_WAKE_REQUESTED = "pet.wake_requested"
     CHAT_OPEN_REQUESTED = "chat.open_requested"
     SETTINGS_OPEN_REQUESTED = "settings.open_requested"
+    BEHAVIOR_HISTORY_OPEN_REQUESTED = "behavior_history.open_requested"
+    APP_QUIT_REQUESTED = "app.quit_requested"
     USER_ACTIVITY_OBSERVED = "activity.observed"
     USER_ACTIVITY_STATE_CHANGED = "activity.state_changed"
     PROACTIVE_SUGGESTION_READY = "proactive.suggestion_ready"

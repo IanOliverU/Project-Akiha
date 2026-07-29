@@ -8,11 +8,11 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMenu
 
 from project_akiha.config import PetWindowConfig
 from project_akiha.core.behavior import CompanionMood, MoodVisualCue
-from project_akiha.core.events.bus import EventBus
+from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation.base import AnimationFrame
@@ -86,6 +86,40 @@ class PetWindowTest(unittest.TestCase):
             MoodVisualCue.WAITING,
         )
 
+    def test_context_menu_behavior_history_action_publishes_request(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+        event_count = 0
+
+        def record_event(event: Event) -> None:
+            nonlocal event_count
+            del event
+            event_count += 1
+
+        event_bus.subscribe(EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, record_event)
+
+        menu = self._window._build_context_menu()
+        _trigger_action(menu, "Behavior history")
+
+        self.assertEqual(event_count, 1)
+
+    def test_context_menu_quit_action_publishes_request(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+        event_count = 0
+
+        def record_event(event: Event) -> None:
+            nonlocal event_count
+            del event
+            event_count += 1
+
+        event_bus.subscribe(EventType.APP_QUIT_REQUESTED, record_event)
+
+        menu = self._window._build_context_menu()
+        _trigger_action(menu, "Quit")
+
+        self.assertEqual(event_count, 1)
+
     def _make_window(self, event_bus: EventBus | None = None) -> PetWindow:
         window = PetWindow(
             event_bus=event_bus or EventBus(),
@@ -112,6 +146,15 @@ class _StaticAnimationProvider:
 class _NullRenderer:
     def paint(self, painter, frame: AnimationFrame) -> None:  # noqa: ANN001
         del painter, frame
+
+
+def _trigger_action(menu: QMenu, text: str) -> None:
+    for action in menu.actions():
+        if action.text() == text:
+            action.trigger()
+            return
+
+    raise AssertionError(f"Pet menu action was not found: {text}")
 
 
 if __name__ == "__main__":

@@ -119,6 +119,12 @@ class PetWindow(QWidget):
 
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """Open the pet action menu."""
+        menu = self._build_context_menu()
+        menu.exec(event.globalPos())
+        event.accept()
+
+    def _build_context_menu(self) -> QMenu:
+        """Build the pet action menu."""
         menu = QMenu(self)
 
         if self._current_state == AnimationState.SLEEPING:
@@ -152,12 +158,21 @@ class PetWindow(QWidget):
         settings_action.triggered.connect(self._request_settings)
         menu.addAction(settings_action)
 
+        behavior_history_action = QAction("Behavior history", menu)
+        behavior_history_action.triggered.connect(self._request_behavior_history)
+        menu.addAction(behavior_history_action)
+
         hide_action = QAction("Hide", menu)
         hide_action.triggered.connect(self.hide)
         menu.addAction(hide_action)
 
-        menu.exec(event.globalPos())
-        event.accept()
+        menu.addSeparator()
+
+        quit_action = QAction("Quit", menu)
+        quit_action.triggered.connect(self._request_quit)
+        menu.addAction(quit_action)
+
+        return menu
 
     def paintEvent(self, event: QPaintEvent) -> None:
         """Paint the temporary Phase 1 pet placeholder."""
@@ -226,6 +241,12 @@ class PetWindow(QWidget):
 
     def _request_chat(self) -> None:
         self._event_bus.publish(EventType.CHAT_OPEN_REQUESTED)
+
+    def _request_behavior_history(self) -> None:
+        self._event_bus.publish(EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED)
+
+    def _request_quit(self) -> None:
+        self._event_bus.publish(EventType.APP_QUIT_REQUESTED)
 
     def _handle_state_changed(self, event: Event) -> None:
         state = event.payload.get("state")
