@@ -245,6 +245,14 @@ Foundation note, 2026-07-29:
 - Saving Voice settings applies them immediately and persists them for future
   launches. Voice remains opt-in for fresh installs because its local STT and
   TTS backends may not be present.
+- Recoverable microphone, transcription, synthesis, and playback failures now
+  publish a visible error diagnostic and transient error state before returning
+  voice to idle. One failed operation no longer disables automatic speech or
+  push-to-talk for the rest of the session.
+- Chat now shows explicit microphone-ready, listening, and transcribing states.
+  A successful transcript appears in a non-persistent `Heard:` preview and is
+  inserted into the editable message field for review; it is still never sent
+  automatically or added to stored chat before the user presses Send.
 
 ### Phase 7A Smoke Checkpoint
 

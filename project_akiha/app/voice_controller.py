@@ -154,13 +154,14 @@ class VoiceController:
         self._event_bus.publish(EventType.VOICE_TRANSCRIPT_READY, payload)
 
     def report_error(self, code: str, message: str) -> None:
-        """Move to the error state and publish a privacy-safe diagnostic."""
+        """Publish a transient error state, then restore voice availability."""
         self._transition_to(
             VoiceState.ERROR,
             "voice_error",
             operation=_VoiceOperation.NONE,
         )
         self._publish_error(code=code, message=message)
+        self.recover()
 
     def notify_error(self, code: str, message: str) -> None:
         """Publish a rejected-action diagnostic without interrupting voice."""

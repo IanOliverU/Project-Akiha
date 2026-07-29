@@ -187,6 +187,26 @@ class ChatWindowTest(unittest.TestCase):
         self.assertEqual(window._input.text(), "Good おはよう morning")
         self.assertEqual(submitted, [])
 
+    def test_voice_transcript_preview_is_visible_but_not_chat_history(self) -> None:
+        window = ChatWindow()
+
+        window.show_voice_transcript_preview("Recognized speech.")
+
+        self.assertIn("Recognized speech.", window._voice_input_status.text())
+        self.assertNotIn("Recognized speech.", window._history_view.toPlainText())
+
+    def test_voice_input_status_explains_how_to_finish_recording(self) -> None:
+        window = ChatWindow()
+
+        window.set_voice_input_status(
+            "Listening... click Stop when you finish speaking."
+        )
+
+        self.assertEqual(
+            window._voice_input_status.text(),
+            "Listening... click Stop when you finish speaking.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -66,6 +66,10 @@ class ChatWindow(QWidget):
         self._input.setPlaceholderText("Message Akiha")
         self._input.returnPressed.connect(self._submit_message)
 
+        self._voice_input_status = QLabel("Microphone disabled")
+        self._voice_input_status.setWordWrap(True)
+        self._voice_input_status.setStyleSheet("color: #666666;")
+
         self._voice_input_enabled = False
         self._voice_output_enabled = False
         self._voice_state = "muted"
@@ -113,6 +117,7 @@ class ChatWindow(QWidget):
         layout = QVBoxLayout()
         layout.addLayout(toolbar_layout)
         layout.addWidget(self._history_view)
+        layout.addWidget(self._voice_input_status)
         layout.addLayout(input_layout)
         self.setLayout(layout)
 
@@ -207,6 +212,19 @@ class ChatWindow(QWidget):
         )
         self._input.insert(f"{prefix}{transcript}{suffix}")
         self._input.setFocus()
+
+    def set_voice_input_status(self, status: str) -> None:
+        """Show a non-persistent microphone or transcription status."""
+        self._voice_input_status.setText(status.strip() or "Microphone ready")
+
+    def show_voice_transcript_preview(self, text: str) -> None:
+        """Show recognized speech separately from persisted chat history."""
+        transcript = text.strip()
+        if not transcript:
+            return
+        self._voice_input_status.setText(
+            f'Heard: "{transcript}" - review the message below, then Send.'
+        )
 
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""

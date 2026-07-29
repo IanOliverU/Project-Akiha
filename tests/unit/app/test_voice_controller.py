@@ -207,17 +207,20 @@ class VoiceControllerTest(unittest.TestCase):
         self.assertNotIn("Private late transcript", errors[-1].payload.values())
         self.assertEqual(transcripts, [])
 
-    def test_report_error_and_recover_publish_state_changes(self) -> None:
+    def test_report_error_publishes_transient_error_and_recovers(self) -> None:
         bus = EventBus()
         errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        states = _subscribe(bus, EventType.VOICE_STATE_CHANGED)
         controller = VoiceController(bus, VoiceConfig(enabled=True))
 
         controller.report_error("provider_unavailable", "Provider unavailable.")
-        self.assertEqual(controller.state, VoiceState.ERROR)
-        self.assertEqual(errors[-1].payload["code"], "provider_unavailable")
 
-        controller.recover()
         self.assertEqual(controller.state, VoiceState.IDLE)
+        self.assertEqual(errors[-1].payload["code"], "provider_unavailable")
+        self.assertEqual(
+            [event.payload["state"] for event in states[-2:]],
+            ["error", "idle"],
+        )
 
     def test_notify_error_does_not_interrupt_active_voice(self) -> None:
         bus = EventBus()

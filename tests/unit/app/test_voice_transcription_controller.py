@@ -37,7 +37,7 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
             "Provider unavailable.",
         )
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "provider_unavailable")
 
     def test_duplicate_submission_reports_busy(self) -> None:
@@ -46,7 +46,7 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
 
         controller.submit(_audio())
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "transcription_busy")
 
     def test_cancel_event_discards_worker_result(self) -> None:

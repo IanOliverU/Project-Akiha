@@ -35,7 +35,7 @@ class VoicePlaybackControllerTest(unittest.TestCase):
 
         playback.fail("output_device_lost", "Output device disconnected.")
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "output_device_lost")
 
     def test_immediate_playback_failure_reports_voice_error(self) -> None:
@@ -46,7 +46,7 @@ class VoicePlaybackControllerTest(unittest.TestCase):
 
         controller.play(_audio())
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "playback_busy")
 
     def test_stop_request_stops_playback_and_returns_idle(self) -> None:
@@ -66,7 +66,7 @@ class VoicePlaybackControllerTest(unittest.TestCase):
         controller.play(_audio())
 
         self.assertFalse(playback.play_called)
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "unexpected_playback")
 
     def test_settings_are_applied_to_playback(self) -> None:

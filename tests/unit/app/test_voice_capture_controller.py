@@ -49,7 +49,7 @@ class VoiceCaptureControllerTest(unittest.TestCase):
 
         bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(_last_error(events)["code"], "speech_input_unavailable")
 
     def test_cancel_discards_capture(self) -> None:
@@ -68,7 +68,7 @@ class VoiceCaptureControllerTest(unittest.TestCase):
 
         capture.trigger_timeout()
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(_last_error(events)["code"], "capture_timeout")
 
     def test_device_error_reports_error(self) -> None:
@@ -77,7 +77,7 @@ class VoiceCaptureControllerTest(unittest.TestCase):
 
         capture.trigger_error("microphone_device_error", "Device disconnected.")
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(_last_error(events)["code"], "microphone_device_error")
 
     def test_capture_start_failure_does_not_escape_event_handler(self) -> None:
@@ -86,7 +86,7 @@ class VoiceCaptureControllerTest(unittest.TestCase):
 
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(_last_error(events)["code"], "busy")
 
     def test_rejected_listen_request_does_not_open_microphone(self) -> None:

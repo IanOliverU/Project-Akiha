@@ -25,6 +25,12 @@ class ChatVoiceSurface(Protocol):
     def insert_voice_transcript(self, text: str) -> None:
         """Place recognized text in the editable chat input."""
 
+    def set_voice_input_status(self, status: str) -> None:
+        """Show microphone and transcription progress."""
+
+    def show_voice_transcript_preview(self, text: str) -> None:
+        """Preview recognized speech without persisting or sending it."""
+
     def set_voice_replay_available(self, available: bool) -> None:
         """Update whether the latest spoken response can be replayed."""
 
@@ -63,7 +69,7 @@ class ChatVoicePresenter:
         )
 
         self.apply_config(config)
-        self._surface.set_voice_state(initial_state, initial_operation)
+        self._present_voice_state(initial_state, initial_operation)
 
     def apply_config(self, config: VoiceConfig) -> None:
         """Update chat controls after voice settings change."""
@@ -77,12 +83,13 @@ class ChatVoicePresenter:
         operation = event.payload.get("operation", "none")
         if not isinstance(state, str) or not isinstance(operation, str):
             return
-        self._surface.set_voice_state(state, operation)
+        self._present_voice_state(state, operation)
 
     def _handle_transcript_ready(self, event: Event) -> None:
         text = event.payload.get("text")
         if not isinstance(text, str) or not text.strip():
             return
+        self._surface.show_voice_transcript_preview(text)
         self._surface.insert_voice_transcript(text)
 
     def _handle_voice_error(self, event: Event) -> None:
@@ -96,3 +103,23 @@ class ChatVoicePresenter:
         if not isinstance(available, bool):
             return
         self._surface.set_voice_replay_available(available)
+
+    def _present_voice_state(self, state: str, operation: str) -> None:
+        self._surface.set_voice_state(state, operation)
+        status = _voice_input_status(state, operation)
+        if status is not None:
+            self._surface.set_voice_input_status(status)
+
+
+def _voice_input_status(state: str, operation: str) -> str | None:
+    if state == "muted":
+        return "Microphone disabled in Voice settings."
+    if state == "listening" and operation == "input":
+        return "Listening... click Stop when you finish speaking."
+    if state == "thinking" and operation == "input":
+        return "Transcribing speech..."
+    if state == "error":
+        return "Voice input failed. See the error above."
+    if state == "idle":
+        return "Microphone ready. Click Talk once to start recording."
+    return None

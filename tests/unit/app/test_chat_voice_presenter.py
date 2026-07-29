@@ -15,6 +15,8 @@ class _ChatVoiceSurface:
         self.capabilities: tuple[bool, bool] | None = None
         self.states: list[tuple[str, str]] = []
         self.transcripts: list[str] = []
+        self.transcript_previews: list[str] = []
+        self.voice_input_statuses: list[str] = []
         self.replay_availability: list[bool] = []
         self.errors: list[str] = []
 
@@ -30,6 +32,12 @@ class _ChatVoiceSurface:
 
     def insert_voice_transcript(self, text: str) -> None:
         self.transcripts.append(text)
+
+    def set_voice_input_status(self, status: str) -> None:
+        self.voice_input_statuses.append(status)
+
+    def show_voice_transcript_preview(self, text: str) -> None:
+        self.transcript_previews.append(text)
 
     def set_voice_replay_available(self, available: bool) -> None:
         self.replay_availability.append(available)
@@ -54,6 +62,10 @@ class ChatVoicePresenterTest(unittest.TestCase):
 
         self.assertEqual(surface.capabilities, (True, True))
         self.assertEqual(surface.states, [("idle", "none")])
+        self.assertEqual(
+            surface.voice_input_statuses,
+            ["Microphone ready. Click Talk once to start recording."],
+        )
 
     def test_config_disables_only_unavailable_capability(self) -> None:
         bus = EventBus()
@@ -80,6 +92,7 @@ class ChatVoicePresenterTest(unittest.TestCase):
         )
 
         self.assertEqual(surface.states[-1], ("thinking", "input"))
+        self.assertEqual(surface.voice_input_statuses[-1], "Transcribing speech...")
 
     def test_places_transcript_in_editable_surface(self) -> None:
         bus = EventBus()
@@ -92,6 +105,8 @@ class ChatVoicePresenterTest(unittest.TestCase):
         )
 
         self.assertEqual(surface.transcripts, ["おはようございます。"])
+
+        self.assertEqual(surface.transcript_previews, surface.transcripts)
 
     def test_ignores_malformed_state_and_transcript_events(self) -> None:
         bus = EventBus()

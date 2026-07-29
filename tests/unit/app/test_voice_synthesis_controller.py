@@ -113,7 +113,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         _request_speech(bus)
         threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "playback_unavailable")
 
     def test_provider_failure_reports_voice_error(self) -> None:
@@ -125,7 +125,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
             "VOICEVOX is offline.",
         )
 
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "provider_unavailable")
 
     def test_duplicate_request_cancels_worker_and_reports_busy(self) -> None:
@@ -136,7 +136,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFlate"))
 
         self.assertTrue(threads[0].cancelled)
-        self.assertEqual(voice.state, VoiceState.ERROR)
+        self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "synthesis_busy")
         self.assertEqual(audio, [])
 
