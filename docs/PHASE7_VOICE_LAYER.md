@@ -73,12 +73,12 @@ temporary sound still belongs to a coherent companion.
 
 ### Configuration And Contracts
 
-- [ ] Define a voice configuration model.
-- [ ] Persist voice settings in the existing user configuration system.
-- [ ] Add a `VoiceInputProvider` interface for speech recognition.
-- [ ] Add a `VoiceOutputProvider` interface for speech synthesis.
-- [ ] Keep provider-specific code outside UI and core conversation logic.
-- [ ] Add explicit disabled and unavailable provider states.
+- [x] Define a voice configuration model.
+- [x] Persist voice settings in the existing user configuration system.
+- [x] Add a `VoiceInputProvider` interface for speech recognition.
+- [x] Add a `VoiceOutputProvider` interface for speech synthesis.
+- [x] Keep provider-specific code outside UI and core conversation logic.
+- [x] Add explicit disabled and unavailable provider states.
 
 Suggested configuration includes:
 
@@ -114,7 +114,7 @@ Suggested configuration includes:
 
 ### State And Companion Integration
 
-- [ ] Add voice states for idle, listening, thinking, speaking, muted, and
+- [x] Add voice states for idle, listening, thinking, speaking, muted, and
   error.
 - [ ] Publish voice state changes through the existing event system.
 - [ ] Map voice states into the existing mood, presence, and animation flow.
@@ -136,8 +136,8 @@ Suggested configuration includes:
 
 ### Automated Coverage
 
-- [ ] Test voice configuration defaults, loading, saving, and invalid values.
-- [ ] Test input and output provider contracts.
+- [x] Test voice configuration defaults, loading, saving, and invalid values.
+- [x] Test input and output provider contracts.
 - [ ] Test unavailable-provider and disabled-voice behavior.
 - [ ] Test push-to-talk state transitions and cancellation.
 - [ ] Test synthesis, playback, stop, and cleanup paths.
@@ -145,6 +145,22 @@ Suggested configuration includes:
 - [ ] Test diagnostics for backend, synthesis, microphone, and playback
   failures.
 - [ ] Test shutdown while listening, transcribing, synthesizing, and speaking.
+
+Foundation note, 2026-07-29:
+
+- Voice remains disabled by default, so no microphone, model, or HTTP engine is
+  accessed during normal startup.
+- `VoiceConfig` persists provider choices, devices, automatic reply speech,
+  volume, speaking rate, and provider timeout settings through the existing
+  TOML configuration store.
+- The first provider-neutral contracts cover captured PCM audio, transcripts,
+  synthesis requests, synthesized audio, selectable voices, and provider health
+  states.
+- `VoiceStateMachine` defines idle, listening, thinking, speaking, muted, and
+  error transitions without importing Qt.
+- Canonical voice request, transcript, state, and error event names are
+  registered. Runtime event publication remains part of the upcoming voice
+  controller work.
 
 ### Phase 7A Smoke Checkpoint
 

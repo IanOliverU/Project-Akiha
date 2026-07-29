@@ -32,6 +32,7 @@ def _serialize_config(config: AppConfig) -> str:
     personality = config.personality
     memory = config.memory
     behavior = config.behavior
+    voice = config.voice
     always_on_top = str(pet_window.always_on_top).lower()
     memory_enabled = str(memory.enabled).lower()
     behavior_enabled = str(behavior.enabled).lower()
@@ -49,6 +50,14 @@ def _serialize_config(config: AppConfig) -> str:
     system_prompt = _escape_toml_string(personality.system_prompt)
     quiet_hours_start = _escape_toml_string(behavior.quiet_hours_start)
     quiet_hours_end = _escape_toml_string(behavior.quiet_hours_end)
+    voice_input_provider = _escape_toml_string(voice.input_provider)
+    voice_input_model = _escape_toml_string(voice.input_model)
+    voice_input_language = _escape_toml_string(voice.input_language)
+    voice_input_device = _escape_toml_string(voice.input_device)
+    voice_output_provider = _escape_toml_string(voice.output_provider)
+    voice_output_base_url = _escape_toml_string(voice.output_base_url)
+    voice_output_voice_id = _escape_toml_string(voice.output_voice_id)
+    voice_output_device = _escape_toml_string(voice.output_device)
 
     return (
         "[pet_window]\n"
@@ -90,6 +99,23 @@ def _serialize_config(config: AppConfig) -> str:
         f"quiet_hours_enabled = {quiet_hours_enabled}\n"
         f'quiet_hours_start = "{quiet_hours_start}"\n'
         f'quiet_hours_end = "{quiet_hours_end}"\n'
+        "\n"
+        "[voice]\n"
+        f"enabled = {str(voice.enabled).lower()}\n"
+        f"push_to_talk_enabled = {str(voice.push_to_talk_enabled).lower()}\n"
+        f'input_provider = "{voice_input_provider}"\n'
+        f'input_model = "{voice_input_model}"\n'
+        f'input_language = "{voice_input_language}"\n'
+        f'input_device = "{voice_input_device}"\n'
+        f'output_provider = "{voice_output_provider}"\n'
+        f'output_base_url = "{voice_output_base_url}"\n'
+        f'output_voice_id = "{voice_output_voice_id}"\n'
+        f'output_device = "{voice_output_device}"\n'
+        "automatic_speech_enabled = "
+        f"{str(voice.automatic_speech_enabled).lower()}\n"
+        f"volume_percent = {voice.volume_percent}\n"
+        f"speaking_rate = {voice.speaking_rate}\n"
+        f"request_timeout_seconds = {voice.request_timeout_seconds}\n"
     )
 
 

@@ -154,6 +154,65 @@ class BehaviorConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class VoiceConfig:
+    """Settings for optional Phase 7 local voice providers."""
+
+    enabled: bool = False
+    push_to_talk_enabled: bool = True
+    input_provider: str = "faster-whisper"
+    input_model: str = "small"
+    input_language: str = "auto"
+    input_device: str = ""
+    output_provider: str = "voicevox"
+    output_base_url: str = "http://127.0.0.1:50021"
+    output_voice_id: str = "0"
+    output_device: str = ""
+    automatic_speech_enabled: bool = False
+    volume_percent: int = 100
+    speaking_rate: float = 1.0
+    request_timeout_seconds: int = 30
+
+    def __post_init__(self) -> None:
+        """Validate provider-neutral voice settings."""
+        if self.input_provider not in {"disabled", "faster-whisper"}:
+            message = (
+                "voice.input_provider must be either 'disabled' or " "'faster-whisper'."
+            )
+            raise ValueError(message)
+        if self.output_provider not in {"disabled", "voicevox"}:
+            message = "voice.output_provider must be either 'disabled' or 'voicevox'."
+            raise ValueError(message)
+        if not self.input_model.strip():
+            raise ValueError("voice.input_model cannot be empty.")
+        if not self.input_language.strip():
+            raise ValueError("voice.input_language cannot be empty.")
+        if not self.output_voice_id.strip():
+            raise ValueError("voice.output_voice_id cannot be empty.")
+
+        parsed_output_url = urlparse(self.output_base_url)
+        if parsed_output_url.scheme not in {"http", "https"}:
+            raise ValueError("voice.output_base_url must use http or https.")
+        if not parsed_output_url.netloc:
+            raise ValueError("voice.output_base_url must include a host.")
+        if not 0 <= self.volume_percent <= 100:
+            raise ValueError("voice.volume_percent must be between 0 and 100.")
+        if not 0.5 <= self.speaking_rate <= 2.0:
+            raise ValueError("voice.speaking_rate must be between 0.5 and 2.0.")
+        if self.request_timeout_seconds <= 0:
+            raise ValueError("voice.request_timeout_seconds must be greater than zero.")
+
+    @property
+    def input_enabled(self) -> bool:
+        """Return whether speech input may be used."""
+        return self.enabled and self.input_provider != "disabled"
+
+    @property
+    def output_enabled(self) -> bool:
+        """Return whether speech output may be used."""
+        return self.enabled and self.output_provider != "disabled"
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
@@ -162,6 +221,7 @@ class AppConfig:
     personality: PersonalityConfig = PersonalityConfig()
     memory: MemoryConfig = MemoryConfig()
     behavior: BehaviorConfig = BehaviorConfig()
+    voice: VoiceConfig = VoiceConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -182,6 +242,10 @@ class AppConfig:
     def with_behavior(self, behavior: BehaviorConfig) -> AppConfig:
         """Return a copy with updated behavior settings."""
         return replace(self, behavior=behavior)
+
+    def with_voice(self, voice: VoiceConfig) -> AppConfig:
+        """Return a copy with updated voice settings."""
+        return replace(self, voice=voice)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -212,12 +276,17 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(behavior_data, dict):
         raise ValueError("behavior config must be a TOML table.")
 
+    voice_data = data.get("voice", {})
+    if not isinstance(voice_data, dict):
+        raise ValueError("voice config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
         personality=PersonalityConfig(**personality_data),
         memory=MemoryConfig(**memory_data),
         behavior=BehaviorConfig(**behavior_data),
+        voice=VoiceConfig(**voice_data),
     )
 
 

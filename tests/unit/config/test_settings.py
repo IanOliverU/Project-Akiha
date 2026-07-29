@@ -10,6 +10,7 @@ from project_akiha.config import (
     AIConfig,
     BehaviorConfig,
     PersonalityConfig,
+    VoiceConfig,
     load_config,
 )
 
@@ -35,6 +36,13 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.behavior.away_after_seconds, 900)
         self.assertFalse(config.behavior.scheduled_check_ins_enabled)
         self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 3600)
+        self.assertFalse(config.voice.enabled)
+        self.assertTrue(config.voice.push_to_talk_enabled)
+        self.assertEqual(config.voice.input_provider, "faster-whisper")
+        self.assertEqual(config.voice.output_provider, "voicevox")
+        self.assertFalse(config.voice.automatic_speech_enabled)
+        self.assertFalse(config.voice.input_enabled)
+        self.assertFalse(config.voice.output_enabled)
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:
@@ -65,7 +73,23 @@ class SettingsTest(unittest.TestCase):
                 "minimum_seconds_between_notifications = 600\n"
                 "allow_notifications_while_away = true\n"
                 "scheduled_check_ins_enabled = true\n"
-                "scheduled_check_in_interval_seconds = 1200\n",
+                "scheduled_check_in_interval_seconds = 1200\n"
+                "\n"
+                "[voice]\n"
+                "enabled = true\n"
+                "push_to_talk_enabled = false\n"
+                'input_provider = "disabled"\n'
+                'input_model = "medium"\n'
+                'input_language = "ja"\n'
+                'input_device = "Test microphone"\n'
+                'output_provider = "voicevox"\n'
+                'output_base_url = "http://localhost:50021"\n'
+                'output_voice_id = "14"\n'
+                'output_device = "Test speakers"\n'
+                "automatic_speech_enabled = true\n"
+                "volume_percent = 75\n"
+                "speaking_rate = 1.2\n"
+                "request_timeout_seconds = 10\n",
                 encoding="utf-8",
             )
 
@@ -89,6 +113,22 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(config.behavior.allow_notifications_while_away)
         self.assertTrue(config.behavior.scheduled_check_ins_enabled)
         self.assertEqual(config.behavior.scheduled_check_in_interval_seconds, 1200)
+        self.assertTrue(config.voice.enabled)
+        self.assertFalse(config.voice.push_to_talk_enabled)
+        self.assertEqual(config.voice.input_provider, "disabled")
+        self.assertEqual(config.voice.input_model, "medium")
+        self.assertEqual(config.voice.input_language, "ja")
+        self.assertEqual(config.voice.input_device, "Test microphone")
+        self.assertEqual(config.voice.output_provider, "voicevox")
+        self.assertEqual(config.voice.output_base_url, "http://localhost:50021")
+        self.assertEqual(config.voice.output_voice_id, "14")
+        self.assertEqual(config.voice.output_device, "Test speakers")
+        self.assertTrue(config.voice.automatic_speech_enabled)
+        self.assertEqual(config.voice.volume_percent, 75)
+        self.assertEqual(config.voice.speaking_rate, 1.2)
+        self.assertEqual(config.voice.request_timeout_seconds, 10)
+        self.assertFalse(config.voice.input_enabled)
+        self.assertTrue(config.voice.output_enabled)
 
     def test_user_config_accepts_utf8_bom(self) -> None:
         with TemporaryDirectory() as directory:
@@ -132,6 +172,36 @@ class SettingsTest(unittest.TestCase):
     def test_ai_config_rejects_ollama_url_without_host(self) -> None:
         with self.assertRaises(ValueError):
             AIConfig(ollama_base_url="http:///api")
+
+    def test_voice_config_exposes_enabled_provider_paths(self) -> None:
+        voice = VoiceConfig(enabled=True)
+
+        self.assertTrue(voice.input_enabled)
+        self.assertTrue(voice.output_enabled)
+
+    def test_voice_config_rejects_unknown_provider(self) -> None:
+        with self.assertRaises(ValueError):
+            VoiceConfig(input_provider="cloud-microphone")
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(output_provider="cloud-speaker")
+
+    def test_voice_config_rejects_invalid_output_url(self) -> None:
+        with self.assertRaises(ValueError):
+            VoiceConfig(output_base_url="file:///voicevox")
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(output_base_url="http:///voicevox")
+
+    def test_voice_config_rejects_invalid_playback_values(self) -> None:
+        with self.assertRaises(ValueError):
+            VoiceConfig(volume_percent=101)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(speaking_rate=0.25)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(request_timeout_seconds=0)
 
 
 if __name__ == "__main__":

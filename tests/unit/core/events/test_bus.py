@@ -32,6 +32,16 @@ class EventBusTest(unittest.TestCase):
 
         self.assertEqual(received, [])
 
+    def test_voice_state_event_uses_canonical_event_bus(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+
+        bus.subscribe(EventType.VOICE_STATE_CHANGED, received.append)
+        bus.publish(EventType.VOICE_STATE_CHANGED, {"state": "listening"})
+
+        self.assertEqual(received[0].event_type, EventType.VOICE_STATE_CHANGED)
+        self.assertEqual(received[0].payload, {"state": "listening"})
+
 
 if __name__ == "__main__":
     unittest.main()

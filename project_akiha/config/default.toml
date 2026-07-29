@@ -35,3 +35,19 @@ scheduled_check_in_interval_seconds = 3600
 quiet_hours_enabled = false
 quiet_hours_start = "22:00"
 quiet_hours_end = "07:00"
+
+[voice]
+enabled = false
+push_to_talk_enabled = true
+input_provider = "faster-whisper"
+input_model = "small"
+input_language = "auto"
+input_device = ""
+output_provider = "voicevox"
+output_base_url = "http://127.0.0.1:50021"
+output_voice_id = "0"
+output_device = ""
+automatic_speech_enabled = false
+volume_percent = 100
+speaking_rate = 1.0
+request_timeout_seconds = 30

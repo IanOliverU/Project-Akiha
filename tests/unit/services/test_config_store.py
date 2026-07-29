@@ -13,6 +13,7 @@ from project_akiha.config import (
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
+    VoiceConfig,
     load_config,
 )
 from project_akiha.services.config_store import UserConfigStore
@@ -65,6 +66,22 @@ class UserConfigStoreTest(unittest.TestCase):
                         quiet_hours_start="23:00",
                         quiet_hours_end="08:00",
                     ),
+                    voice=VoiceConfig(
+                        enabled=True,
+                        push_to_talk_enabled=True,
+                        input_provider="faster-whisper",
+                        input_model="medium",
+                        input_language="ja",
+                        input_device='USB "Microphone"',
+                        output_provider="voicevox",
+                        output_base_url="http://localhost:50021",
+                        output_voice_id="14",
+                        output_device="Desktop speakers",
+                        automatic_speech_enabled=True,
+                        volume_percent=75,
+                        speaking_rate=1.2,
+                        request_timeout_seconds=10,
+                    ),
                 )
             )
 
@@ -101,6 +118,20 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertTrue(config.behavior.quiet_hours_enabled)
         self.assertEqual(config.behavior.quiet_hours_start, "23:00")
         self.assertEqual(config.behavior.quiet_hours_end, "08:00")
+        self.assertTrue(config.voice.enabled)
+        self.assertTrue(config.voice.push_to_talk_enabled)
+        self.assertEqual(config.voice.input_provider, "faster-whisper")
+        self.assertEqual(config.voice.input_model, "medium")
+        self.assertEqual(config.voice.input_language, "ja")
+        self.assertEqual(config.voice.input_device, 'USB "Microphone"')
+        self.assertEqual(config.voice.output_provider, "voicevox")
+        self.assertEqual(config.voice.output_base_url, "http://localhost:50021")
+        self.assertEqual(config.voice.output_voice_id, "14")
+        self.assertEqual(config.voice.output_device, "Desktop speakers")
+        self.assertTrue(config.voice.automatic_speech_enabled)
+        self.assertEqual(config.voice.volume_percent, 75)
+        self.assertEqual(config.voice.speaking_rate, 1.2)
+        self.assertEqual(config.voice.request_timeout_seconds, 10)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:
