@@ -93,7 +93,7 @@ Startup hardening note, 2026-07-29:
 - [x] Review log file locations and rotation behavior.
 - [x] Add a user-facing way to open diagnostics if needed.
 - [x] Confirm provider failures are logged without crashing the UI.
-- [ ] Confirm migration failures are visible in logs.
+- [x] Confirm migration failures are visible in logs.
 - [x] Consider adding a compact diagnostics summary for support/debugging.
 
 Diagnostics note, 2026-07-29:
@@ -106,6 +106,9 @@ Diagnostics note, 2026-07-29:
 - Chat provider failures are caught by the worker thread, logged as AI provider
   response failures, and surfaced as visible chat errors without raising through
   the UI path.
+- Database migration failures log both the failing migration file, when known,
+  and the database/migrations directory involved before reraising the original
+  exception.
 
 ### 5. Data And Privacy Review
 

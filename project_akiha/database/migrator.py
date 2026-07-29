@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger("project_akiha.database.migrator")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +32,17 @@ class DatabaseMigrator:
 
     def apply_pending(self) -> None:
         """Create or update the database schema."""
+        try:
+            self._apply_pending()
+        except Exception:
+            logger.exception(
+                "Database migration failed for %s using migrations from %s.",
+                self._database_path,
+                self._migrations_dir,
+            )
+            raise
+
+    def _apply_pending(self) -> None:
         self._database_path.parent.mkdir(parents=True, exist_ok=True)
 
         connection = sqlite3.connect(self._database_path)
@@ -41,15 +55,22 @@ class DatabaseMigrator:
             for migration in self._load_migrations():
                 if migration.version in applied_versions:
                     continue
-                sql = migration.path.read_text(encoding="utf-8")
-                connection.executescript(sql)
-                connection.execute(
-                    """
-                    INSERT INTO schema_version(version, name)
-                    VALUES (?, ?)
-                    """,
-                    (migration.version, migration.name),
-                )
+                try:
+                    sql = migration.path.read_text(encoding="utf-8")
+                    connection.executescript(sql)
+                    connection.execute(
+                        """
+                        INSERT INTO schema_version(version, name)
+                        VALUES (?, ?)
+                        """,
+                        (migration.version, migration.name),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Database migration file failed: %s.",
+                        migration.path,
+                    )
+                    raise
             connection.commit()
         finally:
             connection.close()

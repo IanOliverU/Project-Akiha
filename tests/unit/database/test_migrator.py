@@ -52,6 +52,48 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("embedding_json", memory_columns)
         self.assertEqual(versions, [(1,), (2,), (3,), (4,), (5,), (6,)])
 
+    def test_logs_migration_sql_failure_before_reraising(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations_dir = root / "migrations"
+            migrations_dir.mkdir()
+            (migrations_dir / "0001_bad.sql").write_text(
+                "CREATE TABLE broken (id INTEGER PRIMARY KEY",
+                encoding="utf-8",
+            )
+            migrator = DatabaseMigrator(
+                root / "akiha.sqlite3",
+                migrations_dir=migrations_dir,
+            )
+            logger_name = "project_akiha.database.migrator"
+
+            with self.assertLogs(logger_name, level="ERROR") as captured:
+                with self.assertRaises(sqlite3.Error):
+                    migrator.apply_pending()
+
+        output = "\n".join(captured.output)
+        self.assertIn("Database migration failed", output)
+        self.assertIn("0001_bad.sql", output)
+
+    def test_logs_invalid_migration_filename_before_reraising(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations_dir = root / "migrations"
+            migrations_dir.mkdir()
+            (migrations_dir / "bad.sql").write_text("SELECT 1;", encoding="utf-8")
+            migrator = DatabaseMigrator(
+                root / "akiha.sqlite3",
+                migrations_dir=migrations_dir,
+            )
+            logger_name = "project_akiha.database.migrator"
+
+            with self.assertLogs(logger_name, level="ERROR") as captured:
+                with self.assertRaises(ValueError):
+                    migrator.apply_pending()
+
+        self.assertIn("Database migration failed", captured.output[0])
+        self.assertIn("migrations", captured.output[0])
+
 
 if __name__ == "__main__":
     unittest.main()
