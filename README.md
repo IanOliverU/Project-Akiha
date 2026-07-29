@@ -30,7 +30,8 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 6 are complete. The current standalone release-candidate build
+Phases 1 through 6 are complete. Phase 7 is planned and begins the next roadmap
+with a local-first voice layer. The current standalone release-candidate build
 uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
 
 | Phase | Status | Focus |
@@ -41,6 +42,7 @@ uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
+| Phase 7 | Planned | Local-first voice plumbing and Akiha voice identity |
 
 ## Tech Stack
 
@@ -187,6 +189,22 @@ Prepare Akiha for longer-term use and eventual distribution.
 - Pet-menu fallback controls for Behavior History and Quit.
 
 Details: `docs/PHASE6_PACKAGING_RELEASE.md`
+
+### Phase 7: Voice Layer
+
+Give Akiha an optional local-first voice without coupling character identity to
+one speech engine.
+
+- Push-to-talk input through a local Whisper-compatible provider.
+- Temporary Japanese speech through a local VOICEVOX provider.
+- Replaceable speech-to-text and text-to-speech provider interfaces.
+- Listening, thinking, speaking, muted, and error states.
+- Voice settings, diagnostics, device selection, and failure recovery.
+- A minimal Akiha speech identity derived from `docs/AKIHA.MD`.
+- Raw-text fallback when speech styling fails.
+- Custom voice training and cloud providers deferred.
+
+Details: `docs/PHASE7_VOICE_LAYER.md`
 
 ## Architecture
 
