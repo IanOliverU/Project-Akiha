@@ -18,6 +18,7 @@ from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
+from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -507,7 +508,6 @@ def main() -> int:
     settings_window.memory_manager_requested.connect(show_memory_manager)
     settings_window.behavior_history_requested.connect(show_behavior_history)
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
-    app.aboutToQuit.connect(save_window_position)
 
     def tick_behavior() -> None:
         activity = activity_controller.tick()
@@ -516,6 +516,24 @@ def main() -> int:
     activity_tick_timer = QTimer()
     activity_tick_timer.timeout.connect(tick_behavior)
     activity_tick_timer.start(30_000)
+
+    def shutdown_app() -> None:
+        result = shutdown_runtime(
+            activity_timer=activity_tick_timer,
+            active_chat_threads=active_chat_threads,
+            save_window_position=save_window_position,
+            logger=logger,
+        )
+        logger.info(
+            "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
+            "cancelled_threads=%s, unfinished_threads=%s.",
+            result.position_saved,
+            result.timer_stopped,
+            result.cancelled_threads,
+            result.unfinished_threads,
+        )
+
+    app.aboutToQuit.connect(shutdown_app)
 
     tray_icon = AkihaTrayIcon(
         pet_window=window,
