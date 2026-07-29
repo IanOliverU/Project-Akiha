@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
@@ -17,12 +19,14 @@ class AkihaTrayIcon(QSystemTrayIcon):
         pet_window: QWidget,
         chat_window: QWidget,
         settings_window: QWidget,
+        quit_callback: Callable[[], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._pet_window = pet_window
         self._chat_window = chat_window
         self._settings_window = settings_window
+        self._quit_callback = quit_callback
 
         self.set_presence_text("Akiha is calm.")
         self.setIcon(_build_icon())
@@ -55,9 +59,12 @@ class AkihaTrayIcon(QSystemTrayIcon):
         menu.addSeparator()
 
         quit_action = QAction("Quit", menu)
-        app = QApplication.instance()
-        if app is not None:
-            quit_action.triggered.connect(app.quit)
+        quit_callback = self._quit_callback
+        if quit_callback is None:
+            app = QApplication.instance()
+            quit_callback = app.quit if app is not None else None
+        if quit_callback is not None:
+            quit_action.triggered.connect(quit_callback)
         menu.addAction(quit_action)
 
         return menu

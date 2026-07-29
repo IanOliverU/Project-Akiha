@@ -68,6 +68,13 @@ Validation note, 2026-07-29:
 - [ ] Confirm proactive behavior does not crash when timers tick.
 - [ ] Confirm Quit saves pet position and stops active chat workers.
 
+Runtime smoke note, 2026-07-29:
+
+- Tray menu actions for Show, Hide, Chat, Settings, Behavior History, and Quit
+  have automated offscreen unit coverage. Manual packaged tray validation
+  remains required because Windows tray behavior must be checked in the real
+  packaged app.
+
 ### 3. Startup And Shutdown Hardening
 
 - [x] Verify startup with no existing `%LOCALAPPDATA%\Akiha\` folder.
