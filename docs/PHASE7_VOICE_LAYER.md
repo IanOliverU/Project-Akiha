@@ -103,7 +103,7 @@ Suggested configuration includes:
 
 ### Speech Output
 
-- [ ] Add a text-to-speech orchestration service.
+- [x] Add a text-to-speech orchestration service.
 - [ ] Add a VOICEVOX local HTTP provider adapter.
 - [ ] Add provider health and speaker discovery checks.
 - [ ] Add audio synthesis and playback support.
@@ -196,6 +196,16 @@ Foundation note, 2026-07-29:
 - The optional `voice` dependency group installs faster-whisper on Python 3.13.
   Normal Windows Python 3.14 remains a backend-unavailable source environment
   until its native dependency wheels are consistently supported.
+- `SpeechOutputService` validates provider health, builds provider-neutral
+  synthesis requests, and converts backend failures into stable diagnostics.
+- Speech synthesis runs on a dedicated Qt worker and permits only one active
+  request. Stop, settings changes, duplicate requests, and shutdown cancel the
+  worker and discard any late provider result.
+- Encoded synthesized audio stays on a direct playback callback path and is
+  never published through `EventBus` or written to technical logs.
+- Until the VOICEVOX adapter is installed, an explicit unavailable output
+  provider reports a visible error instead of leaving voice state stuck in
+  thinking.
 
 ### Phase 7A Smoke Checkpoint
 

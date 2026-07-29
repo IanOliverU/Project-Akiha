@@ -36,6 +36,7 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertTrue(result.timer_stopped)
         self.assertTrue(result.voice_capture_stopped)
         self.assertTrue(result.voice_transcription_stopped)
+        self.assertTrue(result.voice_synthesis_stopped)
         self.assertEqual(threads, [])
 
     def test_shutdown_reports_unfinished_threads(self) -> None:
@@ -176,6 +177,35 @@ class ShutdownRuntimeTest(unittest.TestCase):
 
         self.assertFalse(result.voice_transcription_stopped)
         self.assertIn("voice transcription", captured.output[0])
+
+    def test_shutdown_cancels_voice_synthesis(self) -> None:
+        synthesis = _VoiceCapture()
+
+        result = shutdown_runtime(
+            activity_timer=_Timer(),
+            active_chat_threads=[],
+            save_window_position=lambda: None,
+            logger=logging.getLogger("test_shutdown_synthesis"),
+            voice_synthesis=synthesis,
+        )
+
+        self.assertTrue(synthesis.cancelled)
+        self.assertTrue(result.voice_synthesis_stopped)
+
+    def test_shutdown_reports_voice_synthesis_failure(self) -> None:
+        logger = logging.getLogger("test_shutdown_synthesis_failure")
+
+        with self.assertLogs(logger, level="ERROR") as captured:
+            result = shutdown_runtime(
+                activity_timer=_Timer(),
+                active_chat_threads=[],
+                save_window_position=lambda: None,
+                logger=logger,
+                voice_synthesis=_FailingVoiceCapture(),
+            )
+
+        self.assertFalse(result.voice_synthesis_stopped)
+        self.assertIn("voice synthesis", captured.output[0])
 
 
 class _Timer:

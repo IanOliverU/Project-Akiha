@@ -23,6 +23,7 @@ from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInCont
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
+from project_akiha.app.voice_synthesis_controller import VoiceSynthesisController
 from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
 )
@@ -62,7 +63,11 @@ from project_akiha.providers.animation import (
     AssetAnimationProvider,
     PlaceholderAnimationProvider,
 )
-from project_akiha.providers.voice import FasterWhisperProvider, QtMicrophoneCapture
+from project_akiha.providers.voice import (
+    FasterWhisperProvider,
+    QtMicrophoneCapture,
+    UnavailableVoiceOutputProvider,
+)
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -76,6 +81,7 @@ from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
 from project_akiha.services.speech_input import SpeechInputService
+from project_akiha.services.speech_output import SpeechOutputService
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
@@ -249,6 +255,11 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         service=speech_input_service,
     )
+    voice_synthesis_controller = VoiceSynthesisController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        service=_build_speech_output_service(config.voice),
+    )
     voice_capture_controller = VoiceCaptureController(
         event_bus=event_bus,
         voice_controller=voice_controller,
@@ -301,6 +312,9 @@ def _run_application() -> int:
         voice_controller.apply_config(updated_config.voice)
         voice_transcription_controller.apply_service(
             _build_speech_input_service(updated_config.voice, paths.model_dir)
+        )
+        voice_synthesis_controller.apply_service(
+            _build_speech_output_service(updated_config.voice)
         )
         voice_capture_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
@@ -600,17 +614,20 @@ def _run_application() -> int:
             logger=logger,
             voice_capture=voice_capture_controller,
             voice_transcription=voice_transcription_controller,
+            voice_synthesis=voice_synthesis_controller,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
             "cancelled_threads=%s, unfinished_threads=%s, "
-            "voice_capture_stopped=%s, voice_transcription_stopped=%s.",
+            "voice_capture_stopped=%s, voice_transcription_stopped=%s, "
+            "voice_synthesis_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
             result.unfinished_threads,
             result.voice_capture_stopped,
             result.voice_transcription_stopped,
+            result.voice_synthesis_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -680,6 +697,7 @@ def _run_application() -> int:
         user_config_store,
         voice_capture_controller,
         voice_controller,
+        voice_synthesis_controller,
         voice_transcription_controller,
         window_state_store,
     )
@@ -755,6 +773,14 @@ def _build_speech_input_service(
             download_root=model_dir / "faster-whisper",
         )
     )
+
+
+def _build_speech_output_service(voice_config: VoiceConfig) -> SpeechOutputService:
+    if voice_config.output_provider == "disabled":
+        detail = "Speech output is disabled."
+    else:
+        detail = "VOICEVOX speech synthesis support is not installed yet."
+    return SpeechOutputService(UnavailableVoiceOutputProvider(detail))
 
 
 def _build_conversation_summarizer(

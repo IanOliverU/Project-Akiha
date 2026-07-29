@@ -31,9 +31,9 @@ Akiha is intended to become a personal desktop companion that can:
 ## Current Status
 
 Phases 1 through 6 are complete. Phase 7 is in progress with local microphone
-capture and faster-whisper STT implemented. The current standalone
-release-candidate build uses Python 3.13 and has passed automated readiness plus
-manual packaged smoke.
+capture, faster-whisper STT, and provider-neutral TTS orchestration implemented.
+The current standalone release-candidate build uses Python 3.13 and has passed
+automated readiness plus manual packaged smoke.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
