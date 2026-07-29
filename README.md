@@ -32,9 +32,10 @@ Akiha is intended to become a personal desktop companion that can:
 
 Phases 1 through 6 are complete. Phase 7 is in progress with local microphone
 capture, faster-whisper STT, provider-neutral TTS orchestration, and the local
-VOICEVOX adapter with in-memory Qt audio playback implemented. The current
-standalone release-candidate build uses Python 3.13 and has passed automated
-readiness plus manual packaged smoke.
+VOICEVOX adapter with in-memory Qt audio playback implemented. Completed
+assistant replies can optionally speak automatically, while the feature remains
+off by default. The current standalone release-candidate build uses Python 3.13
+and has passed automated readiness plus manual packaged smoke.
 
 | Phase | Status | Focus |
 | --- | --- | --- |

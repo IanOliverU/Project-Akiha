@@ -35,32 +35,36 @@ class ChatResponseThread(QThread):
             return
 
         try:
-            was_cancelled = asyncio.run(self._stream_response())
+            response = asyncio.run(self._stream_response())
         except Exception as error:
             self.response_failed.emit(str(error))
             return
 
-        if was_cancelled:
+        if response is None or self._is_cancelled():
             self.response_cancelled.emit()
         else:
-            self.response_ready.emit(None)
+            self.response_ready.emit(response)
 
     def cancel(self) -> None:
         """Request cancellation of this chat response."""
         self._is_cancel_requested = True
         self.requestInterruption()
 
-    async def _stream_response(self) -> bool:
+    async def _stream_response(self) -> str | None:
+        chunks: list[str] = []
         async for chunk in self._chat_controller.stream_user_message(self._message):
             if self._is_cancelled():
-                return True
+                return None
 
+            chunks.append(chunk)
             self.response_delta.emit(chunk)
 
             if self._is_cancelled():
-                return True
+                return None
 
-        return self._is_cancelled()
+        if self._is_cancelled():
+            return None
+        return "".join(chunks)
 
     def _is_cancelled(self) -> bool:
         return self._is_cancel_requested or self.isInterruptionRequested()

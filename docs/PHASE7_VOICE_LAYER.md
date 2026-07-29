@@ -109,7 +109,7 @@ Suggested configuration includes:
 - [x] Add audio synthesis and playback support.
 - [x] Add stop-speaking and replay controls.
 - [x] Prevent overlapping playback unless explicitly supported later.
-- [ ] Allow automatic speech for assistant replies to be disabled.
+- [x] Allow automatic speech for assistant replies to be disabled.
 - [x] Clean up temporary audio safely after playback.
 
 ### State And Companion Integration
@@ -230,6 +230,15 @@ Foundation note, 2026-07-29:
 - Technical event logging now redacts both speech-request text and recognized
   transcript text while retaining non-content metadata such as request source
   and detected language.
+- `AssistantSpeechController` receives the exact assistant response only after
+  streaming, persistence, and memory processing complete. It requests speech
+  only when automatic speech is enabled, output is configured, and voice is
+  idle.
+- Automatic assistant speech remains disabled by default and updates live from
+  saved configuration. Cancelled, failed, empty, or voice-conflicting responses
+  do not enter synthesis.
+- Chat display and persisted conversation text remain unchanged. Phase 7B can
+  later style a temporary copy after this completion boundary and before TTS.
 
 ### Phase 7A Smoke Checkpoint
 

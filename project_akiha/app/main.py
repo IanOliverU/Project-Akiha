@@ -12,6 +12,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.activity_controller import ActivityController
+from project_akiha.app.assistant_speech_controller import AssistantSpeechController
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
 from project_akiha.app.mood_animation_controller import MoodAnimationController
@@ -280,6 +281,11 @@ def _run_application() -> int:
         config=config.voice,
         on_audio_captured=voice_transcription_controller.submit,
     )
+    assistant_speech_controller = AssistantSpeechController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        config=config.voice,
+    )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
     _populate_chat_window(
@@ -323,6 +329,7 @@ def _run_application() -> int:
         activity_controller.apply_config(updated_config.behavior)
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
+        assistant_speech_controller.apply_config(updated_config.voice)
         voice_transcription_controller.apply_service(
             _build_speech_input_service(updated_config.voice, paths.model_dir)
         )
@@ -510,6 +517,9 @@ def _run_application() -> int:
             thread.deleteLater()
 
         thread.response_delta.connect(handle_delta)
+        thread.response_ready.connect(
+            assistant_speech_controller.submit_assistant_reply
+        )
         thread.response_failed.connect(handle_error)
         thread.response_cancelled.connect(handle_cancelled)
         thread.finished.connect(cleanup_thread)
@@ -692,6 +702,7 @@ def _run_application() -> int:
         ),
     )
     app._akiha_services = (
+        assistant_speech_controller,
         chat_controller,
         activity_controller,
         activity_tick_timer,

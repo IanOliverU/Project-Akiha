@@ -43,9 +43,9 @@ class ChatResponseThreadTest(unittest.TestCase):
         chunks: list[str] = []
         thread.response_delta.connect(chunks.append)
 
-        was_cancelled = asyncio.run(thread._stream_response())
+        response = asyncio.run(thread._stream_response())
 
-        self.assertFalse(was_cancelled)
+        self.assertEqual(response, "onetwo")
         self.assertEqual(chunks, ["one", "two"])
         self.assertEqual(controller.received_message, "hello")
 
@@ -60,10 +60,36 @@ class ChatResponseThreadTest(unittest.TestCase):
 
         thread.response_delta.connect(cancel_after_first_chunk)
 
-        was_cancelled = asyncio.run(thread._stream_response())
+        response = asyncio.run(thread._stream_response())
 
-        self.assertTrue(was_cancelled)
+        self.assertIsNone(response)
         self.assertEqual(chunks, ["one"])
+
+    def test_run_emits_completed_response_after_stream_finishes(self) -> None:
+        thread = ChatResponseThread(StreamingController(("one", "two")), "hello")
+        responses: list[str] = []
+        thread.response_ready.connect(responses.append)
+
+        thread.run()
+
+        self.assertEqual(responses, ["onetwo"])
+
+    def test_run_does_not_emit_response_after_cancellation(self) -> None:
+        thread = ChatResponseThread(StreamingController(("one", "two")), "hello")
+        responses: list[str] = []
+        cancelled: list[bool] = []
+
+        def cancel_after_first_chunk(_chunk: str) -> None:
+            thread.cancel()
+
+        thread.response_delta.connect(cancel_after_first_chunk)
+        thread.response_ready.connect(responses.append)
+        thread.response_cancelled.connect(lambda: cancelled.append(True))
+
+        thread.run()
+
+        self.assertEqual(responses, [])
+        self.assertEqual(cancelled, [True])
 
     def test_run_emits_failure_when_provider_stream_fails(self) -> None:
         thread = ChatResponseThread(FailingController(), "hello")
