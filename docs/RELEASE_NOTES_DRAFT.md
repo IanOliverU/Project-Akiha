@@ -30,6 +30,10 @@ diagnostics.
 ## Packaging
 
 - First package format: standalone folder.
+- Current candidate package:
+  `dist\nuitka-phase6-py313\main.dist\Akiha.exe`
+- Release-candidate packaging uses Python 3.13.14 with Nuitka 4.1.3.
+- Automated source and packaged smoke passed on the current candidate package.
 - Installer: not included in the first standalone preview.
 - Local data path: `%LOCALAPPDATA%\Akiha\`
 - Build workflow: `docs/BUILD_RELEASE.md`

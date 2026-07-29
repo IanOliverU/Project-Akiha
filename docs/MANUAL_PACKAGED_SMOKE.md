@@ -36,7 +36,7 @@ Run the automated packaged smoke:
 Then launch the packaged app manually:
 
 ```text
-dist\nuitka\main.dist\Akiha.exe
+dist\nuitka-phase6-py313\main.dist\Akiha.exe
 ```
 
 ## Visual Startup

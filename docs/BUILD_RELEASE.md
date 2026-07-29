@@ -6,11 +6,19 @@ This document captures the Phase 6 build workflow for Project Akiha.
 
 Project Akiha declares Python `>=3.12` in `pyproject.toml`.
 
-The current Phase 6 validation environment is:
+The current Phase 6 source validation environment is:
 
 - Python 3.14.6 on Windows 11
 - PySide6 6.11.1
 - Ruff 0.15.22
+- Black 26.5.1
+- Nuitka 4.1.3 with Zig 0.16.0
+
+The current Phase 6 release-candidate packaging environment is:
+
+- Python 3.13.14 on Windows 11
+- PySide6 6.11.1
+- Ruff 0.16.0
 - Black 26.5.1
 - Nuitka 4.1.3 with Zig 0.16.0
 
@@ -144,6 +152,15 @@ Nuitka standalone output:
 
 Only use `-AllowExperimentalPython` when investigating packaging behavior, not
 when preparing a release candidate.
+
+The local Phase 6 release-candidate environment was created with:
+
+```powershell
+py -3.13 -m venv .venv313
+.\.venv313\Scripts\python.exe -m pip install -e .[package]
+$env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313
+```
 
 The build uses Nuitka standalone mode, PySide6 plugin support, Zig, disabled
 Windows console mode, and bundled data directories for:

@@ -30,7 +30,9 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 5 are complete. Phase 6 is the next active phase.
+Phases 1 through 5 are complete. Phase 6 is active and has passed automated
+release-candidate packaging smoke on a Python 3.13 standalone build. Manual
+packaged UI smoke is still required before calling Phase 6 complete.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -39,13 +41,13 @@ Phases 1 through 5 are complete. Phase 6 is the next active phase.
 | Phase 3 | Done | Memory pipeline and memory management |
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
 | Phase 5 | Done | Companion experience polish and interaction depth |
-| Phase 6 | Next | Packaging, release hardening, and maintainability |
+| Phase 6 | Active | Packaging, release hardening, and maintainability |
 
 ## Tech Stack
 
 ### Runtime And App Framework
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?logo=qt&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-first-0078D4?logo=windows&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-local_storage-003B57?logo=sqlite&logoColor=white)
@@ -76,12 +78,14 @@ Phases 1 through 5 are complete. Phase 6 is the next active phase.
 ![Ruff](https://img.shields.io/badge/Ruff-linting-D7FF64?logo=ruff&logoColor=black)
 ![Black](https://img.shields.io/badge/Black-formatting-000000?logo=python&logoColor=white)
 ![unittest](https://img.shields.io/badge/unittest-test_suite-336791)
-![Nuitka](https://img.shields.io/badge/Nuitka-package_prep-6A4BBC?logo=python&logoColor=white)
+![Nuitka](https://img.shields.io/badge/Nuitka-Windows_package-6A4BBC?logo=python&logoColor=white)
 
 - **setuptools** builds and installs the package from `pyproject.toml`.
 - **unittest** is the current test framework.
 - **Ruff** and **Black** are used for linting and formatting.
-- **Nuitka** is prepared as the packaging path for later Windows builds.
+- **Nuitka** builds the first Windows standalone package. Release-candidate
+  packaging uses Python 3.13 because Python 3.14 support is still experimental
+  in the current Nuitka toolchain.
 
 ## Roadmap Phases
 
@@ -247,21 +251,27 @@ python -m black --check project_akiha tests
 python -m compileall project_akiha tests
 ```
 
-## Package Prep
+## Package Build
 
-Nuitka packaging prep is available through the package extras:
+Nuitka packaging is available through the package extras. Use Python 3.13 for
+release-candidate standalone builds:
 
 ```powershell
-pip install -e .[package]
-.\scripts\build_akiha_nuitka.ps1
+py -3.13 -m venv .venv313
+.\.venv313\Scripts\python.exe -m pip install -e .[package]
+$env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313
 ```
 
-Packaging is part of the active Phase 6 work.
+Automated release readiness for the current standalone package:
+
+```powershell
+.\scripts\phase6_release_readiness.ps1 `
+  -ExePath dist\nuitka-phase6-py313\main.dist\Akiha.exe `
+  -RunExistingDataPass
+```
 
 Build and release workflow details: `docs/BUILD_RELEASE.md`
-
-Phase 6 release readiness wrapper:
-`.\scripts\phase6_release_readiness.ps1 -RunExistingDataPass`
 
 Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 

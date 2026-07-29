@@ -29,10 +29,10 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
 - [x] Confirm standalone artifact includes runtime files and bundled app data.
 - [x] Confirm the packaged executable uses the Windows GUI subsystem.
 - [x] Confirm packaged smoke detects no visible `ConsoleWindowClass` window.
-- [ ] Rebuild the standalone package with Python 3.13 for release-candidate
+- [x] Rebuild the standalone package with Python 3.13 for release-candidate
   validation.
 - [ ] Manually confirm the packaged app starts without a visible console window.
-- [ ] Confirm the current release-candidate packaged app can create and use
+- [x] Confirm the current release-candidate packaged app can create and use
   `%LOCALAPPDATA%\Akiha\`.
 
 Validation note, 2026-07-29:
@@ -77,11 +77,22 @@ Validation note, 2026-07-29:
   output, including `Frozen object named 'encodings' is invalid` in a minimal
   Nuitka executable. Treat Python 3.14 packaging as blocked unless explicitly
   run with `-AllowExperimentalPython` for diagnostics.
+- `py -3.13 -m venv .venv313` created the local release-candidate packaging
+  environment with Python 3.13.14.
+- `scripts/build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313` passed
+  the full quality gate, built `dist\nuitka-phase6-py313\main.dist\Akiha.exe`,
+  confirmed the Windows GUI subsystem, and validated bundled runtime files.
+- `scripts\phase6_release_readiness.ps1 -ExePath
+  dist\nuitka-phase6-py313\main.dist\Akiha.exe -RunExistingDataPass` passed the
+  quality gate, source smoke, packaged smoke, fresh-data startup,
+  existing-data startup, database schema checks, log-health checks, and no
+  visible `ConsoleWindowClass` check. It created
+  `dist\manual-smoke-reports\manual-smoke-report-20260729-182119.md`.
 
 ### 2. Runtime Smoke Tests
 
 - [x] Start the app from source.
-- [ ] Start the current release-candidate packaged app.
+- [x] Start the current release-candidate packaged app.
 - [ ] Confirm the pet appears and can be dragged.
 - [ ] Confirm tray controls work.
 - [ ] Confirm Settings opens and saves.
