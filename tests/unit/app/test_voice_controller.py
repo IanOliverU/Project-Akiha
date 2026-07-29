@@ -219,6 +219,17 @@ class VoiceControllerTest(unittest.TestCase):
         controller.recover()
         self.assertEqual(controller.state, VoiceState.IDLE)
 
+    def test_notify_error_does_not_interrupt_active_voice(self) -> None:
+        bus = EventBus()
+        errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        controller.notify_error("action_rejected", "Action rejected.")
+
+        self.assertEqual(controller.state, VoiceState.LISTENING)
+        self.assertEqual(errors[-1].payload["code"], "action_rejected")
+
 
 def _subscribe(bus: EventBus, event_type: EventType) -> list[Event]:
     events: list[Event] = []

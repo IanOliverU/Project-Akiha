@@ -25,6 +25,9 @@ class ChatVoiceSurface(Protocol):
     def insert_voice_transcript(self, text: str) -> None:
         """Place recognized text in the editable chat input."""
 
+    def set_voice_replay_available(self, available: bool) -> None:
+        """Update whether the latest spoken response can be replayed."""
+
     def append_error(self, content: str) -> None:
         """Show a visible voice error."""
 
@@ -53,6 +56,10 @@ class ChatVoicePresenter:
         event_bus.subscribe(
             EventType.VOICE_ERROR_OCCURRED,
             self._handle_voice_error,
+        )
+        event_bus.subscribe(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            self._handle_replay_availability_changed,
         )
 
         self.apply_config(config)
@@ -83,3 +90,9 @@ class ChatVoicePresenter:
         if not isinstance(message, str) or not message.strip():
             message = "Unknown voice error."
         self._surface.append_error(f"Voice: {message}")
+
+    def _handle_replay_availability_changed(self, event: Event) -> None:
+        available = event.payload.get("available")
+        if not isinstance(available, bool):
+            return
+        self._surface.set_voice_replay_available(available)

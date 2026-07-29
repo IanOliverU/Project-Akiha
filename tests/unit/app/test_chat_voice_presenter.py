@@ -15,6 +15,7 @@ class _ChatVoiceSurface:
         self.capabilities: tuple[bool, bool] | None = None
         self.states: list[tuple[str, str]] = []
         self.transcripts: list[str] = []
+        self.replay_availability: list[bool] = []
         self.errors: list[str] = []
 
     def set_voice_capabilities(
@@ -29,6 +30,9 @@ class _ChatVoiceSurface:
 
     def insert_voice_transcript(self, text: str) -> None:
         self.transcripts.append(text)
+
+    def set_voice_replay_available(self, available: bool) -> None:
+        self.replay_availability.append(available)
 
     def append_error(self, content: str) -> None:
         self.errors.append(content)
@@ -111,6 +115,22 @@ class ChatVoicePresenterTest(unittest.TestCase):
         )
 
         self.assertEqual(surface.errors, ["Voice: Microphone unavailable."])
+
+    def test_presents_valid_replay_availability(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(bus, surface, VoiceConfig(), "muted")
+
+        bus.publish(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            {"available": True},
+        )
+        bus.publish(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            {"available": "yes"},
+        )
+
+        self.assertEqual(surface.replay_availability, [True])
 
 
 if __name__ == "__main__":

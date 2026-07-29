@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -31,6 +32,7 @@ class ChatWindow(QWidget):
     voice_listen_stop_requested = Signal()
     voice_listen_cancel_requested = Signal()
     voice_speak_stop_requested = Signal()
+    voice_replay_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -68,12 +70,23 @@ class ChatWindow(QWidget):
         self._voice_output_enabled = False
         self._voice_state = "muted"
         self._voice_operation = "none"
+        self._voice_replay_available = False
         self._chat_busy = False
         self._voice_button = QPushButton("Talk")
         self._voice_button.setFixedWidth(96)
         self._voice_button.setToolTip("Push to talk")
         self._voice_button.clicked.connect(self._request_voice_action)
         self._refresh_voice_button()
+
+        self._voice_replay_button = QPushButton()
+        self._voice_replay_button.setFixedSize(34, 34)
+        self._voice_replay_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        )
+        self._voice_replay_button.setToolTip("Replay last spoken response")
+        self._voice_replay_button.setAccessibleName("Replay voice")
+        self._voice_replay_button.clicked.connect(self.voice_replay_requested.emit)
+        self._refresh_voice_replay_button()
 
         self._send_button = QPushButton("Send")
         self._send_button.clicked.connect(self._submit_message)
@@ -93,6 +106,7 @@ class ChatWindow(QWidget):
         input_layout = QHBoxLayout()
         input_layout.addWidget(self._input)
         input_layout.addWidget(self._voice_button)
+        input_layout.addWidget(self._voice_replay_button)
         input_layout.addWidget(self._send_button)
         input_layout.addWidget(self._stop_button)
 
@@ -158,12 +172,19 @@ class ChatWindow(QWidget):
         self._voice_input_enabled = input_enabled
         self._voice_output_enabled = output_enabled
         self._refresh_voice_button()
+        self._refresh_voice_replay_button()
 
     def set_voice_state(self, state: str, operation: str = "none") -> None:
         """Update the push-to-talk control for a runtime voice state."""
         self._voice_state = state
         self._voice_operation = operation
         self._refresh_voice_button()
+        self._refresh_voice_replay_button()
+
+    def set_voice_replay_available(self, available: bool) -> None:
+        """Enable replay after at least one speech request reaches playback."""
+        self._voice_replay_available = available
+        self._refresh_voice_replay_button()
 
     def insert_voice_transcript(self, text: str) -> None:
         """Insert recognized text at the input cursor without sending it."""
@@ -197,6 +218,7 @@ class ChatWindow(QWidget):
         self._clear_chat_button.setDisabled(is_busy)
         self._export_chat_button.setDisabled(is_busy)
         self._refresh_voice_button()
+        self._refresh_voice_replay_button()
         self.set_status("Thinking..." if is_busy else "Ready")
 
     def _submit_message(self) -> None:
@@ -257,6 +279,15 @@ class ChatWindow(QWidget):
         self._voice_button.setText(label)
         self._voice_button.setToolTip(tooltip)
         self._voice_button.setEnabled(enabled and not self._chat_busy)
+
+    def _refresh_voice_replay_button(self) -> None:
+        enabled = (
+            self._voice_replay_available
+            and self._voice_output_enabled
+            and self._voice_state == "idle"
+            and not self._chat_busy
+        )
+        self._voice_replay_button.setEnabled(enabled)
 
     def _request_clear_chat(self) -> None:
         answer = QMessageBox.question(

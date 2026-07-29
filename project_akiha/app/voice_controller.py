@@ -162,6 +162,10 @@ class VoiceController:
         )
         self._publish_error(code=code, message=message)
 
+    def notify_error(self, code: str, message: str) -> None:
+        """Publish a rejected-action diagnostic without interrupting voice."""
+        self._publish_error(code=code, message=message)
+
     def recover(self) -> None:
         """Recover from a completed or failed voice operation."""
         target = VoiceState.IDLE if self._config.enabled else VoiceState.MUTED

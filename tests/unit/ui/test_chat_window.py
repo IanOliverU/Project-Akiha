@@ -119,6 +119,53 @@ class ChatWindowTest(unittest.TestCase):
         self.assertEqual(window._voice_button.text(), "Stop voice")
         self.assertEqual(requested, [True])
 
+    def test_replay_button_requests_last_spoken_response(self) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_replay_requested.connect(lambda: requested.append(True))
+        window.set_voice_capabilities(input_enabled=False, output_enabled=True)
+        window.set_voice_state("idle")
+        window.set_voice_replay_available(True)
+
+        window._voice_replay_button.click()
+
+        self.assertTrue(window._voice_replay_button.isEnabled())
+        self.assertEqual(requested, [True])
+
+    def test_replay_button_requires_idle_voice_and_previous_speech(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=False, output_enabled=True)
+        window.set_voice_replay_available(True)
+
+        window.set_voice_state("speaking", "output")
+        self.assertFalse(window._voice_replay_button.isEnabled())
+
+        window.set_voice_state("idle")
+        self.assertTrue(window._voice_replay_button.isEnabled())
+
+        window.set_voice_replay_available(False)
+        self.assertFalse(window._voice_replay_button.isEnabled())
+
+    def test_disabling_output_capability_disables_replay_button(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=False, output_enabled=True)
+        window.set_voice_state("idle")
+        window.set_voice_replay_available(True)
+
+        window.set_voice_capabilities(input_enabled=False, output_enabled=False)
+
+        self.assertFalse(window._voice_replay_button.isEnabled())
+
+    def test_chat_busy_state_disables_replay_button(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=False, output_enabled=True)
+        window.set_voice_state("idle")
+        window.set_voice_replay_available(True)
+
+        window.set_busy(True)
+
+        self.assertFalse(window._voice_replay_button.isEnabled())
+
     def test_chat_busy_state_disables_voice_button(self) -> None:
         window = ChatWindow()
         window.set_voice_capabilities(input_enabled=True, output_enabled=True)

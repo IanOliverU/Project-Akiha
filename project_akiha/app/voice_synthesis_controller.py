@@ -45,12 +45,14 @@ class VoiceSynthesisController:
             _SynthesisThread,
         ] = VoiceSynthesisThread,
     ) -> None:
+        self._event_bus = event_bus
         self._voice_controller = voice_controller
         self._service = service
         self._on_audio_synthesized = on_audio_synthesized
         self._thread_factory = thread_factory
         self._active_threads: list[_SynthesisThread] = []
         self._cancelled_threads: list[_SynthesisThread] = []
+        self._last_spoken_text: str | None = None
 
         event_bus.subscribe(
             EventType.VOICE_SPEAK_REQUESTED,
@@ -60,11 +62,27 @@ class VoiceSynthesisController:
             EventType.VOICE_SPEAK_STOP_REQUESTED,
             self._handle_stop_requested,
         )
+        event_bus.subscribe(
+            EventType.VOICE_REPLAY_REQUESTED,
+            self._handle_replay_requested,
+        )
+
+    @property
+    def has_replay(self) -> bool:
+        """Return whether a previous spoken line can be synthesized again."""
+        return self._last_spoken_text is not None
 
     def apply_service(self, service: SpeechOutputService) -> None:
         """Use an updated provider for the next speech request."""
         self.cancel(wait_ms=0)
         self._service = service
+
+    def clear_replay(self) -> None:
+        """Forget the previous spoken text without retaining generated audio."""
+        if self._last_spoken_text is None:
+            return
+        self._last_spoken_text = None
+        self._publish_replay_availability()
 
     def cancel(self, wait_ms: int = 2000) -> None:
         """Cancel active synthesis and optionally wait during shutdown."""
@@ -96,15 +114,18 @@ class VoiceSynthesisController:
             return
 
         config = self._voice_controller.config
+        spoken_text = text.strip()
         thread = self._thread_factory(
             self._service,
-            text.strip(),
+            spoken_text,
             config.output_voice_id,
             "ja-JP",
             config.speaking_rate,
         )
         thread.audio_ready.connect(
-            lambda audio, worker=thread: self._handle_audio_ready(worker, audio)
+            lambda audio, worker=thread, replay_text=spoken_text: (
+                self._handle_audio_ready(worker, audio, replay_text)
+            )
         )
         thread.synthesis_failed.connect(
             lambda code, message, worker=thread: self._handle_failure(
@@ -124,10 +145,30 @@ class VoiceSynthesisController:
         del event
         self.cancel(wait_ms=0)
 
+    def _handle_replay_requested(self, event: Event) -> None:
+        del event
+        if self._last_spoken_text is None:
+            self._voice_controller.notify_error(
+                "replay_unavailable",
+                "There is no previous spoken response to replay.",
+            )
+            return
+        if self._voice_controller.state != VoiceState.IDLE:
+            self._voice_controller.notify_error(
+                "replay_busy",
+                "Voice must be idle before replaying speech.",
+            )
+            return
+        self._event_bus.publish(
+            EventType.VOICE_SPEAK_REQUESTED,
+            {"text": self._last_spoken_text, "source": "replay"},
+        )
+
     def _handle_audio_ready(
         self,
         thread: _SynthesisThread,
         audio: object,
+        spoken_text: str,
     ) -> None:
         if thread not in self._active_threads or thread in self._cancelled_threads:
             return
@@ -155,6 +196,8 @@ class VoiceSynthesisController:
                 "playback_failed",
                 f"Speech playback failed: {error}",
             )
+            return
+        self._remember_spoken_text(spoken_text)
 
     def _handle_failure(
         self,
@@ -180,3 +223,13 @@ class VoiceSynthesisController:
             self._active_threads.remove(thread)
         if thread in self._cancelled_threads:
             self._cancelled_threads.remove(thread)
+
+    def _remember_spoken_text(self, text: str) -> None:
+        self._last_spoken_text = text
+        self._publish_replay_availability()
+
+    def _publish_replay_availability(self) -> None:
+        self._event_bus.publish(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            {"available": self.has_replay},
+        )

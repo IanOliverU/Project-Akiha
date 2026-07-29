@@ -107,7 +107,7 @@ Suggested configuration includes:
 - [x] Add a VOICEVOX local HTTP provider adapter.
 - [x] Add provider health and speaker discovery checks.
 - [x] Add audio synthesis and playback support.
-- [ ] Add stop-speaking and replay controls.
+- [x] Add stop-speaking and replay controls.
 - [x] Prevent overlapping playback unless explicitly supported later.
 - [ ] Allow automatic speech for assistant replies to be disabled.
 - [x] Clean up temporary audio safely after playback.
@@ -221,6 +221,15 @@ Foundation note, 2026-07-29:
   playback, and shutdown all release the in-memory buffer. The application
   shutdown report now verifies playback cleanup independently from synthesis
   worker cleanup.
+- Chat exposes a state-aware stop action during synthesis and playback plus an
+  icon-only replay action while voice is idle.
+- Replay retains only the last text handed to playback and re-enters the normal
+  synthesis pipeline. It never retains the generated WAV, is unavailable while
+  another voice operation is active, and is cleared with New Chat or Clear
+  Chat.
+- Technical event logging now redacts both speech-request text and recognized
+  transcript text while retaining non-content metadata such as request source
+  and detected language.
 
 ### Phase 7A Smoke Checkpoint
 

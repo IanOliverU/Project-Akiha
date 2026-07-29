@@ -18,7 +18,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
     """Verify one TTS worker hands encoded audio directly to playback."""
 
     def test_success_hands_audio_to_direct_callback(self) -> None:
-        bus, voice, _, threads, audio, errors = _build()
+        bus, voice, controller, threads, audio, errors = _build()
 
         _request_speech(bus)
         synthesized = SynthesizedAudio(b"RIFFprivate-audio")
@@ -27,6 +27,71 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         self.assertEqual(audio, [synthesized])
         self.assertEqual(errors, [])
         self.assertEqual(voice.state, VoiceState.THINKING)
+        self.assertTrue(controller.has_replay)
+
+    def test_success_publishes_replay_availability_without_text(self) -> None:
+        bus, _, _, threads, _, _ = _build()
+        availability: list[Event] = []
+        bus.subscribe(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            availability.append,
+        )
+        _request_speech(bus, "Private assistant response.")
+
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+
+        self.assertEqual(availability[-1].payload, {"available": True})
+        self.assertNotIn(
+            "Private assistant response.",
+            availability[-1].payload.values(),
+        )
+
+    def test_replay_resynthesizes_last_text_after_voice_returns_idle(self) -> None:
+        bus, voice, _, threads, _, _ = _build()
+        _request_speech(bus, "Remember this line.")
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+        threads[0].finished.emit()
+        bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+
+        bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+
+        self.assertEqual(voice.state, VoiceState.THINKING)
+        self.assertEqual(len(threads), 2)
+        self.assertEqual(threads[1].text, "Remember this line.")
+
+    def test_clear_replay_forgets_text_and_publishes_unavailable(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        availability: list[Event] = []
+        bus.subscribe(
+            EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
+            availability.append,
+        )
+        _request_speech(bus)
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+
+        controller.clear_replay()
+
+        self.assertFalse(controller.has_replay)
+        self.assertEqual(availability[-1].payload, {"available": False})
+
+    def test_replay_without_previous_speech_reports_error(self) -> None:
+        bus, voice, _, _, _, errors = _build()
+
+        bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+
+        self.assertEqual(voice.state, VoiceState.IDLE)
+        self.assertEqual(errors[-1].payload["code"], "replay_unavailable")
+
+    def test_replay_while_voice_is_active_reports_busy(self) -> None:
+        bus, voice, _, threads, _, errors = _build()
+        _request_speech(bus)
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+
+        bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+
+        self.assertEqual(voice.state, VoiceState.THINKING)
+        self.assertEqual(errors[-1].payload["code"], "replay_busy")
+        self.assertEqual(len(threads), 1)
 
     def test_audio_is_not_published_in_voice_events(self) -> None:
         bus, _, _, threads, _, _ = _build()
@@ -139,6 +204,10 @@ class _Thread:
         self.started = False
         self.cancelled = False
         self.wait_ms = 0
+        self.text = ""
+        self.voice_id: str | None = None
+        self.language = ""
+        self.speaking_rate = 0.0
 
     def start(self) -> None:
         self.started = True

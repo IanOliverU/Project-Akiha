@@ -29,6 +29,8 @@ class EventType(StrEnum):
     VOICE_LISTEN_CANCEL_REQUESTED = "voice.listen_cancel_requested"
     VOICE_SPEAK_REQUESTED = "voice.speak_requested"
     VOICE_SPEAK_STOP_REQUESTED = "voice.speak_stop_requested"
+    VOICE_REPLAY_REQUESTED = "voice.replay_requested"
+    VOICE_REPLAY_AVAILABILITY_CHANGED = "voice.replay_availability_changed"
     VOICE_TRANSCRIPT_READY = "voice.transcript_ready"
     VOICE_STATE_CHANGED = "voice.state_changed"
     VOICE_ERROR_OCCURRED = "voice.error_occurred"

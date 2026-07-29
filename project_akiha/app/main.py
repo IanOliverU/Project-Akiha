@@ -527,6 +527,8 @@ def _run_application() -> int:
             return
 
         asyncio.run(chat_controller.start_new_conversation())
+        event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+        voice_synthesis_controller.clear_replay()
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
@@ -538,6 +540,8 @@ def _run_application() -> int:
             return
 
         asyncio.run(chat_controller.clear_current_conversation())
+        event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+        voice_synthesis_controller.clear_replay()
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")
@@ -586,6 +590,9 @@ def _run_application() -> int:
     )
     chat_window.voice_speak_stop_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+    )
+    chat_window.voice_replay_requested.connect(
+        lambda: event_bus.publish(EventType.VOICE_REPLAY_REQUESTED)
     )
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.edit_requested.connect(edit_memory)
