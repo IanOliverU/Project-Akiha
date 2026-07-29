@@ -13,7 +13,7 @@ env/
 
 logs/
 *.log
+nuitka-crash-report.xml
 
 build/
 dist/
-

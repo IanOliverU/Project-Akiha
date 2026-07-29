@@ -1,7 +1,8 @@
 # Release Notes Draft
 
 These notes are a draft for the first Project Akiha standalone Windows package.
-Do not treat them as final until the remaining Phase 6 manual smoke checks pass.
+They match the Phase 6 standalone candidate after automated and manual smoke
+validation.
 
 ## Project Akiha 0.1.0 Standalone Preview
 
@@ -33,7 +34,8 @@ diagnostics.
 - Current candidate package:
   `dist\nuitka-phase6-py313\main.dist\Akiha.exe`
 - Release-candidate packaging uses Python 3.13.14 with Nuitka 4.1.3.
-- Automated source and packaged smoke passed on the current candidate package.
+- Automated source smoke, packaged smoke, and manual packaged smoke passed on
+  the current candidate package.
 - Installer: not included in the first standalone preview.
 - Local data path: `%LOCALAPPDATA%\Akiha\`
 - Build workflow: `docs/BUILD_RELEASE.md`
@@ -46,9 +48,11 @@ diagnostics.
 
 ## Known Limitations
 
-- Manual packaged UI smoke testing is still required before final release.
 - The non-interactive smoke script may force-stop the app after requesting
-  `CloseMainWindow()`. Tray Quit still needs manual validation.
+  `CloseMainWindow()`. Manual pet-menu Quit was validated separately.
+- Direct tray Show/Hide interaction may need additional polish on some Windows
+  tray setups. The pet right-click menu provides fallback access to critical
+  controls, including Behavior History and Quit.
 - The first package does not include cloud AI providers.
 - Voice input and voice output are not implemented yet.
 - Ollama is not bundled.
@@ -59,4 +63,4 @@ diagnostics.
 
 ## Manual Smoke Checklist Before Finalizing
 
-Use `docs/MANUAL_PACKAGED_SMOKE.md` before finalizing the standalone preview.
+The latest manual smoke report is in `dist\manual-smoke-reports\`.

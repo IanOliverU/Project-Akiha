@@ -30,9 +30,8 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 5 are complete. Phase 6 is active and has passed automated
-release-candidate packaging smoke on a Python 3.13 standalone build. Manual
-packaged UI smoke is still required before calling Phase 6 complete.
+Phases 1 through 6 are complete. The current standalone release-candidate build
+uses Python 3.13 and has passed automated readiness plus manual packaged smoke.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -41,7 +40,7 @@ packaged UI smoke is still required before calling Phase 6 complete.
 | Phase 3 | Done | Memory pipeline and memory management |
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
 | Phase 5 | Done | Companion experience polish and interaction depth |
-| Phase 6 | Active | Packaging, release hardening, and maintainability |
+| Phase 6 | Done | Packaging, release hardening, and maintainability |
 
 ## Tech Stack
 
@@ -184,6 +183,8 @@ Prepare Akiha for longer-term use and eventual distribution.
 - Dependency, privacy, and local-data review.
 - Security checklist for future assistant capabilities.
 - Final documentation pass and release notes.
+- Python 3.13 standalone package smoke-tested from `dist\nuitka-phase6-py313`.
+- Pet-menu fallback controls for Behavior History and Quit.
 
 Details: `docs/PHASE6_PACKAGING_RELEASE.md`
 

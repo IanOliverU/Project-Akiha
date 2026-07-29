@@ -1,6 +1,6 @@
 # Distribution Decision
 
-Phase 6 will ship the first packaged build as a standalone folder, not as an
+Phase 6 ships the first packaged build as a standalone folder, not as an
 installer.
 
 ## Decision
@@ -11,21 +11,27 @@ Use the Nuitka standalone output as the first release artifact:
 dist\nuitka\main.dist\
 ```
 
+The current Phase 6 candidate package is:
+
+```text
+dist\nuitka-phase6-py313\main.dist\
+```
+
 The user launches:
 
 ```text
 Akiha.exe
 ```
 
-Installer work is postponed until after the standalone build has passed manual
-runtime smoke testing and daily-use feedback.
+Installer work is postponed until after the standalone build has had daily-use
+feedback.
 
 ## Why Standalone First
 
 - The app is still in active companion-foundation development.
-- Manual packaged UI smoke testing is not complete yet.
-- Standalone builds make it easier to inspect packaged files and logs while
-  Phase 6 hardening is still underway.
+- The first standalone package has passed automated and manual smoke, but the
+  project still benefits from easy inspection while feedback comes in.
+- Standalone builds make it easier to inspect packaged files and logs.
 - Local user data already lives outside the app folder in
   `%LOCALAPPDATA%\Akiha\`, so replacing the standalone folder does not wipe
   conversations, memories, config, behavior history, logs, or pet state.

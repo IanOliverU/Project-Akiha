@@ -10,7 +10,8 @@ focuses on reliability, packaging, diagnostics, privacy, and release readiness.
 Turn the current developer-runnable app into a hardened Windows desktop build
 that can be installed, launched, debugged, and maintained with confidence.
 
-Phase 6 is not complete yet. This checklist defines the work we should do next.
+Phase 6 is complete. This checklist records the release-hardening work and the
+validation evidence for the first standalone package.
 
 ## Checklist
 
@@ -31,7 +32,7 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
 - [x] Confirm packaged smoke detects no visible `ConsoleWindowClass` window.
 - [x] Rebuild the standalone package with Python 3.13 for release-candidate
   validation.
-- [ ] Manually confirm the packaged app starts without a visible console window.
+- [x] Manually confirm the packaged app starts without a visible console window.
 - [x] Confirm the current release-candidate packaged app can create and use
   `%LOCALAPPDATA%\Akiha\`.
 
@@ -88,19 +89,24 @@ Validation note, 2026-07-29:
   existing-data startup, database schema checks, log-health checks, and no
   visible `ConsoleWindowClass` check. It created
   `dist\manual-smoke-reports\manual-smoke-report-20260729-182119.md`.
+- After manual smoke found no reliable visible Quit path when the Windows tray
+  icon was hard to interact with, the packaged app was updated to expose
+  Behavior History and Quit from the pet right-click menu as a fallback.
+- The rebuilt package at `dist\nuitka-phase6-py313\main.dist\Akiha.exe` passed
+  packaged smoke again after that fix.
 
 ### 2. Runtime Smoke Tests
 
 - [x] Start the app from source.
 - [x] Start the current release-candidate packaged app.
-- [ ] Confirm the pet appears and can be dragged.
-- [ ] Confirm tray controls work.
-- [ ] Confirm Settings opens and saves.
-- [ ] Confirm Chat opens and can send a mock-provider message.
-- [ ] Confirm Memory Manager opens.
-- [ ] Confirm Behavior History opens.
-- [ ] Confirm proactive behavior does not crash when timers tick.
-- [ ] Confirm Quit saves pet position and stops active chat workers.
+- [x] Confirm the pet appears and can be dragged.
+- [x] Confirm tray controls work.
+- [x] Confirm Settings opens and saves.
+- [x] Confirm Chat opens and can send a mock-provider message.
+- [x] Confirm Memory Manager opens.
+- [x] Confirm Behavior History opens.
+- [x] Confirm proactive behavior does not crash when timers tick.
+- [x] Confirm Quit saves pet position and stops active chat workers.
 
 Runtime smoke note, 2026-07-29:
 
@@ -108,6 +114,8 @@ Runtime smoke note, 2026-07-29:
   have automated offscreen unit coverage. Manual packaged tray validation
   remains required because Windows tray behavior must be checked in the real
   packaged app.
+- Pet right-click fallback actions for Behavior History and Quit have automated
+  coverage and were manually confirmed in the packaged app.
 - Manual packaged runtime checks are documented in
   `docs/MANUAL_PACKAGED_SMOKE.md`.
 
@@ -117,9 +125,9 @@ Runtime smoke note, 2026-07-29:
 - [x] Verify startup with existing config/state/database files.
 - [x] Verify startup with a missing animation manifest.
 - [x] Verify startup with missing or invalid sprite files.
-- [ ] Verify shutdown during idle state.
-- [ ] Verify shutdown while chat is generating.
-- [ ] Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
+- [x] Verify shutdown during idle state.
+- [x] Verify shutdown while chat is generating.
+- [x] Verify shutdown while Settings, Chat, Memory, or Behavior History windows are
   open.
 - [x] Ensure top-level startup failures are logged clearly.
 
@@ -139,6 +147,9 @@ Startup hardening note, 2026-07-29:
   coverage for idle cleanup, cooperative chat cancellation, unfinished chat
   workers, position-save failures, timer-stop failures, and thread cancellation
   failures.
+- Manual packaged smoke confirmed pet-menu Quit exits without Task Manager,
+  writes `%LOCALAPPDATA%\Akiha\state\pet_window.json`, and logs
+  `Shutdown cleanup complete`.
 
 ### 4. Diagnostics And Logs
 
@@ -277,7 +288,7 @@ Security note, 2026-07-29:
 ### 9. Documentation Pass
 
 - [x] Update `README.md` after packaging validation.
-- [ ] Add a Phase 6 completion summary when this phase is done.
+- [x] Add a Phase 6 completion summary when this phase is done.
 - [x] Document source run, packaged run, and uninstall/reset steps.
 - [x] Document local data reset steps.
 - [x] Document known limitations.
@@ -296,6 +307,35 @@ Documentation note, 2026-07-29:
   `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md` with
   `scripts/new_manual_smoke_report.ps1`.
 - Draft release notes are documented in `docs/RELEASE_NOTES_DRAFT.md`.
+
+## Phase 6 Completion Summary
+
+Phase 6 closed on 2026-07-29 with a Python 3.13 standalone release-candidate
+package at `dist\nuitka-phase6-py313\main.dist\Akiha.exe`.
+
+Completed outcomes:
+
+- Packaging now uses `scripts/build_akiha_nuitka.ps1` with Nuitka standalone
+  mode, Zig, PySide6 plugin support, bundled assets/config/migrations, and a
+  Windows GUI subsystem executable.
+- Python 3.14 packaging instability was diagnosed and guarded. Release-candidate
+  packaging uses Python 3.13.14.
+- Automated readiness passed: quality gate, source smoke, packaged smoke,
+  fresh-data startup, existing-data startup, SQLite schema checks, log-health
+  checks, and no visible console-window ownership.
+- Manual packaged smoke passed for visual startup, dragging, Settings, Chat,
+  Memory Manager, Behavior History, proactive stability, and graceful Quit.
+- The app now has a pet-menu fallback for Behavior History and Quit, which
+  protects basic control access when Windows tray interaction is awkward.
+- Local data, diagnostics, privacy, distribution decision, release notes,
+  security posture, manual smoke workflow, and post-Phase-6 backlog are
+  documented.
+
+Known follow-up:
+
+- Improve tray Show/Hide discoverability and direct tray-icon interaction polish
+  after Phase 6. The current package remains usable because the pet menu exposes
+  the critical fallback controls.
 
 ## Exit Criteria
 

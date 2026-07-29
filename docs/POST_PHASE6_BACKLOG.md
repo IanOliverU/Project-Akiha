@@ -7,10 +7,11 @@ and manual smoke validation.
 ## Immediate Release Follow-Up
 
 - Review the first manual packaged smoke report.
-- Fix any issues found during manual packaged smoke testing.
 - Decide whether the first standalone preview is ready to share.
 - Rebuild the standalone package after any manual-smoke fixes.
 - Preserve release notes that match the exact package being shared.
+- Improve tray Show/Hide discoverability and direct tray-icon interaction
+  reliability on Windows tray setups.
 
 ## Provider And API Expansion
 
