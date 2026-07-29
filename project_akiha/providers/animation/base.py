@@ -15,7 +15,9 @@ class AnimationFrame:
 
     state: AnimationState
     frame_index: int
+    x_offset: int = 0
     y_offset: int = 0
+    scale_percent: int = 100
     image_path: Path | None = None
     source_x: int = 0
     source_y: int = 0

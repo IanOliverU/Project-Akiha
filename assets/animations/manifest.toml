@@ -1,12 +1,16 @@
 [animations.idle]
 frames = ["akiha/idle/000.png"]
 ticks_per_frame = 24
+x_offset = 0
 y_offset = 0
+scale_percent = 100
 
 [animations.dragging]
 frames = ["akiha/dragging/000.png"]
 ticks_per_frame = 24
+x_offset = 0
 y_offset = 0
+scale_percent = 100
 
 [animations.walking]
 filmstrip = "akiha/walking/akiha_walk_filmstrip.png"
@@ -14,9 +18,13 @@ frame_width = 256
 frame_height = 256
 frame_count = 25
 ticks_per_frame = 3
+x_offset = 0
 y_offset = 0
+scale_percent = 122
 
 [animations.sleeping]
 frames = ["akiha/idle/000.png"]
 ticks_per_frame = 24
+x_offset = 0
 y_offset = 0
+scale_percent = 100

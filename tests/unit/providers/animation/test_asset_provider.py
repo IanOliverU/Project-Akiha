@@ -23,7 +23,9 @@ class AssetAnimationProviderTest(unittest.TestCase):
                 "[animations.idle]\n"
                 'frames = ["idle/000.png", "idle/001.png"]\n'
                 "ticks_per_frame = 3\n"
-                "y_offset = 2\n",
+                "x_offset = -4\n"
+                "y_offset = 2\n"
+                "scale_percent = 125\n",
                 encoding="utf-8",
             )
 
@@ -33,7 +35,9 @@ class AssetAnimationProviderTest(unittest.TestCase):
         self.assertEqual(provider.available_states(), frozenset({AnimationState.IDLE}))
         self.assertEqual(frame.state, AnimationState.IDLE)
         self.assertEqual(frame.frame_index, 1)
+        self.assertEqual(frame.x_offset, -4)
         self.assertEqual(frame.y_offset, 2)
+        self.assertEqual(frame.scale_percent, 125)
         self.assertEqual(frame.image_path, manifest_path.parent / "idle" / "001.png")
 
     def test_falls_back_to_idle_for_missing_state(self) -> None:
@@ -124,6 +128,32 @@ class AssetAnimationProviderTest(unittest.TestCase):
             manifest_path = Path(directory) / "manifest.toml"
             manifest_path.write_text(
                 "[animations.idle]\n" "frames = []\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AnimationManifestError):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_non_integer_x_offset(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                'x_offset = "left"\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(AnimationManifestError):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_non_positive_scale_percent(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                "scale_percent = 0\n",
                 encoding="utf-8",
             )
 

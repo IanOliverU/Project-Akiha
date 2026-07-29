@@ -22,7 +22,9 @@ class AnimationClip:
     state: AnimationState
     frame_paths: tuple[Path, ...]
     ticks_per_frame: int
+    x_offset: int = 0
     y_offset: int = 0
+    scale_percent: int = 100
     source_rects: tuple[tuple[int, int, int, int] | None, ...] = ()
 
     def frame_for(self, frame_number: int) -> AnimationFrame:
@@ -38,7 +40,9 @@ class AnimationClip:
         return AnimationFrame(
             state=self.state,
             frame_index=frame_index,
+            x_offset=self.x_offset,
             y_offset=self.y_offset,
+            scale_percent=self.scale_percent,
             image_path=self.frame_paths[frame_index],
             source_x=source_x,
             source_y=source_y,
@@ -131,11 +135,25 @@ def _parse_clip(
             f"Animation {state_name} y_offset must be an integer."
         )
 
+    x_offset = state_data.get("x_offset", 0)
+    if type(x_offset) is not int:
+        raise AnimationManifestError(
+            f"Animation {state_name} x_offset must be an integer."
+        )
+
+    scale_percent = state_data.get("scale_percent", 100)
+    if type(scale_percent) is not int or scale_percent <= 0:
+        raise AnimationManifestError(
+            f"Animation {state_name} scale_percent must be a positive integer."
+        )
+
     return AnimationClip(
         state=_parse_state(state_name),
         frame_paths=frame_paths,
         ticks_per_frame=ticks_per_frame,
+        x_offset=x_offset,
         y_offset=y_offset,
+        scale_percent=scale_percent,
         source_rects=source_rects,
     )
 

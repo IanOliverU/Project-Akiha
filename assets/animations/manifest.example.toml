@@ -5,12 +5,16 @@
 # [animations.idle]
 # frames = ["idle/000.png", "idle/001.png", "idle/002.png"]
 # ticks_per_frame = 4
+# x_offset = 0
 # y_offset = 0
+# scale_percent = 100
 #
 # [animations.dragging]
 # frames = ["dragging/000.png"]
 # ticks_per_frame = 6
+# x_offset = 0
 # y_offset = 0
+# scale_percent = 100
 #
 # [animations.walking]
 # filmstrip = "walking/walk_filmstrip.png"
@@ -18,9 +22,13 @@
 # frame_height = 256
 # frame_count = 8
 # ticks_per_frame = 3
+# x_offset = 0
 # y_offset = 0
+# scale_percent = 100
 #
 # [animations.sleeping]
 # frames = ["sleeping/000.png"]
 # ticks_per_frame = 12
+# x_offset = 0
 # y_offset = 0
+# scale_percent = 100

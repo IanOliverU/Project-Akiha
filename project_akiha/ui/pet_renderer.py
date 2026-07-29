@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-from PySide6.QtCore import QRectF, Qt
+from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QTransform
 
 from project_akiha.providers.animation.base import AnimationFrame
@@ -84,7 +84,10 @@ class SpritePetRenderer:
         if frame.mirrored_horizontally:
             pixmap = pixmap.transformed(QTransform().scale(-1, 1))
 
-        target_size = painter.viewport().size()
+        target_size = _scaled_viewport_size(
+            painter.viewport().size(),
+            frame.scale_percent,
+        )
         scaled_pixmap = pixmap.scaled(
             target_size,
             Qt.AspectRatioMode.KeepAspectRatio,
@@ -93,7 +96,7 @@ class SpritePetRenderer:
         target_rect = QRectF(painter.viewport())
         image_rect = QRectF(scaled_pixmap.rect())
         image_rect.moveCenter(target_rect.center())
-        image_rect.translate(0, frame.y_offset)
+        image_rect.translate(frame.x_offset, frame.y_offset)
         painter.drawPixmap(image_rect.toRect(), scaled_pixmap)
 
     def _load_pixmap(self, image_path: Path) -> QPixmap:
@@ -104,3 +107,13 @@ class SpritePetRenderer:
         pixmap = QPixmap(str(image_path))
         self._pixmap_cache[image_path] = pixmap
         return pixmap
+
+
+def _scaled_viewport_size(viewport_size: QSize, scale_percent: int) -> QSize:
+    if scale_percent == 100:
+        return viewport_size
+
+    return QSize(
+        max(1, round(viewport_size.width() * scale_percent / 100)),
+        max(1, round(viewport_size.height() * scale_percent / 100)),
+    )
