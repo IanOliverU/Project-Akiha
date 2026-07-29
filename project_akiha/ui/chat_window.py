@@ -27,6 +27,10 @@ class ChatWindow(QWidget):
     new_chat_requested = Signal()
     clear_chat_requested = Signal()
     export_chat_requested = Signal(str)
+    voice_listen_requested = Signal()
+    voice_listen_stop_requested = Signal()
+    voice_listen_cancel_requested = Signal()
+    voice_speak_stop_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -60,6 +64,17 @@ class ChatWindow(QWidget):
         self._input.setPlaceholderText("Message Akiha")
         self._input.returnPressed.connect(self._submit_message)
 
+        self._voice_input_enabled = False
+        self._voice_output_enabled = False
+        self._voice_state = "muted"
+        self._voice_operation = "none"
+        self._chat_busy = False
+        self._voice_button = QPushButton("Talk")
+        self._voice_button.setFixedWidth(96)
+        self._voice_button.setToolTip("Push to talk")
+        self._voice_button.clicked.connect(self._request_voice_action)
+        self._refresh_voice_button()
+
         self._send_button = QPushButton("Send")
         self._send_button.clicked.connect(self._submit_message)
 
@@ -77,6 +92,7 @@ class ChatWindow(QWidget):
 
         input_layout = QHBoxLayout()
         input_layout.addWidget(self._input)
+        input_layout.addWidget(self._voice_button)
         input_layout.addWidget(self._send_button)
         input_layout.addWidget(self._stop_button)
 
@@ -133,14 +149,54 @@ class ChatWindow(QWidget):
         """Show the current companion presence text."""
         self._presence_label.setText(text.strip() or "Akiha is nearby.")
 
+    def set_voice_capabilities(
+        self,
+        input_enabled: bool,
+        output_enabled: bool,
+    ) -> None:
+        """Update configured voice input and output availability."""
+        self._voice_input_enabled = input_enabled
+        self._voice_output_enabled = output_enabled
+        self._refresh_voice_button()
+
+    def set_voice_state(self, state: str, operation: str = "none") -> None:
+        """Update the push-to-talk control for a runtime voice state."""
+        self._voice_state = state
+        self._voice_operation = operation
+        self._refresh_voice_button()
+
+    def insert_voice_transcript(self, text: str) -> None:
+        """Insert recognized text at the input cursor without sending it."""
+        transcript = text.strip()
+        if not transcript:
+            return
+
+        existing = self._input.text()
+        cursor_position = self._input.cursorPosition()
+        prefix = (
+            " "
+            if cursor_position > 0 and not existing[cursor_position - 1].isspace()
+            else ""
+        )
+        suffix = (
+            " "
+            if cursor_position < len(existing)
+            and not existing[cursor_position].isspace()
+            else ""
+        )
+        self._input.insert(f"{prefix}{transcript}{suffix}")
+        self._input.setFocus()
+
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""
+        self._chat_busy = is_busy
         self._input.setDisabled(is_busy)
         self._send_button.setDisabled(is_busy)
         self._stop_button.setDisabled(not is_busy)
         self._new_chat_button.setDisabled(is_busy)
         self._clear_chat_button.setDisabled(is_busy)
         self._export_chat_button.setDisabled(is_busy)
+        self._refresh_voice_button()
         self.set_status("Thinking..." if is_busy else "Ready")
 
     def _submit_message(self) -> None:
@@ -155,6 +211,52 @@ class ChatWindow(QWidget):
         self._stop_button.setDisabled(True)
         self.set_status("Stopping...")
         self.cancel_requested.emit()
+
+    def _request_voice_action(self) -> None:
+        if self._chat_busy:
+            return
+        if self._voice_state == "idle" and self._voice_input_enabled:
+            self.voice_listen_requested.emit()
+        elif self._voice_state == "listening" and self._voice_operation == "input":
+            self.voice_listen_stop_requested.emit()
+        elif self._voice_state == "thinking":
+            if self._voice_operation == "input":
+                self.voice_listen_cancel_requested.emit()
+            elif self._voice_operation == "output":
+                self.voice_speak_stop_requested.emit()
+        elif self._voice_state == "speaking" and self._voice_operation == "output":
+            self.voice_speak_stop_requested.emit()
+
+    def _refresh_voice_button(self) -> None:
+        label = "Talk"
+        tooltip = "Push to talk"
+        enabled = False
+
+        if self._voice_state == "idle":
+            enabled = self._voice_input_enabled
+        elif self._voice_state == "listening":
+            label = "Stop"
+            tooltip = "Finish recording"
+            enabled = self._voice_input_enabled
+        elif self._voice_state == "thinking":
+            label = "Cancel"
+            if self._voice_operation == "input":
+                tooltip = "Cancel transcription"
+                enabled = self._voice_input_enabled
+            elif self._voice_operation == "output":
+                tooltip = "Cancel speech synthesis"
+                enabled = self._voice_output_enabled
+        elif self._voice_state == "speaking":
+            label = "Stop voice"
+            tooltip = "Stop speech playback"
+            enabled = self._voice_output_enabled
+        elif self._voice_state == "error":
+            label = "Voice error"
+            tooltip = "Voice needs attention"
+
+        self._voice_button.setText(label)
+        self._voice_button.setToolTip(tooltip)
+        self._voice_button.setEnabled(enabled and not self._chat_busy)
 
     def _request_clear_chat(self) -> None:
         answer = QMessageBox.question(

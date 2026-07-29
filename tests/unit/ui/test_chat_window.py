@@ -60,6 +60,86 @@ class ChatWindowTest(unittest.TestCase):
 
         self.assertEqual(window._presence_label.text(), "Akiha is nearby.")
 
+    def test_voice_button_is_disabled_without_input_capability(self) -> None:
+        window = ChatWindow()
+
+        window.set_voice_state("idle")
+
+        self.assertFalse(window._voice_button.isEnabled())
+        self.assertEqual(window._voice_button.text(), "Talk")
+
+    def test_voice_button_requests_listening_from_idle(self) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_listen_requested.connect(lambda: requested.append(True))
+        window.set_voice_capabilities(input_enabled=True, output_enabled=False)
+        window.set_voice_state("idle")
+
+        window._voice_button.click()
+
+        self.assertEqual(requested, [True])
+
+    def test_voice_button_stops_recording_while_listening(self) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_listen_stop_requested.connect(lambda: requested.append(True))
+        window.set_voice_capabilities(input_enabled=True, output_enabled=False)
+        window.set_voice_state("listening", "input")
+
+        window._voice_button.click()
+
+        self.assertEqual(window._voice_button.text(), "Stop")
+        self.assertEqual(requested, [True])
+
+    def test_voice_button_cancels_only_the_active_operation(self) -> None:
+        window = ChatWindow()
+        input_cancels: list[bool] = []
+        output_cancels: list[bool] = []
+        window.voice_listen_cancel_requested.connect(lambda: input_cancels.append(True))
+        window.voice_speak_stop_requested.connect(lambda: output_cancels.append(True))
+        window.set_voice_capabilities(input_enabled=True, output_enabled=True)
+
+        window.set_voice_state("thinking", "input")
+        window._voice_button.click()
+        window.set_voice_state("thinking", "output")
+        window._voice_button.click()
+
+        self.assertEqual(input_cancels, [True])
+        self.assertEqual(output_cancels, [True])
+
+    def test_voice_button_stops_speaking(self) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_speak_stop_requested.connect(lambda: requested.append(True))
+        window.set_voice_capabilities(input_enabled=False, output_enabled=True)
+        window.set_voice_state("speaking", "output")
+
+        window._voice_button.click()
+
+        self.assertEqual(window._voice_button.text(), "Stop voice")
+        self.assertEqual(requested, [True])
+
+    def test_chat_busy_state_disables_voice_button(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=True, output_enabled=True)
+        window.set_voice_state("idle")
+
+        window.set_busy(True)
+
+        self.assertFalse(window._voice_button.isEnabled())
+
+    def test_voice_transcript_is_inserted_without_being_sent(self) -> None:
+        window = ChatWindow()
+        submitted: list[str] = []
+        window.message_submitted.connect(submitted.append)
+        window._input.setText("Good morning")
+        window._input.setCursorPosition(4)
+
+        window.insert_voice_transcript(" おはよう ")
+
+        self.assertEqual(window._input.text(), "Good おはよう morning")
+        self.assertEqual(submitted, [])
+
 
 if __name__ == "__main__":
     unittest.main()

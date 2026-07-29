@@ -42,10 +42,12 @@ class VoiceControllerTest(unittest.TestCase):
         bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
 
         self.assertEqual(controller.state, VoiceState.THINKING)
+        self.assertEqual(controller.operation, "input")
         self.assertEqual(
             [event.payload["state"] for event in states],
             ["idle", "listening", "thinking"],
         )
+        self.assertEqual(states[-1].payload["operation"], "input")
 
     def test_listen_cancel_returns_to_idle(self) -> None:
         bus = EventBus()
@@ -117,6 +119,7 @@ class VoiceControllerTest(unittest.TestCase):
 
         bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Good morning."})
         self.assertEqual(controller.state, VoiceState.THINKING)
+        self.assertEqual(controller.operation, "output")
 
         controller.mark_speaking()
         self.assertEqual(controller.state, VoiceState.SPEAKING)

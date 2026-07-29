@@ -93,12 +93,12 @@ Suggested configuration includes:
 
 ### Speech Input
 
-- [ ] Add a push-to-talk command surface in the chat window.
+- [x] Add a push-to-talk command surface in the chat window.
 - [ ] Add start, stop, cancel, and timeout handling for microphone capture.
 - [ ] Add a local speech-to-text service.
 - [ ] Add a `faster-whisper` provider adapter.
-- [ ] Insert accepted transcripts into the existing chat input path.
-- [ ] Prevent accidental sends for empty or failed transcripts.
+- [x] Insert accepted transcripts into the existing chat input path.
+- [x] Prevent accidental sends for empty or failed transcripts.
 - [ ] Keep microphone capture off until the user starts push-to-talk.
 
 ### Speech Output
@@ -171,10 +171,15 @@ Foundation note, 2026-07-29:
 - Input transcription and output synthesis retain separate operation ownership,
   so a speech-stop request cannot cancel transcription and a listen-cancel
   request cannot cancel synthesis.
+- Chat now exposes a fixed-width push-to-talk control for idle, listening,
+  transcription, synthesis, and speaking states. Recognized text is inserted at
+  the current input cursor for review and is never sent automatically.
+- A framework-free chat voice presenter validates state, transcript, and error
+  event payloads before updating Qt controls.
 
 ### Phase 7A Smoke Checkpoint
 
-- [ ] Source app starts normally with no voice backend installed.
+- [x] Source app starts normally with no voice backend installed.
 - [ ] Voice can be enabled and disabled without restarting the app.
 - [ ] Push-to-talk captures a short phrase and places the transcript in chat.
 - [ ] A temporary Japanese TTS phrase can be synthesized and played when

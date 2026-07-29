@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.chat_controller import ChatController
+from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
 from project_akiha.app.mood_animation_controller import MoodAnimationController
 from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
@@ -228,6 +229,13 @@ def _run_application() -> int:
         data_dir=paths.data_dir,
     )
     chat_window = ChatWindow()
+    chat_voice_presenter = ChatVoicePresenter(
+        event_bus=event_bus,
+        surface=chat_window,
+        config=config.voice,
+        initial_state=voice_controller.state.value,
+        initial_operation=voice_controller.operation,
+    )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
     _populate_chat_window(
@@ -269,6 +277,7 @@ def _run_application() -> int:
             updated_config.memory.require_approval
         )
         activity_controller.apply_config(updated_config.behavior)
+        chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
@@ -514,6 +523,18 @@ def _run_application() -> int:
     chat_window.new_chat_requested.connect(start_new_chat)
     chat_window.clear_chat_requested.connect(clear_current_chat)
     chat_window.export_chat_requested.connect(export_current_chat)
+    chat_window.voice_listen_requested.connect(
+        lambda: event_bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+    )
+    chat_window.voice_listen_stop_requested.connect(
+        lambda: event_bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+    )
+    chat_window.voice_listen_cancel_requested.connect(
+        lambda: event_bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
+    )
+    chat_window.voice_speak_stop_requested.connect(
+        lambda: event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+    )
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.edit_requested.connect(edit_memory)
     memory_window.archive_requested.connect(archive_memory)
@@ -609,6 +630,7 @@ def _run_application() -> int:
         behavior_history_window,
         behavior_history_recorder,
         behavior_repository,
+        chat_voice_presenter,
         chat_window,
         conversation_repository,
         event_logger,

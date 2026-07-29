@@ -68,20 +68,34 @@ class VoiceController:
         """Return the active voice configuration."""
         return self._config
 
+    @property
+    def operation(self) -> str:
+        """Return the active input/output operation for UI presentation."""
+        return self._operation.value
+
     def apply_config(self, config: VoiceConfig) -> None:
         """Apply voice settings without requiring an app restart."""
         self._config = config
         if not config.enabled:
-            if self._transition_to(VoiceState.MUTED, "voice_disabled"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.MUTED,
+                "voice_disabled",
+                operation=_VoiceOperation.NONE,
+            )
         elif self.state == VoiceState.MUTED:
             self._transition_to(VoiceState.IDLE, "voice_enabled")
         elif self._operation == _VoiceOperation.INPUT and not config.input_enabled:
-            if self._transition_to(VoiceState.IDLE, "input_disabled"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.IDLE,
+                "input_disabled",
+                operation=_VoiceOperation.NONE,
+            )
         elif self._operation == _VoiceOperation.OUTPUT and not config.output_enabled:
-            if self._transition_to(VoiceState.IDLE, "output_disabled"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.IDLE,
+                "output_disabled",
+                operation=_VoiceOperation.NONE,
+            )
 
     def mark_speaking(self) -> None:
         """Mark that synthesized audio playback has started."""
@@ -121,13 +135,19 @@ class VoiceController:
                 code="empty_transcript",
                 message="Speech recognition returned an empty transcript.",
             )
-            if self._transition_to(VoiceState.IDLE, "empty_transcript"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.IDLE,
+                "empty_transcript",
+                operation=_VoiceOperation.NONE,
+            )
             return
 
-        if not self._transition_to(VoiceState.IDLE, "transcription_complete"):
+        if not self._transition_to(
+            VoiceState.IDLE,
+            "transcription_complete",
+            operation=_VoiceOperation.NONE,
+        ):
             return
-        self._operation = _VoiceOperation.NONE
         payload: dict[str, object] = {"text": cleaned_text}
         if detected_language:
             payload["detected_language"] = detected_language
@@ -135,15 +155,17 @@ class VoiceController:
 
     def report_error(self, code: str, message: str) -> None:
         """Move to the error state and publish a privacy-safe diagnostic."""
-        if self._transition_to(VoiceState.ERROR, "voice_error"):
-            self._operation = _VoiceOperation.NONE
+        self._transition_to(
+            VoiceState.ERROR,
+            "voice_error",
+            operation=_VoiceOperation.NONE,
+        )
         self._publish_error(code=code, message=message)
 
     def recover(self) -> None:
         """Recover from a completed or failed voice operation."""
         target = VoiceState.IDLE if self._config.enabled else VoiceState.MUTED
-        if self._transition_to(target, "recovered"):
-            self._operation = _VoiceOperation.NONE
+        self._transition_to(target, "recovered", operation=_VoiceOperation.NONE)
 
     def _handle_listen_requested(self, event: Event) -> None:
         del event
@@ -155,8 +177,11 @@ class VoiceController:
                 message="Push-to-talk is disabled.",
             )
             return
-        if self._transition_to(VoiceState.LISTENING, "listen_requested"):
-            self._operation = _VoiceOperation.INPUT
+        self._transition_to(
+            VoiceState.LISTENING,
+            "listen_requested",
+            operation=_VoiceOperation.INPUT,
+        )
 
     def _handle_listen_stop_requested(self, event: Event) -> None:
         del event
@@ -172,8 +197,11 @@ class VoiceController:
             VoiceState.LISTENING,
             VoiceState.THINKING,
         }:
-            if self._transition_to(VoiceState.IDLE, "listening_cancelled"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.IDLE,
+                "listening_cancelled",
+                operation=_VoiceOperation.NONE,
+            )
 
     def _handle_speak_requested(self, event: Event) -> None:
         if not self._ensure_output_enabled():
@@ -186,8 +214,11 @@ class VoiceController:
                 message="Speech output requires non-empty text.",
             )
             return
-        if self._transition_to(VoiceState.THINKING, "synthesis_started"):
-            self._operation = _VoiceOperation.OUTPUT
+        self._transition_to(
+            VoiceState.THINKING,
+            "synthesis_started",
+            operation=_VoiceOperation.OUTPUT,
+        )
 
     def _handle_speak_stop_requested(self, event: Event) -> None:
         del event
@@ -195,8 +226,11 @@ class VoiceController:
             VoiceState.THINKING,
             VoiceState.SPEAKING,
         }:
-            if self._transition_to(VoiceState.IDLE, "speech_stopped"):
-                self._operation = _VoiceOperation.NONE
+            self._transition_to(
+                VoiceState.IDLE,
+                "speech_stopped",
+                operation=_VoiceOperation.NONE,
+            )
 
     def _ensure_input_enabled(self) -> bool:
         if not self._config.enabled:
@@ -216,8 +250,14 @@ class VoiceController:
             return False
         return True
 
-    def _transition_to(self, next_state: VoiceState, reason: str) -> bool:
+    def _transition_to(
+        self,
+        next_state: VoiceState,
+        reason: str,
+        operation: _VoiceOperation | None = None,
+    ) -> bool:
         previous_state = self._state_machine.state
+        previous_operation = self._operation
         try:
             current_state = self._state_machine.transition_to(next_state)
         except InvalidVoiceTransitionError as error:
@@ -227,7 +267,9 @@ class VoiceController:
             )
             return False
 
-        if current_state != previous_state:
+        if operation is not None:
+            self._operation = operation
+        if current_state != previous_state or self._operation != previous_operation:
             self._publish_state(previous_state, current_state, reason)
         return True
 
@@ -243,6 +285,7 @@ class VoiceController:
                 "state": current_state.value,
                 "previous_state": previous_state.value,
                 "reason": reason,
+                "operation": self._operation.value,
             },
         )
 
