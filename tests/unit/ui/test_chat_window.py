@@ -44,6 +44,22 @@ class ChatWindowTest(unittest.TestCase):
         self.assertIn("<b>Take a break</b>", window._history_view.toPlainText())
         self.assertNotIn("<b>Take a break</b>", window._history_view.toHtml())
 
+    def test_sets_presence_text_without_touching_status(self) -> None:
+        window = ChatWindow()
+        window.set_status("Thinking...")
+
+        window.set_presence_text("Akiha is waiting nearby.")
+
+        self.assertEqual(window._presence_label.text(), "Akiha is waiting nearby.")
+        self.assertEqual(window._status_label.text(), "Thinking...")
+
+    def test_blank_presence_text_uses_fallback(self) -> None:
+        window = ChatWindow()
+
+        window.set_presence_text("   ")
+
+        self.assertEqual(window._presence_label.text(), "Akiha is nearby.")
+
 
 if __name__ == "__main__":
     unittest.main()

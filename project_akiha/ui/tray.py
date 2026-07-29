@@ -24,7 +24,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
         self._chat_window = chat_window
         self._settings_window = settings_window
 
-        self.setToolTip("Project Akiha")
+        self.set_presence_text("Akiha is calm.")
         self.setIcon(_build_icon())
         self.setContextMenu(self._build_menu())
         self.activated.connect(self._handle_activation)
@@ -92,6 +92,11 @@ class AkihaTrayIcon(QSystemTrayIcon):
             QSystemTrayIcon.MessageIcon.Information,
             5000,
         )
+
+    def set_presence_text(self, text: str) -> None:
+        """Update the tray tooltip with companion presence."""
+        presence = text.strip() or "Akiha is nearby."
+        self.setToolTip(f"Project Akiha\n{presence}")
 
 
 def _build_icon() -> QIcon:

@@ -53,6 +53,7 @@ class ChatWindow(QWidget):
         self._export_chat_button = QPushButton("Export")
         self._export_chat_button.clicked.connect(self._request_export_chat)
 
+        self._presence_label = QLabel("Akiha is calm.")
         self._status_label = QLabel("Ready")
 
         self._input = QLineEdit()
@@ -70,6 +71,7 @@ class ChatWindow(QWidget):
         toolbar_layout.addWidget(self._new_chat_button)
         toolbar_layout.addWidget(self._clear_chat_button)
         toolbar_layout.addWidget(self._export_chat_button)
+        toolbar_layout.addWidget(self._presence_label)
         toolbar_layout.addStretch()
         toolbar_layout.addWidget(self._status_label)
 
@@ -126,6 +128,10 @@ class ChatWindow(QWidget):
     def set_status(self, status: str) -> None:
         """Show the current chat status."""
         self._status_label.setText(status)
+
+    def set_presence_text(self, text: str) -> None:
+        """Show the current companion presence text."""
+        self._presence_label.setText(text.strip() or "Akiha is nearby.")
 
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""

@@ -20,6 +20,8 @@ from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryCon
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
+    CompanionMood,
+    CompanionPresenceMapper,
     MoodAnimationMapper,
     MoodEngine,
     NotificationPolicy,
@@ -106,6 +108,7 @@ def main() -> int:
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
     mood_controller = MoodController(event_bus, MoodEngine())
+    presence_mapper = CompanionPresenceMapper()
     notification_policy = NotificationPolicy(config.behavior)
     proactive_controller = ProactiveController(
         event_bus,
@@ -519,6 +522,26 @@ def main() -> int:
         chat_window=chat_window,
         settings_window=settings_window,
     )
+
+    def apply_presence(event: Event) -> None:
+        mood_value = event.payload.get("mood")
+        if not isinstance(mood_value, str):
+            return
+
+        try:
+            mood = CompanionMood(mood_value)
+        except ValueError:
+            return
+
+        presence_text = presence_mapper.text_for(mood)
+        chat_window.set_presence_text(presence_text)
+        tray_icon.set_presence_text(presence_text)
+
+    event_bus.subscribe(EventType.MOOD_STATE_CHANGED, apply_presence)
+    chat_window.set_presence_text(
+        presence_mapper.text_for(mood_controller.snapshot.mood)
+    )
+    tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
     tray_icon.show()
     proactive_delivery_controller = ProactiveDeliveryController(
@@ -547,6 +570,7 @@ def main() -> int:
         mood_controller,
         notification_policy,
         pet_controller,
+        presence_mapper,
         proactive_controller,
         proactive_delivery_controller,
         scheduled_check_in_controller,
