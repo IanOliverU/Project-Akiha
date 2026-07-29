@@ -25,6 +25,11 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.pet_window.height, 220)
         self.assertEqual(config.pet_window.frames_per_second, 24)
         self.assertEqual(config.ai.provider, "mock")
+        self.assertEqual(
+            config.ai.hosted_base_url,
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+        )
+        self.assertEqual(config.ai.hosted_model, "gemini-3.6-flash")
         self.assertEqual(config.personality.character_name, "Akiha")
         self.assertIn("Akiha", config.personality.rendered_system_prompt())
         self.assertTrue(config.memory.enabled)
@@ -53,7 +58,9 @@ class SettingsTest(unittest.TestCase):
                 "width = 240\n"
                 "\n"
                 "[ai]\n"
-                'provider = "ollama"\n'
+                'provider = "gemini"\n'
+                'hosted_base_url = "https://example.test/v1"\n'
+                'hosted_model = "gemini-test"\n'
                 "\n"
                 "[personality]\n"
                 'character_name = "Mei"\n'
@@ -99,7 +106,11 @@ class SettingsTest(unittest.TestCase):
 
         self.assertEqual(config.pet_window.width, 240)
         self.assertEqual(config.pet_window.height, 220)
-        self.assertEqual(config.ai.provider, "ollama")
+        self.assertEqual(config.ai.provider, "gemini")
+        self.assertEqual(config.ai.hosted_base_url, "https://example.test/v1")
+        self.assertEqual(config.ai.hosted_model, "gemini-test")
+        self.assertTrue(config.ai.uses_hosted_api)
+        self.assertTrue(config.ai.requires_api_key)
         self.assertEqual(config.personality.character_name, "Mei")
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")
         self.assertFalse(config.memory.enabled)
@@ -175,6 +186,23 @@ class SettingsTest(unittest.TestCase):
     def test_ai_config_rejects_ollama_url_without_host(self) -> None:
         with self.assertRaises(ValueError):
             AIConfig(ollama_base_url="http:///api")
+
+    def test_ai_config_supports_local_compatible_endpoint_without_key(self) -> None:
+        config = AIConfig(
+            provider="openai-compatible",
+            hosted_base_url="http://127.0.0.1:1234/v1",
+            hosted_model="local-model",
+        )
+
+        self.assertTrue(config.uses_hosted_api)
+        self.assertFalse(config.requires_api_key)
+
+    def test_ai_config_rejects_invalid_hosted_values(self) -> None:
+        with self.assertRaises(ValueError):
+            AIConfig(hosted_base_url="file:///hosted")
+
+        with self.assertRaises(ValueError):
+            AIConfig(hosted_model=" ")
 
     def test_voice_config_exposes_enabled_provider_paths(self) -> None:
         voice = VoiceConfig(enabled=True)

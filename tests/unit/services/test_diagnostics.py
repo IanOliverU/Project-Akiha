@@ -36,6 +36,7 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertTrue(snapshot.database.exists)
         self.assertEqual(snapshot.database.size_bytes, 6)
         self.assertFalse(snapshot.user_config.exists)
+        self.assertFalse(snapshot.credentials.exists)
         self.assertEqual(snapshot.log_max_bytes, LOG_MAX_BYTES)
         self.assertEqual(snapshot.log_backup_count, LOG_BACKUP_COUNT)
 
@@ -55,6 +56,7 @@ class DiagnosticsTest(unittest.TestCase):
         self.assertIn("Log file:", summary)
         self.assertIn("(exists, 5 bytes)", summary)
         self.assertIn("User config:", summary)
+        self.assertIn("Encrypted credentials:", summary)
         self.assertIn("(missing)", summary)
 
 

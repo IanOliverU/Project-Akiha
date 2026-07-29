@@ -12,8 +12,8 @@ Windows package.
   or operating-system control path in Phase 6.
 - The only app action that opens the operating system is the Settings action
   that opens the logs or data folder through Qt's desktop-services API.
-- The first packaged build supports the deterministic mock provider and Ollama's
-  HTTP API.
+- The app supports local mock/Ollama modes and explicitly selected hosted
+  OpenAI-compatible endpoints.
 
 ## Provider Boundary
 
@@ -25,6 +25,13 @@ to `http://localhost:11434`. If a user changes the URL to a remote host, chat
 content, hidden memory context, and summarization/extraction prompts are sent to
 that configured endpoint.
 
+Hosted provider URLs also require `http` or `https` plus a host. Provider
+selection is explicit and there is no silent cloud fallback. Hosted API keys
+entered in Settings are encrypted with Windows DPAPI for the current Windows
+account and stored separately from TOML configuration. Keys are not included in
+provider logs, application events, chat history, memory records, or exports.
+Environment-variable credentials are supported as an alternative.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:
@@ -35,6 +42,7 @@ Runtime data stays under `%LOCALAPPDATA%\Akiha\`:
 - behavior history
 - logs
 - pet window state
+- encrypted hosted AI credentials
 
 Diagnostics logs include paths and support metadata, but do not intentionally
 print chat transcripts, memory contents, or user config contents.

@@ -28,6 +28,7 @@ class DiagnosticsSnapshot:
     log_file: DiagnosticPath
     database: DiagnosticPath
     user_config: DiagnosticPath
+    credentials: DiagnosticPath
     state_dir: DiagnosticPath
     log_max_bytes: int
     log_backup_count: int
@@ -41,6 +42,7 @@ class DiagnosticsSnapshot:
             self.log_file,
             self.database,
             self.user_config,
+            self.credentials,
             self.state_dir,
         )
 
@@ -54,6 +56,10 @@ def build_diagnostics_snapshot(paths: AppPaths) -> DiagnosticsSnapshot:
         log_file=_describe_path("Log file", log_file),
         database=_describe_path("SQLite database", paths.database_path),
         user_config=_describe_path("User config", paths.user_config_path),
+        credentials=_describe_path(
+            "Encrypted credentials",
+            paths.credential_path,
+        ),
         state_dir=_describe_path("State directory", paths.state_dir),
         log_max_bytes=LOG_MAX_BYTES,
         log_backup_count=LOG_BACKUP_COUNT,

@@ -23,6 +23,10 @@ class AppPathsTest(unittest.TestCase):
         self.assertEqual(paths.state_dir, paths.data_dir / "state")
         self.assertEqual(paths.model_dir, paths.data_dir / "models")
         self.assertEqual(paths.user_config_path, paths.data_dir / "user_config.toml")
+        self.assertEqual(
+            paths.credential_path,
+            paths.data_dir / "state" / "credentials.json",
+        )
         self.assertEqual(paths.database_path, paths.data_dir / "akiha.sqlite3")
         self.assertEqual(paths.asset_dir, project_root / "assets")
 

@@ -6,6 +6,11 @@ from project_akiha.providers.ai.ollama_provider import (
     OllamaProvider,
     OllamaProviderError,
 )
+from project_akiha.providers.ai.openai_compatible_provider import (
+    OpenAICompatibleProvider,
+    OpenAICompatibleProviderError,
+    UnavailableAIProvider,
+)
 
 __all__ = [
     "AIProvider",
@@ -13,4 +18,7 @@ __all__ = [
     "MockAIProvider",
     "OllamaProvider",
     "OllamaProviderError",
+    "OpenAICompatibleProvider",
+    "OpenAICompatibleProviderError",
+    "UnavailableAIProvider",
 ]

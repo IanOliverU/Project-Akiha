@@ -12,6 +12,8 @@ walking_speed_pixels = 2
 provider = "mock"
 ollama_base_url = "http://localhost:11434"
 ollama_model = "llama3.2"
+hosted_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+hosted_model = "gemini-3.6-flash"
 request_timeout_seconds = 60
 
 [personality]

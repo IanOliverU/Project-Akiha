@@ -42,6 +42,8 @@ class UserConfigStoreTest(unittest.TestCase):
                         provider="ollama",
                         ollama_base_url="http://localhost:11434",
                         ollama_model="akiha-test",
+                        hosted_base_url="https://example.test/v1",
+                        hosted_model="hosted-test",
                         request_timeout_seconds=15,
                     ),
                     personality=PersonalityConfig(
@@ -101,6 +103,8 @@ class UserConfigStoreTest(unittest.TestCase):
         )
         self.assertEqual(config.ai.provider, "ollama")
         self.assertEqual(config.ai.ollama_model, "akiha-test")
+        self.assertEqual(config.ai.hosted_base_url, "https://example.test/v1")
+        self.assertEqual(config.ai.hosted_model, "hosted-test")
         self.assertEqual(config.ai.request_timeout_seconds, 15)
         self.assertEqual(config.personality.character_name, "Mei")
         self.assertEqual(config.personality.system_prompt, "You are {character_name}.")

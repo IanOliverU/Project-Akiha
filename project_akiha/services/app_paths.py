@@ -36,6 +36,11 @@ class AppPaths:
         return self.data_dir / "user_config.toml"
 
     @property
+    def credential_path(self) -> Path:
+        """Return the DPAPI-encrypted hosted credential path."""
+        return self.state_dir / "credentials.json"
+
+    @property
     def database_path(self) -> Path:
         """Return the local SQLite database path."""
         return self.data_dir / "akiha.sqlite3"

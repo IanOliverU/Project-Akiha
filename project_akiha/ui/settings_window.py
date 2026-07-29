@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
@@ -26,6 +27,8 @@ from PySide6.QtWidgets import (
 )
 
 from project_akiha.config import (
+    AI_PROVIDERS,
+    HOSTED_AI_PROVIDERS,
     AIConfig,
     AppConfig,
     BehaviorConfig,
@@ -34,6 +37,30 @@ from project_akiha.config import (
     PetWindowConfig,
     VoiceConfig,
 )
+from project_akiha.services.credential_store import (
+    CredentialStore,
+    CredentialStoreError,
+)
+
+_AI_PROVIDER_ORDER = (
+    "mock",
+    "ollama",
+    "gemini",
+    "openai",
+    "openrouter",
+    "kimi",
+    "openai-compatible",
+)
+_HOSTED_PROVIDER_DEFAULTS = {
+    "gemini": (
+        "https://generativelanguage.googleapis.com/v1beta/openai",
+        "gemini-3.6-flash",
+    ),
+    "openai": ("https://api.openai.com/v1", "gpt-5-mini"),
+    "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-5-mini"),
+    "kimi": ("https://api.moonshot.ai/v1", "kimi-k2.5"),
+    "openai-compatible": ("http://127.0.0.1:1234/v1", "local-model"),
+}
 
 
 class SettingsWindow(QWidget):
@@ -49,12 +76,14 @@ class SettingsWindow(QWidget):
         config: AppConfig,
         log_dir: Path,
         data_dir: Path | None = None,
+        credential_store: CredentialStore | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._config = config
         self._log_dir = log_dir
         self._data_dir = data_dir or log_dir.parent
+        self._credential_store = credential_store
 
         self.setWindowTitle("Project Akiha Settings")
         self.setMinimumWidth(420)
@@ -73,10 +102,20 @@ class SettingsWindow(QWidget):
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
         self._manifest_path_input = QLineEdit(config.pet_window.animation_manifest_path)
         self._ai_provider_input = QComboBox()
-        self._ai_provider_input.addItems(["mock", "ollama"])
+        self._ai_provider_input.addItems(
+            [provider for provider in _AI_PROVIDER_ORDER if provider in AI_PROVIDERS]
+        )
         self._ai_provider_input.setCurrentText(config.ai.provider)
         self._ollama_base_url_input = QLineEdit(config.ai.ollama_base_url)
         self._ollama_model_input = QLineEdit(config.ai.ollama_model)
+        self._hosted_base_url_input = QLineEdit(config.ai.hosted_base_url)
+        self._hosted_model_input = QLineEdit(config.ai.hosted_model)
+        self._ai_api_key_input = QLineEdit()
+        self._ai_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._ai_api_key_input.setPlaceholderText("Leave blank to keep saved key")
+        self._ai_api_key_status = QLabel()
+        self._clear_ai_api_key_button = QPushButton("Clear key")
+        self._clear_ai_api_key_button.clicked.connect(self._clear_ai_api_key)
         self._ai_timeout_input = _build_spinbox(
             1,
             600,
@@ -185,6 +224,9 @@ class SettingsWindow(QWidget):
             config.voice.request_timeout_seconds,
         )
         self._voice_request_timeout_input.setSuffix(" sec")
+        self._ai_provider_input.currentTextChanged.connect(
+            self._handle_ai_provider_changed
+        )
         self._voice_enabled_input.toggled.connect(self._sync_voice_controls)
 
         tabs = QTabWidget()
@@ -193,6 +235,7 @@ class SettingsWindow(QWidget):
         tabs.addTab(self._build_memory_tab(), "Memory")
         tabs.addTab(self._build_behavior_tab(), "Behavior")
         tabs.addTab(self._build_voice_tab(), "Voice")
+        self._sync_ai_controls(config.ai.provider)
         self._sync_voice_controls(config.voice.enabled)
 
         save_button = QPushButton("Save")
@@ -240,7 +283,11 @@ class SettingsWindow(QWidget):
         self._ai_provider_input.setCurrentText(config.ai.provider)
         self._ollama_base_url_input.setText(config.ai.ollama_base_url)
         self._ollama_model_input.setText(config.ai.ollama_model)
+        self._hosted_base_url_input.setText(config.ai.hosted_base_url)
+        self._hosted_model_input.setText(config.ai.hosted_model)
         self._ai_timeout_input.setValue(config.ai.request_timeout_seconds)
+        self._ai_api_key_input.clear()
+        self._sync_ai_controls(config.ai.provider)
         self._character_name_input.setText(config.personality.character_name)
         self._system_prompt_input.setPlainText(config.personality.system_prompt)
         self._memory_enabled_input.setChecked(config.memory.enabled)
@@ -328,10 +375,23 @@ class SettingsWindow(QWidget):
         form_layout.addRow("AI provider", self._ai_provider_input)
         form_layout.addRow("Ollama URL", self._ollama_base_url_input)
         form_layout.addRow("Ollama model", self._ollama_model_input)
+        form_layout.addRow("Hosted API URL", self._hosted_base_url_input)
+        form_layout.addRow("Hosted model", self._hosted_model_input)
+        form_layout.addRow("API key", self._ai_api_key_input)
+        form_layout.addRow("Credential", self._build_ai_credential_row())
         form_layout.addRow("AI timeout", self._ai_timeout_input)
         form_layout.addRow("Companion name", self._character_name_input)
         form_layout.addRow("System prompt", self._system_prompt_input)
         return _build_scroll_tab(form_layout)
+
+    def _build_ai_credential_row(self) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._ai_api_key_status, stretch=1)
+        layout.addWidget(self._clear_ai_api_key_button)
+        row.setLayout(layout)
+        return row
 
     def _build_memory_tab(self) -> QWidget:
         form_layout = QFormLayout()
@@ -427,6 +487,8 @@ class SettingsWindow(QWidget):
             self._manifest_path_input.setText(selected_path)
 
     def _save(self) -> None:
+        if not self._save_ai_api_key():
+            return
         pet_window = PetWindowConfig(
             width=self._width_input.value(),
             height=self._height_input.value(),
@@ -443,6 +505,8 @@ class SettingsWindow(QWidget):
                 provider=self._ai_provider_input.currentText(),
                 ollama_base_url=self._ollama_base_url_input.text(),
                 ollama_model=self._ollama_model_input.text(),
+                hosted_base_url=self._hosted_base_url_input.text(),
+                hosted_model=self._hosted_model_input.text(),
                 request_timeout_seconds=self._ai_timeout_input.value(),
             )
         )
@@ -508,6 +572,70 @@ class SettingsWindow(QWidget):
 
     def _sync_away_minimum(self, idle_after_minutes: int) -> None:
         self._away_after_input.setMinimum(idle_after_minutes + 1)
+
+    def _handle_ai_provider_changed(self, provider: str) -> None:
+        defaults = _HOSTED_PROVIDER_DEFAULTS.get(provider)
+        if defaults is not None:
+            self._hosted_base_url_input.setText(defaults[0])
+            self._hosted_model_input.setText(defaults[1])
+        self._sync_ai_controls(provider)
+
+    def _sync_ai_controls(self, provider: str) -> None:
+        uses_ollama = provider == "ollama"
+        uses_hosted_api = provider in HOSTED_AI_PROVIDERS
+        self._ollama_base_url_input.setEnabled(uses_ollama)
+        self._ollama_model_input.setEnabled(uses_ollama)
+        self._hosted_base_url_input.setEnabled(uses_hosted_api)
+        self._hosted_model_input.setEnabled(uses_hosted_api)
+        self._ai_api_key_input.setEnabled(uses_hosted_api)
+        self._clear_ai_api_key_button.setEnabled(uses_hosted_api)
+        self._refresh_ai_api_key_status(provider)
+
+    def _refresh_ai_api_key_status(self, provider: str) -> None:
+        if provider not in HOSTED_AI_PROVIDERS:
+            self._ai_api_key_status.setText("Not required")
+            return
+        if self._credential_store is None:
+            self._ai_api_key_status.setText("Secure storage unavailable")
+            return
+        try:
+            has_key = self._credential_store.get_secret(provider) is not None
+        except CredentialStoreError:
+            self._ai_api_key_status.setText("Saved key could not be read")
+            return
+        self._ai_api_key_status.setText(
+            "API key saved securely" if has_key else "No API key saved"
+        )
+
+    def _save_ai_api_key(self) -> bool:
+        provider = self._ai_provider_input.currentText()
+        api_key = self._ai_api_key_input.text().strip()
+        if provider not in HOSTED_AI_PROVIDERS or not api_key:
+            return True
+        if self._credential_store is None:
+            self._ai_api_key_status.setText("Secure storage unavailable")
+            return False
+        try:
+            self._credential_store.set_secret(provider, api_key)
+        except CredentialStoreError:
+            self._ai_api_key_status.setText("API key could not be saved")
+            return False
+        self._ai_api_key_input.clear()
+        self._refresh_ai_api_key_status(provider)
+        return True
+
+    def _clear_ai_api_key(self) -> None:
+        provider = self._ai_provider_input.currentText()
+        if self._credential_store is None:
+            self._ai_api_key_status.setText("Secure storage unavailable")
+            return
+        try:
+            self._credential_store.delete_secret(provider)
+        except CredentialStoreError:
+            self._ai_api_key_status.setText("API key could not be deleted")
+            return
+        self._ai_api_key_input.clear()
+        self._refresh_ai_api_key_status(provider)
 
     def _sync_voice_controls(self, enabled: bool) -> None:
         for control in (

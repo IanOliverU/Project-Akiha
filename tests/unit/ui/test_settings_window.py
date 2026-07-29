@@ -18,6 +18,20 @@ from project_akiha.config import AppConfig
 from project_akiha.ui.settings_window import SettingsWindow
 
 
+class _CredentialStore:
+    def __init__(self) -> None:
+        self.secrets: dict[str, str] = {}
+
+    def get_secret(self, provider: str) -> str | None:
+        return self.secrets.get(provider)
+
+    def set_secret(self, provider: str, secret: str) -> None:
+        self.secrets[provider] = secret
+
+    def delete_secret(self, provider: str) -> None:
+        self.secrets.pop(provider, None)
+
+
 class SettingsWindowTest(unittest.TestCase):
     """Verify settings controls emit updated app config."""
 
@@ -66,6 +80,45 @@ class SettingsWindowTest(unittest.TestCase):
             window._idle_after_input.setValue(12)
 
         self.assertEqual(window._away_after_input.minimum(), 13)
+
+    def test_saves_hosted_provider_and_api_key_separately(self) -> None:
+        credentials = _CredentialStore()
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                AppConfig(),
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+
+            window._ai_provider_input.setCurrentText("gemini")
+            window._hosted_model_input.setText("gemini-test")
+            window._ai_api_key_input.setText("secret-api-key")
+            window._save()
+
+        self.assertEqual(emitted[0].ai.provider, "gemini")
+        self.assertEqual(emitted[0].ai.hosted_model, "gemini-test")
+        self.assertEqual(credentials.secrets["gemini"], "secret-api-key")
+        self.assertFalse(hasattr(emitted[0].ai, "api_key"))
+        self.assertEqual(window._ai_api_key_input.text(), "")
+        self.assertEqual(window._ai_api_key_status.text(), "API key saved securely")
+
+    def test_clear_hosted_api_key(self) -> None:
+        credentials = _CredentialStore()
+        credentials.secrets["gemini"] = "secret-api-key"
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                AppConfig(),
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+            window._ai_provider_input.setCurrentText("gemini")
+
+            window._clear_ai_api_key()
+
+        self.assertNotIn("gemini", credentials.secrets)
+        self.assertEqual(window._ai_api_key_status.text(), "No API key saved")
 
     def test_saves_voice_controls(self) -> None:
         with TemporaryDirectory() as directory:

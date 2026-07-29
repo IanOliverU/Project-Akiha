@@ -46,6 +46,8 @@ def _serialize_config(config: AppConfig) -> str:
     provider = _escape_toml_string(ai.provider)
     ollama_base_url = _escape_toml_string(ai.ollama_base_url)
     ollama_model = _escape_toml_string(ai.ollama_model)
+    hosted_base_url = _escape_toml_string(ai.hosted_base_url)
+    hosted_model = _escape_toml_string(ai.hosted_model)
     character_name = _escape_toml_string(personality.character_name)
     system_prompt = _escape_toml_string(personality.system_prompt)
     quiet_hours_start = _escape_toml_string(behavior.quiet_hours_start)
@@ -74,6 +76,8 @@ def _serialize_config(config: AppConfig) -> str:
         f'provider = "{provider}"\n'
         f'ollama_base_url = "{ollama_base_url}"\n'
         f'ollama_model = "{ollama_model}"\n'
+        f'hosted_base_url = "{hosted_base_url}"\n'
+        f'hosted_model = "{hosted_model}"\n'
         f"request_timeout_seconds = {ai.request_timeout_seconds}\n"
         "\n"
         "[personality]\n"

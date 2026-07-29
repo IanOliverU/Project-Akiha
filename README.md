@@ -17,8 +17,8 @@ Akiha is intended to become a personal desktop companion that can:
 
 - Stay visible as a draggable, animated desktop pet.
 - Offer tray, pet-menu, settings, chat, and memory-management controls.
-- Chat through a provider interface, using a local mock provider by default and
-  optional Ollama support when a local model is available.
+- Chat through a provider interface using local mock/Ollama modes or an
+  explicitly selected hosted OpenAI-compatible service.
 - Persist conversations, summaries, memories, settings, window state, and
   behavior history locally.
 - Extract, validate, store, retrieve, and inject memory through a memory
@@ -31,11 +31,11 @@ Akiha is intended to become a personal desktop companion that can:
 ## Current Status
 
 Phases 1 through 6 are complete. Phase 7 is in progress with local microphone
-capture, faster-whisper STT, provider-neutral TTS orchestration, and the local
-VOICEVOX adapter with in-memory Qt audio playback implemented. Completed
-assistant replies can optionally speak automatically, while the feature remains
-off by default. The current standalone release-candidate build uses Python 3.13
-and has passed automated readiness plus manual packaged smoke.
+capture, faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX
+playback, and automatic reply speech implemented. Chat can now switch between
+mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, and custom OpenAI-compatible
+endpoints. Hosted API keys are encrypted for the current Windows user and never
+stored in ordinary TOML configuration.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -67,12 +67,18 @@ and has passed automated readiness plus manual packaged smoke.
 ### AI And Companion Systems
 
 ![Ollama](https://img.shields.io/badge/Ollama-optional_local_AI-000000?logo=ollama&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-optional_hosted_AI-4285F4?logo=googlegemini&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-compatible_API-000000?logo=openai&logoColor=white)
 ![faster-whisper](https://img.shields.io/badge/faster--whisper-local_STT-2E7D32)
 ![Local First](https://img.shields.io/badge/Local--first-companion-2E7D32)
 ![Event Driven](https://img.shields.io/badge/Event--driven-core-5B5BD6)
 
 - **MockAIProvider** keeps development deterministic and usable without a model.
 - **OllamaProvider** supports optional local non-cloud chat streaming.
+- **OpenAICompatibleProvider** supports hosted and self-hosted Chat Completions
+  endpoints through one streaming adapter.
+- **Windows DPAPI** encrypts API keys for the current Windows user separately
+  from ordinary application configuration.
 - **faster-whisper** provides optional local push-to-talk transcription on the
   Python 3.13 voice environment.
 - **EventBus** connects UI, app controllers, memory, behavior, mood, and
@@ -120,6 +126,8 @@ provider interface.
 - `AIProvider` interface.
 - Deterministic `MockAIProvider`.
 - Optional local `OllamaProvider`.
+- Optional Gemini, OpenAI, OpenRouter, Kimi, and custom compatible endpoints.
+- Encrypted bring-your-own-key storage with environment-variable alternatives.
 - Streaming responses through a QThread/asyncio bridge.
 - Configurable companion name and system prompt.
 - SQLite conversation and message persistence.
@@ -243,10 +251,13 @@ Runtime data is stored under `%LOCALAPPDATA%\Akiha\`.
 | User config | `%LOCALAPPDATA%\Akiha\user_config.toml` |
 | SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` |
+| Encrypted API credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` |
 | App logs | `%LOCALAPPDATA%\Akiha\logs\app.log` |
 | Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` |
 
 Details: `docs/LOCAL_DATA_PRIVACY.md`
+
+Provider setup: `docs/AI_PROVIDERS.md`
 
 ## Run
 

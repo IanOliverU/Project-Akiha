@@ -8,10 +8,9 @@ profile under:
 ```
 
 The current app does not include cloud sync. Chat requests only leave the
-machine when the user chooses a provider URL that points outside the PC. As of
-Phase 6, the implemented providers are the local mock provider and optional
-Ollama over HTTP. The default Ollama URL points to the user's PC at
-`http://localhost:11434`.
+machine when the user explicitly selects a hosted provider or configures a
+provider URL that points outside the PC. Local mock and Ollama modes remain
+available without subscriptions or API keys.
 
 ## Stored Data
 
@@ -20,10 +19,25 @@ Ollama over HTTP. The default Ollama URL points to the user's PC at
 | User config | `%LOCALAPPDATA%\Akiha\user_config.toml` | User-editable settings saved from the Settings window. |
 | SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, and behavior history. |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` | Last saved pet position. |
+| Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys scoped to the current Windows user. |
 | Logs | `%LOCALAPPDATA%\Akiha\logs\app.log` | Startup, diagnostics, provider failures, migration failures, and runtime support logs. |
 | Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` | Optional downloaded speech-recognition model files. |
 
 Logs rotate at 1,000,000 bytes with 3 backups.
+
+## Hosted AI Providers
+
+Gemini, OpenAI, OpenRouter, Kimi, and custom OpenAI-compatible endpoints are
+opt-in. Selecting one can send the companion system prompt, recent chat
+messages, retrieved memory context, summary context, and internal
+memory-processing prompts to that configured service.
+
+API keys entered in Settings are encrypted with Windows DPAPI and are not
+written to user configuration, logs, events, conversations, memories, or
+transcript exports. Environment-variable credentials are also supported.
+
+Project Akiha does not silently fail over between local and hosted providers.
+Changing the destination requires an explicit Settings change.
 
 ## Chat Transcripts
 
@@ -84,9 +98,9 @@ To reset all local Project Akiha data, quit the app first, then remove:
 %LOCALAPPDATA%\Akiha\
 ```
 
-This removes user config, chat history, memories, behavior history, logs, local
-voice models, and pet window state. If only the pet position should be reset,
-use Settings -> Reset position instead.
+This removes user config, encrypted API credentials, chat history, memories,
+behavior history, logs, local voice models, and pet window state. If only the
+pet position should be reset, use Settings -> Reset position instead.
 
 ## First Packaged Build Privacy Decision
 

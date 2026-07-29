@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Protocol
@@ -58,7 +59,13 @@ from project_akiha.database import (
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
 )
-from project_akiha.providers.ai import AIProvider, MockAIProvider, OllamaProvider
+from project_akiha.providers.ai import (
+    AIProvider,
+    MockAIProvider,
+    OllamaProvider,
+    OpenAICompatibleProvider,
+    UnavailableAIProvider,
+)
 from project_akiha.providers.ai.base import ChatMessage
 from project_akiha.providers.animation import (
     AnimationManifestError,
@@ -76,6 +83,11 @@ from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.conversation_summary import AIConversationSummarizer
+from project_akiha.services.credential_store import (
+    CredentialStore,
+    CredentialStoreError,
+    EncryptedCredentialStore,
+)
 from project_akiha.services.diagnostics import (
     build_diagnostics_snapshot,
     render_diagnostics_summary,
@@ -105,6 +117,14 @@ from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.tray import AkihaTrayIcon
+
+_AI_KEY_ENVIRONMENT_VARIABLES = {
+    "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "kimi": "MOONSHOT_API_KEY",
+    "openai-compatible": "AKIHA_AI_API_KEY",
+}
 
 
 class _ChatErrorSurface(Protocol):
@@ -146,6 +166,7 @@ def _run_application() -> int:
         if user_config_store.config_path.exists()
         else None
     )
+    credential_store = EncryptedCredentialStore(paths.credential_path)
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
@@ -172,7 +193,7 @@ def _run_application() -> int:
     )
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
-    ai_provider = _build_ai_provider(config.ai, logger)
+    ai_provider = _build_ai_provider(config.ai, logger, credential_store)
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -243,6 +264,7 @@ def _run_application() -> int:
         config=config,
         log_dir=paths.log_dir,
         data_dir=paths.data_dir,
+        credential_store=credential_store,
     )
     chat_window = ChatWindow()
     chat_voice_presenter = ChatVoicePresenter(
@@ -308,7 +330,11 @@ def _run_application() -> int:
             updated_config.pet_window.animation_manifest_path
         )
         window.set_animation_provider(_build_animation_provider(manifest, logger))
-        ai_provider = _build_ai_provider(updated_config.ai, logger)
+        ai_provider = _build_ai_provider(
+            updated_config.ai,
+            logger,
+            credential_store,
+        )
         chat_controller.set_ai_provider(ai_provider)
         chat_controller.set_conversation_summarizer(
             _build_conversation_summarizer(ai_provider, updated_config.ai)
@@ -780,7 +806,11 @@ def _log_startup_failure() -> None:
         )
 
 
-def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvider:
+def _build_ai_provider(
+    ai_config: AIConfig,
+    logger: logging.Logger,
+    credential_store: CredentialStore,
+) -> AIProvider:
     if ai_config.provider == "ollama":
         logger.info(
             "Using Ollama AI provider with model %s at %s.",
@@ -793,8 +823,52 @@ def _build_ai_provider(ai_config: AIConfig, logger: logging.Logger) -> AIProvide
             timeout_seconds=float(ai_config.request_timeout_seconds),
         )
 
+    if ai_config.uses_hosted_api:
+        api_key = _resolve_ai_api_key(ai_config.provider, credential_store, logger)
+        if ai_config.requires_api_key and not api_key:
+            logger.warning(
+                "Hosted AI provider %s has no configured API key.",
+                ai_config.provider,
+            )
+            return UnavailableAIProvider(
+                f"No API key is configured for {ai_config.provider}. "
+                "Open Settings > AI and save an API key."
+            )
+        logger.info(
+            "Using hosted AI provider %s with model %s at %s.",
+            ai_config.provider,
+            ai_config.hosted_model,
+            ai_config.hosted_base_url,
+        )
+        return OpenAICompatibleProvider(
+            base_url=ai_config.hosted_base_url,
+            model=ai_config.hosted_model,
+            api_key=api_key or "",
+            timeout_seconds=float(ai_config.request_timeout_seconds),
+            provider_name=ai_config.provider,
+        )
+
     logger.info("Using mock AI provider.")
     return MockAIProvider()
+
+
+def _resolve_ai_api_key(
+    provider: str,
+    credential_store: CredentialStore,
+    logger: logging.Logger,
+) -> str | None:
+    try:
+        saved_key = credential_store.get_secret(provider)
+    except CredentialStoreError:
+        logger.exception("Could not read the encrypted %s API key.", provider)
+        saved_key = None
+    if saved_key:
+        return saved_key
+    environment_name = _AI_KEY_ENVIRONMENT_VARIABLES.get(provider)
+    if environment_name is None:
+        return None
+    environment_value = os.environ.get(environment_name, "").strip()
+    return environment_value or None
 
 
 def _build_speech_input_service(
@@ -827,7 +901,7 @@ def _build_conversation_summarizer(
     ai_provider: AIProvider,
     ai_config: AIConfig,
 ) -> ConversationSummarizer:
-    if ai_config.provider == "ollama":
+    if ai_config.provider != "mock":
         return AIConversationSummarizer(ai_provider)
 
     return HeuristicConversationSummarizer()
@@ -837,7 +911,7 @@ def _build_memory_extractor(
     ai_provider: AIProvider,
     ai_config: AIConfig,
 ) -> MemoryExtractor:
-    if ai_config.provider == "ollama":
+    if ai_config.provider != "mock":
         return AIMemoryExtractor(ai_provider)
 
     return HeuristicMemoryExtractor()

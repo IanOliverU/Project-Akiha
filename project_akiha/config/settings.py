@@ -8,6 +8,17 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+HOSTED_AI_PROVIDERS = frozenset(
+    {
+        "gemini",
+        "openai",
+        "openrouter",
+        "kimi",
+        "openai-compatible",
+    }
+)
+AI_PROVIDERS = frozenset({"mock", "ollama", *HOSTED_AI_PROVIDERS})
+
 
 @dataclass(frozen=True, slots=True)
 class PetWindowConfig:
@@ -42,23 +53,37 @@ class AIConfig:
     provider: str = "mock"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
+    hosted_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    hosted_model: str = "gemini-3.6-flash"
     request_timeout_seconds: int = 60
 
     def __post_init__(self) -> None:
         """Validate AI provider settings."""
-        if self.provider not in {"mock", "ollama"}:
-            raise ValueError("ai.provider must be either 'mock' or 'ollama'.")
-        if not self.ollama_base_url:
+        if self.provider not in AI_PROVIDERS:
+            supported = ", ".join(sorted(AI_PROVIDERS))
+            raise ValueError(f"ai.provider must be one of: {supported}.")
+        if not self.ollama_base_url.strip():
             raise ValueError("ai.ollama_base_url cannot be empty.")
-        parsed_ollama_url = urlparse(self.ollama_base_url)
-        if parsed_ollama_url.scheme not in {"http", "https"}:
-            raise ValueError("ai.ollama_base_url must use http or https.")
-        if not parsed_ollama_url.netloc:
-            raise ValueError("ai.ollama_base_url must include a host.")
-        if not self.ollama_model:
+        _validate_http_url(self.ollama_base_url, "ai.ollama_base_url")
+        if not self.ollama_model.strip():
             raise ValueError("ai.ollama_model cannot be empty.")
+        if not self.hosted_base_url.strip():
+            raise ValueError("ai.hosted_base_url cannot be empty.")
+        _validate_http_url(self.hosted_base_url, "ai.hosted_base_url")
+        if not self.hosted_model.strip():
+            raise ValueError("ai.hosted_model cannot be empty.")
         if self.request_timeout_seconds <= 0:
             raise ValueError("ai.request_timeout_seconds must be greater than zero.")
+
+    @property
+    def uses_hosted_api(self) -> bool:
+        """Return whether the selected provider uses Chat Completions."""
+        return self.provider in HOSTED_AI_PROVIDERS
+
+    @property
+    def requires_api_key(self) -> bool:
+        """Return whether the selected preset requires a hosted API key."""
+        return self.provider in HOSTED_AI_PROVIDERS - {"openai-compatible"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,11 +130,18 @@ def _validate_hh_mm(value: str, field_name: str) -> None:
     parts = value.split(":")
     if len(parts) != 2 or not all(part.isdigit() for part in parts):
         raise ValueError(f"{field_name} must use HH:MM format.")
-
     hour = int(parts[0])
     minute = int(parts[1])
     if hour > 23 or minute > 59:
         raise ValueError(f"{field_name} must use HH:MM format.")
+
+
+def _validate_http_url(value: str, field_name: str) -> None:
+    parsed_url = urlparse(value)
+    if parsed_url.scheme not in {"http", "https"}:
+        raise ValueError(f"{field_name} must use http or https.")
+    if not parsed_url.netloc:
+        raise ValueError(f"{field_name} must include a host.")
 
 
 @dataclass(frozen=True, slots=True)
