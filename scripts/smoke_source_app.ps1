@@ -60,6 +60,18 @@ print(f"Database tables OK: {sorted(expected_tables)}")
     }
 }
 
+function Invoke-SmokeLogCheck {
+    param(
+        [string]$LogPath,
+        [string]$PythonExe
+    )
+
+    & $PythonExe -m project_akiha.tools.verify_smoke_log $LogPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Smoke log check failed."
+    }
+}
+
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $ProjectRoot
 try {
@@ -112,6 +124,7 @@ try {
                 $Process.WaitForExit()
                 $ForcedStop = $true
             }
+            Invoke-SmokeLogCheck -LogPath $LogPath -PythonExe $PythonExe
 
             [pscustomobject]@{
                 RunLabel = "source"

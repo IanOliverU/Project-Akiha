@@ -62,6 +62,18 @@ print(f"Database tables OK: {sorted(expected_tables)}")
     }
 }
 
+function Invoke-SmokeLogCheck {
+    param(
+        [string]$PythonExe,
+        [string]$LogPath
+    )
+
+    & $PythonExe -m project_akiha.tools.verify_smoke_log $LogPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Smoke log check failed."
+    }
+}
+
 function Set-Utf8NoBomContent {
     param(
         [string]$Path,
@@ -149,6 +161,7 @@ function Invoke-PackagedAppSmokeRun {
             $Process.WaitForExit()
             $ForcedStop = $true
         }
+        Invoke-SmokeLogCheck -PythonExe $PythonExe -LogPath $LogPath
 
         [pscustomobject]@{
             RunLabel = $RunLabel

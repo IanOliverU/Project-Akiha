@@ -49,6 +49,8 @@ Validation note, 2026-07-29:
   and a SQLite database with the expected behavior, conversation, memory,
   message, and schema tables, then started again with existing user config,
   state, and database files.
+- `scripts/smoke_source_app.ps1` and `scripts/smoke_packaged_app.ps1` fail when
+  `app.log` contains unexpected `ERROR`, `CRITICAL`, or traceback lines.
 - The non-interactive smoke script successfully requested `CloseMainWindow()`,
   but still had to force-stop the process. Manual tray Quit validation remains
   part of the runtime smoke checklist.

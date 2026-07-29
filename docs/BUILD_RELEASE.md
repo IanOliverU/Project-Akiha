@@ -97,6 +97,7 @@ The source smoke script verifies:
 - source app startup
 - local data directory creation
 - log file creation
+- log health, including no unexpected `ERROR`, `CRITICAL`, or traceback lines
 - SQLite database creation
 - expected SQLite tables
 
@@ -139,6 +140,7 @@ The smoke script verifies:
 - packaged app startup
 - local data directory creation
 - log file creation
+- log health, including no unexpected `ERROR`, `CRITICAL`, or traceback lines
 - SQLite database creation
 - expected SQLite tables
 - startup with existing user config, state, and database files
