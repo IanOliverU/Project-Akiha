@@ -94,7 +94,9 @@ Run this before the final manual packaged smoke pass:
 ```
 
 The wrapper runs the quality gate, source smoke, packaged smoke when the
-packaged executable exists, and creates a timestamped manual smoke report.
+packaged executable exists, and creates a timestamped manual smoke report. The
+report is prefilled with the package path, automated smoke results, and current
+commit/worktree note.
 
 ## Source Smoke Test
 

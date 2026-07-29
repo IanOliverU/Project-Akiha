@@ -16,6 +16,7 @@ try {
     $Timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $ReportPath = Join-Path $OutputDir "manual-smoke-report-$Timestamp.md"
     Copy-Item -Path $TemplatePath -Destination $ReportPath
+    Set-ItemProperty -Path $ReportPath -Name LastWriteTime -Value (Get-Date)
 
     $ResolvedReportPath = (Resolve-Path $ReportPath).Path
     Write-Host "Created manual smoke report: $ResolvedReportPath"
