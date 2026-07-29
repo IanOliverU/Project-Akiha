@@ -1,7 +1,8 @@
 param(
     [string]$OutputDir = "dist\nuitka",
     [switch]$SkipQualityChecks,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$AllowExperimentalPython
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +40,19 @@ try {
     if ($SkipBuild) {
         Write-Host "Skipped Nuitka build after validation."
         return
+    }
+
+    $PythonVersion = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')").Trim()
+    $PythonVersionParts = $PythonVersion.Split(".")
+    $PythonMajor = [int]$PythonVersionParts[0]
+    $PythonMinor = [int]$PythonVersionParts[1]
+    if ($PythonMajor -eq 3 -and $PythonMinor -ge 14 -and -not $AllowExperimentalPython) {
+        throw (
+            "Nuitka standalone builds are blocked on Python $PythonVersion because " +
+            "Python 3.14 support is experimental and produced non-runnable frozen " +
+            "executables in Phase 6 smoke testing. Build with Python 3.13, or rerun " +
+            "with -AllowExperimentalPython for diagnostics only."
+        )
     }
 
     Invoke-CheckedCommand {

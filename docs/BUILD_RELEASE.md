@@ -14,9 +14,14 @@ The current Phase 6 validation environment is:
 - Black 26.5.1
 - Nuitka 4.1.3 with Zig 0.16.0
 
-Nuitka reports Python 3.14 support as experimental. Local validation can
-continue on Python 3.14, but use Python 3.13 for a public release candidate if
-Nuitka packaging instability appears.
+Nuitka reports Python 3.14 support as experimental. Source development and
+tests can continue on Python 3.14, but standalone release builds should use
+Python 3.13.
+
+Phase 6 smoke testing on 2026-07-29 found that frozen executables built with
+Python 3.14.6 and Nuitka 4.1.3 can fail before Project Akiha startup logging
+begins. The packaging script blocks normal builds on Python 3.14+ unless
+`-AllowExperimentalPython` is supplied for diagnostics.
 
 ## Dependency Groups
 
@@ -129,6 +134,17 @@ pip install -e .[package]
 .\scripts\build_akiha_nuitka.ps1
 ```
 
+Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
+stops before building because that runtime is currently diagnostic-only for
+Nuitka standalone output:
+
+```powershell
+.\scripts\build_akiha_nuitka.ps1 -AllowExperimentalPython
+```
+
+Only use `-AllowExperimentalPython` when investigating packaging behavior, not
+when preparing a release candidate.
+
 The build uses Nuitka standalone mode, PySide6 plugin support, Zig, disabled
 Windows console mode, and bundled data directories for:
 
@@ -168,6 +184,19 @@ The smoke script verifies:
 The smoke script is non-interactive. It may request `CloseMainWindow()` and then
 force-stop the process. Manual tray Quit validation remains required before
 Phase 6 is complete.
+
+If the packaged smoke reports that the app exited before `app.log` was created,
+the failure happened before Project Akiha startup logging began. On the current
+local Python 3.14.6 environment, this has been observed as a Nuitka frozen
+runtime failure; rebuild with Python 3.13 before continuing release validation.
+
+Two small diagnostic entry points are available when investigating frozen
+runtime failures:
+
+- `scripts/diagnose_nuitka_minimal.py` checks whether a minimal frozen Python
+  executable can start.
+- `scripts/diagnose_nuitka_startup.py` checks frozen imports for PySide6 and
+  Project Akiha startup modules.
 
 ## Manual Packaged Smoke
 

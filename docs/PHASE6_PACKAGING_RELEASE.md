@@ -29,8 +29,11 @@ Phase 6 is not complete yet. This checklist defines the work we should do next.
 - [x] Confirm standalone artifact includes runtime files and bundled app data.
 - [x] Confirm the packaged executable uses the Windows GUI subsystem.
 - [x] Confirm packaged smoke detects no visible `ConsoleWindowClass` window.
+- [ ] Rebuild the standalone package with Python 3.13 for release-candidate
+  validation.
 - [ ] Manually confirm the packaged app starts without a visible console window.
-- [x] Confirm the packaged app can create and use `%LOCALAPPDATA%\Akiha\`.
+- [ ] Confirm the current release-candidate packaged app can create and use
+  `%LOCALAPPDATA%\Akiha\`.
 
 Validation note, 2026-07-29:
 
@@ -65,13 +68,20 @@ Validation note, 2026-07-29:
   directory. The source app created logs and a SQLite database with the expected
   behavior, conversation, memory, message, and schema tables.
 - Nuitka 4.1.3 reports Python 3.14 support as experimental. Continue with this
-  environment for local validation, but consider Python 3.13 before public
-  release if packaging instability appears.
+  environment for source validation, but use Python 3.13 for release-candidate
+  packaging.
+- A fresh 2026-07-29 rebuild with Python 3.14.6 produced
+  `dist\nuitka-phase6-smoke-fresh\main.dist\Akiha.exe`, but packaged smoke
+  failed because the executable exited during startup with code 3 before
+  `app.log` was created. Console diagnostics also showed non-runnable frozen
+  output, including `Frozen object named 'encodings' is invalid` in a minimal
+  Nuitka executable. Treat Python 3.14 packaging as blocked unless explicitly
+  run with `-AllowExperimentalPython` for diagnostics.
 
 ### 2. Runtime Smoke Tests
 
 - [x] Start the app from source.
-- [x] Start the packaged app.
+- [ ] Start the current release-candidate packaged app.
 - [ ] Confirm the pet appears and can be dragged.
 - [ ] Confirm tray controls work.
 - [ ] Confirm Settings opens and saves.

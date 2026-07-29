@@ -230,7 +230,14 @@ function Invoke-PackagedAppSmokeRun {
     try {
         Start-Sleep -Seconds $StartupSeconds
         if ($Process.HasExited) {
-            throw "Packaged app exited during startup with code $($Process.ExitCode)."
+            $Message = "Packaged app exited during startup with code $($Process.ExitCode)."
+            if (-not (Test-Path $LogPath)) {
+                $Message += (
+                    " No app log was created, so the failure likely happened " +
+                    "before Project Akiha startup logging began."
+                )
+            }
+            throw $Message
         }
 
         Test-RequiredPath $DataDir "Data directory"

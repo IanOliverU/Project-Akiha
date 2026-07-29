@@ -14,6 +14,10 @@ The script copies `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md` into
 
 ## Prerequisites
 
+Use a standalone package built with Python 3.13 for release-candidate manual
+smoke testing. Python 3.14 packaging is currently diagnostic-only because Phase
+6 found non-runnable Nuitka frozen executables on Python 3.14.6.
+
 Build the standalone package:
 
 ```powershell
