@@ -116,7 +116,7 @@ Suggested configuration includes:
 
 - [x] Add voice states for idle, listening, thinking, speaking, muted, and
   error.
-- [ ] Publish voice state changes through the existing event system.
+- [x] Publish voice state changes through the existing event system.
 - [ ] Map voice states into the existing mood, presence, and animation flow.
 - [ ] Restore the previous companion state after listening or speaking ends.
 - [ ] Ensure voice activity does not fight walking, sleeping, or shutdown
@@ -138,8 +138,8 @@ Suggested configuration includes:
 
 - [x] Test voice configuration defaults, loading, saving, and invalid values.
 - [x] Test input and output provider contracts.
-- [ ] Test unavailable-provider and disabled-voice behavior.
-- [ ] Test push-to-talk state transitions and cancellation.
+- [x] Test unavailable-provider and disabled-voice behavior.
+- [x] Test push-to-talk state transitions and cancellation.
 - [ ] Test synthesis, playback, stop, and cleanup paths.
 - [ ] Test voice event publication and companion-state restoration.
 - [ ] Test diagnostics for backend, synthesis, microphone, and playback
@@ -159,8 +159,18 @@ Foundation note, 2026-07-29:
 - `VoiceStateMachine` defines idle, listening, thinking, speaking, muted, and
   error transitions without importing Qt.
 - Canonical voice request, transcript, state, and error event names are
-  registered. Runtime event publication remains part of the upcoming voice
-  controller work.
+  registered.
+- `VoiceController` is composed into application startup, begins muted when
+  voice is disabled, applies updated voice configuration without a restart, and
+  publishes privacy-safe state, transcript, and error events.
+- Push-to-talk request, stop, and cancel events drive listening and thinking
+  state transitions. Actual microphone capture remains in the next
+  implementation plate.
+- Speech requests enter synthesis state and expose explicit playback-start,
+  stop, error, and recovery transitions for the upcoming TTS service.
+- Input transcription and output synthesis retain separate operation ownership,
+  so a speech-stop request cannot cancel transcription and a listen-cancel
+  request cannot cancel synthesis.
 
 ### Phase 7A Smoke Checkpoint
 

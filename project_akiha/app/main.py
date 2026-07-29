@@ -20,6 +20,7 @@ from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
+from project_akiha.app.voice_controller import VoiceController
 from project_akiha.config import AIConfig, AppConfig, load_config
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -131,6 +132,7 @@ def _run_application() -> int:
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
+    voice_controller = VoiceController(event_bus, config.voice)
     mood_controller = MoodController(event_bus, MoodEngine())
     presence_mapper = CompanionPresenceMapper()
     notification_policy = NotificationPolicy(config.behavior)
@@ -267,6 +269,7 @@ def _run_application() -> int:
             updated_config.memory.require_approval
         )
         activity_controller.apply_config(updated_config.behavior)
+        voice_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
@@ -624,6 +627,7 @@ def _run_application() -> int:
         settings_window,
         tray_icon,
         user_config_store,
+        voice_controller,
         window_state_store,
     )
 

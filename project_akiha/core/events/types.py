@@ -26,6 +26,7 @@ class EventType(StrEnum):
     MOOD_STATE_CHANGED = "mood.state_changed"
     VOICE_LISTEN_REQUESTED = "voice.listen_requested"
     VOICE_LISTEN_STOP_REQUESTED = "voice.listen_stop_requested"
+    VOICE_LISTEN_CANCEL_REQUESTED = "voice.listen_cancel_requested"
     VOICE_SPEAK_REQUESTED = "voice.speak_requested"
     VOICE_SPEAK_STOP_REQUESTED = "voice.speak_stop_requested"
     VOICE_TRANSCRIPT_READY = "voice.transcript_ready"

@@ -21,7 +21,10 @@ class EventLogger:
             event_bus.subscribe(event_type, self._handle_event)
 
     def _handle_event(self, event: Event) -> None:
-        if event.event_type == EventType.ERROR_OCCURRED:
+        if event.event_type in {
+            EventType.ERROR_OCCURRED,
+            EventType.VOICE_ERROR_OCCURRED,
+        }:
             self._logger.error("%s %s", event.event_type.value, event.payload)
         elif event.event_type == EventType.PET_DRAGGED:
             self._logger.debug("%s %s", event.event_type.value, event.payload)
