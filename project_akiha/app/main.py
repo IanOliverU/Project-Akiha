@@ -67,6 +67,7 @@ from project_akiha.providers.voice import (
     FasterWhisperProvider,
     QtMicrophoneCapture,
     UnavailableVoiceOutputProvider,
+    VoiceVoxProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
@@ -777,10 +778,15 @@ def _build_speech_input_service(
 
 def _build_speech_output_service(voice_config: VoiceConfig) -> SpeechOutputService:
     if voice_config.output_provider == "disabled":
-        detail = "Speech output is disabled."
-    else:
-        detail = "VOICEVOX speech synthesis support is not installed yet."
-    return SpeechOutputService(UnavailableVoiceOutputProvider(detail))
+        return SpeechOutputService(
+            UnavailableVoiceOutputProvider("Speech output is disabled.")
+        )
+    return SpeechOutputService(
+        VoiceVoxProvider(
+            base_url=voice_config.output_base_url,
+            timeout_seconds=float(voice_config.request_timeout_seconds),
+        )
+    )
 
 
 def _build_conversation_summarizer(

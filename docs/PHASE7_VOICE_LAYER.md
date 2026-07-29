@@ -104,8 +104,8 @@ Suggested configuration includes:
 ### Speech Output
 
 - [x] Add a text-to-speech orchestration service.
-- [ ] Add a VOICEVOX local HTTP provider adapter.
-- [ ] Add provider health and speaker discovery checks.
+- [x] Add a VOICEVOX local HTTP provider adapter.
+- [x] Add provider health and speaker discovery checks.
 - [ ] Add audio synthesis and playback support.
 - [ ] Add stop-speaking and replay controls.
 - [ ] Prevent overlapping playback unless explicitly supported later.
@@ -203,9 +203,15 @@ Foundation note, 2026-07-29:
   worker and discard any late provider result.
 - Encoded synthesized audio stays on a direct playback callback path and is
   never published through `EventBus` or written to technical logs.
-- Until the VOICEVOX adapter is installed, an explicit unavailable output
-  provider reports a visible error instead of leaving voice state stuck in
-  thinking.
+- `VoiceVoxProvider` checks `/version`, discovers talk-capable styles through
+  `/speakers`, creates an `/audio_query`, applies the configured speaking rate,
+  and sends that query to `/synthesis`.
+- VOICEVOX uses the configured local endpoint and timeout with no additional
+  HTTP dependency. Invalid JSON, malformed speaker data, HTTP failures, empty
+  audio, and non-WAV responses become stable provider diagnostics.
+- HTTP errors do not echo request URLs because VOICEVOX places spoken text in
+  the audio-query URL. The text and generated WAV remain outside application
+  events and technical logs.
 
 ### Phase 7A Smoke Checkpoint
 

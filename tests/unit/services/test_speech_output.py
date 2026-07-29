@@ -8,6 +8,7 @@ import unittest
 from project_akiha.providers.voice import (
     SpeechSynthesisRequest,
     SynthesizedAudio,
+    VoiceOption,
     VoiceProviderError,
     VoiceProviderHealth,
     VoiceProviderStatus,
@@ -37,6 +38,28 @@ class SpeechOutputServiceTest(unittest.TestCase):
         self.assertEqual(audio.data, b"RIFFaudio")
         self.assertEqual(provider.request.voice_id, "14")
         self.assertEqual(provider.request.speaking_rate, 1.2)
+
+    def test_returns_provider_health(self) -> None:
+        service = SpeechOutputService(_Provider())
+
+        health = asyncio.run(service.health())
+
+        self.assertEqual(health.status, VoiceProviderStatus.AVAILABLE)
+
+    def test_returns_discovered_voices(self) -> None:
+        service = SpeechOutputService(_Provider())
+
+        voices = tuple(asyncio.run(service.available_voices()))
+
+        self.assertEqual(voices[0].identifier, "14")
+
+    def test_voice_discovery_requires_available_provider(self) -> None:
+        service = SpeechOutputService(_Provider(status=VoiceProviderStatus.UNAVAILABLE))
+
+        with self.assertRaises(SpeechOutputServiceError) as captured:
+            asyncio.run(service.available_voices())
+
+        self.assertEqual(captured.exception.code, "provider_unavailable")
 
     def test_unavailable_provider_does_not_receive_text(self) -> None:
         provider = _Provider(status=VoiceProviderStatus.UNAVAILABLE)
@@ -103,8 +126,8 @@ class _Provider:
             raise self.error
         return SynthesizedAudio(b"RIFFaudio")
 
-    async def available_voices(self) -> tuple[object, ...]:
-        return ()
+    async def available_voices(self) -> tuple[VoiceOption, ...]:
+        return (VoiceOption("14", "Temporary Japanese voice", "ja-JP"),)
 
 
 if __name__ == "__main__":

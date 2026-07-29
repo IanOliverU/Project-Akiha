@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from project_akiha.providers.voice import (
     SpeechSynthesisRequest,
     SynthesizedAudio,
+    VoiceOption,
     VoiceOutputProvider,
     VoiceProviderError,
+    VoiceProviderHealth,
     VoiceProviderStatus,
 )
 
@@ -24,6 +28,34 @@ class SpeechOutputService:
 
     def __init__(self, provider: VoiceOutputProvider) -> None:
         self._provider = provider
+
+    async def health(self) -> VoiceProviderHealth:
+        """Return provider health without raising connection failures."""
+        try:
+            return await self._provider.health()
+        except Exception as error:
+            return VoiceProviderHealth(
+                VoiceProviderStatus.UNAVAILABLE,
+                f"Speech synthesis health check failed: {error}",
+            )
+
+    async def available_voices(self) -> Sequence[VoiceOption]:
+        """Return selectable provider voices or a stable diagnostic failure."""
+        health = await self.health()
+        if health.status != VoiceProviderStatus.AVAILABLE:
+            raise SpeechOutputServiceError(
+                "provider_unavailable",
+                health.detail or "Speech synthesis provider is unavailable.",
+            )
+        try:
+            return await self._provider.available_voices()
+        except VoiceProviderError as error:
+            raise SpeechOutputServiceError(error.code, str(error)) from error
+        except Exception as error:
+            raise SpeechOutputServiceError(
+                "voice_discovery_failed",
+                f"Speech voice discovery failed: {error}",
+            ) from error
 
     async def synthesize(
         self,

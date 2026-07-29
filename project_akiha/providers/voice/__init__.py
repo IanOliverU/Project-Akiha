@@ -17,6 +17,12 @@ from project_akiha.providers.voice.base import (
 from project_akiha.providers.voice.faster_whisper import FasterWhisperProvider
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 from project_akiha.providers.voice.unavailable import UnavailableVoiceOutputProvider
+from project_akiha.providers.voice.voicevox import (
+    UrllibVoiceVoxTransport,
+    VoiceVoxProvider,
+    VoiceVoxTransport,
+    VoiceVoxTransportError,
+)
 
 __all__ = [
     "CapturedAudio",
@@ -34,4 +40,8 @@ __all__ = [
     "QtMicrophoneCapture",
     "FasterWhisperProvider",
     "UnavailableVoiceOutputProvider",
+    "UrllibVoiceVoxTransport",
+    "VoiceVoxProvider",
+    "VoiceVoxTransport",
+    "VoiceVoxTransportError",
 ]
