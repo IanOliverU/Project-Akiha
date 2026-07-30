@@ -7,6 +7,7 @@ from project_akiha.services.speech_identity import (
     AKIHA_SPEECH_IDENTITY,
     AkihaSpeechStyleService,
     build_akiha_identity_system_prompt,
+    proactive_speech_line,
 )
 
 
@@ -58,6 +59,21 @@ class AkihaSpeechIdentityTest(unittest.TestCase):
             "ご案内\n会議は14:30です。\n資料を確認してください。",
         )
         self.assertEqual(styled.speaking_rate_multiplier, 1.0)
+
+    def test_proactive_kinds_use_original_japanese_identity_lines(self) -> None:
+        idle_line = proactive_speech_line("idle_check_in")
+        scheduled_line = proactive_speech_line("scheduled_check_in")
+
+        self.assertEqual(
+            idle_line,
+            AKIHA_SPEECH_IDENTITY.sample_phrase("Concern"),
+        )
+        self.assertEqual(
+            scheduled_line,
+            AKIHA_SPEECH_IDENTITY.sample_phrase("Proactive"),
+        )
+        self.assertNotEqual(idle_line, scheduled_line)
+        self.assertIsNone(proactive_speech_line("unknown_kind"))
 
     def test_style_is_idempotent(self) -> None:
         service = AkihaSpeechStyleService()

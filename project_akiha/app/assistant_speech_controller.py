@@ -55,8 +55,23 @@ class AssistantSpeechController:
 
     def submit_assistant_reply(self, text: str) -> bool:
         """Request speech for one completed response when policy permits."""
+        return self._submit(
+            text,
+            enabled=self._config.automatic_speech_enabled,
+            source="assistant_reply",
+        )
+
+    def submit_proactive_suggestion(self, text: str) -> bool:
+        """Request speech for one already-approved proactive suggestion."""
+        return self._submit(
+            text,
+            enabled=self._config.proactive_speech_enabled,
+            source="proactive_suggestion",
+        )
+
+    def _submit(self, text: str, *, enabled: bool, source: str) -> bool:
         if (
-            not self._config.automatic_speech_enabled
+            not enabled
             or not self._config.output_enabled
             or not isinstance(text, str)
             or not text.strip()
@@ -71,7 +86,7 @@ class AssistantSpeechController:
             EventType.VOICE_SPEAK_REQUESTED,
             {
                 "text": styled.text,
-                "source": "assistant_reply",
+                "source": source,
                 "speaking_rate_multiplier": styled.speaking_rate_multiplier,
             },
         )

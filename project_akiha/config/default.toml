@@ -50,6 +50,7 @@ output_base_url = "http://127.0.0.1:50021"
 output_voice_id = "0"
 output_device = ""
 automatic_speech_enabled = false
+proactive_speech_enabled = false
 live_transcription_enabled = false
 auto_stop_on_silence_enabled = false
 auto_send_transcript_enabled = false

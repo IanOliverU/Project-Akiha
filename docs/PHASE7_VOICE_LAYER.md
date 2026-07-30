@@ -89,6 +89,7 @@ Suggested configuration includes:
 - Microphone input device.
 - Audio output device.
 - Automatic speech for assistant replies.
+- Separately opt-in speech for policy-approved proactive check-ins.
 - Optional live transcription preview.
 - Optional silence endpointing and final-transcript auto-send.
 - Playback volume and speaking rate where supported.
@@ -248,6 +249,9 @@ Foundation note, 2026-07-29:
 - Settings now exposes a dedicated Voice tab with a live master switch,
   push-to-talk and automatic-reply switches, provider configuration, editable
   device selectors, speaker ID, volume, speaking rate, and timeout controls.
+- Proactive speech has its own default-off setting. It subscribes only to
+  successful proactive-delivery events, so behavior policy, quiet hours,
+  cooldowns, delivery availability, and voice-busy checks remain authoritative.
 - Live dictation is an opt-in semi-real-time layer around faster-whisper.
   Periodic in-memory snapshots produce revisable `Hearing:` text while a
   coalescing queue prevents concurrent model work.
@@ -354,9 +358,9 @@ Avoid:
   the selected TTS provider supports it.
 - [x] Add original spoken lines for idle check-ins, self-care reminders,
   settings tests, and recoverable errors.
-- [ ] Keep proactive speech behind the existing notification policy and
+- [x] Keep proactive speech behind the existing notification policy and
   cooldowns.
-- [ ] Ensure muted or quiet-hour behavior prevents unsolicited playback.
+- [x] Ensure muted or quiet-hour behavior prevents unsolicited playback.
 
 ### Verification
 

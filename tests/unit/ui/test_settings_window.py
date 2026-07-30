@@ -191,6 +191,7 @@ class SettingsWindowTest(unittest.TestCase):
 
             window._voice_enabled_input.setChecked(True)
             window._automatic_speech_enabled_input.setChecked(True)
+            window._proactive_speech_enabled_input.setChecked(True)
             window._live_transcription_enabled_input.setChecked(True)
             window._auto_stop_on_silence_enabled_input.setChecked(True)
             window._auto_send_transcript_enabled_input.setChecked(True)
@@ -211,6 +212,7 @@ class SettingsWindowTest(unittest.TestCase):
         voice = emitted[0].voice
         self.assertTrue(voice.enabled)
         self.assertTrue(voice.automatic_speech_enabled)
+        self.assertTrue(voice.proactive_speech_enabled)
         self.assertTrue(voice.live_transcription_enabled)
         self.assertTrue(voice.auto_stop_on_silence_enabled)
         self.assertTrue(voice.auto_send_transcript_enabled)
@@ -233,10 +235,12 @@ class SettingsWindowTest(unittest.TestCase):
             window = SettingsWindow(AppConfig(), log_dir=Path(directory))
 
             self.assertFalse(window._automatic_speech_enabled_input.isEnabled())
+            self.assertFalse(window._proactive_speech_enabled_input.isEnabled())
             self.assertFalse(window._live_transcription_enabled_input.isEnabled())
             window._voice_enabled_input.setChecked(True)
 
         self.assertTrue(window._automatic_speech_enabled_input.isEnabled())
+        self.assertTrue(window._proactive_speech_enabled_input.isEnabled())
         self.assertTrue(window._live_transcription_enabled_input.isEnabled())
         self.assertTrue(window._voice_output_base_url_input.isEnabled())
 

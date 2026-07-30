@@ -90,6 +90,36 @@ class AssistantSpeechControllerTest(unittest.TestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(voice.state, VoiceState.THINKING)
 
+    def test_proactive_speech_has_separate_opt_in(self) -> None:
+        _, voice, controller, requests = _build(
+            VoiceConfig(
+                enabled=True,
+                automatic_speech_enabled=True,
+                proactive_speech_enabled=False,
+            )
+        )
+
+        submitted = controller.submit_proactive_suggestion("静かに確認します。")
+
+        self.assertFalse(submitted)
+        self.assertEqual(requests, [])
+        self.assertEqual(voice.state, VoiceState.IDLE)
+
+    def test_enabled_proactive_speech_uses_proactive_source(self) -> None:
+        _, voice, controller, requests = _build(
+            VoiceConfig(
+                enabled=True,
+                proactive_speech_enabled=True,
+            )
+        )
+
+        submitted = controller.submit_proactive_suggestion("少し休みませんか。")
+
+        self.assertTrue(submitted)
+        self.assertEqual(requests[-1].payload["source"], "proactive_suggestion")
+        self.assertEqual(requests[-1].payload["text"], "少し休みませんか。")
+        self.assertEqual(voice.state, VoiceState.THINKING)
+
     def test_styles_only_spoken_copy_and_passes_current_mood(self) -> None:
         config = VoiceConfig(enabled=True, automatic_speech_enabled=True)
         bus = EventBus()

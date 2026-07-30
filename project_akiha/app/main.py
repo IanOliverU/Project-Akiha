@@ -21,6 +21,7 @@ from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
+from project_akiha.app.proactive_speech_controller import ProactiveSpeechController
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
@@ -776,6 +777,10 @@ def _run_application() -> int:
             tray_icon=tray_icon,
         ),
     )
+    proactive_speech_controller = ProactiveSpeechController(
+        event_bus=event_bus,
+        speech_controller=assistant_speech_controller,
+    )
     app._akiha_services = (
         assistant_speech_controller,
         chat_controller,
@@ -799,6 +804,7 @@ def _run_application() -> int:
         presence_mapper,
         proactive_controller,
         proactive_delivery_controller,
+        proactive_speech_controller,
         scheduled_check_in_controller,
         scheduled_check_in_engine,
         settings_window,

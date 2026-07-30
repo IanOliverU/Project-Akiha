@@ -12,6 +12,11 @@ _MARKDOWN_LINK = re.compile(r"!?\[([^\]]+)\]\([^)]+\)")
 _HEADING_PREFIX = re.compile(r"(?m)^[ \t]{0,3}#{1,6}[ \t]+")
 _BULLET_PREFIX = re.compile(r"(?m)^[ \t]*[-+*][ \t]+")
 _EXCESS_BLANK_LINES = re.compile(r"\n{3,}")
+_PROACTIVE_SCENARIO_BY_KIND = {
+    "idle_check_in": "Concern",
+    "scheduled_check_in": "Proactive",
+    "self_care_reminder": "Reminder",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +39,10 @@ class AkihaSpeechIdentityProfile:
             "Scenario direction:\n"
             f"{scenarios}"
         )
+
+    def sample_phrase(self, scenario: str) -> str | None:
+        """Return an original phrase for a named manual-test scenario."""
+        return dict(self.sample_phrases).get(scenario)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +95,15 @@ def build_akiha_identity_system_prompt(
         return cleaned_prompt
     instruction = profile.provider_instruction()
     return f"{cleaned_prompt}\n\n{instruction}" if cleaned_prompt else instruction
+
+
+def proactive_speech_line(
+    kind: str,
+    profile: AkihaSpeechIdentityProfile = AKIHA_SPEECH_IDENTITY,
+) -> str | None:
+    """Return an original Japanese line for a supported proactive event."""
+    scenario = _PROACTIVE_SCENARIO_BY_KIND.get(kind)
+    return profile.sample_phrase(scenario) if scenario is not None else None
 
 
 class AkihaSpeechStyleService:
