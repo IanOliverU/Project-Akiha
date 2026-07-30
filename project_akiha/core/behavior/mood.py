@@ -18,6 +18,11 @@ class CompanionMood(StrEnum):
     RESTING = "resting"
     CHECKING_IN = "checking_in"
     SLEEPY = "sleepy"
+    VOICE_LISTENING = "voice_listening"
+    VOICE_THINKING = "voice_thinking"
+    VOICE_SPEAKING = "voice_speaking"
+    VOICE_MUTED = "voice_muted"
+    VOICE_ERROR = "voice_error"
 
 
 @dataclass(frozen=True, slots=True)

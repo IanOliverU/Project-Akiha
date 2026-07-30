@@ -317,6 +317,53 @@ class PetWindow(QWidget):
             painter.setFont(font)
             text = "..." if cue == MoodVisualCue.RESTING else "Zz"
             painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, text)
+        elif cue == MoodVisualCue.VOICE_LISTENING:
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 16, bubble_rect.y() + 8, 12, 16)
+            )
+            painter.drawArc(
+                QRectF(bubble_rect.x() + 12, bubble_rect.y() + 7, 20, 21),
+                200 * 16,
+                140 * 16,
+            )
+            painter.drawLine(
+                int(bubble_rect.center().x()),
+                int(bubble_rect.y() + 25),
+                int(bubble_rect.center().x()),
+                int(bubble_rect.y() + 29),
+            )
+        elif cue == MoodVisualCue.VOICE_THINKING:
+            for offset in (10, 20, 30):
+                painter.drawEllipse(
+                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 15, 4, 4)
+                )
+        elif cue == MoodVisualCue.VOICE_SPEAKING:
+            painter.drawRoundedRect(
+                QRectF(bubble_rect.x() + 9, bubble_rect.y() + 8, 26, 15),
+                5,
+                5,
+            )
+            for offset in (15, 22, 29):
+                painter.drawPoint(
+                    int(bubble_rect.x() + offset),
+                    int(bubble_rect.y() + 15),
+                )
+        elif cue == MoodVisualCue.VOICE_MUTED:
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 12, bubble_rect.y() + 9, 20, 14)
+            )
+            painter.drawLine(
+                int(bubble_rect.x() + 10),
+                int(bubble_rect.y() + 7),
+                int(bubble_rect.x() + 34),
+                int(bubble_rect.y() + 25),
+            )
+        elif cue == MoodVisualCue.VOICE_ERROR:
+            font = QFont()
+            font.setBold(True)
+            font.setPointSize(13)
+            painter.setFont(font)
+            painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, "!")
 
         painter.restore()
 
@@ -328,5 +375,10 @@ def _mood_visual_color(cue: MoodVisualCue) -> QColor:
         MoodVisualCue.RESTING: QColor(179, 157, 219),
         MoodVisualCue.CHECKING_IN: QColor(255, 171, 145),
         MoodVisualCue.SLEEPY: QColor(159, 168, 218),
+        MoodVisualCue.VOICE_LISTENING: QColor(128, 203, 196),
+        MoodVisualCue.VOICE_THINKING: QColor(255, 213, 79),
+        MoodVisualCue.VOICE_SPEAKING: QColor(129, 212, 250),
+        MoodVisualCue.VOICE_MUTED: QColor(189, 189, 189),
+        MoodVisualCue.VOICE_ERROR: QColor(239, 154, 154),
     }
     return colors[cue]

@@ -35,6 +35,21 @@ class MoodVisualCueMapperTest(unittest.TestCase):
         )
         self.assertEqual(mapper.cue_for(CompanionMood.SLEEPY), MoodVisualCue.SLEEPY)
 
+    def test_voice_moods_map_to_dedicated_visible_cues(self) -> None:
+        mapper = MoodVisualCueMapper()
+
+        expected = {
+            CompanionMood.VOICE_LISTENING: MoodVisualCue.VOICE_LISTENING,
+            CompanionMood.VOICE_THINKING: MoodVisualCue.VOICE_THINKING,
+            CompanionMood.VOICE_SPEAKING: MoodVisualCue.VOICE_SPEAKING,
+            CompanionMood.VOICE_MUTED: MoodVisualCue.VOICE_MUTED,
+            CompanionMood.VOICE_ERROR: MoodVisualCue.VOICE_ERROR,
+        }
+
+        for mood, cue in expected.items():
+            with self.subTest(mood=mood):
+                self.assertEqual(mapper.cue_for(mood), cue)
+
 
 if __name__ == "__main__":
     unittest.main()

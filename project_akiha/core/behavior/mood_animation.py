@@ -46,6 +46,10 @@ class MoodAnimationMapper:
                 CompanionMood.CHECKING_IN,
                 CompanionMood.WAITING,
                 CompanionMood.CALM,
+                CompanionMood.VOICE_LISTENING,
+                CompanionMood.VOICE_THINKING,
+                CompanionMood.VOICE_SPEAKING,
+                CompanionMood.VOICE_ERROR,
             }:
                 return MoodAnimationDecision(
                     animation_state=AnimationState.IDLE,

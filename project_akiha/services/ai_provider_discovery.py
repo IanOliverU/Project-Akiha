@@ -78,8 +78,13 @@ def _get_json(url: str, headers: Headers, timeout_seconds: float) -> JSONPayload
         with urlopen(request, timeout=timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
-        if error.code in {401, 403}:
-            detail = "The API key was rejected."
+        if error.code == 401:
+            detail = "The API key is missing or invalid."
+        elif error.code == 403:
+            detail = (
+                "The API key or its team does not have permission "
+                "to list provider models."
+            )
         elif error.code == 404:
             detail = "The model-catalog endpoint was not found."
         elif error.code == 429:

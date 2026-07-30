@@ -28,6 +28,26 @@ class CompanionPresenceMapperTest(unittest.TestCase):
             "Akiha is checking in.",
         )
         self.assertEqual(mapper.text_for(CompanionMood.SLEEPY), "Akiha is sleepy.")
+        self.assertEqual(
+            mapper.text_for(CompanionMood.VOICE_LISTENING),
+            "Akiha is listening.",
+        )
+        self.assertEqual(
+            mapper.text_for(CompanionMood.VOICE_THINKING),
+            "Akiha is thinking.",
+        )
+        self.assertEqual(
+            mapper.text_for(CompanionMood.VOICE_SPEAKING),
+            "Akiha is speaking.",
+        )
+        self.assertEqual(
+            mapper.text_for(CompanionMood.VOICE_MUTED),
+            "Akiha's voice is muted.",
+        )
+        self.assertEqual(
+            mapper.text_for(CompanionMood.VOICE_ERROR),
+            "Akiha's voice needs attention.",
+        )
 
 
 if __name__ == "__main__":

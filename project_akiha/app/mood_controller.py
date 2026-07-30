@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from project_akiha.core.behavior import (
     ActivitySnapshot,
     ActivityState,
+    CompanionMood,
     MoodEngine,
     MoodSnapshot,
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.state.voice import VoiceState
 
 
 class MoodController:
@@ -25,6 +27,13 @@ class MoodController:
         EventType.PET_IDLE_REQUESTED: "pet_idle_requested",
         EventType.PET_WAKE_REQUESTED: "pet_wake_requested",
     }
+    _voice_moods = {
+        VoiceState.LISTENING: CompanionMood.VOICE_LISTENING,
+        VoiceState.THINKING: CompanionMood.VOICE_THINKING,
+        VoiceState.SPEAKING: CompanionMood.VOICE_SPEAKING,
+        VoiceState.MUTED: CompanionMood.VOICE_MUTED,
+        VoiceState.ERROR: CompanionMood.VOICE_ERROR,
+    }
 
     def __init__(
         self,
@@ -34,6 +43,7 @@ class MoodController:
         self._event_bus = event_bus
         self._mood_engine = mood_engine
         self._last_published = mood_engine.snapshot
+        self._voice_overlay: VoiceState | None = None
 
         event_bus.subscribe(
             EventType.USER_ACTIVITY_STATE_CHANGED,
@@ -44,6 +54,10 @@ class MoodController:
             self._handle_suggestion_delivered,
         )
         event_bus.subscribe(EventType.PET_SLEEP_REQUESTED, self._handle_sleep_requested)
+        event_bus.subscribe(
+            EventType.VOICE_STATE_CHANGED,
+            self._handle_voice_state_changed,
+        )
         for event_type in self._interaction_sources:
             event_bus.subscribe(event_type, self._handle_interaction)
 
@@ -84,7 +98,33 @@ class MoodController:
             snapshot = self._mood_engine.observe_interaction(source)
         self._publish_if_changed(snapshot)
 
+    def _handle_voice_state_changed(self, event: Event) -> None:
+        state_value = event.payload.get("state")
+        if not isinstance(state_value, str):
+            return
+        try:
+            state = VoiceState(state_value)
+        except ValueError:
+            return
+
+        mood = self._voice_moods.get(state)
+        if mood is None:
+            self._voice_overlay = None
+            self._publish_if_changed(self._mood_engine.snapshot)
+            return
+
+        self._voice_overlay = state
+        self._publish_mood(
+            MoodSnapshot(
+                mood=mood,
+                reason=f"voice_{state.value}",
+                updated_at=datetime.now(tz=UTC),
+            )
+        )
+
     def _publish_if_changed(self, snapshot: MoodSnapshot) -> None:
+        if self._voice_overlay is not None:
+            return
         if (
             snapshot.mood == self._last_published.mood
             and snapshot.reason == self._last_published.reason

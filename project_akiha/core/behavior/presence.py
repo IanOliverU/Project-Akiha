@@ -17,5 +17,10 @@ class CompanionPresenceMapper:
             CompanionMood.RESTING: "Akiha is resting.",
             CompanionMood.CHECKING_IN: "Akiha is checking in.",
             CompanionMood.SLEEPY: "Akiha is sleepy.",
+            CompanionMood.VOICE_LISTENING: "Akiha is listening.",
+            CompanionMood.VOICE_THINKING: "Akiha is thinking.",
+            CompanionMood.VOICE_SPEAKING: "Akiha is speaking.",
+            CompanionMood.VOICE_MUTED: "Akiha's voice is muted.",
+            CompanionMood.VOICE_ERROR: "Akiha's voice needs attention.",
         }
         return labels[mood]

@@ -90,6 +90,46 @@ class MoodAnimationControllerTest(unittest.TestCase):
 
         self.assertEqual(sleep_requests, [])
 
+    def test_voice_activity_wakes_only_mood_driven_sleep(self) -> None:
+        bus = EventBus()
+        wake_requests: list[Event] = []
+        bus.subscribe(EventType.PET_WAKE_REQUESTED, wake_requests.append)
+        controller = MoodAnimationController(bus, MoodAnimationMapper())
+
+        bus.publish(EventType.MOOD_STATE_CHANGED, _mood("resting"))
+        bus.publish(EventType.STATE_CHANGED, {"state": "sleeping"})
+        bus.publish(EventType.MOOD_STATE_CHANGED, _mood("voice_listening"))
+
+        self.assertFalse(controller.sleeping_from_mood)
+        self.assertEqual(len(wake_requests), 1)
+
+    def test_voice_activity_does_not_wake_manual_sleep(self) -> None:
+        bus = EventBus()
+        wake_requests: list[Event] = []
+        bus.subscribe(EventType.PET_WAKE_REQUESTED, wake_requests.append)
+        MoodAnimationController(bus, MoodAnimationMapper())
+
+        bus.publish(EventType.STATE_CHANGED, {"state": "sleeping"})
+        bus.publish(EventType.MOOD_STATE_CHANGED, _mood("voice_speaking"))
+
+        self.assertEqual(wake_requests, [])
+
+    def test_voice_activity_does_not_interrupt_walking(self) -> None:
+        bus = EventBus()
+        pet_requests: list[Event] = []
+        bus.subscribe(EventType.PET_IDLE_REQUESTED, pet_requests.append)
+        bus.subscribe(EventType.PET_SLEEP_REQUESTED, pet_requests.append)
+        bus.subscribe(EventType.PET_WAKE_REQUESTED, pet_requests.append)
+        MoodAnimationController(
+            bus,
+            MoodAnimationMapper(),
+            initial_animation_state=AnimationState.WALKING,
+        )
+
+        bus.publish(EventType.MOOD_STATE_CHANGED, _mood("voice_thinking"))
+
+        self.assertEqual(pet_requests, [])
+
 
 def _mood(mood: str, reason: str = "test") -> dict[str, object]:
     return {

@@ -122,9 +122,9 @@ Suggested configuration includes:
 - [x] Add voice states for idle, listening, thinking, speaking, muted, and
   error.
 - [x] Publish voice state changes through the existing event system.
-- [ ] Map voice states into the existing mood, presence, and animation flow.
-- [ ] Restore the previous companion state after listening or speaking ends.
-- [ ] Ensure voice activity does not fight walking, sleeping, or shutdown
+- [x] Map voice states into the existing mood, presence, and animation flow.
+- [x] Restore the previous companion state after listening or speaking ends.
+- [x] Ensure voice activity does not fight walking, sleeping, or shutdown
   behavior.
 
 ### Settings And Diagnostics
@@ -146,7 +146,7 @@ Suggested configuration includes:
 - [x] Test unavailable-provider and disabled-voice behavior.
 - [x] Test push-to-talk state transitions and cancellation.
 - [x] Test synthesis, playback, stop, and cleanup paths.
-- [ ] Test voice event publication and companion-state restoration.
+- [x] Test voice event publication and companion-state restoration.
 - [x] Test diagnostics for backend, synthesis, microphone, and playback
   failures.
 - [x] Test shutdown while listening, transcribing, synthesizing, and speaking.
@@ -276,6 +276,11 @@ Foundation note, 2026-07-29:
   A successful transcript appears in a non-persistent `Heard:` preview and is
   inserted into the editable message field for review by default. An explicit
   auto-send setting can submit the final transcript instead.
+- Voice states now temporarily overlay the underlying companion mood. Listening,
+  thinking, speaking, muted, and error states receive distinct presence text and
+  pet visual cues; returning to idle restores the latest activity-driven mood.
+  Mood-driven sleep may wake for active voice work, while manual sleep and
+  walking remain under user control.
 
 ### Phase 7A Smoke Checkpoint
 

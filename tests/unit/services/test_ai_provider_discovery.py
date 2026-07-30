@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import unittest
 from collections.abc import Mapping
+from io import BytesIO
 from typing import Any
+from unittest.mock import patch
+from urllib.error import HTTPError
 
+import project_akiha.services.ai_provider_discovery as discovery_module
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryError,
     AIProviderDiscoveryRequest,
@@ -75,6 +79,27 @@ class AIProviderDiscoveryTest(unittest.TestCase):
                 ),
                 transport=lambda _url, _headers, _timeout: {"models": []},
             )
+
+    def test_forbidden_catalog_reports_team_permission_problem(self) -> None:
+        error = HTTPError(
+            "https://api.x.ai/v1/models",
+            403,
+            "Forbidden",
+            {},
+            BytesIO(),
+        )
+        with patch.object(discovery_module, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                AIProviderDiscoveryError,
+                "team does not have permission",
+            ):
+                discover_ai_provider_models(
+                    AIProviderDiscoveryRequest(
+                        provider="grok",
+                        base_url="https://api.x.ai/v1",
+                        api_key="secret",
+                    )
+                )
 
 
 if __name__ == "__main__":

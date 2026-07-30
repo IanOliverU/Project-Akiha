@@ -245,8 +245,10 @@ def _check_models_endpoint(
 
 
 def _http_error(operation: str, error: HTTPError) -> OpenAICompatibleProviderError:
-    if error.code in {401, 403}:
+    if error.code == 401:
         detail = "The hosted AI API key was rejected."
+    elif error.code == 403:
+        detail = "The hosted AI API key or account is not authorized."
     elif error.code == 404:
         detail = "The hosted AI endpoint or model was not found."
     elif error.code == 429:

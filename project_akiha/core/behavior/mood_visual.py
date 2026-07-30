@@ -16,6 +16,11 @@ class MoodVisualCue(StrEnum):
     RESTING = "resting"
     CHECKING_IN = "checking_in"
     SLEEPY = "sleepy"
+    VOICE_LISTENING = "voice_listening"
+    VOICE_THINKING = "voice_thinking"
+    VOICE_SPEAKING = "voice_speaking"
+    VOICE_MUTED = "voice_muted"
+    VOICE_ERROR = "voice_error"
 
 
 class MoodVisualCueMapper:
@@ -30,5 +35,10 @@ class MoodVisualCueMapper:
             CompanionMood.RESTING: MoodVisualCue.RESTING,
             CompanionMood.CHECKING_IN: MoodVisualCue.CHECKING_IN,
             CompanionMood.SLEEPY: MoodVisualCue.SLEEPY,
+            CompanionMood.VOICE_LISTENING: MoodVisualCue.VOICE_LISTENING,
+            CompanionMood.VOICE_THINKING: MoodVisualCue.VOICE_THINKING,
+            CompanionMood.VOICE_SPEAKING: MoodVisualCue.VOICE_SPEAKING,
+            CompanionMood.VOICE_MUTED: MoodVisualCue.VOICE_MUTED,
+            CompanionMood.VOICE_ERROR: MoodVisualCue.VOICE_ERROR,
         }
         return cues[mood]
