@@ -25,6 +25,16 @@ from project_akiha.core.actions.models import (
     PermissionGrant,
     ValidatedAction,
 )
+from project_akiha.core.actions.passive_files import (
+    BLOCKED_ACTIVE_EXTENSIONS,
+    PASSIVE_AUDIO_EXTENSIONS,
+    PASSIVE_DOCUMENT_EXTENSIONS,
+    PASSIVE_FILE_EXTENSIONS,
+    PASSIVE_IMAGE_EXTENSIONS,
+    PASSIVE_TEXT_EXTENSIONS,
+    PASSIVE_VIDEO_EXTENSIONS,
+    PassiveFilePolicy,
+)
 from project_akiha.core.actions.path_policy import ProtectedPathPolicy
 from project_akiha.core.actions.permissions import ActionPermissionPolicy
 from project_akiha.core.actions.registry import (
@@ -47,6 +57,7 @@ from project_akiha.core.actions.validation import ActionRequestValidator
 __all__ = [
     "ALLOWLISTED_APPLICATION_IDS",
     "APPLICATION_LAUNCH_CAPABILITY",
+    "BLOCKED_ACTIVE_EXTENSIONS",
     "ApprovedDirectory",
     "ActionCancellationToken",
     "ActionAuditEntry",
@@ -74,6 +85,13 @@ __all__ = [
     "OPEN_DIRECTORY_ACTION",
     "OpenDirectoryExecutor",
     "OPEN_FILE_ACTION",
+    "PASSIVE_AUDIO_EXTENSIONS",
+    "PASSIVE_DOCUMENT_EXTENSIONS",
+    "PASSIVE_FILE_EXTENSIONS",
+    "PASSIVE_IMAGE_EXTENSIONS",
+    "PASSIVE_TEXT_EXTENSIONS",
+    "PASSIVE_VIDEO_EXTENSIONS",
+    "PassiveFilePolicy",
     "ParameterKind",
     "PermissionDecision",
     "PermissionGrant",

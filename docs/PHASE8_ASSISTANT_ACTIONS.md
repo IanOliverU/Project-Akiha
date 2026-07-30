@@ -288,8 +288,8 @@ capability-specific executors while remaining unavailable by default.
 - [x] Add search-result presentation and audit history.
 - [x] Add open-directory support for approved roots.
 - [x] Connect direct chat or UI requests to the typed action service.
-- [ ] Add safe-file opening with per-action confirmation and blocked-type
-  policy.
+- [x] Finalize the passive file-extension allowlist.
+- [ ] Add safe-file opening with per-action confirmation.
 
 Checkpoint: Akiha can find and reveal safe files only inside approved roots.
 
@@ -346,6 +346,22 @@ commands, creates typed requests, and passes them through the same validation,
 permission, executor, and audit pipeline. Ordinary chat text and provider
 responses never enter this bridge.
 
+Passive file allowlist now:
+
+- text: `.txt`, `.md`, `.csv`, `.json`, `.log`, `.yaml`, `.yml`, `.toml`, `.ini`
+- images: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`
+- audio: `.mp3`, `.wav`, `.flac`, `.ogg`, `.m4a`
+- video: `.mp4`, `.mkv`, `.webm`, `.avi`, `.mov`
+- documents: `.pdf`
+- unknown extensions, executables, scripts, installers, shortcuts, registry
+  files, control-panel files, Office files, and other active content are
+  rejected by default
+- the target must exist and be a regular non-link file before a future opener
+  can run
+
+The allowlist is finalized and enforced during typed `files.open` validation;
+the passive-file executor and confirmation UI remain Phase 8B work.
+
 ### Phase 8C: Allowlisted Applications
 
 - Add the trusted application catalog.
@@ -376,7 +392,7 @@ execution or AI-controlled arguments.
   escapes are denied.
 - [x] Search limits, cancellation, and timeout behavior are enforced.
 - [x] Approved-directory opening remains scoped, argument-free, and audited.
-- [ ] Only allowlisted passive file types can be opened through file actions.
+- [x] Only allowlisted passive file types can be opened through file actions.
 - [x] An unregistered application or AI-provided executable path is denied.
 - [x] Application arguments and elevation requests are denied.
 - [x] Revoked permission prevents the next matching action.

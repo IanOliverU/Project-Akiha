@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 from project_akiha.core.actions.errors import ActionValidationError
 from project_akiha.core.actions.models import (
@@ -12,6 +13,7 @@ from project_akiha.core.actions.models import (
     ParameterKind,
     ValidatedAction,
 )
+from project_akiha.core.actions.passive_files import PassiveFilePolicy
 from project_akiha.core.actions.path_policy import ProtectedPathPolicy
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
@@ -36,9 +38,11 @@ class ActionRequestValidator:
         self,
         registry: ActionRegistry,
         path_policy: ProtectedPathPolicy,
+        passive_file_policy: PassiveFilePolicy | None = None,
     ) -> None:
         self._registry = registry
         self._path_policy = path_policy
+        self._passive_file_policy = passive_file_policy or PassiveFilePolicy()
 
     def validate(self, request: ActionRequest) -> ValidatedAction:
         """Return a normalized registered request or raise a safe rejection."""
@@ -56,6 +60,8 @@ class ActionRequestValidator:
 
         if definition.action_id in _FILE_ACTION_IDS:
             normalized_target = str(self._path_policy.validate_path(raw_target))
+            if definition.action_id == OPEN_FILE_ACTION:
+                self._passive_file_policy.validate_file(Path(normalized_target))
             normalized_parameters[definition.target_parameter] = normalized_target
         else:
             normalized_target = raw_target

@@ -78,6 +78,14 @@ class ActionRequestValidatorTest(unittest.TestCase):
             ActionFailureCategory.INVALID_TARGET,
         )
 
+    def test_rejects_non_passive_file_target(self) -> None:
+        executable = self.safe_root / "installer.exe"
+        executable.write_text("not really executable", encoding="utf-8")
+        self._assert_invalid(
+            self._request("files.open", {"path": str(executable)}),
+            ActionFailureCategory.INVALID_TARGET,
+        )
+
     def test_rejects_application_outside_allowlist(self) -> None:
         self._assert_invalid(
             self._request(
