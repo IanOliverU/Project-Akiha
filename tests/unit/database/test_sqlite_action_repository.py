@@ -153,6 +153,28 @@ class SQLiteActionRepositoryTest(unittest.TestCase):
             ActionFailureCategory.PERMISSION_REQUIRED,
         )
 
+    def test_clears_action_audit_history(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteActionRepository(Path(directory) / "akiha.sqlite3")
+            asyncio.run(
+                repository.record_action_audit(
+                    correlation_id="request-1",
+                    action_id="applications.launch",
+                    source="chat",
+                    normalized_target="spotify",
+                    permission_decision=PermissionDecision.MISSING,
+                    result_status=ActionStatus.DENIED,
+                    duration_ms=4,
+                    failure_category=ActionFailureCategory.PERMISSION_REQUIRED,
+                )
+            )
+
+            cleared = asyncio.run(repository.clear_action_audits())
+            recent = asyncio.run(repository.get_recent_action_audits(limit=10))
+
+        self.assertEqual(cleared, 1)
+        self.assertEqual(recent, ())
+
     def test_audit_schema_has_no_request_payload_or_file_content_column(self) -> None:
         with TemporaryDirectory() as directory:
             database_path = Path(directory) / "akiha.sqlite3"

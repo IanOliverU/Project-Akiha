@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from project_akiha.config import PrivacyConfig
 
-CURRENT_PRIVACY_NOTICE_VERSION = 1
+CURRENT_PRIVACY_NOTICE_VERSION = 2
 
 
 def privacy_notice_required(config: PrivacyConfig) -> bool:

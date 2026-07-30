@@ -42,6 +42,7 @@ from project_akiha.core.actions import (
     ActionRequest,
     ActionRequestValidator,
     AllowlistedApplicationExecutor,
+    ApplicationCatalog,
     FileSearchExecutor,
     OpenDirectoryExecutor,
     OpenFileExecutor,
@@ -103,6 +104,7 @@ from project_akiha.services.assistant_action_bridge import (
     AssistantActionDispatch,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
+from project_akiha.services.assistant_permissions import AssistantPermissionService
 from project_akiha.services.assistant_translation import AssistantTranslationService
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -231,6 +233,7 @@ def _run_application() -> int:
     action_path_policy = ProtectedPathPolicy.for_current_windows(
         credential_path=paths.credential_path,
     )
+    application_catalog = ApplicationCatalog()
     assistant_action_service = AssistantActionService(
         ActionRequestValidator(build_default_action_registry(), action_path_policy),
         ActionPermissionPolicy(action_path_policy),
@@ -240,8 +243,12 @@ def _run_application() -> int:
             FileSearchExecutor(),
             OpenDirectoryExecutor(),
             OpenFileExecutor(),
-            AllowlistedApplicationExecutor(),
+            AllowlistedApplicationExecutor(application_catalog),
         ),
+    )
+    assistant_permission_service = AssistantPermissionService(
+        action_repository,
+        action_path_policy,
     )
     assistant_action_bridge = AssistantActionBridge(assistant_action_service)
     behavior_history_recorder = BehaviorHistoryRecorder(
@@ -534,6 +541,7 @@ def _run_application() -> int:
 
     def show_settings(event: Event | None = None) -> None:
         del event
+        refresh_assistant_permissions()
         settings_window.show()
         settings_window.raise_()
         settings_window.activateWindow()
@@ -633,6 +641,158 @@ def _run_application() -> int:
     def refresh_assistant_action_history_window() -> None:
         audits = asyncio.run(action_repository.get_recent_action_audits(limit=200))
         assistant_action_history_window.update_audits(audits)
+
+    def clear_assistant_action_history() -> None:
+        try:
+            count = asyncio.run(action_repository.clear_action_audits())
+            refresh_assistant_action_history_window()
+            assistant_action_history_window.append_notice(
+                f"Cleared {count} assistant action audit entries."
+            )
+        except OSError:
+            logger.exception("Could not clear assistant action history.")
+            assistant_action_history_window.append_notice(
+                "Assistant action history could not be cleared."
+            )
+
+    def refresh_assistant_permissions() -> None:
+        try:
+            directories = asyncio.run(
+                assistant_permission_service.get_approved_directories()
+            )
+            applications = application_catalog.discover()
+            grants = asyncio.run(
+                assistant_permission_service.get_active_permissions(
+                    "applications.launch"
+                )
+            )
+            settings_window.update_assistant_permissions(
+                directories,
+                applications,
+                grants,
+            )
+            settings_window.set_assistant_permission_status(
+                "Permission controls are ready."
+            )
+        except Exception:
+            logger.exception("Could not refresh assistant permissions.")
+            settings_window.set_assistant_permission_status(
+                "Permission controls could not be refreshed.",
+                True,
+            )
+
+    def approve_assistant_directory(
+        root: str,
+        allow_search: bool,
+        allow_open: bool,
+    ) -> None:
+        try:
+            asyncio.run(
+                assistant_permission_service.approve_directory(
+                    root,
+                    allow_search=allow_search,
+                    allow_open=allow_open,
+                )
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                "Directory permissions updated."
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not approve assistant directory.")
+            settings_window.set_assistant_permission_status(
+                "The directory could not be approved.",
+                True,
+            )
+
+    def remove_assistant_directory(root: str) -> None:
+        try:
+            removed = asyncio.run(
+                assistant_permission_service.remove_approved_directory(root)
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                (
+                    "Directory permission removed."
+                    if removed
+                    else "No matching directory permission was found."
+                ),
+                not removed,
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not remove assistant directory permission.")
+            settings_window.set_assistant_permission_status(
+                "The directory permission could not be removed.",
+                True,
+            )
+
+    def grant_assistant_application(application_id: str) -> None:
+        try:
+            asyncio.run(assistant_permission_service.grant_application(application_id))
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                "Application permission enabled."
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not grant assistant application permission.")
+            settings_window.set_assistant_permission_status(
+                "The application permission could not be enabled.",
+                True,
+            )
+
+    def revoke_assistant_application(application_id: str) -> None:
+        try:
+            removed = asyncio.run(
+                assistant_permission_service.revoke_application(application_id)
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                (
+                    "Application permission disabled."
+                    if removed
+                    else "No matching application permission was found."
+                ),
+                not removed,
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not revoke assistant application permission.")
+            settings_window.set_assistant_permission_status(
+                "The application permission could not be disabled.",
+                True,
+            )
+
+    def reset_assistant_permissions() -> None:
+        try:
+            count = asyncio.run(assistant_permission_service.reset_all_permissions())
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                f"Reset {count} assistant permission(s)."
+            )
+        except OSError:
+            logger.exception("Could not reset assistant permissions.")
+            settings_window.set_assistant_permission_status(
+                "Assistant permissions could not be reset.",
+                True,
+            )
+
+    settings_window.assistant_permissions_refresh_requested.connect(
+        refresh_assistant_permissions
+    )
+    settings_window.assistant_directory_approval_requested.connect(
+        approve_assistant_directory
+    )
+    settings_window.assistant_directory_remove_requested.connect(
+        remove_assistant_directory
+    )
+    settings_window.assistant_application_grant_requested.connect(
+        grant_assistant_application
+    )
+    settings_window.assistant_application_revoke_requested.connect(
+        revoke_assistant_application
+    )
+    settings_window.assistant_permissions_reset_requested.connect(
+        reset_assistant_permissions
+    )
 
     def show_assistant_action_history() -> None:
         refresh_assistant_action_history_window()
@@ -894,6 +1054,9 @@ def _run_application() -> int:
     settings_window.behavior_history_requested.connect(show_behavior_history)
     settings_window.assistant_action_history_requested.connect(
         show_assistant_action_history
+    )
+    assistant_action_history_window.clear_requested.connect(
+        clear_assistant_action_history
     )
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
 

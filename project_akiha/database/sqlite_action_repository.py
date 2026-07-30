@@ -121,6 +121,10 @@ class SQLiteActionRepository:
             raise ValueError("action audit limit must be greater than zero.")
         return await asyncio.to_thread(self._get_recent_action_audits, limit)
 
+    async def clear_action_audits(self) -> int:
+        """Delete all sanitized action audit rows."""
+        return await asyncio.to_thread(self._clear_action_audits)
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
@@ -377,6 +381,15 @@ class SQLiteActionRepository:
         finally:
             connection.close()
         return tuple(_audit_from_row(row) for row in rows)
+
+    def _clear_action_audits(self) -> int:
+        connection = self._connect()
+        try:
+            cursor = connection.execute("DELETE FROM assistant_action_audit")
+            connection.commit()
+            return int(cursor.rowcount)
+        finally:
+            connection.close()
 
 
 def _permission_from_row(row: sqlite3.Row) -> PermissionGrant:

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QGroupBox
 
 import project_akiha.ui.settings_window as settings_window_module
 from project_akiha.config import AIConfig, AppConfig, PrivacyConfig
+from project_akiha.core.actions import ApprovedDirectory, InstalledApplication
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
@@ -87,7 +88,7 @@ class SettingsWindowTest(unittest.TestCase):
             if section.objectName() == "settingsSection"
         }
         self.assertEqual(window.objectName(), "akihaSettingsWindow")
-        self.assertEqual(window._tabs.count(), 5)
+        self.assertEqual(window._tabs.count(), 6)
         self.assertEqual(window._save_button.objectName(), "primaryButton")
         self.assertIn(AKIHA_PALETTE.window, window.styleSheet())
         self.assertIn(AKIHA_PALETTE.primary, window.styleSheet())
@@ -100,11 +101,60 @@ class SettingsWindowTest(unittest.TestCase):
                 "Memory",
                 "Awareness",
                 "Proactive behavior",
+                "Permission controls",
+                "Approved directories",
+                "Allowlisted applications",
                 "Listening",
                 "Speaking",
                 "Subtitles",
                 "Diagnostics",
             }.issubset(section_titles)
+        )
+
+    def test_assistant_permission_controls_refresh_and_emit_actions(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            directory_requests: list[tuple[str, bool, bool]] = []
+            application_requests: list[str] = []
+            window.assistant_directory_approval_requested.connect(
+                lambda root, search, open_files: directory_requests.append(
+                    (root, search, open_files)
+                )
+            )
+            window.assistant_application_grant_requested.connect(
+                application_requests.append
+            )
+            approved = ApprovedDirectory(
+                root=str(Path(directory).resolve()),
+                search_permission_id=1,
+                open_permission_id=None,
+                is_available=True,
+            )
+            window.update_assistant_permissions(
+                (approved,),
+                (
+                    InstalledApplication(
+                        "chrome",
+                        "Google Chrome",
+                        Path("chrome.exe"),
+                    ),
+                ),
+                (),
+            )
+
+            window._assistant_directory_list.setCurrentRow(0)
+            window._assistant_directory_open_input.setChecked(True)
+            window._apply_assistant_directory()
+            window._assistant_application_list.setCurrentRow(0)
+            window._enable_assistant_application()
+
+        self.assertEqual(
+            directory_requests,
+            [(str(Path(directory).resolve()), True, True)],
+        )
+        self.assertEqual(application_requests, ["chrome"])
+        self.assertIn(
+            "Google Chrome", window._assistant_application_list.item(0).text()
         )
 
     def test_behavior_away_minimum_stays_after_idle(self) -> None:

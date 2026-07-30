@@ -59,6 +59,29 @@ class AssistantPermissionService:
             normalized,
         )
 
+    async def revoke_application(self, application_id: str) -> bool:
+        """Revoke the active launch grant for one catalog application."""
+        normalized = application_id.strip().lower()
+        if normalized not in ALLOWLISTED_APPLICATION_IDS:
+            raise ValueError("application is not in the Phase 8 allowlist.")
+        grants = await self._repository.get_active_permissions(
+            APPLICATION_LAUNCH_CAPABILITY
+        )
+        revoked = False
+        for grant in grants:
+            if grant.target.casefold() == normalized:
+                revoked = await self._repository.revoke_permission(grant.id) or revoked
+        return revoked
+
+    async def reset_all_permissions(self) -> int:
+        """Revoke every active assistant-action grant."""
+        grants = await self._repository.get_active_permissions()
+        revoked_count = 0
+        for grant in grants:
+            if await self._repository.revoke_permission(grant.id):
+                revoked_count += 1
+        return revoked_count
+
     async def approve_directory(
         self,
         root: str | Path,

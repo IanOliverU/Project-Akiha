@@ -36,6 +36,11 @@ class PrivacyNoticeDialog(QDialog):
             "<p><b>Local storage:</b> Conversations, memories, transcripts, "
             "settings, and logs are stored under your Windows user profile. "
             "Hosted API keys are encrypted for the current Windows user.</p>"
+            "<p><b>Assistant actions:</b> Akiha can search approved directories, "
+            "open approved folders and passive files after confirmation, and "
+            "launch separately enabled applications. She cannot run arbitrary "
+            "commands, use AI-supplied paths or arguments, or modify system "
+            "files.</p>"
         )
         summary.setWordWrap(True)
         summary.setTextFormat(Qt.TextFormat.RichText)

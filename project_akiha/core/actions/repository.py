@@ -67,3 +67,6 @@ class ActionAuditRepository(Protocol):
         limit: int,
     ) -> tuple[ActionAuditEntry, ...]:
         """Return recent action audits ordered newest first."""
+
+    async def clear_action_audits(self) -> int:
+        """Delete persisted sanitized action history and return its row count."""

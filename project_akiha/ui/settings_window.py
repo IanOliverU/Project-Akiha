@@ -5,7 +5,7 @@ from __future__ import annotations
 from math import ceil
 from pathlib import Path
 
-from PySide6.QtCore import QTime, QUrl, Signal
+from PySide6.QtCore import Qt, QTime, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -17,6 +17,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -37,6 +40,11 @@ from project_akiha.config import (
     PersonalityConfig,
     PetWindowConfig,
     VoiceConfig,
+)
+from project_akiha.core.actions import (
+    ApprovedDirectory,
+    InstalledApplication,
+    PermissionGrant,
 )
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryRequest,
@@ -82,6 +90,12 @@ class SettingsWindow(QWidget):
     memory_manager_requested = Signal()
     behavior_history_requested = Signal()
     assistant_action_history_requested = Signal()
+    assistant_permissions_refresh_requested = Signal()
+    assistant_directory_approval_requested = Signal(str, bool, bool)
+    assistant_directory_remove_requested = Signal(str)
+    assistant_application_grant_requested = Signal(str)
+    assistant_application_revoke_requested = Signal(str)
+    assistant_permissions_reset_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
     voice_output_test_requested = Signal()
@@ -100,6 +114,9 @@ class SettingsWindow(QWidget):
         self._data_dir = data_dir or log_dir.parent
         self._credential_store = credential_store
         self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
+        self._assistant_directories: tuple[ApprovedDirectory, ...] = ()
+        self._assistant_applications: tuple[InstalledApplication, ...] = ()
+        self._assistant_application_grants: tuple[PermissionGrant, ...] = ()
 
         self.setWindowTitle("Project Akiha Settings")
         self.setObjectName("akihaSettingsWindow")
@@ -341,6 +358,7 @@ class SettingsWindow(QWidget):
         tabs.addTab(self._build_ai_tab(), "AI")
         tabs.addTab(self._build_memory_tab(), "Memory")
         tabs.addTab(self._build_behavior_tab(), "Behavior")
+        tabs.addTab(self._build_assistant_actions_tab(), "Actions")
         tabs.addTab(self._build_voice_tab(), "Voice")
         self._tabs = tabs
         self._sync_ai_controls(config.ai.provider)
@@ -650,6 +668,82 @@ class SettingsWindow(QWidget):
             _build_section("Proactive behavior", proactive_layout),
         )
 
+    def _build_assistant_actions_tab(self) -> QWidget:
+        self._assistant_permission_status = QLabel(
+            "Approve only directories and applications you trust."
+        )
+        self._assistant_permission_status.setWordWrap(True)
+
+        self._assistant_directory_list = QListWidget()
+        self._assistant_directory_list.setMinimumHeight(130)
+        self._assistant_directory_list.currentItemChanged.connect(
+            self._select_assistant_directory
+        )
+        add_directory_button = QPushButton("Add directory")
+        add_directory_button.clicked.connect(self._browse_assistant_directory)
+        remove_directory_button = QPushButton("Remove selected")
+        remove_directory_button.clicked.connect(self._remove_assistant_directory)
+        refresh_directories_button = QPushButton("Refresh")
+        refresh_directories_button.clicked.connect(
+            self.assistant_permissions_refresh_requested.emit
+        )
+        directory_buttons = QHBoxLayout()
+        directory_buttons.addWidget(add_directory_button)
+        directory_buttons.addWidget(remove_directory_button)
+        directory_buttons.addWidget(refresh_directories_button)
+
+        self._assistant_directory_search_input = QCheckBox("Allow file search")
+        self._assistant_directory_search_input.setChecked(True)
+        self._assistant_directory_open_input = QCheckBox(
+            "Allow directory and passive-file opening"
+        )
+        apply_directory_button = QPushButton("Apply selected permissions")
+        apply_directory_button.clicked.connect(self._apply_assistant_directory)
+        directory_permissions = QVBoxLayout()
+        directory_permissions.addWidget(self._assistant_directory_search_input)
+        directory_permissions.addWidget(self._assistant_directory_open_input)
+        directory_permissions.addWidget(apply_directory_button)
+
+        directory_layout = QVBoxLayout()
+        directory_layout.addWidget(self._assistant_directory_list)
+        directory_layout.addLayout(directory_buttons)
+        directory_layout.addLayout(directory_permissions)
+        directory_section = QGroupBox("Approved directories")
+        directory_section.setObjectName("settingsSection")
+        directory_section.setLayout(directory_layout)
+
+        self._assistant_application_list = QListWidget()
+        self._assistant_application_list.setMinimumHeight(150)
+        enable_application_button = QPushButton("Enable selected")
+        enable_application_button.clicked.connect(self._enable_assistant_application)
+        disable_application_button = QPushButton("Disable selected")
+        disable_application_button.clicked.connect(self._disable_assistant_application)
+        refresh_applications_button = QPushButton("Refresh")
+        refresh_applications_button.clicked.connect(
+            self.assistant_permissions_refresh_requested.emit
+        )
+        application_buttons = QHBoxLayout()
+        application_buttons.addWidget(enable_application_button)
+        application_buttons.addWidget(disable_application_button)
+        application_buttons.addWidget(refresh_applications_button)
+        application_layout = QVBoxLayout()
+        application_layout.addWidget(self._assistant_application_list)
+        application_layout.addLayout(application_buttons)
+        reset_permissions_button = QPushButton("Reset all assistant permissions")
+        reset_permissions_button.clicked.connect(self._reset_assistant_permissions)
+        application_layout.addWidget(reset_permissions_button)
+        application_section = QGroupBox("Allowlisted applications")
+        application_section.setObjectName("settingsSection")
+        application_section.setLayout(application_layout)
+
+        status_layout = QFormLayout()
+        status_layout.addRow("Status", self._assistant_permission_status)
+        return _build_scroll_tab(
+            _build_section("Permission controls", status_layout),
+            directory_section,
+            application_section,
+        )
+
     def _build_voice_tab(self) -> QWidget:
         listening_layout = _build_form_layout(wrap_long_rows=True)
         listening_layout.addRow("Voice enabled", self._voice_enabled_input)
@@ -765,6 +859,184 @@ class SettingsWindow(QWidget):
             _build_section("Subtitles", subtitle_layout),
             _build_section("Diagnostics", diagnostics_layout),
         )
+
+    def update_assistant_permissions(
+        self,
+        directories: tuple[ApprovedDirectory, ...],
+        applications: tuple[InstalledApplication, ...],
+        application_grants: tuple[PermissionGrant, ...],
+    ) -> None:
+        """Refresh directory and application permission controls."""
+        self._assistant_directories = directories
+        self._assistant_applications = applications
+        self._assistant_application_grants = application_grants
+
+        selected_root = self._selected_assistant_directory_root()
+        self._assistant_directory_list.blockSignals(True)
+        self._assistant_directory_list.clear()
+        for directory in directories:
+            search_state = "on" if directory.can_search else "off"
+            open_state = "on" if directory.can_open else "off"
+            availability = "available" if directory.is_available else "missing"
+            item = QListWidgetItem(
+                f"{directory.root}  |  search {search_state}, open {open_state}"
+                f"  |  {availability}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, directory.root)
+            self._assistant_directory_list.addItem(item)
+        self._assistant_directory_list.blockSignals(False)
+        self._select_directory_row(selected_root)
+
+        granted_ids = {
+            grant.target.casefold() for grant in application_grants if grant.is_active
+        }
+        self._assistant_application_list.clear()
+        for application in applications:
+            availability = "discovered" if application.is_available else "not found"
+            enabled = (
+                "enabled" if application.application_id in granted_ids else "disabled"
+            )
+            item = QListWidgetItem(
+                f"{application.display_name} ({application.application_id})"
+                f"  |  {availability}, {enabled}"
+            )
+            item.setData(Qt.ItemDataRole.UserRole, application.application_id)
+            self._assistant_application_list.addItem(item)
+
+    def set_assistant_permission_status(
+        self,
+        message: str,
+        is_error: bool = False,
+    ) -> None:
+        """Display a privacy-safe permission-management status."""
+        self._assistant_permission_status.setText(message.strip() or "Ready")
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
+        self._assistant_permission_status.setStyleSheet(f"color: {color};")
+
+    def _browse_assistant_directory(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Select approved directory",
+        )
+        if selected:
+            self.assistant_directory_approval_requested.emit(
+                selected,
+                self._assistant_directory_search_input.isChecked(),
+                self._assistant_directory_open_input.isChecked(),
+            )
+
+    def _apply_assistant_directory(self) -> None:
+        root = self._selected_assistant_directory_root()
+        if root is None:
+            self.set_assistant_permission_status(
+                "Select an approved directory first.",
+                True,
+            )
+            return
+        if not (
+            self._assistant_directory_search_input.isChecked()
+            or self._assistant_directory_open_input.isChecked()
+        ):
+            self.set_assistant_permission_status(
+                "At least one directory permission must remain enabled.",
+                True,
+            )
+            return
+        self.assistant_directory_approval_requested.emit(
+            root,
+            self._assistant_directory_search_input.isChecked(),
+            self._assistant_directory_open_input.isChecked(),
+        )
+
+    def _remove_assistant_directory(self) -> None:
+        root = self._selected_assistant_directory_root()
+        if root is None:
+            self.set_assistant_permission_status(
+                "Select an approved directory first.",
+                True,
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            "Remove approved directory",
+            f"Revoke Akiha's permissions for this directory?\n\n{root}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.assistant_directory_remove_requested.emit(root)
+
+    def _select_assistant_directory(
+        self,
+        current: QListWidgetItem | None,
+        previous: QListWidgetItem | None,
+    ) -> None:
+        del previous
+        root = str(current.data(Qt.ItemDataRole.UserRole)) if current else ""
+        directory = next(
+            (item for item in self._assistant_directories if item.root == root),
+            None,
+        )
+        if directory is None:
+            return
+        self._assistant_directory_search_input.setChecked(directory.can_search)
+        self._assistant_directory_open_input.setChecked(directory.can_open)
+
+    def _selected_assistant_directory_root(self) -> str | None:
+        item = self._assistant_directory_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return str(value) if value else None
+
+    def _select_directory_row(self, root: str | None) -> None:
+        if root is None:
+            self._assistant_directory_list.setCurrentRow(-1)
+            return
+        for index in range(self._assistant_directory_list.count()):
+            item = self._assistant_directory_list.item(index)
+            if item.data(Qt.ItemDataRole.UserRole) == root:
+                self._assistant_directory_list.setCurrentRow(index)
+                return
+        self._assistant_directory_list.setCurrentRow(-1)
+
+    def _selected_assistant_application_id(self) -> str | None:
+        item = self._assistant_application_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return str(value) if value else None
+
+    def _enable_assistant_application(self) -> None:
+        application_id = self._selected_assistant_application_id()
+        if application_id is None:
+            self.set_assistant_permission_status(
+                "Select an application first.",
+                True,
+            )
+            return
+        self.assistant_application_grant_requested.emit(application_id)
+
+    def _disable_assistant_application(self) -> None:
+        application_id = self._selected_assistant_application_id()
+        if application_id is None:
+            self.set_assistant_permission_status(
+                "Select an application first.",
+                True,
+            )
+            return
+        self.assistant_application_revoke_requested.emit(application_id)
+
+    def _reset_assistant_permissions(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Reset assistant permissions",
+            "Revoke all approved directories and application permissions?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.assistant_permissions_reset_requested.emit()
 
     def _browse_manifest(self) -> None:
         selected_path, _ = QFileDialog.getOpenFileName(

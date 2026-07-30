@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSplitter,
@@ -26,6 +27,7 @@ class AssistantActionHistoryWindow(QWidget):
     """Show bounded search results and sanitized assistant-action history."""
 
     refresh_requested = Signal()
+    clear_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -47,9 +49,12 @@ class AssistantActionHistoryWindow(QWidget):
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self.refresh_requested.emit)
+        clear_button = QPushButton("Clear history")
+        clear_button.clicked.connect(self._request_clear_history)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(refresh_button)
+        button_layout.addWidget(clear_button)
         button_layout.addStretch()
 
         layout = QVBoxLayout()
@@ -57,6 +62,17 @@ class AssistantActionHistoryWindow(QWidget):
         layout.addWidget(self._tabs)
         layout.addLayout(button_layout)
         self.setLayout(layout)
+
+    def _request_clear_history(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Clear assistant action history",
+            "Delete all sanitized assistant-action history?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.clear_requested.emit()
 
     def update_search_results(
         self,

@@ -65,6 +65,22 @@ class AssistantPermissionServiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             asyncio.run(self.service.grant_application("powershell"))
 
+    def test_revokes_application_permission_by_catalog_identifier(self) -> None:
+        asyncio.run(self.service.grant_application("spotify"))
+
+        self.assertTrue(asyncio.run(self.service.revoke_application("SPOTIFY")))
+        self.assertEqual(
+            asyncio.run(self.service.get_active_permissions("applications.launch")),
+            (),
+        )
+
+    def test_resets_all_permission_types(self) -> None:
+        asyncio.run(self.service.grant_application("spotify"))
+        asyncio.run(self.service.approve_directory(self.safe_root, allow_open=True))
+
+        self.assertEqual(asyncio.run(self.service.reset_all_permissions()), 3)
+        self.assertEqual(asyncio.run(self.service.get_active_permissions()), ())
+
     def test_approves_lists_and_updates_directory_capabilities(self) -> None:
         approved = asyncio.run(self.service.approve_directory(self.safe_root))
         listed = asyncio.run(self.service.get_approved_directories())

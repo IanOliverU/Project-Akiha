@@ -405,12 +405,23 @@ Application launching now:
 
 ### Phase 8D: UX, Privacy, And Packaging
 
-- Add Assistant settings for directories, applications, and grants.
-- Complete confirmation and denial UI for the remaining action surfaces.
-- Add action history with clear controls.
-- Update the versioned privacy notice.
-- Add diagnostics and reset behavior.
+- [x] Add Assistant settings for directories, applications, and grants.
+- [x] Complete confirmation and denial UI for the remaining action surfaces.
+- [x] Add action history with clear controls.
+- [x] Update the versioned privacy notice.
+- [x] Add diagnostics and reset behavior.
 - Run automated tests and packaged smoke verification.
+
+Phase 8D now:
+
+- exposes approved-directory controls for search and directory/passive-file
+  opening in Settings
+- exposes enable, disable, discovery, and reset controls for the four
+  allowlisted applications
+- lets the user clear sanitized assistant-action history after confirmation
+- reports missing, unavailable, and failed permission operations without
+  exposing exception details
+- versions the first-run privacy notice to explain assistant-action boundaries
 
 ## Required Boundary Tests
 
