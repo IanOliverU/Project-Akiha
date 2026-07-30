@@ -17,6 +17,7 @@ _REQUIRED_ARTIFACT_PATHS = (
     "project_akiha/database/migrations",
     "PySide6",
     "shiboken6",
+    "av/utils.pyd",
 )
 
 

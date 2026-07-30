@@ -184,7 +184,9 @@ failed during compiled code-object loading. Release builds trade the extra
 compile time for a deterministic artifact.
 
 The script also validates that the standalone artifact contains the expected
-runtime folders, bundled assets, default config, and database migrations.
+runtime folders, bundled assets, default config, database migrations, and the
+explicitly included PyAV `av.utils` extension required by packaged
+faster-whisper microphone input.
 
 ## Packaged Smoke Test
 

@@ -62,6 +62,7 @@ try {
         --assume-yes-for-downloads `
         --zig `
         --enable-plugin=pyside6 `
+        --include-module=av.utils `
         --windows-console-mode=attach `
         --output-dir=$OutputDir `
         --output-filename=Akiha `
