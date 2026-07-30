@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import sys
+import traceback
 from pathlib import Path
 from typing import Protocol
 
@@ -1050,5 +1051,23 @@ def _clamp_to_primary_screen(
     )
 
 
+def _write_startup_crash_log() -> None:
+    """Best-effort traceback capture for GUI-subsystem startup failures."""
+    try:
+        log_dir = get_app_paths().log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "startup-crash.log").write_text(
+            traceback.format_exc(),
+            encoding="utf-8",
+        )
+    except Exception:
+        return
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        exit_code = main()
+    except BaseException:
+        _write_startup_crash_log()
+        raise
+    raise SystemExit(exit_code)

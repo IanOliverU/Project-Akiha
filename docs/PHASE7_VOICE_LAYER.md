@@ -289,7 +289,7 @@ Foundation note, 2026-07-29:
 ### Phase 7A Smoke Checkpoint
 
 - [x] Source app starts normally with no voice backend installed.
-- [ ] Voice can be enabled and disabled without restarting the app.
+- [x] Voice can be enabled and disabled without restarting the app.
 - [x] Push-to-talk captures a short phrase and places the transcript in chat.
 - [x] A temporary Japanese TTS phrase can be synthesized and played when
   VOICEVOX is available.
@@ -407,24 +407,24 @@ Avoid:
 
 - [ ] Start the source app with voice disabled and no voice dependencies.
 - [ ] Open Voice settings, save changes, and restart the app.
-- [ ] Run Check setup and confirm both provider results are visible.
-- [ ] Run Test microphone, speak briefly, stop, and confirm the pass result.
-- [ ] Run Test voice and hear the short Japanese phrase.
-- [ ] Verify microphone use starts only after push-to-talk.
-- [ ] Speak a Japanese phrase and an English phrase through push-to-talk.
+- [x] Run Check setup and confirm both provider results are visible.
+- [x] Run Test microphone, speak briefly, stop, and confirm the pass result.
+- [x] Run Test voice and hear the short Japanese phrase.
+- [x] Verify microphone use starts only after push-to-talk.
+- [x] Speak a Japanese phrase and an English phrase through push-to-talk.
 - [ ] Edit a transcript before sending it.
-- [ ] Enable live transcription and confirm `Hearing:` text revises while
+- [x] Enable live transcription and confirm `Hearing:` text revises while
   speaking.
-- [ ] Enable silence endpointing and confirm a pause stops the recording.
-- [ ] Enable final-transcript auto-send and confirm interim text is never sent.
+- [x] Enable silence endpointing and confirm a pause stops the recording.
+- [x] Enable final-transcript auto-send and confirm interim text is never sent.
 - [ ] Generate a mock-provider response and hear it through VOICEVOX.
 - [x] Enable English subtitles with a non-mock AI provider and confirm a
   separate English line appears without delaying Japanese speech.
 - [ ] Stop or fail a translation request and confirm the Japanese response
   remains intact.
-- [ ] Restart the app with English subtitles enabled and confirm saved
+- [x] Restart the app with English subtitles enabled and confirm saved
   subtitles return beneath their original Japanese messages.
-- [ ] Export once with subtitle export disabled and once enabled; confirm the
+- [x] Export once with subtitle export disabled and once enabled; confirm the
   first file is Japanese-only and the second adds `English:` beneath translated
   assistant messages.
 - [ ] Stop playback and start another response.
@@ -433,8 +433,13 @@ Avoid:
 - [ ] Confirm listening, thinking, speaking, muted, and error states.
 - [ ] Confirm quiet hours and mute prevent unsolicited speech.
 - [ ] Quit while listening and while speaking; confirm the process exits cleanly.
-- [ ] Re-run relevant packaged smoke with all voice providers treated as
+- [x] Re-run relevant packaged smoke with all voice providers treated as
   optional dependencies.
+
+The Phase 7 release candidate at
+`dist\nuitka-phase7-final-clean\main.dist\Akiha.exe` passed fresh-data and
+existing-data packaged smoke on 2026-07-30. It uses the Windows GUI subsystem
+and creates no visible console window.
 
 ## Privacy And Safety
 

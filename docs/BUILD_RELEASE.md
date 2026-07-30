@@ -162,8 +162,9 @@ $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
 .\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313
 ```
 
-The build uses Nuitka standalone mode, PySide6 plugin support, Zig, disabled
-Windows console mode, and bundled data directories for:
+The build clears Nuitka's compilation caches, then uses standalone mode,
+PySide6 plugin support, Zig, attached Windows console mode, and bundled data
+directories for:
 
 - `assets`
 - `project_akiha/config`
@@ -171,6 +172,16 @@ Windows console mode, and bundled data directories for:
 
 After the build finishes, the script verifies that `Akiha.exe` uses the Windows
 GUI subsystem instead of the Windows console subsystem.
+
+Nuitka's `attach` mode does not create a console when Akiha is launched
+normally. It can reuse an existing PowerShell console for diagnostics, which
+avoids a Nuitka 4.1.3/Zig startup failure observed with `disable` mode while
+still passing the no-visible-console smoke check.
+
+The clean-cache release build is intentional. A reused Nuitka 4.1.3 module
+cache produced an executable that passed artifact and subsystem validation but
+failed during compiled code-object loading. Release builds trade the extra
+compile time for a deterministic artifact.
 
 The script also validates that the standalone artifact contains the expected
 runtime folders, bundled assets, default config, and database migrations.
@@ -206,6 +217,8 @@ If the packaged smoke reports that the app exited before `app.log` was created,
 the failure happened before Project Akiha startup logging began. On the current
 local Python 3.14.6 environment, this has been observed as a Nuitka frozen
 runtime failure; rebuild with Python 3.13 before continuing release validation.
+Python exceptions raised during application startup are also written
+best-effort to `%LOCALAPPDATA%\Akiha\logs\startup-crash.log`.
 
 Two small diagnostic entry points are available when investigating frozen
 runtime failures:

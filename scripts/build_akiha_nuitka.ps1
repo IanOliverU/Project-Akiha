@@ -57,11 +57,12 @@ try {
 
     Invoke-CheckedCommand {
         python -m nuitka `
+        --clean-cache=all `
         --standalone `
         --assume-yes-for-downloads `
         --zig `
         --enable-plugin=pyside6 `
-        --windows-console-mode=disable `
+        --windows-console-mode=attach `
         --output-dir=$OutputDir `
         --output-filename=Akiha `
         --include-data-dir=assets=assets `

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from project_akiha.core.behavior import (
     ActivitySnapshot,
@@ -44,7 +44,10 @@ class ProactiveController:
         snapshot = _snapshot_from_payload(event.payload)
         if snapshot is None:
             return
-        self.evaluate_snapshot(snapshot)
+        self.evaluate_snapshot(
+            snapshot,
+            snapshot.last_activity_at + timedelta(seconds=snapshot.idle_seconds),
+        )
 
     def _publish_suggestion(self, suggestion: ProactiveSuggestion) -> None:
         self._event_bus.publish(
