@@ -74,10 +74,53 @@ class AssistantActionRequestParserTest(unittest.TestCase):
         self.assertEqual(request.action_id, "applications.launch")
         self.assertEqual(request.parameters["application_id"], "chrome")
 
+    def test_parses_spoken_application_aliases(self) -> None:
+        cases = (
+            ("Hello Akiha, can you open Discord application?", "discord"),
+            ("Please open this code application.", "vscode"),
+            ("Would you start Google Chrome?", "chrome"),
+            ("Okay, can you open discord application?", "discord"),
+            ("Akia, can you open discord application?", "discord"),
+            ("Aka'ya! Open Visual Studio Code", "vscode"),
+            ("Okay, huh? Open visuals to the code", "vscode"),
+        )
+
+        for text, application_id in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "applications.launch")
+                self.assertEqual(request.parameters["application_id"], application_id)
+
+    def test_parses_spoken_directory_path(self) -> None:
+        request = self.parser.parse(
+            r"Akiha, please open the folder C:\Users\Akiha\Project Files."
+        )
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "files.open_directory")
+        self.assertEqual(request.parameters["path"], r"C:\Users\Akiha\Project Files")
+
+    def test_parses_approved_directory_alias(self) -> None:
+        parser = AssistantActionRequestParser(
+            {"akiha": r"C:\Users\MY PC\Desktop\AKIHA"}
+        )
+
+        request = parser.parse("I heard you say: Akiha, open Akiha Directory")
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "files.open_directory")
+        self.assertEqual(request.parameters["path"], r"C:\Users\MY PC\Desktop\AKIHA")
+
+    def test_unapproved_directory_alias_does_not_become_an_action(self) -> None:
+        self.assertIsNone(self.parser.parse("Open Akiha Directory"))
+
     def test_ordinary_conversation_does_not_become_an_action(self) -> None:
         self.assertIsNone(self.parser.parse("Could you open the directory later?"))
         self.assertIsNone(self.parser.parse("Could you open this file later?"))
         self.assertIsNone(self.parser.parse("Could you open Chrome later?"))
+        self.assertIsNone(self.parser.parse("How about Akiha Directory?"))
         self.assertIsNone(self.parser.parse("Please help me plan today."))
 
     def test_empty_command_does_not_become_an_action(self) -> None:

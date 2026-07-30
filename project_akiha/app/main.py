@@ -655,11 +655,27 @@ def _run_application() -> int:
                 "Assistant action history could not be cleared."
             )
 
+    def refresh_assistant_action_aliases() -> None:
+        """Expose only approved directory basenames as voice-action aliases."""
+        try:
+            directories = asyncio.run(
+                assistant_permission_service.get_approved_directories()
+            )
+            aliases = {
+                Path(directory.root).name.casefold(): directory.root
+                for directory in directories
+                if Path(directory.root).name
+            }
+            assistant_action_bridge.set_directory_aliases(aliases)
+        except Exception:
+            logger.exception("Could not refresh assistant action aliases.")
+
     def refresh_assistant_permissions() -> None:
         try:
             directories = asyncio.run(
                 assistant_permission_service.get_approved_directories()
             )
+            refresh_assistant_action_aliases()
             applications = application_catalog.discover()
             grants = asyncio.run(
                 assistant_permission_service.get_active_permissions(
@@ -894,6 +910,7 @@ def _run_application() -> int:
         chat_window.activateWindow()
 
     def submit_chat_message(message: str) -> None:
+        refresh_assistant_action_aliases()
         action_request = assistant_action_bridge.parse_user_text(message)
         if action_request is not None:
             chat_window.append_message("You", message)
