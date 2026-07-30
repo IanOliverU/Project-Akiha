@@ -13,6 +13,7 @@ from project_akiha.core.actions import (
 )
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
+    LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
 )
@@ -29,6 +30,11 @@ _SEARCH_FILES_PATTERN = re.compile(
 )
 _OPEN_FILE_PATTERN = re.compile(
     r"^(?:(?:/open-file)\s+|(?:open\s+file)\s*[:=]\s*)" r"(?P<path>.+)$",
+    re.IGNORECASE,
+)
+_LAUNCH_APPLICATION_PATTERN = re.compile(
+    r"^(?:(?:/launch-app|/open-app)\s+|(?:launch|open)\s+app\s*[:=]\s*)"
+    r"(?P<application_id>[a-z0-9_-]+)$",
     re.IGNORECASE,
 )
 
@@ -67,6 +73,18 @@ class AssistantActionRequestParser:
                 correlation_id=request_id,
                 action_id=OPEN_FILE_ACTION,
                 parameters={"path": file_match.group("path").strip()},
+            )
+
+        application_match = _LAUNCH_APPLICATION_PATTERN.fullmatch(normalized)
+        if application_match is not None:
+            return _request(
+                correlation_id=request_id,
+                action_id=LAUNCH_APPLICATION_ACTION,
+                parameters={
+                    "application_id": application_match.group(
+                        "application_id"
+                    ).casefold()
+                },
             )
 
         search_match = _SEARCH_FILES_PATTERN.fullmatch(normalized)

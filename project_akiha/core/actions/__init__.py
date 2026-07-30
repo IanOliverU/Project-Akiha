@@ -1,8 +1,13 @@
 """Framework-free contracts and policy for safe assistant actions."""
 
+from project_akiha.core.actions.application_catalog import (
+    ApplicationCatalog,
+    InstalledApplication,
+)
 from project_akiha.core.actions.errors import ActionValidationError
 from project_akiha.core.actions.executors import (
     ActionCancellationToken,
+    AllowlistedApplicationExecutor,
     AssistantActionExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
@@ -58,6 +63,8 @@ from project_akiha.core.actions.validation import ActionRequestValidator
 __all__ = [
     "ALLOWLISTED_APPLICATION_IDS",
     "APPLICATION_LAUNCH_CAPABILITY",
+    "AllowlistedApplicationExecutor",
+    "ApplicationCatalog",
     "BLOCKED_ACTIVE_EXTENSIONS",
     "ApprovedDirectory",
     "ActionCancellationToken",
@@ -98,6 +105,7 @@ __all__ = [
     "PermissionDecision",
     "PermissionGrant",
     "ProtectedPathPolicy",
+    "InstalledApplication",
     "ValidatedAction",
     "build_default_action_registry",
 ]

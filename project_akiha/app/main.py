@@ -41,6 +41,7 @@ from project_akiha.core.actions import (
     ActionPermissionPolicy,
     ActionRequest,
     ActionRequestValidator,
+    AllowlistedApplicationExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
     OpenFileExecutor,
@@ -239,6 +240,7 @@ def _run_application() -> int:
             FileSearchExecutor(),
             OpenDirectoryExecutor(),
             OpenFileExecutor(),
+            AllowlistedApplicationExecutor(),
         ),
     )
     assistant_action_bridge = AssistantActionBridge(assistant_action_service)

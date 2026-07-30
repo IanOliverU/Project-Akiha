@@ -64,9 +64,20 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             r"C:\Users\Akiha\Documents\notes.txt",
         )
 
+    def test_parses_allowlisted_application_command(self) -> None:
+        request = self.parser.parse(
+            "launch app: Chrome",
+            correlation_id="chat-5",
+        )
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "applications.launch")
+        self.assertEqual(request.parameters["application_id"], "chrome")
+
     def test_ordinary_conversation_does_not_become_an_action(self) -> None:
         self.assertIsNone(self.parser.parse("Could you open the directory later?"))
         self.assertIsNone(self.parser.parse("Could you open this file later?"))
+        self.assertIsNone(self.parser.parse("Could you open Chrome later?"))
         self.assertIsNone(self.parser.parse("Please help me plan today."))
 
     def test_empty_command_does_not_become_an_action(self) -> None:

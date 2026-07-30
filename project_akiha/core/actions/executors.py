@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import subprocess
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -11,6 +12,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Protocol
 
+from project_akiha.core.actions.application_catalog import ApplicationCatalog
 from project_akiha.core.actions.errors import ActionValidationError
 from project_akiha.core.actions.models import (
     ActionExecutionResult,
@@ -22,6 +24,7 @@ from project_akiha.core.actions.models import (
 from project_akiha.core.actions.passive_files import PassiveFilePolicy
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
+    LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
 )
@@ -294,6 +297,70 @@ class OpenFileExecutor:
         )
 
 
+class AllowlistedApplicationExecutor:
+    """Launch only a catalog-resolved application without shell arguments."""
+
+    executor_id = "launch_allowlisted_application"
+    action_id = LAUNCH_APPLICATION_ACTION
+
+    def __init__(
+        self,
+        catalog: ApplicationCatalog | None = None,
+        launcher: Callable[[Path], None] | None = None,
+    ) -> None:
+        self._catalog = catalog or ApplicationCatalog()
+        self._launcher = launcher or _launch_application_with_system
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        """Resolve and launch the application-owned executable path."""
+        if action.definition.action_id != self.action_id:
+            raise ValueError("application launcher received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return ActionExecutionResult(
+                status=ActionStatus.CANCELLED,
+                summary="Application launch was cancelled.",
+            )
+
+        application_id = action.normalized_target
+        application = self._catalog.resolve(application_id)
+        if not application.is_available:
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary=f"{application.display_name} was not found on this computer.",
+                failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                metadata={"application_id": application_id, "available": False},
+            )
+
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._launcher, application.executable),
+                timeout=action.definition.timeout_seconds,
+            )
+        except TimeoutError:
+            return ActionExecutionResult(
+                status=ActionStatus.TIMED_OUT,
+                summary=f"Starting {application.display_name} reached its time limit.",
+            )
+        except OSError:
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary=f"{application.display_name} could not be started.",
+                failure_category=ActionFailureCategory.EXECUTION_FAILED,
+                metadata={"application_id": application_id, "available": True},
+            )
+
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=f"{application.display_name} was started.",
+            metadata={"application_id": application_id, "available": True},
+        )
+
+
 def _is_link_or_reparse_point(entry: os.DirEntry[str]) -> bool:
     try:
         details = entry.stat(follow_symlinks=False)
@@ -326,6 +393,18 @@ def _open_file_with_system(path: Path) -> None:
     if startfile is None:
         raise OSError("the system file opener is unavailable")
     startfile(str(path))
+
+
+def _launch_application_with_system(path: Path) -> None:
+    """Start a catalog-owned GUI executable with no shell or arguments."""
+    subprocess.Popen(
+        [str(path)],
+        shell=False,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+    )
 
 
 def _interruption_result(

@@ -380,14 +380,28 @@ Passive-file opening now:
 
 ### Phase 8C: Allowlisted Applications
 
-- Add the trusted application catalog.
-- Discover Discord, Chrome, Spotify, and Visual Studio Code where installed.
-- Add per-application permission controls.
-- Implement argument-free application launch.
-- Add missing, moved, denied, and launch-failure diagnostics.
+- [x] Add the trusted application catalog.
+- [x] Discover Discord, Chrome, Spotify, and Visual Studio Code where installed.
+- [x] Add service-level per-application permission controls.
+- [x] Implement argument-free application launch.
+- [x] Add missing, moved, denied, and launch-failure diagnostics.
 
 Checkpoint: Akiha can launch only enabled catalog applications without shell
 execution or AI-controlled arguments.
+
+Application launching now:
+
+- uses the stable identifiers `discord`, `chrome`, `spotify`, and `vscode`
+- resolves executable paths only from known Windows installation locations
+- refuses unknown identifiers, arbitrary executable paths, URLs, working
+  directories, environment overrides, elevation, and command-line arguments
+- starts the resolved GUI executable with `shell=False` and no arguments
+- reports missing installations and launch failures through sanitized results
+  and the existing action audit repository
+- accepts explicit chat forms such as `/launch-app chrome` or `launch app:
+  chrome`; ordinary conversation is not parsed as an application action
+- keeps application grants separate from approved-directory permissions; the
+  Settings UI for managing these grants remains in Phase 8D
 
 ### Phase 8D: UX, Privacy, And Packaging
 
