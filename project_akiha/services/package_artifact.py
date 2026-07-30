@@ -18,6 +18,7 @@ _REQUIRED_ARTIFACT_PATHS = (
     "PySide6",
     "shiboken6",
     "av/utils.pyd",
+    "faster_whisper/assets/silero_vad_v6.onnx",
 )
 
 

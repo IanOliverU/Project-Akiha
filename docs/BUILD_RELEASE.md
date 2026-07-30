@@ -184,9 +184,10 @@ failed during compiled code-object loading. Release builds trade the extra
 compile time for a deterministic artifact.
 
 The script also validates that the standalone artifact contains the expected
-runtime folders, bundled assets, default config, database migrations, and the
-explicitly included PyAV `av.utils` extension required by packaged
-faster-whisper microphone input.
+runtime folders, bundled assets, default config, database migrations, the
+explicitly included PyAV `av.utils` extension, and faster-whisper's packaged
+Silero VAD ONNX model. Both voice dependencies are required by packaged
+microphone input.
 
 ## Packaged Smoke Test
 

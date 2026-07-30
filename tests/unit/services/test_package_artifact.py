@@ -54,8 +54,10 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "PySide6").mkdir()
     (artifact_dir / "shiboken6").mkdir()
     (artifact_dir / "av").mkdir()
+    (artifact_dir / "faster_whisper/assets").mkdir(parents=True)
     (artifact_dir / "Akiha.exe").write_bytes(b"")
     (artifact_dir / "av/utils.pyd").write_bytes(b"")
+    (artifact_dir / "faster_whisper/assets/silero_vad_v6.onnx").write_bytes(b"")
     (artifact_dir / "assets/animations/manifest.toml").write_text(
         "",
         encoding="utf-8",

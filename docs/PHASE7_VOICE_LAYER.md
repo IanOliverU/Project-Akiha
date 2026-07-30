@@ -464,14 +464,15 @@ engine.
   not stop that external process.
 
 The Phase 7 release candidate at
-`dist\nuitka-phase7-closure-av-utils\main.dist\Akiha.exe` passed fresh-data and
-existing-data packaged smoke on 2026-07-30. It uses the Windows GUI subsystem
-and creates no visible console window. The final source gate passed 585 unit
-tests, Ruff, Black, compilation, and isolated source smoke. Runtime logs
+`dist\nuitka-phase7-final-voice\main.dist\Akiha.exe` uses the Windows GUI
+subsystem, creates no visible console window, and passed fresh-data and
+existing-data packaged smoke on 2026-07-30. The final source gate passed 585
+unit tests, Ruff, Black, compilation, and isolated source smoke. Runtime logs
 confirmed managed engine cleanup, and a real external-engine ownership probe
 confirmed that shutdown leaves externally started VOICEVOX processes running.
-The final package explicitly includes and validates PyAV's `av.utils`
-extension, which faster-whisper requires for packaged microphone input.
+The final package explicitly includes and validates both PyAV's `av.utils`
+extension and faster-whisper's Silero VAD ONNX model, which packaged microphone
+input requires.
 
 ## Privacy And Safety
 

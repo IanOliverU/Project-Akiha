@@ -63,6 +63,7 @@ try {
         --zig `
         --enable-plugin=pyside6 `
         --include-module=av.utils `
+        --include-package-data=faster_whisper `
         --windows-console-mode=attach `
         --output-dir=$OutputDir `
         --output-filename=Akiha `
