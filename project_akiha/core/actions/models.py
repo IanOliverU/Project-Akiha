@@ -183,6 +183,41 @@ class PermissionGrant:
 
 
 @dataclass(frozen=True, slots=True)
+class ApprovedDirectory:
+    """Aggregated active file permissions for one canonical directory root."""
+
+    root: str
+    search_permission_id: int | None
+    open_permission_id: int | None
+    is_available: bool
+
+    def __post_init__(self) -> None:
+        if not self.root.strip():
+            raise ValueError("approved directory root cannot be empty.")
+        permission_ids = (
+            self.search_permission_id,
+            self.open_permission_id,
+        )
+        if all(permission_id is None for permission_id in permission_ids):
+            raise ValueError("approved directory needs at least one permission.")
+        if any(
+            permission_id is not None and permission_id <= 0
+            for permission_id in permission_ids
+        ):
+            raise ValueError("approved directory permission ids must be positive.")
+
+    @property
+    def can_search(self) -> bool:
+        """Return whether filename search is permitted for this root."""
+        return self.search_permission_id is not None
+
+    @property
+    def can_open(self) -> bool:
+        """Return whether directory and passive-file opening is permitted."""
+        return self.open_permission_id is not None
+
+
+@dataclass(frozen=True, slots=True)
 class ActionResult:
     """Sanitized result of evaluating or executing one action request."""
 

@@ -8,6 +8,7 @@ from project_akiha.core.actions import (
     ActionFailureCategory,
     ActionRequest,
     ActionValidationError,
+    ApprovedDirectory,
     build_default_action_registry,
 )
 
@@ -68,6 +69,25 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
                 action_id="RUN THIS",
                 source="chat",
                 parameters={},
+            )
+
+    def test_approved_directory_derives_capabilities_from_permission_ids(self) -> None:
+        directory = ApprovedDirectory(
+            root=r"C:\Users\Akiha\Documents",
+            search_permission_id=1,
+            open_permission_id=None,
+            is_available=True,
+        )
+
+        self.assertTrue(directory.can_search)
+        self.assertFalse(directory.can_open)
+
+        with self.assertRaises(ValueError):
+            ApprovedDirectory(
+                root=r"C:\Users\Akiha\Documents",
+                search_permission_id=None,
+                open_permission_id=None,
+                is_available=True,
             )
 
 

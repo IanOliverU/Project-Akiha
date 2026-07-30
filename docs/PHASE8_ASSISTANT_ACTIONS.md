@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - Phase 8A complete
+**Status:** In progress - Phase 8B approved-directory management complete
 
 ## Phase Goal
 
@@ -283,13 +283,25 @@ any real desktop executor enabled. Completed with no executor dependency in
 
 ### Phase 8B: Read-Only File Discovery
 
-- Add approved-directory management.
-- Implement bounded, cancellable file search.
-- Add search-result presentation and audit history.
-- Add open-directory support for approved roots.
-- Add safe-file opening with per-action confirmation and blocked-type policy.
+- [x] Add approved-directory management.
+- [ ] Implement bounded, cancellable file search.
+- [ ] Add search-result presentation and audit history.
+- [ ] Add open-directory support for approved roots.
+- [ ] Add safe-file opening with per-action confirmation and blocked-type
+  policy.
 
 Checkpoint: Akiha can find and reveal safe files only inside approved roots.
+
+Approved-directory management now:
+
+- aggregates active `files.search` and `files.open` grants by canonical root
+- atomically creates, updates, or revokes both directory capabilities
+- requires an existing, non-protected directory when granting access
+- reports missing or newly unsafe approved roots as unavailable
+- can revoke stale roots after a directory is moved or deleted
+- excludes application permissions from directory listings and revocation
+- remains service-only until the Settings management UI is added in Phase 8D
+- passed full verification with 651 tests; no file executor is enabled
 
 ### Phase 8C: Allowlisted Applications
 

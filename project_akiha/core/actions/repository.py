@@ -32,6 +32,18 @@ class ActionPermissionRepository(Protocol):
     async def revoke_permission(self, permission_id: int) -> bool:
         """Revoke one active grant and report whether it changed."""
 
+    async def set_directory_permissions(
+        self,
+        target: str,
+        *,
+        allow_search: bool,
+        allow_open: bool,
+    ) -> tuple[PermissionGrant, ...]:
+        """Atomically replace active file permissions for one directory."""
+
+    async def revoke_directory_permissions(self, target: str) -> int:
+        """Atomically revoke all active file permissions for one directory."""
+
 
 class ActionAuditRepository(Protocol):
     """Persist sanitized action evaluation history."""

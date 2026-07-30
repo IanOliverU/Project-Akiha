@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from project_akiha.core.actions import (
+    FILE_OPEN_CAPABILITY,
+    FILE_SEARCH_CAPABILITY,
     ActionAuditEntry,
     ActionFailureCategory,
     ActionStatus,
@@ -58,6 +60,30 @@ class SQLiteActionRepository:
         if permission_id <= 0:
             raise ValueError("permission id must be greater than zero.")
         return await asyncio.to_thread(self._revoke_permission, permission_id)
+
+    async def set_directory_permissions(
+        self,
+        target: str,
+        *,
+        allow_search: bool,
+        allow_open: bool,
+    ) -> tuple[PermissionGrant, ...]:
+        """Atomically replace active file permissions for one directory."""
+        if not isinstance(allow_search, bool) or not isinstance(allow_open, bool):
+            raise TypeError("directory permission flags must be boolean.")
+        return await asyncio.to_thread(
+            self._set_directory_permissions,
+            _required_text(target, "directory permission target"),
+            allow_search,
+            allow_open,
+        )
+
+    async def revoke_directory_permissions(self, target: str) -> int:
+        """Atomically revoke all active file permissions for one directory."""
+        return await asyncio.to_thread(
+            self._revoke_directory_permissions,
+            _required_text(target, "directory permission target"),
+        )
 
     async def record_action_audit(
         self,
@@ -182,6 +208,96 @@ class SQLiteActionRepository:
             )
             connection.commit()
             return cursor.rowcount > 0
+        finally:
+            connection.close()
+
+    def _set_directory_permissions(
+        self,
+        target: str,
+        allow_search: bool,
+        allow_open: bool,
+    ) -> tuple[PermissionGrant, ...]:
+        requested = {
+            FILE_SEARCH_CAPABILITY: allow_search,
+            FILE_OPEN_CAPABILITY: allow_open,
+        }
+        timestamp = _utc_timestamp()
+        connection = self._connect()
+        try:
+            for capability, enabled in requested.items():
+                row = connection.execute(
+                    """
+                    SELECT id
+                    FROM assistant_action_permissions
+                    WHERE capability = ? AND target = ? AND revoked_at IS NULL
+                    """,
+                    (capability, target),
+                ).fetchone()
+                if enabled and row is None:
+                    connection.execute(
+                        """
+                        INSERT INTO assistant_action_permissions(
+                            capability,
+                            target,
+                            created_at
+                        )
+                        VALUES (?, ?, ?)
+                        """,
+                        (capability, target, timestamp),
+                    )
+                elif not enabled and row is not None:
+                    connection.execute(
+                        """
+                        UPDATE assistant_action_permissions
+                        SET revoked_at = ?
+                        WHERE id = ?
+                        """,
+                        (timestamp, int(row["id"])),
+                    )
+
+            rows = connection.execute(
+                """
+                SELECT id, capability, target, created_at, revoked_at
+                FROM assistant_action_permissions
+                WHERE target = ?
+                  AND capability IN (?, ?)
+                  AND revoked_at IS NULL
+                ORDER BY capability, id
+                """,
+                (
+                    target,
+                    FILE_OPEN_CAPABILITY,
+                    FILE_SEARCH_CAPABILITY,
+                ),
+            ).fetchall()
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return tuple(_permission_from_row(row) for row in rows)
+
+    def _revoke_directory_permissions(self, target: str) -> int:
+        connection = self._connect()
+        try:
+            cursor = connection.execute(
+                """
+                UPDATE assistant_action_permissions
+                SET revoked_at = ?
+                WHERE target = ?
+                  AND capability IN (?, ?)
+                  AND revoked_at IS NULL
+                """,
+                (
+                    _utc_timestamp(),
+                    target,
+                    FILE_OPEN_CAPABILITY,
+                    FILE_SEARCH_CAPABILITY,
+                ),
+            )
+            connection.commit()
+            return int(cursor.rowcount)
         finally:
             connection.close()
 

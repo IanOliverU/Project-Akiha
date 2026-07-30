@@ -10,6 +10,7 @@ from project_akiha.core.actions.models import (
     ActionResult,
     ActionRisk,
     ActionStatus,
+    ApprovedDirectory,
     ConfirmationPolicy,
     ParameterKind,
     PermissionDecision,
@@ -38,6 +39,7 @@ from project_akiha.core.actions.validation import ActionRequestValidator
 __all__ = [
     "ALLOWLISTED_APPLICATION_IDS",
     "APPLICATION_LAUNCH_CAPABILITY",
+    "ApprovedDirectory",
     "ActionAuditEntry",
     "ActionAuditRepository",
     "ActionDefinition",

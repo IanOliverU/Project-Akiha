@@ -54,6 +54,80 @@ class SQLiteActionRepositoryTest(unittest.TestCase):
         self.assertEqual(tuple(item.target for item in active), ("spotify",))
         self.assertEqual(apps, active)
 
+    def test_atomically_sets_and_revokes_directory_capabilities(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteActionRepository(Path(directory) / "akiha.sqlite3")
+            target = r"C:\Users\Akiha\Documents"
+
+            search_only = asyncio.run(
+                repository.set_directory_permissions(
+                    target,
+                    allow_search=True,
+                    allow_open=False,
+                )
+            )
+            both = asyncio.run(
+                repository.set_directory_permissions(
+                    target,
+                    allow_search=True,
+                    allow_open=True,
+                )
+            )
+            open_only = asyncio.run(
+                repository.set_directory_permissions(
+                    target,
+                    allow_search=False,
+                    allow_open=True,
+                )
+            )
+            revoked_count = asyncio.run(repository.revoke_directory_permissions(target))
+            active = asyncio.run(repository.get_active_permissions())
+
+        self.assertEqual(
+            tuple(item.capability for item in search_only),
+            ("files.search",),
+        )
+        self.assertEqual(
+            {item.capability for item in both},
+            {"files.search", "files.open"},
+        )
+        self.assertEqual(
+            tuple(item.capability for item in open_only),
+            ("files.open",),
+        )
+        self.assertEqual(revoked_count, 1)
+        self.assertEqual(active, ())
+
+    def test_directory_permission_update_rolls_back_as_one_transaction(self) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "akiha.sqlite3"
+            repository = SQLiteActionRepository(database_path)
+            connection = sqlite3.connect(database_path)
+            try:
+                connection.executescript("""
+                    CREATE TRIGGER reject_open_permission
+                    BEFORE INSERT ON assistant_action_permissions
+                    WHEN NEW.capability = 'files.open'
+                    BEGIN
+                        SELECT RAISE(ABORT, 'blocked for transaction test');
+                    END;
+                    """)
+                connection.commit()
+            finally:
+                connection.close()
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                asyncio.run(
+                    repository.set_directory_permissions(
+                        r"C:\Users\Akiha\Documents",
+                        allow_search=True,
+                        allow_open=True,
+                    )
+                )
+            active = asyncio.run(repository.get_active_permissions())
+
+        self.assertEqual(active, ())
+
     def test_records_and_loads_sanitized_action_audit(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteActionRepository(Path(directory) / "akiha.sqlite3")

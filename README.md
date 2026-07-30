@@ -47,7 +47,9 @@ Windows user and never stored in ordinary TOML configuration. Phase 8 will add
 permission-gated, deliberately shallow desktop actions before the pet
 simulation is researched and implemented in Phase 9. Phase 8A now provides the
 typed registry, validation, protected-path policy, scoped permission storage,
-and sanitized action auditing without enabling any desktop executor.
+and sanitized action auditing without enabling any desktop executor. The first
+Phase 8B slice adds atomic approved-directory management while file discovery
+and opening remain disabled.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
