@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QTime
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QGroupBox
 
 import project_akiha.ui.settings_window as settings_window_module
 from project_akiha.config import AIConfig, AppConfig, PrivacyConfig
@@ -19,6 +19,7 @@ from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
 from project_akiha.ui.settings_window import SettingsWindow
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class _CredentialStore:
@@ -75,6 +76,36 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertTrue(emitted[0].behavior.quiet_hours_enabled)
         self.assertEqual(emitted[0].behavior.quiet_hours_start, "21:30")
         self.assertEqual(emitted[0].behavior.quiet_hours_end, "08:15")
+
+    def test_uniform_theme_and_sections_are_applied(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+
+        section_titles = {
+            section.title()
+            for section in window.findChildren(QGroupBox)
+            if section.objectName() == "settingsSection"
+        }
+        self.assertEqual(window.objectName(), "akihaSettingsWindow")
+        self.assertEqual(window._tabs.count(), 5)
+        self.assertEqual(window._save_button.objectName(), "primaryButton")
+        self.assertIn(AKIHA_PALETTE.window, window.styleSheet())
+        self.assertIn(AKIHA_PALETTE.primary, window.styleSheet())
+        self.assertTrue(
+            {
+                "Window",
+                "Appearance",
+                "Provider",
+                "Identity",
+                "Memory",
+                "Awareness",
+                "Proactive behavior",
+                "Listening",
+                "Speaking",
+                "Subtitles",
+                "Diagnostics",
+            }.issubset(section_titles)
+        )
 
     def test_behavior_away_minimum_stays_after_idle(self) -> None:
         with TemporaryDirectory() as directory:

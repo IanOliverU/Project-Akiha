@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -48,6 +49,7 @@ from project_akiha.services.credential_store import (
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
+from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
 
 _AI_PROVIDER_ORDER = (
     "mock",
@@ -99,7 +101,10 @@ class SettingsWindow(QWidget):
         self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
 
         self.setWindowTitle("Project Akiha Settings")
-        self.setMinimumWidth(420)
+        self.setObjectName("akihaSettingsWindow")
+        self.setMinimumSize(640, 560)
+        self.resize(720, 680)
+        self.setStyleSheet(settings_stylesheet())
 
         self._width_input = _build_spinbox(64, 2000, config.pet_window.width)
         self._height_input = _build_spinbox(64, 2000, config.pet_window.height)
@@ -330,16 +335,20 @@ class SettingsWindow(QWidget):
         )
 
         tabs = QTabWidget()
+        tabs.setDocumentMode(True)
         tabs.addTab(self._build_pet_tab(), "Pet")
         tabs.addTab(self._build_ai_tab(), "AI")
         tabs.addTab(self._build_memory_tab(), "Memory")
         tabs.addTab(self._build_behavior_tab(), "Behavior")
         tabs.addTab(self._build_voice_tab(), "Voice")
+        self._tabs = tabs
         self._sync_ai_controls(config.ai.provider)
         self._sync_voice_controls(config.voice.enabled)
 
         save_button = QPushButton("Save")
+        save_button.setObjectName("primaryButton")
         save_button.clicked.connect(self._save)
+        self._save_button = save_button
 
         reset_position_button = QPushButton("Reset position")
         reset_position_button.clicked.connect(self.position_reset_requested.emit)
@@ -363,8 +372,11 @@ class SettingsWindow(QWidget):
         button_layout.addWidget(open_data_button)
         button_layout.addWidget(memories_button)
         button_layout.addWidget(behavior_history_button)
+        button_layout.addStretch(1)
 
         layout = QVBoxLayout()
+        layout.setContentsMargins(18, 18, 18, 16)
+        layout.setSpacing(12)
         layout.addWidget(tabs)
         layout.addLayout(button_layout)
         self.setLayout(layout)
@@ -494,7 +506,7 @@ class SettingsWindow(QWidget):
     ) -> None:
         """Display a diagnostic action result."""
         self._voice_diagnostic_status.setText(status.strip() or "Ready")
-        color = "#c62828" if is_error else "#2e7d32"
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
         self._voice_diagnostic_status.setStyleSheet(f"color: {color};")
 
     def set_voice_test_active(self, test_name: str, active: bool) -> None:
@@ -511,7 +523,7 @@ class SettingsWindow(QWidget):
     def set_voice_engine_status(self, status: str, is_error: bool = False) -> None:
         """Display the managed VOICEVOX Engine lifecycle status."""
         self._voice_output_engine_status.setText(status.strip() or "Not managed")
-        color = "#c62828" if is_error else "#2e7d32"
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
         self._voice_output_engine_status.setStyleSheet(f"color: {color};")
 
     def _build_manifest_row(self) -> QWidget:
@@ -527,21 +539,26 @@ class SettingsWindow(QWidget):
         return row
 
     def _build_pet_tab(self) -> QWidget:
-        form_layout = QFormLayout()
-        form_layout.addRow("Width", self._width_input)
-        form_layout.addRow("Height", self._height_input)
-        form_layout.addRow("FPS", self._fps_input)
-        form_layout.addRow("Walking speed", self._walking_speed_input)
-        form_layout.addRow("Start X", self._start_x_input)
-        form_layout.addRow("Start Y", self._start_y_input)
-        form_layout.addRow("Always on top", self._always_on_top_input)
-        form_layout.addRow("Animation manifest", self._build_manifest_row())
-        return _build_scroll_tab(form_layout)
+        window_layout = _build_form_layout()
+        window_layout.addRow("Width", self._width_input)
+        window_layout.addRow("Height", self._height_input)
+        window_layout.addRow("FPS", self._fps_input)
+        window_layout.addRow("Walking speed", self._walking_speed_input)
+        window_layout.addRow("Start X", self._start_x_input)
+        window_layout.addRow("Start Y", self._start_y_input)
+        window_layout.addRow("Animation manifest", self._build_manifest_row())
+
+        appearance_layout = _build_form_layout()
+        appearance_layout.addRow("Always on top", self._always_on_top_input)
+        return _build_scroll_tab(
+            _build_section("Window", window_layout),
+            _build_section("Appearance", appearance_layout),
+        )
 
     def _build_ai_tab(self) -> QWidget:
-        form_layout = QFormLayout()
-        form_layout.addRow("AI provider", self._ai_provider_input)
-        form_layout.addRow(
+        provider_layout = _build_form_layout(wrap_long_rows=True)
+        provider_layout.addRow("AI provider", self._ai_provider_input)
+        provider_layout.addRow(
             "Advanced provider settings",
             self._advanced_ai_settings_input,
         )
@@ -549,17 +566,25 @@ class SettingsWindow(QWidget):
         self._ollama_model_label = QLabel("Ollama model")
         self._hosted_url_label = QLabel("Hosted API URL")
         self._hosted_model_label = QLabel("Hosted model")
-        form_layout.addRow(self._ollama_url_label, self._ollama_base_url_input)
-        form_layout.addRow(self._ollama_model_label, self._ollama_model_input)
-        form_layout.addRow(self._hosted_url_label, self._hosted_base_url_input)
-        form_layout.addRow(self._hosted_model_label, self._hosted_model_input)
-        form_layout.addRow("API key", self._ai_api_key_input)
-        form_layout.addRow("Credential", self._build_ai_credential_row())
-        form_layout.addRow("Provider connection", self._build_ai_connection_row())
-        form_layout.addRow("AI timeout", self._ai_timeout_input)
-        form_layout.addRow("Companion name", self._character_name_input)
-        form_layout.addRow("System prompt", self._system_prompt_input)
-        return _build_scroll_tab(form_layout)
+        provider_layout.addRow(self._ollama_url_label, self._ollama_base_url_input)
+        provider_layout.addRow(self._ollama_model_label, self._ollama_model_input)
+        provider_layout.addRow(self._hosted_url_label, self._hosted_base_url_input)
+        provider_layout.addRow(self._hosted_model_label, self._hosted_model_input)
+        provider_layout.addRow("API key", self._ai_api_key_input)
+        provider_layout.addRow("Credential", self._build_ai_credential_row())
+        provider_layout.addRow(
+            "Provider connection",
+            self._build_ai_connection_row(),
+        )
+        provider_layout.addRow("AI timeout", self._ai_timeout_input)
+
+        identity_layout = _build_form_layout()
+        identity_layout.addRow("Companion name", self._character_name_input)
+        identity_layout.addRow("System prompt", self._system_prompt_input)
+        return _build_scroll_tab(
+            _build_section("Provider", provider_layout),
+            _build_section("Identity", identity_layout),
+        )
 
     def _build_ai_credential_row(self) -> QWidget:
         row = QWidget()
@@ -580,138 +605,159 @@ class SettingsWindow(QWidget):
         return row
 
     def _build_memory_tab(self) -> QWidget:
-        form_layout = QFormLayout()
+        form_layout = _build_form_layout()
         form_layout.addRow("Memory enabled", self._memory_enabled_input)
         form_layout.addRow("Approve memories", self._memory_approval_input)
         form_layout.addRow("Memory retrieval limit", self._memory_retrieval_limit_input)
-        return _build_scroll_tab(form_layout)
+        return _build_scroll_tab(_build_section("Memory", form_layout))
 
     def _build_behavior_tab(self) -> QWidget:
-        form_layout = QFormLayout()
-        form_layout.addRow("Behavior enabled", self._behavior_enabled_input)
-        form_layout.addRow("Proactive nudges", self._proactive_enabled_input)
-        form_layout.addRow("Idle after", self._idle_after_input)
-        form_layout.addRow("Away after", self._away_after_input)
-        form_layout.addRow("Nudge cooldown", self._notification_cooldown_input)
-        form_layout.addRow(
+        awareness_layout = _build_form_layout()
+        awareness_layout.addRow("Behavior enabled", self._behavior_enabled_input)
+        awareness_layout.addRow("Idle after", self._idle_after_input)
+        awareness_layout.addRow("Away after", self._away_after_input)
+
+        proactive_layout = _build_form_layout()
+        proactive_layout.addRow("Proactive nudges", self._proactive_enabled_input)
+        proactive_layout.addRow("Nudge cooldown", self._notification_cooldown_input)
+        proactive_layout.addRow(
             "Notify while away",
             self._allow_notifications_while_away_input,
         )
-        form_layout.addRow(
+        proactive_layout.addRow(
             "Scheduled check-ins",
             self._scheduled_check_ins_enabled_input,
         )
-        form_layout.addRow(
+        proactive_layout.addRow(
             "Check-in interval",
             self._scheduled_check_in_interval_input,
         )
-        form_layout.addRow("Quiet hours enabled", self._quiet_hours_enabled_input)
-        form_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
-        form_layout.addRow("Quiet hours end", self._quiet_hours_end_input)
-        return _build_scroll_tab(form_layout)
+        proactive_layout.addRow(
+            "Quiet hours enabled",
+            self._quiet_hours_enabled_input,
+        )
+        proactive_layout.addRow("Quiet hours start", self._quiet_hours_start_input)
+        proactive_layout.addRow("Quiet hours end", self._quiet_hours_end_input)
+        return _build_scroll_tab(
+            _build_section("Awareness", awareness_layout),
+            _build_section("Proactive behavior", proactive_layout),
+        )
 
     def _build_voice_tab(self) -> QWidget:
-        form_layout = QFormLayout()
-        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        form_layout.addRow("Voice enabled", self._voice_enabled_input)
-        form_layout.addRow(
+        listening_layout = _build_form_layout(wrap_long_rows=True)
+        listening_layout.addRow("Voice enabled", self._voice_enabled_input)
+        listening_layout.addRow(
             "Push-to-talk enabled",
             self._push_to_talk_enabled_input,
         )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Input provider",
             self._voice_input_provider_input,
         )
-        form_layout.addRow("Whisper model", self._voice_input_model_input)
-        form_layout.addRow(
+        listening_layout.addRow("Whisper model", self._voice_input_model_input)
+        listening_layout.addRow(
             "Recognition language",
             self._voice_input_language_input,
         )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Microphone",
             self._voice_input_device_input,
         )
-        form_layout.addRow(
-            "Output provider",
-            self._voice_output_provider_input,
-        )
-        form_layout.addRow(
-            "VOICEVOX URL",
-            self._voice_output_base_url_input,
-        )
-        form_layout.addRow(
-            "VOICEVOX speaker ID",
-            self._voice_output_voice_id_input,
-        )
-        form_layout.addRow(
-            "Speakers",
-            self._voice_output_device_input,
-        )
-        form_layout.addRow(
-            "Start VOICEVOX automatically",
-            self._voice_output_engine_auto_start_input,
-        )
-        form_layout.addRow(
-            "VOICEVOX Engine executable",
-            self._build_voicevox_engine_path_row(),
-        )
-        form_layout.addRow(
-            "Stop managed engine on quit",
-            self._voice_output_engine_stop_on_exit_input,
-        )
-        form_layout.addRow(
-            "Managed engine",
-            self._voice_output_engine_status,
-        )
-        form_layout.addRow(
-            "Speak replies automatically",
-            self._automatic_speech_enabled_input,
-        )
-        form_layout.addRow(
-            "Speak proactive check-ins",
-            self._proactive_speech_enabled_input,
-        )
-        form_layout.addRow(
-            "Show English subtitles",
-            self._english_subtitles_enabled_input,
-        )
-        form_layout.addRow(
-            "Include subtitles in exports",
-            self._export_english_subtitles_enabled_input,
-        )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Show transcription while speaking",
             self._live_transcription_enabled_input,
         )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Stop recording after silence",
             self._auto_stop_on_silence_enabled_input,
         )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Send final transcript automatically",
             self._auto_send_transcript_enabled_input,
         )
-        form_layout.addRow(
+        listening_layout.addRow(
             "Silence duration",
             self._voice_silence_timeout_input,
         )
-        form_layout.addRow("Volume", self._voice_volume_input)
-        form_layout.addRow("Speaking rate", self._voice_speaking_rate_input)
-        form_layout.addRow(
+        listening_layout.addRow(
             "Recording timeout",
             self._voice_capture_timeout_input,
         )
-        form_layout.addRow(
+
+        speaking_layout = _build_form_layout(wrap_long_rows=True)
+        speaking_layout.addRow(
+            "Output provider",
+            self._voice_output_provider_input,
+        )
+        speaking_layout.addRow(
+            "VOICEVOX URL",
+            self._voice_output_base_url_input,
+        )
+        speaking_layout.addRow(
+            "VOICEVOX speaker ID",
+            self._voice_output_voice_id_input,
+        )
+        speaking_layout.addRow(
+            "Speakers",
+            self._voice_output_device_input,
+        )
+        speaking_layout.addRow(
+            "Start VOICEVOX automatically",
+            self._voice_output_engine_auto_start_input,
+        )
+        speaking_layout.addRow(
+            "VOICEVOX Engine executable",
+            self._build_voicevox_engine_path_row(),
+        )
+        speaking_layout.addRow(
+            "Stop managed engine on quit",
+            self._voice_output_engine_stop_on_exit_input,
+        )
+        speaking_layout.addRow(
+            "Managed engine",
+            self._voice_output_engine_status,
+        )
+        speaking_layout.addRow(
+            "Speak replies automatically",
+            self._automatic_speech_enabled_input,
+        )
+        speaking_layout.addRow(
+            "Speak proactive check-ins",
+            self._proactive_speech_enabled_input,
+        )
+        speaking_layout.addRow("Volume", self._voice_volume_input)
+        speaking_layout.addRow("Speaking rate", self._voice_speaking_rate_input)
+
+        subtitle_layout = _build_form_layout(wrap_long_rows=True)
+        subtitle_layout.addRow(
+            "Show English subtitles",
+            self._english_subtitles_enabled_input,
+        )
+        subtitle_layout.addRow(
+            "Include subtitles in exports",
+            self._export_english_subtitles_enabled_input,
+        )
+
+        diagnostics_layout = _build_form_layout(wrap_long_rows=True)
+        diagnostics_layout.addRow(
             "Provider timeout",
             self._voice_request_timeout_input,
         )
-        form_layout.addRow("Provider check", self._voice_health_check_button)
-        form_layout.addRow("Microphone test", self._voice_microphone_test_button)
-        form_layout.addRow("Voice test", self._voice_output_test_button)
-        form_layout.addRow("Speech recognition", self._voice_input_health)
-        form_layout.addRow("Speech output", self._voice_output_health)
-        form_layout.addRow("Diagnostic status", self._voice_diagnostic_status)
-        return _build_scroll_tab(form_layout)
+        diagnostics_layout.addRow("Provider check", self._voice_health_check_button)
+        diagnostics_layout.addRow(
+            "Microphone test",
+            self._voice_microphone_test_button,
+        )
+        diagnostics_layout.addRow("Voice test", self._voice_output_test_button)
+        diagnostics_layout.addRow("Speech recognition", self._voice_input_health)
+        diagnostics_layout.addRow("Speech output", self._voice_output_health)
+        diagnostics_layout.addRow("Diagnostic status", self._voice_diagnostic_status)
+        return _build_scroll_tab(
+            _build_section("Listening", listening_layout),
+            _build_section("Speaking", speaking_layout),
+            _build_section("Subtitles", subtitle_layout),
+            _build_section("Diagnostics", diagnostics_layout),
+        )
 
     def _browse_manifest(self) -> None:
         selected_path, _ = QFileDialog.getOpenFileName(
@@ -1020,7 +1066,7 @@ class SettingsWindow(QWidget):
         is_error: bool = False,
     ) -> None:
         self._ai_connection_status.setText(status.strip() or "Not checked")
-        color = "#c62828" if is_error else "#2e7d32"
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
         self._ai_connection_status.setStyleSheet(f"color: {color};")
 
     def cancel_ai_discovery(self, wait_ms: int = 16_000) -> bool:
@@ -1222,13 +1268,39 @@ def _build_minutes_spinbox(minimum: int, maximum: int, value_seconds: int) -> QS
     return spinbox
 
 
-def _build_scroll_tab(form_layout: QFormLayout) -> QScrollArea:
-    form_container = QWidget()
-    form_container.setLayout(form_layout)
+def _build_form_layout(*, wrap_long_rows: bool = False) -> QFormLayout:
+    form_layout = QFormLayout()
+    form_layout.setContentsMargins(0, 0, 0, 0)
+    form_layout.setHorizontalSpacing(18)
+    form_layout.setVerticalSpacing(10)
+    form_layout.setFieldGrowthPolicy(
+        QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
+    )
+    if wrap_long_rows:
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    return form_layout
+
+
+def _build_section(title: str, form_layout: QFormLayout) -> QGroupBox:
+    section = QGroupBox(title)
+    section.setObjectName("settingsSection")
+    section.setLayout(form_layout)
+    return section
+
+
+def _build_scroll_tab(*sections: QWidget) -> QScrollArea:
+    content = QWidget()
+    content_layout = QVBoxLayout()
+    content_layout.setContentsMargins(10, 10, 10, 14)
+    content_layout.setSpacing(12)
+    for section in sections:
+        content_layout.addWidget(section)
+    content_layout.addStretch(1)
+    content.setLayout(content_layout)
 
     scroll_area = QScrollArea()
     scroll_area.setWidgetResizable(True)
-    scroll_area.setWidget(form_container)
+    scroll_area.setWidget(content)
     return scroll_area
 
 

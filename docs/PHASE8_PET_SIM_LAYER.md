@@ -33,6 +33,50 @@ Clock / explicit care action / approved interaction event
 This preserves the same mechanics whether Akiha is speaking Japanese, English,
 or another language in the future.
 
+## Mutation Boundary
+
+`PetStateService` is the only application service allowed to apply pet-state
+rules. Its mutation surface must accept typed domain inputs only:
+
+- a clock value for elapsed-time decay
+- an explicit `CareAction`
+- an approved, structured `PetInteractionEvent`
+
+The service must not expose a generic patch method or any mutation method that
+accepts dialogue, prompts, translations, sentiment, or arbitrary strings. AI
+providers are not given the service or pet repository as dependencies.
+
+The repository persists validated snapshots and history but does not calculate
+care rewards or decay. Mood, proactive behavior, UI, voice, and animation
+consume committed pet-state events as read-only reactions.
+
+Tests must prove that processing provider text alone cannot change pet state
+and that a typed action or interaction event is required.
+
+## Neglect And Floor Behavior
+
+Phase 8 uses recoverable floors rather than punishment:
+
+- Decaying statistics clamp at their defined minimum.
+- Reaching the minimum may emit a structured `needs_care` transition for mood,
+  UI, proactive behavior, voice, or animation consumers.
+- Remaining at the floor does not create repeated history rows or repeated
+  threshold events on every timer tick.
+- Explicit care actions can always recover a statistic from its minimum.
+- Akiha does not die, become permanently sick, run away, or reset because of
+  neglect in Phase 8.
+
+More serious long-term condition mechanics require a separate design decision
+and are not an accidental consequence of clamp logic.
+
+## Migration Sequence
+
+`0007_message_translations.sql` is the latest existing migration. Voice
+settings and privacy acknowledgement are configuration values rather than
+database migrations, so the first Phase 8 migration is correctly numbered
+`0008`. Pet-state and pet-history tables may be introduced together in that
+migration when their schema is finalized.
+
 ## Planned Scope
 
 - Persistent hunger, attention or affection, and energy statistics.
@@ -48,7 +92,7 @@ or another language in the future.
 
 - Parsing conversation text to infer pet statistics.
 - Allowing an AI provider to mutate pet state directly.
-- Punitive death or irreversible neglect.
+- Punitive death, running away, sickness, or irreversible neglect.
 - Shop spending, inventory, wearable cosmetics, or Live2D work.
 - Permission-gated assistant actions.
 
@@ -65,3 +109,13 @@ or another language in the future.
 - [ ] Add voice and animation reactions.
 - [ ] Add settings, diagnostics, and reset behavior.
 - [ ] Add automated and manual verification.
+
+## Required Boundary Tests
+
+- [ ] Provider response text cannot mutate pet state without a typed event.
+- [ ] Care and interaction mutations reject invalid typed values.
+- [ ] Decay clamps at the floor and does not duplicate floor events.
+- [ ] A care action recovers a statistic from its floor.
+- [ ] Voice and animation reactions originate from structured state events,
+  never dialogue parsing.
+- [ ] Migration `0008` applies cleanly to both fresh and existing databases.

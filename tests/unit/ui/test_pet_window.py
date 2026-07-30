@@ -16,7 +16,8 @@ from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation.base import AnimationFrame
-from project_akiha.ui.pet_window import PetWindow
+from project_akiha.ui.pet_window import PetWindow, _mood_visual_color
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class PetWindowTest(unittest.TestCase):
@@ -84,6 +85,20 @@ class PetWindowTest(unittest.TestCase):
         self.assertEqual(
             self._window._mood_visual_cue_for_current_mood(),
             MoodVisualCue.WAITING,
+        )
+
+    def test_voice_mood_colors_follow_uniform_palette(self) -> None:
+        self.assertEqual(
+            _mood_visual_color(MoodVisualCue.NONE).name().upper(),
+            AKIHA_PALETTE.primary,
+        )
+        self.assertEqual(
+            _mood_visual_color(MoodVisualCue.VOICE_LISTENING).name().upper(),
+            AKIHA_PALETTE.listening,
+        )
+        self.assertEqual(
+            _mood_visual_color(MoodVisualCue.VOICE_SPEAKING).name().upper(),
+            AKIHA_PALETTE.speaking,
         )
 
     def test_context_menu_behavior_history_action_publishes_request(self) -> None:

@@ -29,6 +29,7 @@ from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation import AnimationProvider
 from project_akiha.providers.animation.base import AnimationFrame
 from project_akiha.ui.pet_renderer import PetRenderer
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class PetWindow(QWidget):
@@ -274,41 +275,49 @@ class PetWindow(QWidget):
         return self._mood_visual_mapper.cue_for(self._current_mood)
 
     def _paint_mood_visual(self, painter: QPainter, cue: MoodVisualCue) -> None:
-        if cue == MoodVisualCue.NONE:
-            return
-
-        bubble_rect = QRectF(max(8, self.width() - 58), 10, 44, 32)
+        bubble_rect = QRectF(max(8, self.width() - 58), 10, 44, 44)
         color = _mood_visual_color(cue)
+        border = QColor(AKIHA_PALETTE.border)
+        if cue == MoodVisualCue.VOICE_LISTENING:
+            border = QColor(AKIHA_PALETTE.listening_border)
+        elif cue == MoodVisualCue.VOICE_SPEAKING:
+            border = QColor(AKIHA_PALETTE.speaking)
 
         painter.save()
-        painter.setBrush(QColor(color.red(), color.green(), color.blue(), 180))
-        painter.setPen(QPen(QColor(44, 28, 36, 150), 2))
+        painter.setBrush(QColor(AKIHA_PALETTE.control))
+        painter.setPen(QPen(border, 1.5))
         painter.drawRoundedRect(bubble_rect, 12, 12)
 
-        painter.setPen(QPen(QColor(44, 28, 36), 2))
-        if cue == MoodVisualCue.ATTENTION:
+        painter.setPen(QPen(color, 2))
+        if cue == MoodVisualCue.NONE:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
             painter.drawEllipse(
-                QRectF(bubble_rect.x() + 13, bubble_rect.y() + 8, 18, 18)
+                QRectF(bubble_rect.x() + 15, bubble_rect.y() + 15, 14, 14)
+            )
+        elif cue == MoodVisualCue.ATTENTION:
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 13, bubble_rect.y() + 13, 18, 18)
             )
             painter.drawEllipse(
-                QRectF(bubble_rect.x() + 18, bubble_rect.y() + 13, 8, 8)
+                QRectF(bubble_rect.x() + 18, bubble_rect.y() + 18, 8, 8)
             )
         elif cue == MoodVisualCue.WAITING:
             for offset in (10, 20, 30):
                 painter.drawEllipse(
-                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 15, 4, 4)
+                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 20, 4, 4)
                 )
         elif cue == MoodVisualCue.CHECKING_IN:
             painter.drawRoundedRect(
-                QRectF(bubble_rect.x() + 10, bubble_rect.y() + 9, 24, 14),
+                QRectF(bubble_rect.x() + 10, bubble_rect.y() + 14, 24, 14),
                 5,
                 5,
             )
             painter.drawLine(
                 int(bubble_rect.x() + 18),
-                int(bubble_rect.y() + 23),
-                int(bubble_rect.x() + 15),
                 int(bubble_rect.y() + 28),
+                int(bubble_rect.x() + 15),
+                int(bubble_rect.y() + 33),
             )
         elif cue in {MoodVisualCue.RESTING, MoodVisualCue.SLEEPY}:
             font = QFont()
@@ -318,45 +327,57 @@ class PetWindow(QWidget):
             text = "..." if cue == MoodVisualCue.RESTING else "Zz"
             painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, text)
         elif cue == MoodVisualCue.VOICE_LISTENING:
+            pulse_step = self._frame_number % 12
+            pulse_size = 22 + min(pulse_step, 12 - pulse_step)
+            pulse_color = QColor(AKIHA_PALETTE.listening)
+            pulse_color.setAlpha(75)
+            painter.setPen(QPen(pulse_color, 3))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(
-                QRectF(bubble_rect.x() + 16, bubble_rect.y() + 8, 12, 16)
+                QRectF(
+                    bubble_rect.center().x() - pulse_size / 2,
+                    bubble_rect.center().y() - pulse_size / 2,
+                    pulse_size,
+                    pulse_size,
+                )
             )
-            painter.drawArc(
-                QRectF(bubble_rect.x() + 12, bubble_rect.y() + 7, 20, 21),
-                200 * 16,
-                140 * 16,
-            )
-            painter.drawLine(
-                int(bubble_rect.center().x()),
-                int(bubble_rect.y() + 25),
-                int(bubble_rect.center().x()),
-                int(bubble_rect.y() + 29),
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color)
+            painter.drawEllipse(
+                QRectF(bubble_rect.x() + 14, bubble_rect.y() + 14, 16, 16)
             )
         elif cue == MoodVisualCue.VOICE_THINKING:
             for offset in (10, 20, 30):
                 painter.drawEllipse(
-                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 15, 4, 4)
+                    QRectF(bubble_rect.x() + offset, bubble_rect.y() + 20, 4, 4)
                 )
         elif cue == MoodVisualCue.VOICE_SPEAKING:
-            painter.drawRoundedRect(
-                QRectF(bubble_rect.x() + 9, bubble_rect.y() + 8, 26, 15),
-                5,
-                5,
-            )
-            for offset in (15, 22, 29):
-                painter.drawPoint(
-                    int(bubble_rect.x() + offset),
-                    int(bubble_rect.y() + 15),
+            wave_pen = QPen(color, 3)
+            wave_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(wave_pen)
+            phase = self._frame_number % 3
+            heights = (
+                (8, 16, 11, 5),
+                (12, 7, 16, 9),
+                (6, 12, 8, 16),
+            )[phase]
+            for index, height in enumerate(heights):
+                x = bubble_rect.x() + 11 + index * 7
+                painter.drawLine(
+                    int(x),
+                    int(bubble_rect.center().y() - height / 2),
+                    int(x),
+                    int(bubble_rect.center().y() + height / 2),
                 )
         elif cue == MoodVisualCue.VOICE_MUTED:
             painter.drawEllipse(
-                QRectF(bubble_rect.x() + 12, bubble_rect.y() + 9, 20, 14)
+                QRectF(bubble_rect.x() + 12, bubble_rect.y() + 15, 20, 14)
             )
             painter.drawLine(
                 int(bubble_rect.x() + 10),
-                int(bubble_rect.y() + 7),
+                int(bubble_rect.y() + 13),
                 int(bubble_rect.x() + 34),
-                int(bubble_rect.y() + 25),
+                int(bubble_rect.y() + 31),
             )
         elif cue == MoodVisualCue.VOICE_ERROR:
             font = QFont()
@@ -370,15 +391,16 @@ class PetWindow(QWidget):
 
 def _mood_visual_color(cue: MoodVisualCue) -> QColor:
     colors = {
-        MoodVisualCue.ATTENTION: QColor(144, 202, 249),
-        MoodVisualCue.WAITING: QColor(255, 224, 130),
-        MoodVisualCue.RESTING: QColor(179, 157, 219),
-        MoodVisualCue.CHECKING_IN: QColor(255, 171, 145),
-        MoodVisualCue.SLEEPY: QColor(159, 168, 218),
-        MoodVisualCue.VOICE_LISTENING: QColor(128, 203, 196),
-        MoodVisualCue.VOICE_THINKING: QColor(255, 213, 79),
-        MoodVisualCue.VOICE_SPEAKING: QColor(129, 212, 250),
-        MoodVisualCue.VOICE_MUTED: QColor(189, 189, 189),
-        MoodVisualCue.VOICE_ERROR: QColor(239, 154, 154),
+        MoodVisualCue.NONE: QColor(AKIHA_PALETTE.primary),
+        MoodVisualCue.ATTENTION: QColor(AKIHA_PALETTE.highlight),
+        MoodVisualCue.WAITING: QColor(AKIHA_PALETTE.speaking),
+        MoodVisualCue.RESTING: QColor(AKIHA_PALETTE.primary),
+        MoodVisualCue.CHECKING_IN: QColor(AKIHA_PALETTE.listening),
+        MoodVisualCue.SLEEPY: QColor(AKIHA_PALETTE.primary),
+        MoodVisualCue.VOICE_LISTENING: QColor(AKIHA_PALETTE.listening),
+        MoodVisualCue.VOICE_THINKING: QColor(AKIHA_PALETTE.highlight),
+        MoodVisualCue.VOICE_SPEAKING: QColor(AKIHA_PALETTE.speaking),
+        MoodVisualCue.VOICE_MUTED: QColor(AKIHA_PALETTE.muted_text),
+        MoodVisualCue.VOICE_ERROR: QColor(AKIHA_PALETTE.error),
     }
     return colors[cue]
