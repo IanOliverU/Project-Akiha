@@ -71,6 +71,17 @@ class ApplicationCatalogTest(unittest.TestCase):
         self.assertFalse(result.is_available)
         self.assertIsNone(result.executable)
 
+    def test_windows_environment_variable_names_are_case_insensitive(self) -> None:
+        chrome = self.program_files / "Google" / "Chrome" / "Application" / "chrome.exe"
+        chrome.parent.mkdir(parents=True, exist_ok=True)
+        chrome.write_text("stub", encoding="utf-8")
+        environment = {key.upper(): value for key, value in self.environ.items()}
+
+        result = ApplicationCatalog(environment).resolve("chrome")
+
+        self.assertTrue(result.is_available)
+        self.assertEqual(result.executable, chrome.resolve())
+
     def test_rejects_unknown_catalog_id(self) -> None:
         with self.assertRaises(ValueError):
             ApplicationCatalog(self.environ).resolve("powershell")

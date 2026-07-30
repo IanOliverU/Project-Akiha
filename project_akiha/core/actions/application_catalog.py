@@ -75,7 +75,7 @@ def _application_paths(
     roots = tuple(
         Path(value)
         for name in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)")
-        if (value := environment.get(name))
+        if (value := _environment_value(environment, name))
     )
     return tuple(
         root.joinpath(*relative_parts) for root in roots for relative_parts in parts
@@ -89,7 +89,7 @@ def _chrome_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
             ("Google", "Chrome", "Application", "chrome.exe"),
         )
     )
-    local_app_data = environment.get("LOCALAPPDATA")
+    local_app_data = _environment_value(environment, "LOCALAPPDATA")
     if local_app_data:
         candidates.append(
             Path(local_app_data) / "Google" / "Chrome" / "Application" / "chrome.exe"
@@ -98,7 +98,7 @@ def _chrome_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
 
 
 def _discord_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
-    local_app_data = environment.get("LOCALAPPDATA")
+    local_app_data = _environment_value(environment, "LOCALAPPDATA")
     if not local_app_data:
         return ()
     root = Path(local_app_data) / "Discord"
@@ -108,7 +108,7 @@ def _discord_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
 def _spotify_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
     candidates: list[Path] = []
     for name in ("APPDATA", "LOCALAPPDATA"):
-        value = environment.get(name)
+        value = _environment_value(environment, name)
         if value:
             candidates.append(Path(value) / "Spotify" / "Spotify.exe")
     return tuple(candidates)
@@ -121,7 +121,7 @@ def _vscode_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
             ("Microsoft VS Code", "Code.exe"),
         )
     )
-    local_app_data = environment.get("LOCALAPPDATA")
+    local_app_data = _environment_value(environment, "LOCALAPPDATA")
     if local_app_data:
         candidates.append(
             Path(local_app_data) / "Programs" / "Microsoft VS Code" / "Code.exe"
@@ -135,6 +135,19 @@ _APPLICATION_SPECS = (
     ("spotify", "Spotify", _spotify_candidates),
     ("vscode", "Visual Studio Code", _vscode_candidates),
 )
+
+
+def _environment_value(environment: Mapping[str, str], name: str) -> str | None:
+    """Read a Windows environment variable without depending on key casing."""
+    expected = name.casefold()
+    return next(
+        (
+            value
+            for key, value in environment.items()
+            if key.casefold() == expected and value
+        ),
+        None,
+    )
 
 
 def _is_safe_executable(path: Path) -> bool:
