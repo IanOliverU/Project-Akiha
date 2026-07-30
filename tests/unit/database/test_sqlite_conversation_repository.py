@@ -49,6 +49,42 @@ class SQLiteConversationRepositoryTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 asyncio.run(repository.save_message(conversation.id, "user", "   "))
 
+    def test_saves_and_loads_assistant_translation(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            conversation = asyncio.run(repository.get_or_create_current_conversation())
+            message = asyncio.run(
+                repository.save_message(
+                    conversation.id,
+                    "assistant",
+                    "こんにちは。",
+                )
+            )
+
+            updated = asyncio.run(
+                repository.save_message_translation(message.id, "Hello.")
+            )
+            loaded = asyncio.run(repository.get_messages(conversation.id))
+
+        self.assertEqual(updated.english_translation, "Hello.")
+        self.assertEqual(loaded[0].english_translation, "Hello.")
+        self.assertEqual(loaded[0].content, "こんにちは。")
+
+    def test_translation_rejects_user_message_and_empty_text(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")
+            conversation = asyncio.run(repository.get_or_create_current_conversation())
+            message = asyncio.run(
+                repository.save_message(conversation.id, "user", "Hello.")
+            )
+
+            with self.assertRaisesRegex(ValueError, "assistant message"):
+                asyncio.run(
+                    repository.save_message_translation(message.id, "Translation")
+                )
+            with self.assertRaisesRegex(ValueError, "cannot be empty"):
+                asyncio.run(repository.save_message_translation(message.id, " "))
+
     def test_closed_conversation_is_not_reused_as_current(self) -> None:
         with TemporaryDirectory() as directory:
             repository = SQLiteConversationRepository(Path(directory) / "akiha.sqlite3")

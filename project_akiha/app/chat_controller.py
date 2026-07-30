@@ -24,6 +24,7 @@ from project_akiha.core.memory import (
     PendingMemory,
     RelationshipContextAssembler,
     RelationshipMemoryModeler,
+    StoredMessage,
 )
 from project_akiha.providers.ai import AIProvider, ChatMessage
 
@@ -91,6 +92,7 @@ class ChatController:
         self._messages: list[ChatMessage] = [
             message for message in initial_messages if message.role != "system"
         ]
+        self._latest_assistant_message_id: int | None = None
 
     @property
     def messages(self) -> tuple[ChatMessage, ...]:
@@ -101,6 +103,11 @@ class ChatController:
     def pending_memories(self) -> tuple[PendingMemory, ...]:
         """Return memories waiting for user approval."""
         return tuple(self._pending_memories)
+
+    @property
+    def latest_assistant_message_id(self) -> int | None:
+        """Return the latest persisted assistant message identifier."""
+        return self._latest_assistant_message_id
 
     def set_ai_provider(self, ai_provider: AIProvider) -> None:
         """Replace the provider used for future chat responses."""
@@ -181,6 +188,7 @@ class ChatController:
         """Close the current conversation and begin a fresh transcript."""
         if self._conversation_repository is None:
             self._messages.clear()
+            self._latest_assistant_message_id = None
             return
 
         if self._conversation_id is not None:
@@ -193,6 +201,7 @@ class ChatController:
         conversation = await self._conversation_repository.create_conversation()
         self._conversation_id = conversation.id
         self._messages.clear()
+        self._latest_assistant_message_id = None
 
     async def _summarize_current_conversation(self) -> str:
         summary = self._conversation_summarizer.summarize(self.messages)
@@ -211,8 +220,11 @@ class ChatController:
             )
 
         self._messages.clear()
+        self._latest_assistant_message_id = None
 
-    async def get_export_messages(self) -> tuple[ChatMessage, ...]:
+    async def get_export_messages(
+        self,
+    ) -> tuple[ChatMessage | StoredMessage, ...]:
         """Return the full current transcript for export."""
         if self._conversation_repository is None or self._conversation_id is None:
             return self.messages
@@ -220,21 +232,21 @@ class ChatController:
         stored_messages = await self._conversation_repository.get_messages(
             self._conversation_id
         )
-        return tuple(
-            ChatMessage(role=message.role, content=message.content)
-            for message in stored_messages
-            if message.role != "system"
-        )
+        return tuple(message for message in stored_messages if message.role != "system")
 
     async def submit_user_message(self, content: str) -> ChatExchange:
         """Append a user message and return the assistant response."""
+        self._latest_assistant_message_id = None
         user_message = self._append_user_message(content)
         await self._persist_message(user_message)
 
         provider_messages = await self._messages_for_provider(user_message.content)
         response = await self._ai_provider.generate_response(provider_messages)
         assistant_message = self._append_assistant_message(response)
-        await self._persist_message(assistant_message)
+        stored_assistant = await self._persist_message(assistant_message)
+        self._latest_assistant_message_id = (
+            stored_assistant.id if stored_assistant is not None else None
+        )
         await self._process_memory((user_message, assistant_message))
 
         return ChatExchange(
@@ -244,6 +256,7 @@ class ChatController:
 
     async def stream_user_message(self, content: str) -> AsyncIterator[str]:
         """Append a user message and yield the assistant response in chunks."""
+        self._latest_assistant_message_id = None
         user_message = self._append_user_message(content)
         await self._persist_message(user_message)
         chunks: list[str] = []
@@ -254,7 +267,10 @@ class ChatController:
             yield chunk
 
         assistant_message = self._append_assistant_message("".join(chunks))
-        await self._persist_message(assistant_message)
+        stored_assistant = await self._persist_message(assistant_message)
+        self._latest_assistant_message_id = (
+            stored_assistant.id if stored_assistant is not None else None
+        )
         await self._process_memory((user_message, assistant_message))
 
     async def _messages_for_provider(self, user_query: str) -> tuple[ChatMessage, ...]:
@@ -325,11 +341,14 @@ class ChatController:
         self._messages.append(assistant_message)
         return assistant_message
 
-    async def _persist_message(self, message: ChatMessage) -> None:
+    async def _persist_message(
+        self,
+        message: ChatMessage,
+    ) -> StoredMessage | None:
         if self._conversation_repository is None or self._conversation_id is None:
-            return
+            return None
 
-        await self._conversation_repository.save_message(
+        return await self._conversation_repository.save_message(
             conversation_id=self._conversation_id,
             role=message.role,
             content=message.content,

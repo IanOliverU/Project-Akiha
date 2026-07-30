@@ -48,6 +48,7 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(config.voice.automatic_speech_enabled)
         self.assertFalse(config.voice.proactive_speech_enabled)
         self.assertFalse(config.voice.english_subtitles_enabled)
+        self.assertFalse(config.voice.export_english_subtitles_enabled)
         self.assertFalse(config.voice.live_transcription_enabled)
         self.assertFalse(config.voice.auto_stop_on_silence_enabled)
         self.assertFalse(config.voice.auto_send_transcript_enabled)
@@ -103,6 +104,7 @@ class SettingsTest(unittest.TestCase):
                 "automatic_speech_enabled = true\n"
                 "proactive_speech_enabled = true\n"
                 "english_subtitles_enabled = true\n"
+                "export_english_subtitles_enabled = true\n"
                 "live_transcription_enabled = true\n"
                 "auto_stop_on_silence_enabled = true\n"
                 "auto_send_transcript_enabled = true\n"
@@ -151,6 +153,7 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertTrue(config.voice.proactive_speech_enabled)
         self.assertTrue(config.voice.english_subtitles_enabled)
+        self.assertTrue(config.voice.export_english_subtitles_enabled)
         self.assertTrue(config.voice.live_transcription_enabled)
         self.assertTrue(config.voice.auto_stop_on_silence_enabled)
         self.assertTrue(config.voice.auto_send_transcript_enabled)

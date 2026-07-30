@@ -13,7 +13,11 @@ class AssistantTranslationThreadTest(unittest.TestCase):
     """Verify worker success, failure privacy, and cancellation."""
 
     def test_emits_successful_translation(self) -> None:
-        thread = AssistantTranslationThread(_Service("Hello."), "こんにちは。")
+        thread = AssistantTranslationThread(
+            _Service("Hello."),
+            "こんにちは。",
+            7,
+        )
         translations: list[str] = []
         thread.translation_ready.connect(translations.append)
 
@@ -25,6 +29,7 @@ class AssistantTranslationThreadTest(unittest.TestCase):
         thread = AssistantTranslationThread(
             _Service(error=RuntimeError("private source")),
             "個人的な返答です。",
+            7,
         )
         failures: list[str] = []
         thread.translation_failed.connect(failures.append)
@@ -34,7 +39,11 @@ class AssistantTranslationThreadTest(unittest.TestCase):
         self.assertEqual(failures, ["RuntimeError"])
 
     def test_cancelled_worker_discards_translation(self) -> None:
-        thread = AssistantTranslationThread(_Service("Late result."), "こんにちは。")
+        thread = AssistantTranslationThread(
+            _Service("Late result."),
+            "こんにちは。",
+            7,
+        )
         translations: list[str] = []
         cancelled: list[bool] = []
         thread.translation_ready.connect(translations.append)
@@ -56,9 +65,15 @@ class _Service:
     ) -> None:
         self._response = response
         self._error = error
+        self.message_ids: list[int | None] = []
 
-    async def translate_to_english(self, text: str) -> str:
+    async def translate_to_english(
+        self,
+        text: str,
+        message_id: int | None = None,
+    ) -> str:
         del text
+        self.message_ids.append(message_id)
         if self._error is not None:
             raise self._error
         return self._response

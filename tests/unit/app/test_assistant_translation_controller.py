@@ -25,7 +25,8 @@ class AssistantTranslationControllerTest(unittest.TestCase):
 
     def test_success_displays_translation_separately(self) -> None:
         controller, surface, threads = _build(
-            VoiceConfig(english_subtitles_enabled=True)
+            VoiceConfig(english_subtitles_enabled=True),
+            message_id=42,
         )
 
         started = controller.translate_assistant_response("こんにちは。")
@@ -34,6 +35,7 @@ class AssistantTranslationControllerTest(unittest.TestCase):
         self.assertTrue(started)
         self.assertEqual(surface.translations, ["Hello."])
         self.assertEqual(surface.unavailable_count, 0)
+        self.assertEqual(threads[0].message_id, 42)
 
     def test_failure_uses_quiet_fallback_without_logging_source(self) -> None:
         controller, surface, threads = _build(
@@ -99,6 +101,7 @@ class _Thread:
         self.cancelled = False
         self.wait_ms = 0
         self.deleted = False
+        self.message_id: int | None = None
 
     def start(self) -> None:
         self.started = True
@@ -130,12 +133,18 @@ def _build(
     config: VoiceConfig,
     *,
     thread_finished: bool = True,
+    message_id: int | None = None,
 ) -> tuple[AssistantTranslationController, _Surface, list[_Thread]]:
     threads: list[_Thread] = []
 
-    def build_thread(service: object, text: str) -> _Thread:
+    def build_thread(
+        service: object,
+        text: str,
+        message_id: int | None,
+    ) -> _Thread:
         del service, text
         thread = _Thread(finished=thread_finished)
+        thread.message_id = message_id
         threads.append(thread)
         return thread
 
@@ -145,6 +154,7 @@ def _build(
         surface=surface,
         config=config,
         thread_factory=build_thread,
+        message_id_provider=lambda: message_id,
     )
     return controller, surface, threads
 

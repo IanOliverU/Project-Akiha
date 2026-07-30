@@ -282,9 +282,10 @@ def _run_application() -> int:
     )
     chat_window = ChatWindow()
     assistant_translation_controller = AssistantTranslationController(
-        service=AssistantTranslationService(ai_provider),
+        service=AssistantTranslationService(ai_provider, conversation_repository),
         surface=chat_window,
         config=config.voice,
+        message_id_provider=lambda: chat_controller.latest_assistant_message_id,
     )
     chat_voice_presenter = ChatVoicePresenter(
         event_bus=event_bus,
@@ -345,8 +346,9 @@ def _run_application() -> int:
     behavior_history_window = BehaviorHistoryWindow()
     _populate_chat_window(
         chat_window=chat_window,
-        messages=chat_controller.messages,
+        messages=recent_messages,
         assistant_name=config.personality.character_name,
+        show_english_subtitles=config.voice.english_subtitles_enabled,
     )
     active_chat_threads: list[ChatResponseThread] = []
 
@@ -370,7 +372,7 @@ def _run_application() -> int:
         )
         chat_controller.set_ai_provider(ai_provider)
         assistant_translation_controller.apply_service(
-            AssistantTranslationService(ai_provider)
+            AssistantTranslationService(ai_provider, conversation_repository)
         )
         assistant_translation_controller.apply_config(updated_config.voice)
         chat_controller.set_conversation_summarizer(
@@ -654,6 +656,7 @@ def _run_application() -> int:
         transcript = render_chat_transcript(
             messages,
             assistant_name=config.personality.character_name,
+            include_english_subtitles=(config.voice.export_english_subtitles_enabled),
         )
         if not transcript:
             chat_window.append_notice("No chat messages to export.")
@@ -1006,14 +1009,23 @@ def _stored_messages_to_chat_messages(
 
 def _populate_chat_window(
     chat_window: ChatWindow,
-    messages: tuple[ChatMessage, ...],
+    messages: tuple[ChatMessage | StoredMessage, ...],
     assistant_name: str,
+    *,
+    show_english_subtitles: bool = False,
 ) -> None:
     for message in messages:
         if message.role == "user":
             chat_window.append_message("You", message.content)
         elif message.role == "assistant":
             chat_window.append_message(assistant_name, message.content)
+            translation = getattr(message, "english_translation", None)
+            if (
+                show_english_subtitles
+                and isinstance(translation, str)
+                and translation.strip()
+            ):
+                chat_window.append_assistant_translation(translation)
 
 
 def _clamp_to_primary_screen(

@@ -41,6 +41,13 @@ class ConversationRepository(Protocol):
     ) -> StoredMessage:
         """Persist one transcript message."""
 
+    async def save_message_translation(
+        self,
+        message_id: int,
+        translation: str,
+    ) -> StoredMessage:
+        """Attach an English subtitle to one assistant message."""
+
     async def get_recent_messages(
         self,
         conversation_id: int,

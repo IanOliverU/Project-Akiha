@@ -485,6 +485,7 @@ class ChatControllerTest(unittest.TestCase):
                 role="assistant",
                 content="stored reply",
                 created_at="now",
+                english_translation="Translated reply",
             ),
         )
         controller = ChatController(
@@ -496,13 +497,20 @@ class ChatControllerTest(unittest.TestCase):
 
         messages = asyncio.run(controller.get_export_messages())
 
-        self.assertEqual(
-            messages,
-            (
-                ChatMessage(role="user", content="from database"),
-                ChatMessage(role="assistant", content="stored reply"),
-            ),
+        self.assertEqual(messages, repository.export_messages)
+        self.assertEqual(messages[1].english_translation, "Translated reply")
+
+    def test_latest_assistant_message_id_tracks_persisted_response(self) -> None:
+        repository = RecordingConversationRepository()
+        controller = ChatController(
+            StaticProvider("stored reply"),
+            conversation_repository=repository,
+            conversation_id=7,
         )
+
+        asyncio.run(controller.submit_user_message("hello"))
+
+        self.assertEqual(controller.latest_assistant_message_id, 2)
 
     def test_get_export_messages_falls_back_to_memory_without_repository(self) -> None:
         controller = ChatController(

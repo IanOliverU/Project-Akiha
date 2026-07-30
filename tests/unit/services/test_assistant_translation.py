@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 from collections.abc import AsyncIterator, Sequence
 
+from project_akiha.core.memory import StoredMessage
 from project_akiha.providers.ai import ChatMessage
 from project_akiha.services.assistant_translation import AssistantTranslationService
 
@@ -47,6 +48,18 @@ class AssistantTranslationServiceTest(unittest.IsolatedAsyncioTestCase):
                 "こんにちは。"
             )
 
+    async def test_persists_translation_against_exact_message(self) -> None:
+        repository = _Repository()
+        service = AssistantTranslationService(
+            _Provider("Hello."),
+            repository,
+        )
+
+        translated = await service.translate_to_english("こんにちは。", message_id=42)
+
+        self.assertEqual(translated, "Hello.")
+        self.assertEqual(repository.saved, [(42, "Hello.")])
+
 
 class _Provider:
     def __init__(self, response: str) -> None:
@@ -67,3 +80,23 @@ class _Provider:
 
     async def is_available(self) -> bool:
         return True
+
+
+class _Repository:
+    def __init__(self) -> None:
+        self.saved: list[tuple[int, str]] = []
+
+    async def save_message_translation(
+        self,
+        message_id: int,
+        translation: str,
+    ) -> StoredMessage:
+        self.saved.append((message_id, translation))
+        return StoredMessage(
+            id=message_id,
+            conversation_id=7,
+            role="assistant",
+            content="こんにちは。",
+            created_at="now",
+            english_translation=translation,
+        )

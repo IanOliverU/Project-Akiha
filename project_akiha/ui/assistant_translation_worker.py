@@ -20,11 +20,13 @@ class AssistantTranslationThread(QThread):
         self,
         service: AssistantTranslationService,
         text: str,
+        message_id: int | None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._service = service
         self._text = text
+        self._message_id = message_id
         self._is_cancel_requested = False
 
     def run(self) -> None:
@@ -33,7 +35,12 @@ class AssistantTranslationThread(QThread):
             self.translation_cancelled.emit()
             return
         try:
-            translation = asyncio.run(self._service.translate_to_english(self._text))
+            translation = asyncio.run(
+                self._service.translate_to_english(
+                    self._text,
+                    self._message_id,
+                )
+            )
         except Exception as error:
             if self._is_cancelled():
                 self.translation_cancelled.emit()

@@ -384,8 +384,11 @@ Avoid:
 - [x] Fall back to the original Japanese response when translation fails or
   returns unusable text.
 - [x] Avoid logging the source response or provider error details.
-- [ ] Persist successful subtitles across application restarts.
-- [ ] Define and implement translated transcript export behavior.
+- [x] Persist successful subtitles on their canonical assistant message in
+  SQLite and restore them across application restarts when subtitles are
+  enabled.
+- [x] Keep canonical Japanese-only export as the default and add a separate
+  default-off setting for bilingual transcript export.
 
 ### Phase 7B Done Criteria
 
@@ -415,10 +418,15 @@ Avoid:
 - [ ] Enable silence endpointing and confirm a pause stops the recording.
 - [ ] Enable final-transcript auto-send and confirm interim text is never sent.
 - [ ] Generate a mock-provider response and hear it through VOICEVOX.
-- [ ] Enable English subtitles with a non-mock AI provider and confirm a
+- [x] Enable English subtitles with a non-mock AI provider and confirm a
   separate English line appears without delaying Japanese speech.
 - [ ] Stop or fail a translation request and confirm the Japanese response
   remains intact.
+- [ ] Restart the app with English subtitles enabled and confirm saved
+  subtitles return beneath their original Japanese messages.
+- [ ] Export once with subtitle export disabled and once enabled; confirm the
+  first file is Japanese-only and the second adds `English:` beneath translated
+  assistant messages.
 - [ ] Stop playback and start another response.
 - [ ] Disable automatic speech and confirm chat still works.
 - [ ] Stop VOICEVOX and confirm the app reports the failure without crashing.

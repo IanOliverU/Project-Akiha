@@ -19,6 +19,8 @@ class TranscriptMessage(Protocol):
 def render_chat_transcript(
     messages: Sequence[TranscriptMessage],
     assistant_name: str,
+    *,
+    include_english_subtitles: bool = False,
 ) -> str:
     """Render chat messages as a plain-text transcript."""
     lines: list[str] = []
@@ -27,7 +29,16 @@ def render_chat_transcript(
         if speaker is None:
             continue
 
-        lines.append(f"{speaker}: {message.content}")
+        rendered_message = f"{speaker}: {message.content}"
+        translation = getattr(message, "english_translation", None)
+        if (
+            include_english_subtitles
+            and message.role == "assistant"
+            and isinstance(translation, str)
+            and translation.strip()
+        ):
+            rendered_message += f"\nEnglish: {translation.strip()}"
+        lines.append(rendered_message)
 
     return "\n\n".join(lines)
 

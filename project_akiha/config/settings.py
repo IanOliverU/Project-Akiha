@@ -203,6 +203,7 @@ class VoiceConfig:
     automatic_speech_enabled: bool = False
     proactive_speech_enabled: bool = False
     english_subtitles_enabled: bool = False
+    export_english_subtitles_enabled: bool = False
     live_transcription_enabled: bool = False
     auto_stop_on_silence_enabled: bool = False
     auto_send_transcript_enabled: bool = False

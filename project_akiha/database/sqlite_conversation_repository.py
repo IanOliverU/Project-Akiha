@@ -86,6 +86,21 @@ class SQLiteConversationRepository:
             limit,
         )
 
+    async def save_message_translation(
+        self,
+        message_id: int,
+        translation: str,
+    ) -> StoredMessage:
+        """Attach an English subtitle to one persisted assistant message."""
+        normalized_translation = translation.strip()
+        if not normalized_translation:
+            raise ValueError("message translation cannot be empty.")
+        return await asyncio.to_thread(
+            self._save_message_translation,
+            message_id,
+            normalized_translation,
+        )
+
     async def get_messages(self, conversation_id: int) -> tuple[StoredMessage, ...]:
         """Return all transcript messages in chronological order."""
         return await asyncio.to_thread(self._get_messages, conversation_id)
@@ -235,7 +250,39 @@ class SQLiteConversationRepository:
             message_id = int(cursor.lastrowid)
             row = connection.execute(
                 """
-                SELECT id, conversation_id, role, content, created_at
+                SELECT id, conversation_id, role, content, created_at,
+                       english_translation
+                FROM messages
+                WHERE id = ?
+                """,
+                (message_id,),
+            ).fetchone()
+            connection.commit()
+            return _message_from_row(row)
+        finally:
+            connection.close()
+
+    def _save_message_translation(
+        self,
+        message_id: int,
+        translation: str,
+    ) -> StoredMessage:
+        connection = self._connect()
+        try:
+            cursor = connection.execute(
+                """
+                UPDATE messages
+                SET english_translation = ?
+                WHERE id = ? AND role = 'assistant'
+                """,
+                (translation, message_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("assistant message was not found.")
+            row = connection.execute(
+                """
+                SELECT id, conversation_id, role, content, created_at,
+                       english_translation
                 FROM messages
                 WHERE id = ?
                 """,
@@ -255,9 +302,11 @@ class SQLiteConversationRepository:
         try:
             rows = connection.execute(
                 """
-                SELECT id, conversation_id, role, content, created_at
+                SELECT id, conversation_id, role, content, created_at,
+                       english_translation
                 FROM (
-                    SELECT id, conversation_id, role, content, created_at
+                    SELECT id, conversation_id, role, content, created_at,
+                           english_translation
                     FROM messages
                     WHERE conversation_id = ?
                     ORDER BY created_at DESC, id DESC
@@ -277,7 +326,8 @@ class SQLiteConversationRepository:
         try:
             rows = connection.execute(
                 """
-                SELECT id, conversation_id, role, content, created_at
+                SELECT id, conversation_id, role, content, created_at,
+                       english_translation
                 FROM messages
                 WHERE conversation_id = ?
                 ORDER BY created_at ASC, id ASC
@@ -331,6 +381,7 @@ def _message_from_row(row: sqlite3.Row) -> StoredMessage:
         role=cast(MessageRole, row["role"]),
         content=str(row["content"]),
         created_at=str(row["created_at"]),
+        english_translation=cast(str | None, row["english_translation"]),
     )
 
 

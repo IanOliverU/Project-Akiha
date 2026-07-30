@@ -39,6 +39,9 @@ class DatabaseMigratorTest(unittest.TestCase):
                 memory_columns = {
                     row[1] for row in connection.execute("PRAGMA table_info(memories)")
                 }
+                message_columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(messages)")
+                }
             finally:
                 connection.close()
 
@@ -50,7 +53,11 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
         self.assertIn("embedding_json", memory_columns)
-        self.assertEqual(versions, [(1,), (2,), (3,), (4,), (5,), (6,)])
+        self.assertIn("english_translation", message_columns)
+        self.assertEqual(
+            versions,
+            [(1,), (2,), (3,), (4,), (5,), (6,), (7,)],
+        )
 
     def test_logs_migration_sql_failure_before_reraising(self) -> None:
         with TemporaryDirectory() as directory:

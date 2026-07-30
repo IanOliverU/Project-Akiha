@@ -50,15 +50,17 @@ class AssistantTranslationController:
         config: VoiceConfig,
         *,
         thread_factory: Callable[
-            [AssistantTranslationService, str],
+            [AssistantTranslationService, str, int | None],
             _TranslationThread,
         ] = AssistantTranslationThread,
+        message_id_provider: Callable[[], int | None] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self._service = service
         self._surface = surface
         self._config = config
         self._thread_factory = thread_factory
+        self._message_id_provider = message_id_provider
         self._logger = logger or logging.getLogger("project_akiha.voice.translation")
         self._active_threads: list[_TranslationThread] = []
         self._cancelled_threads: list[_TranslationThread] = []
@@ -83,7 +85,12 @@ class AssistantTranslationController:
         ):
             return False
 
-        thread = self._thread_factory(self._service, text.strip())
+        message_id = (
+            self._message_id_provider()
+            if self._message_id_provider is not None
+            else None
+        )
+        thread = self._thread_factory(self._service, text.strip(), message_id)
         thread.translation_ready.connect(
             lambda translation, worker=thread: self._handle_ready(
                 worker,

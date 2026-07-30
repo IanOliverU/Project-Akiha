@@ -82,6 +82,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         automatic_speech_enabled=True,
                         proactive_speech_enabled=True,
                         english_subtitles_enabled=True,
+                        export_english_subtitles_enabled=True,
                         live_transcription_enabled=True,
                         auto_stop_on_silence_enabled=True,
                         auto_send_transcript_enabled=True,
@@ -142,6 +143,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertTrue(config.voice.proactive_speech_enabled)
         self.assertTrue(config.voice.english_subtitles_enabled)
+        self.assertTrue(config.voice.export_english_subtitles_enabled)
         self.assertTrue(config.voice.live_transcription_enabled)
         self.assertTrue(config.voice.auto_stop_on_silence_enabled)
         self.assertTrue(config.voice.auto_send_transcript_enabled)

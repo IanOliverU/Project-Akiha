@@ -41,6 +41,7 @@ class StoredMessage:
     role: MessageRole
     content: str
     created_at: str
+    english_translation: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
