@@ -287,7 +287,7 @@ capability-specific executors while remaining unavailable by default.
 - [x] Implement bounded, cancellable file search.
 - [x] Add search-result presentation and audit history.
 - [x] Add open-directory support for approved roots.
-- [ ] Connect direct chat or UI requests to the typed action service.
+- [x] Connect direct chat or UI requests to the typed action service.
 - [ ] Add safe-file opening with per-action confirmation and blocked-type
   policy.
 
@@ -340,9 +340,11 @@ Approved-directory opening now:
 - supports cancellation before the desktop opener is called
 
 The conversational trigger remains separate from the executor. Plain provider
-text cannot open a directory; a future chat/UI bridge must first create a typed
-`ActionRequest` and pass it through the same validation, permission, and audit
-pipeline.
+text cannot open a directory. The chat bridge now recognizes only explicit
+`open directory: <absolute path>` and `search files: <query> | <absolute root>`
+commands, creates typed requests, and passes them through the same validation,
+permission, executor, and audit pipeline. Ordinary chat text and provider
+responses never enter this bridge.
 
 ### Phase 8C: Allowlisted Applications
 

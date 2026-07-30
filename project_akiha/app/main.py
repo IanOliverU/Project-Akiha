@@ -37,6 +37,14 @@ from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
 )
 from project_akiha.config import AIConfig, AppConfig, VoiceConfig, load_config
+from project_akiha.core.actions import (
+    ActionPermissionPolicy,
+    ActionRequestValidator,
+    FileSearchExecutor,
+    OpenDirectoryExecutor,
+    ProtectedPathPolicy,
+    build_default_action_registry,
+)
 from project_akiha.core.behavior import (
     CompanionMood,
     CompanionPresenceMapper,
@@ -87,6 +95,11 @@ from project_akiha.providers.voice import (
     VoiceVoxProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
+from project_akiha.services.assistant_action_bridge import (
+    AssistantActionBridge,
+    AssistantActionDispatch,
+)
+from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.assistant_translation import AssistantTranslationService
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -129,6 +142,7 @@ from project_akiha.services.window_state import WindowPosition, WindowStateStore
 from project_akiha.ui.assistant_action_history_window import (
     AssistantActionHistoryWindow,
 )
+from project_akiha.ui.assistant_action_worker import AssistantActionThread
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
@@ -211,6 +225,17 @@ def _run_application() -> int:
     )
     behavior_repository = SQLiteBehaviorRepository(paths.database_path)
     action_repository = SQLiteActionRepository(paths.database_path)
+    action_path_policy = ProtectedPathPolicy.for_current_windows(
+        credential_path=paths.credential_path,
+    )
+    assistant_action_service = AssistantActionService(
+        ActionRequestValidator(build_default_action_registry(), action_path_policy),
+        ActionPermissionPolicy(action_path_policy),
+        action_repository,
+        action_repository,
+        executors=(FileSearchExecutor(), OpenDirectoryExecutor()),
+    )
+    assistant_action_bridge = AssistantActionBridge(assistant_action_service)
     behavior_history_recorder = BehaviorHistoryRecorder(
         event_bus=event_bus,
         repository=behavior_repository,
@@ -402,6 +427,7 @@ def _run_application() -> int:
         show_english_subtitles=config.voice.english_subtitles_enabled,
     )
     active_chat_threads: list[ChatResponseThread] = []
+    active_action_threads: list[AssistantActionThread] = []
 
     def save_window_position(event: Event | None = None) -> None:
         del event
@@ -606,6 +632,35 @@ def _run_application() -> int:
         assistant_action_history_window.raise_()
         assistant_action_history_window.activateWindow()
 
+    def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
+        result = dispatch.result
+        matches = result.metadata.get("matches")
+        if isinstance(matches, tuple):
+            assistant_action_history_window.update_search_results(
+                matches,
+                summary=result.summary,
+            )
+        refresh_assistant_action_history_window()
+
+        if result.status.value == "success":
+            chat_window.append_message(
+                config.personality.character_name, result.summary
+            )
+        elif result.status.value == "confirmation_required":
+            chat_window.append_notice(f"Action needs confirmation: {result.summary}")
+        else:
+            chat_window.append_error(f"Action unavailable: {result.summary}")
+
+    def handle_action_failure(error_message: str) -> None:
+        logger.error("Direct assistant action failed: %s", error_message)
+        chat_window.append_error("Akiha could not complete that desktop action.")
+
+    def cleanup_action_thread(thread: AssistantActionThread) -> None:
+        chat_window.set_busy(False)
+        if thread in active_action_threads:
+            active_action_threads.remove(thread)
+        thread.deleteLater()
+
     def clear_behavior_history() -> None:
         asyncio.run(behavior_repository.clear_events())
         refresh_behavior_history_window()
@@ -631,6 +686,26 @@ def _run_application() -> int:
         chat_window.activateWindow()
 
     def submit_chat_message(message: str) -> None:
+        action_request = assistant_action_bridge.parse_user_text(message)
+        if action_request is not None:
+            chat_window.append_message("You", message)
+            chat_window.set_busy(True)
+            action_thread = AssistantActionThread(
+                assistant_action_bridge,
+                action_request,
+            )
+            active_action_threads.append(action_thread)
+            action_thread.result_ready.connect(handle_action_dispatch)
+            action_thread.failed.connect(handle_action_failure)
+            action_thread.cancelled.connect(
+                lambda: chat_window.append_notice("Desktop action stopped.")
+            )
+            action_thread.finished.connect(
+                lambda thread=action_thread: cleanup_action_thread(thread)
+            )
+            action_thread.start()
+            return
+
         chat_window.append_message("You", message)
         chat_window.set_busy(True)
 
@@ -676,9 +751,14 @@ def _run_application() -> int:
     def cancel_active_chat() -> None:
         for thread in tuple(active_chat_threads):
             thread.cancel()
+        for thread in tuple(active_action_threads):
+            thread.cancel()
+
+    def has_active_operations() -> bool:
+        return bool(active_chat_threads or active_action_threads)
 
     def start_new_chat() -> None:
-        if active_chat_threads:
+        if has_active_operations():
             chat_window.append_notice(
                 "Stop the current response before starting a new chat."
             )
@@ -694,7 +774,7 @@ def _run_application() -> int:
         logger.info("Started a new chat conversation.")
 
     def clear_current_chat() -> None:
-        if active_chat_threads:
+        if has_active_operations():
             chat_window.append_notice("Stop the current response before clearing chat.")
             return
 
@@ -708,7 +788,7 @@ def _run_application() -> int:
         logger.info("Cleared current chat conversation.")
 
     def export_current_chat(selected_path: str) -> None:
-        if active_chat_threads:
+        if has_active_operations():
             chat_window.append_notice(
                 "Stop the current response before exporting chat."
             )
@@ -880,11 +960,14 @@ def _run_application() -> int:
         assistant_speech_controller,
         action_repository,
         assistant_action_history_window,
+        assistant_action_bridge,
+        assistant_action_service,
         assistant_translation_controller,
         chat_controller,
         activity_controller,
         activity_tick_timer,
         active_chat_threads,
+        active_action_threads,
         behavior_history_window,
         behavior_history_recorder,
         behavior_repository,
