@@ -117,6 +117,58 @@ class OpenAICompatibleProviderTest(unittest.TestCase):
         self.assertTrue(asyncio.run(provider.is_available()))
         self.assertEqual(captured, ["https://example.test/v1/models"])
 
+    def test_generate_response_names_provider_in_transport_error(self) -> None:
+        def transport(
+            url: str,
+            payload: dict[str, Any],
+            headers: Mapping[str, str],
+            timeout: float,
+        ) -> dict[str, Any]:
+            del url, payload, headers, timeout
+            raise OpenAICompatibleProviderError(
+                "The hosted AI rate limit or quota was reached."
+            )
+
+        provider = OpenAICompatibleProvider(
+            base_url="https://api.openai.com/v1",
+            model="gpt-5-mini",
+            provider_name="openai",
+            transport=transport,
+        )
+
+        with self.assertRaisesRegex(
+            OpenAICompatibleProviderError,
+            "OpenAI rate limit or quota was reached",
+        ):
+            asyncio.run(
+                provider.generate_response([ChatMessage(role="user", content="Hello")])
+            )
+
+    def test_generate_response_names_grok_in_transport_error(self) -> None:
+        def transport(
+            url: str,
+            payload: dict[str, Any],
+            headers: Mapping[str, str],
+            timeout: float,
+        ) -> dict[str, Any]:
+            del url, payload, headers, timeout
+            raise OpenAICompatibleProviderError("The hosted AI API key was rejected.")
+
+        provider = OpenAICompatibleProvider(
+            base_url="https://api.x.ai/v1",
+            model="grok-4.5",
+            provider_name="grok",
+            transport=transport,
+        )
+
+        with self.assertRaisesRegex(
+            OpenAICompatibleProviderError,
+            "Grok API key was rejected",
+        ):
+            asyncio.run(
+                provider.generate_response([ChatMessage(role="user", content="Hello")])
+            )
+
     def test_unavailable_provider_never_accepts_message_content(self) -> None:
         provider = UnavailableAIProvider("API key missing.")
 

@@ -37,9 +37,16 @@ from project_akiha.config import (
     PetWindowConfig,
     VoiceConfig,
 )
+from project_akiha.services.ai_provider_discovery import (
+    AIProviderDiscoveryRequest,
+    AIProviderDiscoveryResult,
+)
 from project_akiha.services.credential_store import (
     CredentialStore,
     CredentialStoreError,
+)
+from project_akiha.ui.ai_provider_discovery_worker import (
+    AIProviderDiscoveryThread,
 )
 
 _AI_PROVIDER_ORDER = (
@@ -49,6 +56,7 @@ _AI_PROVIDER_ORDER = (
     "openai",
     "openrouter",
     "kimi",
+    "grok",
     "openai-compatible",
 )
 _HOSTED_PROVIDER_DEFAULTS = {
@@ -59,6 +67,7 @@ _HOSTED_PROVIDER_DEFAULTS = {
     "openai": ("https://api.openai.com/v1", "gpt-5-mini"),
     "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-5-mini"),
     "kimi": ("https://api.moonshot.ai/v1", "kimi-k2.5"),
+    "grok": ("https://api.x.ai/v1", "grok-4.5"),
     "openai-compatible": ("http://127.0.0.1:1234/v1", "local-model"),
 }
 
@@ -87,6 +96,7 @@ class SettingsWindow(QWidget):
         self._log_dir = log_dir
         self._data_dir = data_dir or log_dir.parent
         self._credential_store = credential_store
+        self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
 
         self.setWindowTitle("Project Akiha Settings")
         self.setMinimumWidth(420)
@@ -110,15 +120,25 @@ class SettingsWindow(QWidget):
         )
         self._ai_provider_input.setCurrentText(config.ai.provider)
         self._ollama_base_url_input = QLineEdit(config.ai.ollama_base_url)
-        self._ollama_model_input = QLineEdit(config.ai.ollama_model)
+        self._ollama_model_input = _ModelComboBox(config.ai.ollama_model)
         self._hosted_base_url_input = QLineEdit(config.ai.hosted_base_url)
-        self._hosted_model_input = QLineEdit(config.ai.hosted_model)
+        self._hosted_model_input = _ModelComboBox(config.ai.hosted_model)
         self._ai_api_key_input = QLineEdit()
         self._ai_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._ai_api_key_input.setPlaceholderText("Leave blank to keep saved key")
         self._ai_api_key_status = QLabel()
         self._clear_ai_api_key_button = QPushButton("Clear key")
         self._clear_ai_api_key_button.clicked.connect(self._clear_ai_api_key)
+        self._ai_connection_button = QPushButton("Connect and find models")
+        self._ai_connection_button.clicked.connect(self._check_ai_provider)
+        self._ai_connection_status = QLabel("Not checked")
+        self._ai_connection_status.setWordWrap(True)
+        self._advanced_ai_settings_input = QCheckBox()
+        self._advanced_ai_settings_input.toggled.connect(
+            lambda _checked: self._sync_ai_controls(
+                self._ai_provider_input.currentText()
+            )
+        )
         self._ai_timeout_input = _build_spinbox(
             1,
             600,
@@ -458,12 +478,21 @@ class SettingsWindow(QWidget):
     def _build_ai_tab(self) -> QWidget:
         form_layout = QFormLayout()
         form_layout.addRow("AI provider", self._ai_provider_input)
-        form_layout.addRow("Ollama URL", self._ollama_base_url_input)
-        form_layout.addRow("Ollama model", self._ollama_model_input)
-        form_layout.addRow("Hosted API URL", self._hosted_base_url_input)
-        form_layout.addRow("Hosted model", self._hosted_model_input)
+        form_layout.addRow(
+            "Advanced provider settings",
+            self._advanced_ai_settings_input,
+        )
+        self._ollama_url_label = QLabel("Ollama URL")
+        self._ollama_model_label = QLabel("Ollama model")
+        self._hosted_url_label = QLabel("Hosted API URL")
+        self._hosted_model_label = QLabel("Hosted model")
+        form_layout.addRow(self._ollama_url_label, self._ollama_base_url_input)
+        form_layout.addRow(self._ollama_model_label, self._ollama_model_input)
+        form_layout.addRow(self._hosted_url_label, self._hosted_base_url_input)
+        form_layout.addRow(self._hosted_model_label, self._hosted_model_input)
         form_layout.addRow("API key", self._ai_api_key_input)
         form_layout.addRow("Credential", self._build_ai_credential_row())
+        form_layout.addRow("Provider connection", self._build_ai_connection_row())
         form_layout.addRow("AI timeout", self._ai_timeout_input)
         form_layout.addRow("Companion name", self._character_name_input)
         form_layout.addRow("System prompt", self._system_prompt_input)
@@ -475,6 +504,15 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._ai_api_key_status, stretch=1)
         layout.addWidget(self._clear_ai_api_key_button)
+        row.setLayout(layout)
+        return row
+
+    def _build_ai_connection_row(self) -> QWidget:
+        row = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._ai_connection_button)
+        layout.addWidget(self._ai_connection_status)
         row.setLayout(layout)
         return row
 
@@ -595,6 +633,8 @@ class SettingsWindow(QWidget):
             self._manifest_path_input.setText(selected_path)
 
     def _save(self) -> None:
+        if not self._validate_ai_inputs():
+            return
         if not self._save_ai_api_key():
             return
         pet_window = PetWindowConfig(
@@ -696,18 +736,173 @@ class SettingsWindow(QWidget):
         if defaults is not None:
             self._hosted_base_url_input.setText(defaults[0])
             self._hosted_model_input.setText(defaults[1])
+        self._set_ai_connection_status("Not checked")
         self._sync_ai_controls(provider)
 
     def _sync_ai_controls(self, provider: str) -> None:
         uses_ollama = provider == "ollama"
         uses_hosted_api = provider in HOSTED_AI_PROVIDERS
+        uses_connection = uses_ollama or uses_hosted_api
+        advanced = self._advanced_ai_settings_input.isChecked()
+        custom_provider = provider == "openai-compatible"
         self._ollama_base_url_input.setEnabled(uses_ollama)
         self._ollama_model_input.setEnabled(uses_ollama)
         self._hosted_base_url_input.setEnabled(uses_hosted_api)
         self._hosted_model_input.setEnabled(uses_hosted_api)
         self._ai_api_key_input.setEnabled(uses_hosted_api)
         self._clear_ai_api_key_button.setEnabled(uses_hosted_api)
+        self._advanced_ai_settings_input.setVisible(uses_connection)
+        self._set_row_visible(
+            self._ollama_url_label,
+            self._ollama_base_url_input,
+            uses_ollama and advanced,
+        )
+        self._set_row_visible(
+            self._ollama_model_label,
+            self._ollama_model_input,
+            uses_ollama,
+        )
+        self._set_row_visible(
+            self._hosted_url_label,
+            self._hosted_base_url_input,
+            uses_hosted_api and (advanced or custom_provider),
+        )
+        self._set_row_visible(
+            self._hosted_model_label,
+            self._hosted_model_input,
+            uses_hosted_api,
+        )
+        self._ai_connection_button.setEnabled(
+            uses_connection and self._ai_discovery_thread is None
+        )
         self._refresh_ai_api_key_status(provider)
+
+    @staticmethod
+    def _set_row_visible(label: QLabel, field: QWidget, visible: bool) -> None:
+        label.setVisible(visible)
+        field.setVisible(visible)
+
+    def _validate_ai_inputs(self) -> bool:
+        provider = self._ai_provider_input.currentText()
+        model = ""
+        if provider == "ollama":
+            model = self._ollama_model_input.text()
+        elif provider in HOSTED_AI_PROVIDERS:
+            model = self._hosted_model_input.text()
+        if _looks_like_api_key(model):
+            self._set_ai_connection_status(
+                "The model field appears to contain an API key. "
+                "Move it to the protected API key field.",
+                is_error=True,
+            )
+            return False
+        return True
+
+    def _check_ai_provider(self) -> None:
+        if self._ai_discovery_thread is not None:
+            return
+        provider = self._ai_provider_input.currentText()
+        if provider not in {"ollama", *HOSTED_AI_PROVIDERS}:
+            self._set_ai_connection_status("No connection is required.")
+            return
+        if not self._validate_ai_inputs():
+            return
+        api_key = self._ai_api_key_input.text().strip()
+        if not api_key and provider in HOSTED_AI_PROVIDERS:
+            api_key = self._read_saved_ai_api_key(provider)
+        if provider in HOSTED_AI_PROVIDERS - {"openai-compatible"} and not api_key:
+            self._set_ai_connection_status(
+                "Enter or save an API key before checking this provider.",
+                is_error=True,
+            )
+            return
+
+        base_url = (
+            self._ollama_base_url_input.text()
+            if provider == "ollama"
+            else self._hosted_base_url_input.text()
+        )
+        request = AIProviderDiscoveryRequest(
+            provider=provider,
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=float(self._ai_timeout_input.value()),
+        )
+        thread = AIProviderDiscoveryThread(request, parent=self)
+        self._ai_discovery_thread = thread
+        self._ai_connection_button.setEnabled(False)
+        self._set_ai_connection_status("Connecting...")
+        thread.models_ready.connect(self._handle_ai_models_ready)
+        thread.discovery_failed.connect(self._handle_ai_discovery_failed)
+        thread.finished.connect(self._finish_ai_discovery)
+        thread.start()
+
+    def _read_saved_ai_api_key(self, provider: str) -> str:
+        if self._credential_store is None:
+            return ""
+        try:
+            return self._credential_store.get_secret(provider) or ""
+        except CredentialStoreError:
+            self._set_ai_connection_status(
+                "The saved API key could not be read.",
+                is_error=True,
+            )
+            return ""
+
+    def _handle_ai_models_ready(self, result: object) -> None:
+        if not isinstance(result, AIProviderDiscoveryResult):
+            self._set_ai_connection_status(
+                "The provider returned an invalid discovery result.",
+                is_error=True,
+            )
+            return
+        if result.provider != self._ai_provider_input.currentText():
+            self._set_ai_connection_status(
+                "Provider changed before the connection check completed."
+            )
+            return
+        model_input = (
+            self._ollama_model_input
+            if result.provider == "ollama"
+            else self._hosted_model_input
+        )
+        preferred = model_input.text()
+        preset = _HOSTED_PROVIDER_DEFAULTS.get(result.provider)
+        if preset is not None and preset[1] in result.models:
+            preferred = preset[1]
+        model_input.set_options(result.models, preferred=preferred)
+        noun = "model" if len(result.models) == 1 else "models"
+        self._set_ai_connection_status(f"Connected. Found {len(result.models)} {noun}.")
+
+    def _handle_ai_discovery_failed(self, message: str) -> None:
+        self._set_ai_connection_status(
+            message.strip() or "Provider connection failed.",
+            is_error=True,
+        )
+
+    def _finish_ai_discovery(self) -> None:
+        thread = self._ai_discovery_thread
+        self._ai_discovery_thread = None
+        self._sync_ai_controls(self._ai_provider_input.currentText())
+        if thread is not None:
+            thread.deleteLater()
+
+    def _set_ai_connection_status(
+        self,
+        status: str,
+        *,
+        is_error: bool = False,
+    ) -> None:
+        self._ai_connection_status.setText(status.strip() or "Not checked")
+        color = "#c62828" if is_error else "#2e7d32"
+        self._ai_connection_status.setStyleSheet(f"color: {color};")
+
+    def cancel_ai_discovery(self, wait_ms: int = 16_000) -> bool:
+        """Wait for an in-flight provider check before application shutdown."""
+        thread = self._ai_discovery_thread
+        if thread is None:
+            return True
+        return thread.wait(wait_ms)
 
     def _refresh_ai_api_key_status(self, provider: str) -> None:
         if provider not in HOSTED_AI_PROVIDERS:
@@ -793,6 +988,37 @@ def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
     spinbox.setRange(minimum, maximum)
     spinbox.setValue(value)
     return spinbox
+
+
+class _ModelComboBox(QComboBox):
+    """Editable model selector that preserves the previous line-edit API."""
+
+    def __init__(self, value: str) -> None:
+        super().__init__()
+        self.setEditable(True)
+        self.setText(value)
+
+    def text(self) -> str:
+        return self.currentText().strip()
+
+    def setText(self, value: str) -> None:
+        self.setCurrentText(value)
+
+    def set_options(self, options: tuple[str, ...], *, preferred: str) -> None:
+        selected = preferred if preferred in options else options[0]
+        self.blockSignals(True)
+        self.clear()
+        self.addItems(options)
+        self.setCurrentText(selected)
+        self.blockSignals(False)
+
+
+def _looks_like_api_key(value: str) -> bool:
+    candidate = value.strip()
+    if not candidate:
+        return False
+    prefixes = ("AIza", "xai-", "sk-", "Bearer ")
+    return candidate.startswith(prefixes) and len(candidate) >= 20
 
 
 def _format_voice_health(status: str, detail: str) -> str:

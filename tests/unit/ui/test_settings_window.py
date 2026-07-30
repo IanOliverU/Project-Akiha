@@ -14,7 +14,10 @@ from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication
 
 import project_akiha.ui.settings_window as settings_window_module
-from project_akiha.config import AppConfig
+from project_akiha.config import AIConfig, AppConfig
+from project_akiha.services.ai_provider_discovery import (
+    AIProviderDiscoveryResult,
+)
 from project_akiha.ui.settings_window import SettingsWindow
 
 
@@ -119,6 +122,66 @@ class SettingsWindowTest(unittest.TestCase):
 
         self.assertNotIn("gemini", credentials.secrets)
         self.assertEqual(window._ai_api_key_status.text(), "No API key saved")
+
+    def test_selecting_grok_applies_xai_defaults(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+
+            window._ai_provider_input.setCurrentText("grok")
+
+        self.assertEqual(
+            window._hosted_base_url_input.text(),
+            "https://api.x.ai/v1",
+        )
+        self.assertEqual(window._hosted_model_input.text(), "grok-4.5")
+
+    def test_discovered_models_populate_grok_model_selector(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            window._ai_provider_input.setCurrentText("grok")
+
+            window._handle_ai_models_ready(
+                AIProviderDiscoveryResult(
+                    provider="grok",
+                    models=("grok-4.3", "grok-4.5"),
+                )
+            )
+
+        self.assertEqual(window._hosted_model_input.count(), 2)
+        self.assertEqual(window._hosted_model_input.text(), "grok-4.5")
+        self.assertEqual(
+            window._ai_connection_status.text(),
+            "Connected. Found 2 models.",
+        )
+
+    def test_api_key_in_model_field_is_rejected_before_save(self) -> None:
+        credentials = _CredentialStore()
+        config = AppConfig().with_ai(
+            AIConfig(
+                provider="grok",
+                hosted_base_url="https://api.x.ai/v1",
+                hosted_model="grok-4.5",
+            )
+        )
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                config,
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._hosted_model_input.setText("xai-" + ("a" * 40))
+            window._ai_api_key_input.setText("new-secret")
+
+            window._save()
+
+        self.assertEqual(emitted, [])
+        self.assertEqual(credentials.secrets, {})
+        self.assertIn(
+            "appears to contain an API key",
+            window._ai_connection_status.text(),
+        )
 
     def test_saves_voice_controls(self) -> None:
         with TemporaryDirectory() as directory:

@@ -50,30 +50,36 @@ class OpenAICompatibleProvider:
 
     async def generate_response(self, messages: Sequence[ChatMessage]) -> str:
         """Return a complete assistant response."""
-        response = await asyncio.to_thread(
-            self._transport,
-            self._chat_url,
-            self._build_payload(messages, stream=False),
-            self._headers,
-            self._timeout_seconds,
-        )
-        return _parse_chat_response(response)
+        try:
+            response = await asyncio.to_thread(
+                self._transport,
+                self._chat_url,
+                self._build_payload(messages, stream=False),
+                self._headers,
+                self._timeout_seconds,
+            )
+            return _parse_chat_response(response)
+        except OpenAICompatibleProviderError as error:
+            raise self._named_error(error) from error
 
     async def stream_response(
         self,
         messages: Sequence[ChatMessage],
     ) -> AsyncIterator[str]:
         """Yield assistant response chunks from an SSE response."""
-        for response in self._stream_transport(
-            self._chat_url,
-            self._build_payload(messages, stream=True),
-            self._headers,
-            self._timeout_seconds,
-        ):
-            chunk = _parse_chat_stream_chunk(response)
-            if chunk:
-                yield chunk
-                await asyncio.sleep(0)
+        try:
+            for response in self._stream_transport(
+                self._chat_url,
+                self._build_payload(messages, stream=True),
+                self._headers,
+                self._timeout_seconds,
+            ):
+                chunk = _parse_chat_stream_chunk(response)
+                if chunk:
+                    yield chunk
+                    await asyncio.sleep(0)
+        except OpenAICompatibleProviderError as error:
+            raise self._named_error(error) from error
 
     async def is_available(self) -> bool:
         """Return whether the configured provider accepts authenticated calls."""
@@ -106,6 +112,21 @@ class OpenAICompatibleProvider:
                 for message in messages
             ],
         }
+
+    def _named_error(
+        self,
+        error: OpenAICompatibleProviderError,
+    ) -> OpenAICompatibleProviderError:
+        provider_label = {
+            "gemini": "Gemini",
+            "grok": "Grok",
+            "kimi": "Kimi",
+            "openai": "OpenAI",
+            "openrouter": "OpenRouter",
+        }.get(self._provider_name.casefold(), self._provider_name)
+        detail = str(error).replace("The hosted AI", provider_label)
+        detail = detail.replace("Hosted AI", provider_label)
+        return OpenAICompatibleProviderError(detail)
 
 
 class UnavailableAIProvider:

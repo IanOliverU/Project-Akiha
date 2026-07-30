@@ -125,6 +125,7 @@ _AI_KEY_ENVIRONMENT_VARIABLES = {
     "openai": "OPENAI_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "kimi": "MOONSHOT_API_KEY",
+    "grok": "XAI_API_KEY",
     "openai-compatible": "AKIHA_AI_API_KEY",
 }
 
@@ -694,6 +695,9 @@ def _run_application() -> int:
     activity_tick_timer.start(30_000)
 
     def shutdown_app() -> None:
+        ai_discovery_stopped = settings_window.cancel_ai_discovery()
+        if not ai_discovery_stopped:
+            logger.warning("AI provider discovery did not stop before shutdown.")
         result = shutdown_runtime(
             activity_timer=activity_tick_timer,
             active_chat_threads=active_chat_threads,
@@ -710,7 +714,8 @@ def _run_application() -> int:
             "cancelled_threads=%s, unfinished_threads=%s, "
             "voice_capture_stopped=%s, voice_diagnostics_stopped=%s, "
             "voice_transcription_stopped=%s, "
-            "voice_synthesis_stopped=%s, voice_playback_stopped=%s.",
+            "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
+            "ai_discovery_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -720,6 +725,7 @@ def _run_application() -> int:
             result.voice_transcription_stopped,
             result.voice_synthesis_stopped,
             result.voice_playback_stopped,
+            ai_discovery_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)

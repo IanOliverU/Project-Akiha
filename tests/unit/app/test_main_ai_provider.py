@@ -85,6 +85,20 @@ class MainAIProviderTest(unittest.TestCase):
 
         self.assertIsInstance(provider, OpenAICompatibleProvider)
 
+    def test_grok_environment_key_is_supported(self) -> None:
+        with patch.dict(os.environ, {"XAI_API_KEY": "environment-key"}, clear=True):
+            provider = _build_ai_provider(
+                AIConfig(
+                    provider="grok",
+                    hosted_base_url="https://api.x.ai/v1",
+                    hosted_model="grok-4.5",
+                ),
+                self.logger,
+                _CredentialStore(),
+            )
+
+        self.assertIsInstance(provider, OpenAICompatibleProvider)
+
     def test_keyless_custom_compatible_endpoint_is_supported(self) -> None:
         provider = _build_ai_provider(
             AIConfig(provider="openai-compatible"),

@@ -15,6 +15,7 @@ restart.
 | `openai` | OpenAI Chat Completions endpoint | Yes |
 | `openrouter` | OpenRouter Chat Completions endpoint | Yes |
 | `kimi` | Moonshot/Kimi Chat Completions endpoint | Yes |
+| `grok` | xAI Grok Chat Completions endpoint | Yes |
 | `openai-compatible` | User-supplied compatible endpoint, including local servers | Optional |
 
 The compatibility adapter intentionally covers the common text-chat and
@@ -29,23 +30,25 @@ access.
 Open `Settings -> AI`, select a provider, then configure the fields enabled for
 that provider.
 
-Ollama uses:
+Known hosted providers automatically fill their API endpoint and recommended
+model. Enter the provider API key, then use `Connect and find models` to verify
+the credential and replace the editable model field with the models currently
+advertised by that account. The connection check does not save or log the key.
 
-- `Ollama URL`
-- `Ollama model`
+Ollama uses the same connection action to discover locally installed models.
+Enable `Advanced provider settings` only when a non-default Ollama or hosted
+endpoint is required.
 
-Hosted and compatible providers use:
-
-- `Hosted API URL`
-- `Hosted model`
-- `API key`
+The `openai-compatible` option keeps its API URL visible because a custom
+endpoint cannot be inferred. Its API key remains optional for local servers
+that do not require authentication.
 
 The API key field is write-only. Leave it blank to retain the saved key. Use
 `Clear key` to delete the selected provider's saved key.
 
-The preset URL and model are filled when a hosted provider is selected. Both
-remain editable because provider model catalogs and compatible gateways change
-over time.
+Model fields remain editable as an escape hatch for models that an account can
+use but its catalog does not advertise. Values that resemble API keys are
+rejected from model fields before settings can be saved.
 
 ## Credential Storage
 
@@ -70,6 +73,7 @@ Environment variables can be used instead of the Settings field:
 | OpenAI | `OPENAI_API_KEY` |
 | OpenRouter | `OPENROUTER_API_KEY` |
 | Kimi | `MOONSHOT_API_KEY` |
+| Grok | `XAI_API_KEY` |
 | Custom compatible | `AKIHA_AI_API_KEY` |
 
 A securely saved Settings key takes precedence over an environment variable.

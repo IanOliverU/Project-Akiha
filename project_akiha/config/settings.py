@@ -14,6 +14,7 @@ HOSTED_AI_PROVIDERS = frozenset(
         "openai",
         "openrouter",
         "kimi",
+        "grok",
         "openai-compatible",
     }
 )
