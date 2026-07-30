@@ -427,8 +427,8 @@ engine.
 
 ## Manual Phase 7 Smoke
 
-- [ ] Start the source app with voice disabled and no voice dependencies.
-- [ ] Open Voice settings, save changes, and restart the app.
+- [x] Start the source app with voice disabled and no voice dependencies.
+- [x] Open Voice settings, save changes, and restart the app.
 - [x] Run Check setup and confirm both provider results are visible.
 - [x] Run Test microphone, speak briefly, stop, and confirm the pass result.
 - [x] Run Test voice and hear the short Japanese phrase.
@@ -457,16 +457,19 @@ engine.
 - [x] Quit while listening and while speaking; confirm the process exits cleanly.
 - [x] Re-run relevant packaged smoke with all voice providers treated as
   optional dependencies.
-- [ ] Close the VOICEVOX editor, configure the standalone engine executable,
+- [x] Close the VOICEVOX editor, configure the standalone engine executable,
   enable automatic start, and confirm Akiha starts speaking without the editor.
-- [ ] Quit Akiha with stop-on-exit enabled and confirm the managed engine exits.
-- [ ] Start the standalone engine outside Akiha and confirm quitting Akiha does
+- [x] Quit Akiha with stop-on-exit enabled and confirm the managed engine exits.
+- [x] Start the standalone engine outside Akiha and confirm quitting Akiha does
   not stop that external process.
 
 The Phase 7 release candidate at
-`dist\nuitka-phase7-final-clean\main.dist\Akiha.exe` passed fresh-data and
+`dist\nuitka-phase7-closure\main.dist\Akiha.exe` passed fresh-data and
 existing-data packaged smoke on 2026-07-30. It uses the Windows GUI subsystem
-and creates no visible console window.
+and creates no visible console window. The final source gate passed 585 unit
+tests, Ruff, Black, compilation, and isolated source smoke. Runtime logs
+confirmed managed engine cleanup, and a real external-engine ownership probe
+confirmed that shutdown leaves externally started VOICEVOX processes running.
 
 ## Privacy And Safety
 
