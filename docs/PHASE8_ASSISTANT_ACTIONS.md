@@ -1,0 +1,354 @@
+# Phase 8: Permission-Gated Assistant Actions
+
+**Status:** Planned
+
+## Phase Goal
+
+Let Akiha perform a deliberately shallow set of useful Windows desktop actions
+without granting unrestricted operating-system access.
+
+The first capabilities are:
+
+- search for files by name or metadata inside user-approved directories
+- open an approved directory in the system file browser
+- open an allowlisted passive file from an approved directory after validation
+- launch an explicitly allowlisted application such as Discord, Chrome,
+  Spotify, or Visual Studio Code
+
+The phase proves the complete action pipeline before any higher-risk
+automation is considered.
+
+## Security Position
+
+AI output is untrusted input, never executable authority.
+
+- An AI provider may propose a structured action request.
+- Project Akiha validates the request against an application-owned registry.
+- Permission policy decides whether the action and target are allowed.
+- Only a small, typed executor owned by the application can perform the action.
+- Unknown actions, arbitrary executable paths, command-line strings, and shell
+  syntax are rejected.
+- Windows elevation is never requested.
+- Denied actions produce a safe result and an audit record instead of falling
+  back to another execution path.
+
+```text
+User request
+    -> AI or local parser proposes ActionRequest
+        -> AssistantActionService
+            -> ActionRegistry
+            -> schema and target validation
+            -> PermissionPolicy
+            -> confirmation when required
+                -> allowlisted ActionExecutor
+                    -> sanitized ActionResult
+                        -> audit repository
+                        -> chat presentation
+```
+
+## Hard Architecture Rules
+
+### No Direct AI Execution
+
+AI providers do not receive an executor, filesystem repository, subprocess
+handle, or permission service as a dependency. Provider output can create only
+an untrusted `ActionRequest`.
+
+There is no method that accepts raw shell text. The action service must not call
+`eval`, `exec`, `cmd.exe`, PowerShell, Windows Script Host, or a generic
+subprocess function with AI-provided arguments.
+
+### Default Deny
+
+Every action is denied unless all of the following are true:
+
+1. The action identifier exists in `ActionRegistry`.
+2. Its typed parameters satisfy the registered schema.
+3. The target passes protected-path and capability-specific validation.
+4. A matching permission grant exists or the user approves the request.
+5. The selected executor supports the exact registered action.
+
+Validation failure cannot be overridden by the AI or by wording in a chat
+message.
+
+### Capability-Specific Executors
+
+Executors remain small and non-generic. Initial examples are:
+
+- `FileSearchExecutor`
+- `OpenDirectoryExecutor`
+- `OpenSafeFileExecutor`
+- `LaunchAllowlistedApplicationExecutor`
+
+There is no `RunCommandExecutor`, arbitrary `LaunchExecutableExecutor`, or
+generic filesystem mutation executor in Phase 8.
+
+## Structured Domain Contracts
+
+### `ActionRequest`
+
+An immutable request contains:
+
+- a registered action identifier
+- typed action parameters
+- a correlation identifier
+- the requesting conversation or UI source
+- no permission decision and no executable implementation
+
+### `ActionDefinition`
+
+The registry-owned definition contains:
+
+- action identifier and user-facing description
+- parameter schema
+- risk classification
+- required permission capability
+- confirmation policy
+- executor identifier
+- timeout and result limits
+
+### `PermissionGrant`
+
+A grant is scoped to a capability and target rather than being a global
+"assistant access" switch.
+
+Examples:
+
+- `files.search` for `C:\Users\<user>\Documents\Projects`
+- `files.open` for `C:\Users\<user>\Documents`
+- `applications.launch` for the registered app identifier `spotify`
+
+Grants are revocable in Settings. A directory grant does not grant application
+launching, and an application grant does not grant filesystem access.
+
+### `ActionResult`
+
+Executors return a bounded, structured result:
+
+- success, denied, cancelled, timed out, or failed status
+- a short user-facing summary
+- sanitized metadata required by the UI
+- no API keys, environment dumps, file contents, or unrestricted exception text
+
+### `ActionAuditEntry`
+
+The audit record includes:
+
+- request and action identifiers
+- time and requesting source
+- normalized target metadata
+- permission and confirmation decision
+- result status and duration
+- sanitized failure category
+
+File contents and hosted-provider credentials are never stored in the action
+audit.
+
+## Safe File Access
+
+### Approved Roots
+
+The user selects directories through a native directory picker. A grant is
+stored only after the selected path is canonicalized and passes policy.
+
+File actions must remain inside the approved canonical root after resolving
+relative segments, symbolic links, junctions, and reparse points. Search limits
+include:
+
+- maximum recursion depth
+- maximum result count
+- execution timeout
+- cancellation support
+- bounded metadata returned to chat
+
+### Protected Locations
+
+Filesystem permission cannot be granted to system-critical or ambiguous roots,
+including:
+
+- drive roots
+- the Windows directory, System32, and SysWOW64
+- Program Files and ProgramData
+- boot, recovery, and system-volume locations
+- device paths and alternate data streams
+- network and UNC paths unless a future phase designs a separate policy
+- Project Akiha's encrypted credential file
+
+Allowlisted applications may be installed under Program Files, but that does
+not create a filesystem grant. Their executable paths are resolved by the
+trusted application catalog and are never supplied by AI output.
+
+### Initial File Actions
+
+`files.search` reads names and basic metadata only. It does not read file
+contents, generate embeddings, upload results, or silently broaden its root.
+
+`files.open_directory` can open an approved directory in the system file
+browser.
+
+`files.open` accepts only a validated regular file inside an approved root and
+requires a visible confirmation. Openable types come from a conservative
+application-owned allowlist for ordinary text, image, audio, video, and PDF
+files. Executable, script, installer, registry, shortcut, control-panel, and
+active-content types are never included. Reading file contents into an AI
+prompt is outside Phase 8.
+
+No Phase 8 file action creates, edits, renames, moves, copies, downloads, or
+deletes a file.
+
+## Allowlisted Application Launching
+
+Application launch uses stable registry identifiers such as:
+
+- `discord`
+- `chrome`
+- `spotify`
+- `vscode`
+
+The application catalog owns discovery and the resolved launch target. The AI
+can request only the registered identifier; it cannot provide:
+
+- an executable path
+- command-line arguments
+- a URL
+- a working directory
+- environment variables
+- a request for elevation
+
+The user enables each application separately. Settings shows whether the
+application was discovered and allows its permission to be revoked.
+
+System utilities, shells, script hosts, installers, registry editors, service
+managers, administrative consoles, and security-control applications are not
+valid catalog entries.
+
+## Permission And Confirmation Model
+
+Initial risk classes are:
+
+| Risk | Examples | Required behavior |
+| --- | --- | --- |
+| Read-only | Search filenames in an approved root | Existing scoped grant |
+| User-visible | Open a directory or launch an allowed app | Scoped grant and visible result |
+| Sensitive open | Open a validated file | Scoped grant plus per-action confirmation |
+| Prohibited | Shell, elevation, file mutation, system settings | Always deny |
+
+Permissions are:
+
+- off by default
+- capability- and target-specific
+- visible and revocable in Settings
+- checked at execution time, not only when the request is created
+- unaffected by prompt instructions or memory content
+
+Proactive behavior cannot launch an app or open a file in Phase 8. Actions
+require a current user request or a direct UI command.
+
+## Persistence And Migration
+
+Migration `0008` is reserved for:
+
+- scoped assistant-action permission grants
+- assistant-action audit history
+
+Application discovery results remain refreshable runtime data and must not turn
+an obsolete executable path into permanent authority.
+
+## Privacy Boundary
+
+Before the first assistant action is enabled:
+
+- increment the versioned privacy notice
+- explain approved-directory access and action auditing
+- explain that local file search returns metadata only
+- explain that action results stay local unless the user separately includes
+  information in a hosted chat request
+- provide Settings controls to review and revoke permissions
+
+No file content is sent to a hosted AI provider as part of Phase 8.
+
+## Planned Implementation Sequence
+
+### Phase 8A: Contracts And Policy
+
+- Add framework-free action models and result types.
+- Implement the action registry and schema validation.
+- Implement protected-path and permission policy.
+- Add migration `0008`, permission repository, and audit repository.
+- Add tests proving provider text cannot execute an action.
+
+Checkpoint: requests can be validated, denied, confirmed, and audited without
+any real desktop executor enabled.
+
+### Phase 8B: Read-Only File Discovery
+
+- Add approved-directory management.
+- Implement bounded, cancellable file search.
+- Add search-result presentation and audit history.
+- Add open-directory support for approved roots.
+- Add safe-file opening with per-action confirmation and blocked-type policy.
+
+Checkpoint: Akiha can find and reveal safe files only inside approved roots.
+
+### Phase 8C: Allowlisted Applications
+
+- Add the trusted application catalog.
+- Discover Discord, Chrome, Spotify, and Visual Studio Code where installed.
+- Add per-application permission controls.
+- Implement argument-free application launch.
+- Add missing, moved, denied, and launch-failure diagnostics.
+
+Checkpoint: Akiha can launch only enabled catalog applications without shell
+execution or AI-controlled arguments.
+
+### Phase 8D: UX, Privacy, And Packaging
+
+- Add Assistant settings for directories, applications, and grants.
+- Add confirmation and denial UI.
+- Add action history with clear controls.
+- Update the versioned privacy notice.
+- Add diagnostics and reset behavior.
+- Run automated tests and packaged smoke verification.
+
+## Required Boundary Tests
+
+- [ ] Provider or chat text alone cannot invoke an executor.
+- [ ] Unknown action identifiers are denied and audited.
+- [ ] Invalid typed parameters are denied before permission checks.
+- [ ] A path outside an approved root is denied.
+- [ ] Traversal, junction, reparse-point, device-path, and protected-path
+  escapes are denied.
+- [ ] Search limits, cancellation, and timeout behavior are enforced.
+- [ ] Only allowlisted passive file types can be opened through file actions.
+- [ ] An unregistered application or AI-provided executable path is denied.
+- [ ] Application arguments and elevation requests are denied.
+- [ ] Revoked permission prevents the next matching action.
+- [ ] Denied and failed actions do not fall back to shell execution.
+- [ ] Audit records exclude file contents and credentials.
+- [ ] Migration `0008` applies cleanly to fresh and existing databases.
+
+## Out Of Scope
+
+- Arbitrary shell or PowerShell execution
+- User-provided or AI-provided command lines
+- Administrator elevation
+- Writing, renaming, moving, copying, downloading, or deleting files
+- Reading file contents into AI context
+- Registry, service, driver, task-scheduler, or Windows settings changes
+- Keyboard, mouse, browser, or anti-AFK automation
+- Autonomous or silent background actions
+- Plugin execution
+- Network-share access
+- Package installation, update, or process termination
+
+## Exit Criteria
+
+Phase 8 is complete only when:
+
+- every executable action is registered, typed, permission-checked, and audited
+- file search cannot escape user-approved non-system directories
+- only explicitly enabled catalog applications can launch
+- no action path invokes a shell or accepts AI-controlled executable arguments
+- permissions can be reviewed and revoked
+- the revised privacy notice is acknowledged
+- automated tests and packaged smoke checks pass

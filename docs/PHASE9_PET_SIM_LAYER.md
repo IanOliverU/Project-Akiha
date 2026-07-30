@@ -1,6 +1,6 @@
-# Phase 8: Pet Sim Layer
+# Phase 9: Pet Sim Layer
 
-**Status:** Planned
+**Status:** Planned - gameplay and asset research pending
 
 ## Phase Goal
 
@@ -55,7 +55,7 @@ and that a typed action or interaction event is required.
 
 ## Neglect And Floor Behavior
 
-Phase 8 uses recoverable floors rather than punishment:
+Phase 9 uses recoverable floors rather than punishment:
 
 - Decaying statistics clamp at their defined minimum.
 - Reaching the minimum may emit a structured `needs_care` transition for mood,
@@ -64,18 +64,35 @@ Phase 8 uses recoverable floors rather than punishment:
   threshold events on every timer tick.
 - Explicit care actions can always recover a statistic from its minimum.
 - Akiha does not die, become permanently sick, run away, or reset because of
-  neglect in Phase 8.
+  neglect in Phase 9.
 
 More serious long-term condition mechanics require a separate design decision
 and are not an accidental consequence of clamp logic.
 
 ## Migration Sequence
 
-`0007_message_translations.sql` is the latest existing migration. Voice
-settings and privacy acknowledgement are configuration values rather than
-database migrations, so the first Phase 8 migration is correctly numbered
-`0008`. Pet-state and pet-history tables may be introduced together in that
-migration when their schema is finalized.
+Phase 8 reserves migration `0008` for assistant-action permissions and audit
+history. The first Phase 9 migration is therefore `0009`. Pet-state and
+pet-history tables may be introduced together in that migration when their
+schema is finalized.
+
+## Research And Asset Readiness
+
+Phase 9 does not begin with stat bars. Before implementation, define how the
+care loop should feel and how Akiha can communicate each state with the assets
+that are actually available.
+
+- Compare Tamagotchi-style maintenance, VPet-style interaction, and a gentler
+  companion-care loop.
+- Decide the intended pressure level for decay, attention requests, rewards,
+  and recovery.
+- Inventory existing idle, walk, sleep, mood, listening, and speaking assets.
+- Define the minimum reaction matrix for hunger, low energy, attention,
+  affection, feeding, resting, and spending time together.
+- Define a fallback order for missing assets: dedicated animation, static pose,
+  mood indicator plus voice, then the existing idle presentation.
+- Record frame dimensions, transparency, frame rate, direction, loop behavior,
+  offsets, naming, and preview requirements for future assets.
 
 ## Planned Scope
 
@@ -94,10 +111,12 @@ migration when their schema is finalized.
 - Allowing an AI provider to mutate pet state directly.
 - Punitive death, running away, sickness, or irreversible neglect.
 - Shop spending, inventory, wearable cosmetics, or Live2D work.
-- Permission-gated assistant actions.
+- Expansion of Phase 8 assistant actions or operating-system automation.
 
 ## Preliminary Checklist
 
+- [ ] Complete gameplay and asset-readiness research.
+- [ ] Approve the minimum reaction and animation-fallback matrix.
 - [ ] Define typed pet-state models and invariants.
 - [ ] Define decay, offline elapsed-time, and clock rules.
 - [ ] Add SQLite pet-state and history migrations.
@@ -118,4 +137,5 @@ migration when their schema is finalized.
 - [ ] A care action recovers a statistic from its floor.
 - [ ] Voice and animation reactions originate from structured state events,
   never dialogue parsing.
-- [ ] Migration `0008` applies cleanly to both fresh and existing databases.
+- [ ] Migration `0009` applies cleanly to both fresh and existing databases
+  after the Phase 8 migration.

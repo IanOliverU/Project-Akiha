@@ -53,11 +53,18 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
 
 ## Assistant Commands And Plugins
 
-- Design explicit permission gates before any local command execution exists.
-- Keep AI output away from direct execution paths.
-- Add a command registry with validation before adding real commands.
-- Add user confirmation flows for risky actions.
+- [ ] Implement the Phase 8 assistant-action contracts and permission policy
+  defined in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
+- [ ] Keep AI output away from direct execution paths.
+- [ ] Add the typed action registry and validation before enabling executors.
+- [ ] Add user confirmation flows and scoped, revocable grants.
+- [ ] Add read-only file discovery inside user-approved directories.
+- [ ] Add allowlisted launching for explicitly enabled everyday applications.
 - Explore a plugin API only after command safety boundaries are defined.
+
+Phase 8 intentionally excludes shell commands, filesystem mutation,
+administrator elevation, system-critical access, arbitrary executable paths,
+OS automation, and silent background actions.
 
 ## Memory And Companion Intelligence
 

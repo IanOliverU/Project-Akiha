@@ -286,8 +286,9 @@ Security note, 2026-07-29:
 
 - Phase 6 security posture and deferred public-distribution items are documented
   in `docs/SECURITY_REVIEW.md`.
-- Future assistant commands remain deferred to the post-Phase-6 backlog and must
-  be added behind explicit command validation and permission gates.
+- Future assistant actions remain deferred to Phase 8 and must be added behind
+  the typed registry, validation, scoped permissions, and audit boundary in
+  `docs/PHASE8_ASSISTANT_ACTIONS.md`.
 
 ### 9. Documentation Pass
 

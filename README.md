@@ -44,7 +44,8 @@ automatic reply speech, and a minimal speech identity. Chat can switch between
 mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
 OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
 Windows user and never stored in ordinary TOML configuration. Phase 8 will add
-the pet statistics and care loop.
+permission-gated, deliberately shallow desktop actions before the pet
+simulation is researched and implemented in Phase 9.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -55,7 +56,9 @@ the pet statistics and care loop.
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | Planned | Pet statistics, care actions, progression, and attention behavior |
+| Phase 8 | Planned | Permission-gated file discovery and allowlisted application launching |
+| Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
+| Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
 ## Tech Stack
 
@@ -238,13 +241,48 @@ one speech engine.
 
 Details: `docs/PHASE7_VOICE_LAYER.md`
 
-### Phase 8: Pet Sim Layer
+### Phase 8: Permission-Gated Assistant Actions
+
+Give Akiha a deliberately shallow set of safe desktop capabilities without
+granting unrestricted operating-system access.
+
+- Treat AI action proposals as untrusted structured requests.
+- Validate every request through an application-owned action registry.
+- Store capability- and target-specific permission grants.
+- Search filenames and metadata only inside user-approved directories.
+- Open approved directories and safe files through validated actions.
+- Launch explicitly enabled applications such as Discord, Chrome, Spotify, and
+  Visual Studio Code through a trusted application catalog.
+- Record permission decisions and sanitized outcomes in an action audit.
+- Deny shell commands, elevation, file mutation, system-critical access,
+  arbitrary executables, arguments, and autonomous background actions.
+
+Details: `docs/PHASE8_ASSISTANT_ACTIONS.md`
+
+### Phase 9: Pet Sim Layer
 
 Add persistent pet statistics, care actions, progression, and attention
 behavior. Pet state is structured and language-neutral: dialogue reflects
 stored state but never determines it through keyword or sentiment parsing.
+Gameplay pressure, care-loop behavior, the minimum reaction matrix, and asset
+fallbacks will be researched before implementation begins.
 
-Details: `docs/PHASE8_PET_SIM_LAYER.md`
+Details: `docs/PHASE9_PET_SIM_LAYER.md`
+
+### Phase 10: Shop And Visual Pet Expansion
+
+Add the visual and economic payoff after the care loop and model requirements
+are proven.
+
+- Shop and inventory.
+- Currency spending.
+- Buyable cosmetic items and accessories.
+- Visible equipped-item state.
+- Richer sprite sets or a future Live2D-compatible presentation.
+- Expanded care, reward, and interaction animations.
+
+Phase 10 remains high-level until Phase 9 research establishes the required
+model and animation system.
 
 ## Architecture
 
@@ -267,6 +305,8 @@ Important architectural rules:
   retrieval, and prompt context assembly.
 - Behavior is built from small components: activity, policy, proactive
   suggestions, delivery, mood, animation mapping, and history.
+- Assistant actions pass through a typed registry, validation, scoped
+  permissions, capability-specific executors, and an audit repository.
 
 ## Local Data
 
@@ -352,7 +392,9 @@ Security review: `docs/SECURITY_REVIEW.md`
 
 Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
 
-Phase 8 plan: `docs/PHASE8_PET_SIM_LAYER.md`
+Phase 8 plan: `docs/PHASE8_ASSISTANT_ACTIONS.md`
+
+Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
 

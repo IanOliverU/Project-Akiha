@@ -98,6 +98,29 @@ external VOICEVOX process that Project Akiha did not launch.
 - faster-whisper runs locally. Its model may be downloaded on first use and is
   cached under `%LOCALAPPDATA%\Akiha\models\faster-whisper\`.
 
+## Planned Phase 8 Assistant Actions
+
+Phase 8 introduces a new local privacy boundary for permission-gated desktop
+actions. Its design is documented in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
+
+- Directory access is off by default and limited to roots selected through a
+  native directory picker.
+- Initial file search reads names and basic metadata only.
+- File actions cannot leave an approved root or access protected Windows
+  locations.
+- Opening a file requires visible confirmation and a conservative allowlist of
+  passive file types.
+- Applications launch only through separately enabled catalog entries such as
+  Discord, Chrome, Spotify, or Visual Studio Code.
+- Action audit records contain decisions and sanitized metadata, not file
+  contents or credentials.
+- No file content is added to an AI prompt or sent to a hosted provider in
+  Phase 8.
+
+The privacy notice must receive a new version before any Phase 8 executor is
+enabled. Settings must also provide controls to review and revoke directory and
+application permissions.
+
 ## Reset
 
 To reset all local Project Akiha data, quit the app first, then remove:
@@ -127,5 +150,6 @@ The notice explains:
 - local conversation, memory, settings, and log storage
 - Windows-user encryption for hosted API credentials
 
-Revisit and version the notice again before adding persistent or
-always-listening capture, sync, plugins, or local assistant commands.
+Revisit and version the notice for Phase 8 assistant actions, and again before
+adding persistent or always-listening capture, sync, plugins, file-content
+ingestion, or broader local commands.

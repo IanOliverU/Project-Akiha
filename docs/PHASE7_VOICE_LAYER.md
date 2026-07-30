@@ -537,7 +537,7 @@ now closed.
 - Detailed phoneme, accent, and prosody authoring.
 - Training or cloning Akiha's official game voice.
 - Live2D lip sync and advanced mouth animation.
-- Phase 8 pet statistics and care-loop mechanics.
+- Phase 9 pet statistics and care-loop mechanics.
 
 ## Exit Criteria
 

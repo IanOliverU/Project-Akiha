@@ -54,11 +54,30 @@ Runtime data stays under `%LOCALAPPDATA%\Akiha\`:
 Diagnostics logs include paths and support metadata, but do not intentionally
 print chat transcripts, memory contents, or user config contents.
 
+## Planned Phase 8 Assistant-Action Boundary
+
+Phase 8 is specified in `docs/PHASE8_ASSISTANT_ACTIONS.md`. No assistant action
+is enabled until its typed registry, validation, scoped permissions,
+confirmation policy, capability-specific executor, and audit path are in place.
+
+The planned scope is intentionally shallow:
+
+- read-only filename and metadata search inside user-approved directories
+- opening an approved directory or validated safe file
+- launching an explicitly enabled catalog application such as Discord, Chrome,
+  Spotify, or Visual Studio Code
+
+The design rejects shell text, arbitrary executable paths and arguments,
+administrator elevation, filesystem mutation, protected Windows locations,
+system utilities, and autonomous background actions. AI output remains an
+untrusted request and never becomes direct execution authority.
+
 ## Deferred Before Public Distribution
 
 - Code signing.
 - Dependency auditing.
 - Installer-specific permissions and uninstall behavior.
-- Explicit permission gates for any future assistant command execution.
+- Implementation and verification of the Phase 8 permission and audit boundary
+  before any assistant action executor is enabled.
 - A revised privacy-notice version before sync, plugins, persistent microphone
   capture, or local assistant commands are added.
