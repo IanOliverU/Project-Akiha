@@ -35,6 +35,7 @@ def settings_stylesheet() -> str:
 {root} {{
     background-color: {color.window};
     color: {color.text};
+    font-family: "Segoe UI";
     font-size: 13px;
 }}
 {root} QLabel {{
@@ -192,6 +193,129 @@ def settings_stylesheet() -> str:
     margin: 2px;
     border: none;
     background-color: {color.window};
+}}
+{root} QScrollBar::handle:vertical {{
+    min-height: 32px;
+    border-radius: 4px;
+    background-color: {color.border};
+}}
+{root} QScrollBar::handle:vertical:hover {{
+    background-color: {color.primary};
+}}
+{root} QScrollBar::add-line:vertical,
+{root} QScrollBar::sub-line:vertical,
+{root} QScrollBar::add-page:vertical,
+{root} QScrollBar::sub-page:vertical {{
+    height: 0;
+    background: transparent;
+}}
+{root} QToolTip {{
+    border: 1px solid {color.border};
+    padding: 5px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+"""
+
+
+def chat_stylesheet() -> str:
+    """Return the scoped stylesheet for the Chat window."""
+    color = AKIHA_PALETTE
+    root = "QWidget#akihaChatWindow"
+    return f"""
+{root} {{
+    background-color: {color.window};
+    color: {color.text};
+    font-family: "Segoe UI";
+    font-size: 13px;
+}}
+{root} QLabel {{
+    color: {color.text};
+    background: transparent;
+}}
+{root} QFrame#chatToolbar,
+{root} QFrame#chatComposer {{
+    border: 1px solid {color.border};
+    border-radius: 8px;
+    background-color: {color.panel};
+}}
+{root} QLabel#chatPresence {{
+    color: {color.highlight};
+    font-weight: 600;
+}}
+{root} QLabel#chatStatus,
+{root} QLabel#voiceInputStatus {{
+    color: {color.muted_text};
+}}
+{root} QTextEdit#chatHistory {{
+    padding: 10px;
+    border: 1px solid {color.border};
+    border-radius: 8px;
+    background-color: {color.panel};
+    color: {color.text};
+    selection-background-color: {color.primary};
+    selection-color: {color.window};
+}}
+{root} QLineEdit#chatInput {{
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.control};
+    color: {color.text};
+    selection-background-color: {color.primary};
+    selection-color: {color.window};
+}}
+{root} QLineEdit#chatInput:focus {{
+    border-color: {color.highlight};
+}}
+{root} QLineEdit#chatInput:disabled {{
+    color: #6F7488;
+    background-color: #252832;
+}}
+{root} QPushButton {{
+    min-height: 32px;
+    padding: 0 13px;
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QPushButton:hover {{
+    border-color: {color.highlight};
+    background-color: #343846;
+}}
+{root} QPushButton:pressed {{
+    background-color: {color.panel};
+}}
+{root} QPushButton:disabled {{
+    color: #6F7488;
+    border-color: #343847;
+    background-color: #252832;
+}}
+{root} QPushButton#primaryButton {{
+    border-color: {color.highlight};
+    background-color: {color.primary};
+    color: {color.window};
+    font-weight: 600;
+}}
+{root} QPushButton#primaryButton:hover {{
+    background-color: {color.highlight};
+}}
+{root} QPushButton#stopButton:enabled {{
+    border-color: {color.error};
+    color: {color.error};
+}}
+{root} QPushButton#replayButton {{
+    min-width: 34px;
+    max-width: 34px;
+    padding: 0;
+}}
+{root} QScrollBar:vertical {{
+    width: 10px;
+    margin: 2px;
+    border: none;
+    background-color: {color.panel};
 }}
 {root} QScrollBar::handle:vertical {{
     min-height: 32px;

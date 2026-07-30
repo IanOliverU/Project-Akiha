@@ -8,6 +8,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -18,6 +19,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from project_akiha.ui.theme import AKIHA_PALETTE, chat_stylesheet
 
 
 class ChatWindow(QWidget):
@@ -37,19 +40,41 @@ class ChatWindow(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Akiha Chat")
-        self.setMinimumSize(420, 520)
+        self.setObjectName("akihaChatWindow")
+        self.setMinimumSize(480, 540)
+        self.resize(580, 660)
+        self.setStyleSheet(chat_stylesheet())
 
         self._history_view = QTextEdit()
+        self._history_view.setObjectName("chatHistory")
         self._history_view.setReadOnly(True)
-        self._history_view.document().setDefaultStyleSheet("""
-            .speaker-user { color: #175cd3; font-weight: 700; }
-            .speaker-assistant { color: #7a2e8f; font-weight: 700; }
-            .notice { color: #666666; }
-            .proactive-title { color: #7a2e8f; font-weight: 700; }
-            .proactive-body { color: #2f3136; }
-            .subtitle-label { color: #666666; font-weight: 600; }
-            .subtitle-body { color: #666666; font-style: italic; }
-            .error { color: #b00020; font-weight: 600; }
+        self._history_view.document().setDefaultStyleSheet(f"""
+            .speaker-user {{
+                color: {AKIHA_PALETTE.listening};
+                font-weight: 700;
+            }}
+            .speaker-assistant {{
+                color: {AKIHA_PALETTE.speaking};
+                font-weight: 700;
+            }}
+            .notice {{ color: {AKIHA_PALETTE.muted_text}; }}
+            .proactive-title {{
+                color: {AKIHA_PALETTE.highlight};
+                font-weight: 700;
+            }}
+            .proactive-body {{ color: {AKIHA_PALETTE.text}; }}
+            .subtitle-label {{
+                color: {AKIHA_PALETTE.muted_text};
+                font-weight: 600;
+            }}
+            .subtitle-body {{
+                color: {AKIHA_PALETTE.muted_text};
+                font-style: italic;
+            }}
+            .error {{
+                color: {AKIHA_PALETTE.error};
+                font-weight: 600;
+            }}
             """)
 
         self._new_chat_button = QPushButton("New chat")
@@ -62,15 +87,18 @@ class ChatWindow(QWidget):
         self._export_chat_button.clicked.connect(self._request_export_chat)
 
         self._presence_label = QLabel("Akiha is calm.")
+        self._presence_label.setObjectName("chatPresence")
         self._status_label = QLabel("Ready")
+        self._status_label.setObjectName("chatStatus")
 
         self._input = QLineEdit()
+        self._input.setObjectName("chatInput")
         self._input.setPlaceholderText("Message Akiha")
         self._input.returnPressed.connect(self._submit_message)
 
         self._voice_input_status = QLabel("Microphone disabled")
+        self._voice_input_status.setObjectName("voiceInputStatus")
         self._voice_input_status.setWordWrap(True)
-        self._voice_input_status.setStyleSheet("color: #666666;")
 
         self._voice_input_enabled = False
         self._voice_output_enabled = False
@@ -85,6 +113,7 @@ class ChatWindow(QWidget):
         self._refresh_voice_button()
 
         self._voice_replay_button = QPushButton()
+        self._voice_replay_button.setObjectName("replayButton")
         self._voice_replay_button.setFixedSize(34, 34)
         self._voice_replay_button.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
@@ -95,32 +124,61 @@ class ChatWindow(QWidget):
         self._refresh_voice_replay_button()
 
         self._send_button = QPushButton("Send")
+        self._send_button.setObjectName("primaryButton")
         self._send_button.clicked.connect(self._submit_message)
 
         self._stop_button = QPushButton("Stop")
+        self._stop_button.setObjectName("stopButton")
         self._stop_button.setDisabled(True)
         self._stop_button.clicked.connect(self._request_cancel)
 
-        toolbar_layout = QHBoxLayout()
-        toolbar_layout.addWidget(self._new_chat_button)
-        toolbar_layout.addWidget(self._clear_chat_button)
-        toolbar_layout.addWidget(self._export_chat_button)
-        toolbar_layout.addWidget(self._presence_label)
-        toolbar_layout.addStretch()
-        toolbar_layout.addWidget(self._status_label)
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.setSpacing(8)
+        action_layout.addWidget(self._new_chat_button)
+        action_layout.addWidget(self._clear_chat_button)
+        action_layout.addWidget(self._export_chat_button)
+        action_layout.addStretch(1)
+
+        presence_layout = QHBoxLayout()
+        presence_layout.setContentsMargins(0, 0, 0, 0)
+        presence_layout.addWidget(self._presence_label)
+        presence_layout.addStretch(1)
+        presence_layout.addWidget(self._status_label)
+
+        toolbar = QFrame()
+        toolbar.setObjectName("chatToolbar")
+        toolbar_layout = QVBoxLayout()
+        toolbar_layout.setContentsMargins(12, 10, 12, 10)
+        toolbar_layout.setSpacing(8)
+        toolbar_layout.addLayout(action_layout)
+        toolbar_layout.addLayout(presence_layout)
+        toolbar.setLayout(toolbar_layout)
 
         input_layout = QHBoxLayout()
+        input_layout.setContentsMargins(0, 0, 0, 0)
+        input_layout.setSpacing(8)
         input_layout.addWidget(self._input)
         input_layout.addWidget(self._voice_button)
         input_layout.addWidget(self._voice_replay_button)
         input_layout.addWidget(self._send_button)
         input_layout.addWidget(self._stop_button)
 
+        composer = QFrame()
+        composer.setObjectName("chatComposer")
+        composer_layout = QVBoxLayout()
+        composer_layout.setContentsMargins(12, 10, 12, 12)
+        composer_layout.setSpacing(8)
+        composer_layout.addWidget(self._voice_input_status)
+        composer_layout.addLayout(input_layout)
+        composer.setLayout(composer_layout)
+
         layout = QVBoxLayout()
-        layout.addLayout(toolbar_layout)
-        layout.addWidget(self._history_view)
-        layout.addWidget(self._voice_input_status)
-        layout.addLayout(input_layout)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
+        layout.addWidget(toolbar)
+        layout.addWidget(self._history_view, stretch=1)
+        layout.addWidget(composer)
         self.setLayout(layout)
 
     def clear_history(self) -> None:

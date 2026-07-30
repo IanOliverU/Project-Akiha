@@ -8,9 +8,10 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFrame
 
 from project_akiha.ui.chat_window import ChatWindow
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class ChatWindowTest(unittest.TestCase):
@@ -27,6 +28,26 @@ class ChatWindowTest(unittest.TestCase):
 
         self.assertIn("Akiha check-in", window._history_view.toPlainText())
         self.assertIn("Need a short break?", window._history_view.toPlainText())
+
+    def test_uniform_theme_and_chat_surfaces_are_applied(self) -> None:
+        window = ChatWindow()
+
+        frame_names = {
+            frame.objectName()
+            for frame in window.findChildren(QFrame)
+            if frame.objectName()
+        }
+        transcript_styles = window._history_view.document().defaultStyleSheet()
+        self.assertEqual(window.objectName(), "akihaChatWindow")
+        self.assertEqual(window._history_view.objectName(), "chatHistory")
+        self.assertEqual(window._input.objectName(), "chatInput")
+        self.assertEqual(window._send_button.objectName(), "primaryButton")
+        self.assertIn("chatToolbar", frame_names)
+        self.assertIn("chatComposer", frame_names)
+        self.assertIn(AKIHA_PALETTE.window, window.styleSheet())
+        self.assertIn(AKIHA_PALETTE.primary, window.styleSheet())
+        self.assertIn(AKIHA_PALETTE.speaking, transcript_styles)
+        self.assertIn(AKIHA_PALETTE.error, transcript_styles)
 
     def test_appends_scheduled_check_in_label(self) -> None:
         window = ChatWindow()
