@@ -200,6 +200,10 @@ class VoiceConfig:
     output_voice_id: str = "0"
     output_device: str = ""
     automatic_speech_enabled: bool = False
+    live_transcription_enabled: bool = False
+    auto_stop_on_silence_enabled: bool = False
+    auto_send_transcript_enabled: bool = False
+    silence_timeout_seconds: float = 1.2
     volume_percent: int = 100
     speaking_rate: float = 1.0
     capture_timeout_seconds: int = 30
@@ -231,6 +235,10 @@ class VoiceConfig:
             raise ValueError("voice.volume_percent must be between 0 and 100.")
         if not 0.5 <= self.speaking_rate <= 2.0:
             raise ValueError("voice.speaking_rate must be between 0.5 and 2.0.")
+        if not 0.5 <= self.silence_timeout_seconds <= 5.0:
+            raise ValueError(
+                "voice.silence_timeout_seconds must be between 0.5 and 5.0."
+            )
         if self.capture_timeout_seconds <= 0:
             raise ValueError("voice.capture_timeout_seconds must be greater than zero.")
         if self.request_timeout_seconds <= 0:

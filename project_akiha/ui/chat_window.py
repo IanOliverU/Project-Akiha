@@ -213,6 +213,13 @@ class ChatWindow(QWidget):
         self._input.insert(f"{prefix}{transcript}{suffix}")
         self._input.setFocus()
 
+    def submit_voice_transcript(self, text: str) -> None:
+        """Insert and submit a final recognized utterance."""
+        if self._chat_busy:
+            return
+        self.insert_voice_transcript(text)
+        self._submit_message()
+
     def set_voice_input_status(self, status: str) -> None:
         """Show a non-persistent microphone or transcription status."""
         self._voice_input_status.setText(status.strip() or "Microphone ready")
@@ -225,6 +232,13 @@ class ChatWindow(QWidget):
         self._voice_input_status.setText(
             f'Heard: "{transcript}" - review the message below, then Send.'
         )
+
+    def show_live_voice_transcript(self, text: str) -> None:
+        """Show revisable speech recognition while recording continues."""
+        transcript = text.strip()
+        if not transcript:
+            return
+        self._voice_input_status.setText(f'Hearing: "{transcript}"')
 
     def set_busy(self, is_busy: bool) -> None:
         """Toggle input controls while a response is being generated."""

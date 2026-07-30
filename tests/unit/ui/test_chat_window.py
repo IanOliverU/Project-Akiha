@@ -195,6 +195,25 @@ class ChatWindowTest(unittest.TestCase):
         self.assertIn("Recognized speech.", window._voice_input_status.text())
         self.assertNotIn("Recognized speech.", window._history_view.toPlainText())
 
+    def test_live_transcript_is_visible_but_not_chat_history_or_input(self) -> None:
+        window = ChatWindow()
+
+        window.show_live_voice_transcript("Words still changing.")
+
+        self.assertIn("Words still changing.", window._voice_input_status.text())
+        self.assertEqual(window._input.text(), "")
+        self.assertNotIn("Words still changing.", window._history_view.toPlainText())
+
+    def test_final_voice_transcript_can_be_submitted_automatically(self) -> None:
+        window = ChatWindow()
+        submitted: list[str] = []
+        window.message_submitted.connect(submitted.append)
+
+        window.submit_voice_transcript("Final recognized speech.")
+
+        self.assertEqual(submitted, ["Final recognized speech."])
+        self.assertEqual(window._input.text(), "")
+
     def test_voice_input_status_explains_how_to_finish_recording(self) -> None:
         window = ChatWindow()
 

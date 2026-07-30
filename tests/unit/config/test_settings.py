@@ -46,6 +46,10 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.input_provider, "faster-whisper")
         self.assertEqual(config.voice.output_provider, "voicevox")
         self.assertFalse(config.voice.automatic_speech_enabled)
+        self.assertFalse(config.voice.live_transcription_enabled)
+        self.assertFalse(config.voice.auto_stop_on_silence_enabled)
+        self.assertFalse(config.voice.auto_send_transcript_enabled)
+        self.assertEqual(config.voice.silence_timeout_seconds, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 30)
         self.assertFalse(config.voice.input_enabled)
         self.assertFalse(config.voice.output_enabled)
@@ -95,6 +99,10 @@ class SettingsTest(unittest.TestCase):
                 'output_voice_id = "14"\n'
                 'output_device = "Test speakers"\n'
                 "automatic_speech_enabled = true\n"
+                "live_transcription_enabled = true\n"
+                "auto_stop_on_silence_enabled = true\n"
+                "auto_send_transcript_enabled = true\n"
+                "silence_timeout_seconds = 1.5\n"
                 "volume_percent = 75\n"
                 "speaking_rate = 1.2\n"
                 "capture_timeout_seconds = 12\n"
@@ -137,6 +145,10 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.output_voice_id, "14")
         self.assertEqual(config.voice.output_device, "Test speakers")
         self.assertTrue(config.voice.automatic_speech_enabled)
+        self.assertTrue(config.voice.live_transcription_enabled)
+        self.assertTrue(config.voice.auto_stop_on_silence_enabled)
+        self.assertTrue(config.voice.auto_send_transcript_enabled)
+        self.assertEqual(config.voice.silence_timeout_seconds, 1.5)
         self.assertEqual(config.voice.volume_percent, 75)
         self.assertEqual(config.voice.speaking_rate, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 12)
@@ -230,6 +242,9 @@ class SettingsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             VoiceConfig(speaking_rate=0.25)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(silence_timeout_seconds=0.25)
 
         with self.assertRaises(ValueError):
             VoiceConfig(capture_timeout_seconds=0)

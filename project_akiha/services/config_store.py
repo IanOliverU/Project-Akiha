@@ -117,6 +117,13 @@ def _serialize_config(config: AppConfig) -> str:
         f'output_device = "{voice_output_device}"\n'
         "automatic_speech_enabled = "
         f"{str(voice.automatic_speech_enabled).lower()}\n"
+        "live_transcription_enabled = "
+        f"{str(voice.live_transcription_enabled).lower()}\n"
+        "auto_stop_on_silence_enabled = "
+        f"{str(voice.auto_stop_on_silence_enabled).lower()}\n"
+        "auto_send_transcript_enabled = "
+        f"{str(voice.auto_send_transcript_enabled).lower()}\n"
+        f"silence_timeout_seconds = {voice.silence_timeout_seconds}\n"
         f"volume_percent = {voice.volume_percent}\n"
         f"speaking_rate = {voice.speaking_rate}\n"
         f"capture_timeout_seconds = {voice.capture_timeout_seconds}\n"

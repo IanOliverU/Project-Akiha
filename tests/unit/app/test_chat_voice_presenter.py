@@ -15,6 +15,8 @@ class _ChatVoiceSurface:
         self.capabilities: tuple[bool, bool] | None = None
         self.states: list[tuple[str, str]] = []
         self.transcripts: list[str] = []
+        self.submitted_transcripts: list[str] = []
+        self.live_transcripts: list[str] = []
         self.transcript_previews: list[str] = []
         self.voice_input_statuses: list[str] = []
         self.replay_availability: list[bool] = []
@@ -33,11 +35,17 @@ class _ChatVoiceSurface:
     def insert_voice_transcript(self, text: str) -> None:
         self.transcripts.append(text)
 
+    def submit_voice_transcript(self, text: str) -> None:
+        self.submitted_transcripts.append(text)
+
     def set_voice_input_status(self, status: str) -> None:
         self.voice_input_statuses.append(status)
 
     def show_voice_transcript_preview(self, text: str) -> None:
         self.transcript_previews.append(text)
+
+    def show_live_voice_transcript(self, text: str) -> None:
+        self.live_transcripts.append(text)
 
     def set_voice_replay_available(self, available: bool) -> None:
         self.replay_availability.append(available)
@@ -107,6 +115,55 @@ class ChatVoicePresenterTest(unittest.TestCase):
         self.assertEqual(surface.transcripts, ["おはようございます。"])
 
         self.assertEqual(surface.transcript_previews, surface.transcripts)
+
+    def test_live_transcript_is_previewed_but_not_submitted(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(
+            bus,
+            surface,
+            VoiceConfig(live_transcription_enabled=True),
+            "muted",
+        )
+
+        bus.publish(EventType.VOICE_TRANSCRIPT_PARTIAL, {"text": "Still speaking"})
+
+        self.assertEqual(surface.live_transcripts, ["Still speaking"])
+        self.assertEqual(surface.transcripts, [])
+        self.assertEqual(surface.submitted_transcripts, [])
+
+    def test_final_transcript_auto_sends_when_enabled(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(
+            bus,
+            surface,
+            VoiceConfig(auto_send_transcript_enabled=True),
+            "muted",
+        )
+
+        bus.publish(EventType.VOICE_TRANSCRIPT_READY, {"text": "Send this"})
+
+        self.assertEqual(surface.submitted_transcripts, ["Send this"])
+        self.assertEqual(surface.transcripts, [])
+        self.assertEqual(surface.transcript_previews, [])
+        self.assertIn("sent automatically", surface.voice_input_statuses[-1])
+
+    def test_silence_endpoint_changes_listening_instruction(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(
+            bus,
+            surface,
+            VoiceConfig(auto_stop_on_silence_enabled=True),
+            "listening",
+            "input",
+        )
+
+        self.assertEqual(
+            surface.voice_input_statuses[-1],
+            "Listening... pause when you finish speaking.",
+        )
 
     def test_ignores_malformed_state_and_transcript_events(self) -> None:
         bus = EventBus()

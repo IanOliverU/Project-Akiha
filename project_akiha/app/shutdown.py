@@ -41,6 +41,7 @@ class ShutdownResult:
     unfinished_threads: int
     timer_stopped: bool
     voice_capture_stopped: bool
+    voice_diagnostics_stopped: bool
     voice_transcription_stopped: bool
     voice_synthesis_stopped: bool
     voice_playback_stopped: bool
@@ -54,6 +55,7 @@ def shutdown_runtime(
     logger: logging.Logger,
     thread_wait_ms: int = 2000,
     voice_capture: CancellableVoiceCapture | None = None,
+    voice_diagnostics: CancellableVoiceCapture | None = None,
     voice_transcription: CancellableVoiceCapture | None = None,
     voice_synthesis: CancellableVoiceCapture | None = None,
     voice_playback: CancellableVoiceCapture | None = None,
@@ -67,6 +69,10 @@ def shutdown_runtime(
         thread_wait_ms=thread_wait_ms,
     )
     voice_capture_stopped = _cancel_voice_capture(voice_capture, logger)
+    voice_diagnostics_stopped = _cancel_voice_diagnostics(
+        voice_diagnostics,
+        logger,
+    )
     voice_transcription_stopped = _cancel_voice_transcription(
         voice_transcription,
         logger,
@@ -79,6 +85,7 @@ def shutdown_runtime(
         unfinished_threads=unfinished_threads,
         timer_stopped=timer_stopped,
         voice_capture_stopped=voice_capture_stopped,
+        voice_diagnostics_stopped=voice_diagnostics_stopped,
         voice_transcription_stopped=voice_transcription_stopped,
         voice_synthesis_stopped=voice_synthesis_stopped,
         voice_playback_stopped=voice_playback_stopped,
@@ -155,6 +162,20 @@ def _cancel_voice_transcription(
         voice_transcription.cancel()
     except Exception:
         logger.exception("Failed to stop voice transcription during shutdown.")
+        return False
+    return True
+
+
+def _cancel_voice_diagnostics(
+    voice_diagnostics: CancellableVoiceCapture | None,
+    logger: logging.Logger,
+) -> bool:
+    if voice_diagnostics is None:
+        return True
+    try:
+        voice_diagnostics.cancel()
+    except Exception:
+        logger.exception("Failed to stop voice diagnostics during shutdown.")
         return False
     return True
 

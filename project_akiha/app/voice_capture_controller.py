@@ -26,11 +26,17 @@ class VoiceCaptureController:
         capture: MicrophoneCapture,
         config: VoiceConfig,
         on_audio_captured: Callable[[CapturedAudio], None] | None = None,
+        on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
+        on_microphone_test_captured: Callable[[CapturedAudio], None] | None = None,
     ) -> None:
+        self._event_bus = event_bus
         self._voice_controller = voice_controller
         self._capture = capture
         self._config = config
         self._on_audio_captured = on_audio_captured
+        self._on_audio_snapshot = on_audio_snapshot
+        self._on_microphone_test_captured = on_microphone_test_captured
+        self._capture_source = "chat"
 
         event_bus.subscribe(
             EventType.VOICE_LISTEN_REQUESTED,
@@ -63,15 +69,28 @@ class VoiceCaptureController:
         self._capture.cancel()
 
     def _handle_listen_requested(self, event: Event) -> None:
-        del event
         if self._voice_controller.state != VoiceState.LISTENING:
             return
+        source = event.payload.get("source")
+        self._capture_source = source if isinstance(source, str) else "chat"
 
         try:
             self._capture.start(
                 timeout_seconds=self._config.capture_timeout_seconds,
                 on_timeout=self._handle_capture_timeout,
                 on_error=self._handle_capture_error,
+                on_audio_snapshot=(
+                    self._handle_audio_snapshot
+                    if self._config.live_transcription_enabled
+                    else None
+                ),
+                on_silence=(
+                    self._handle_silence
+                    if self._config.auto_stop_on_silence_enabled
+                    else None
+                ),
+                silence_timeout_seconds=self._config.silence_timeout_seconds,
+                auto_stop_on_silence=self._config.auto_stop_on_silence_enabled,
             )
         except MicrophoneCaptureError as error:
             self._voice_controller.report_error(error.code, str(error))
@@ -105,8 +124,19 @@ class VoiceCaptureController:
             )
             return
 
+        callback = self._on_audio_captured
+        if self._capture_source == "settings_microphone_test":
+            callback = self._on_microphone_test_captured
+        self._capture_source = "chat"
+        if callback is None:
+            self._voice_controller.report_error(
+                "speech_input_unavailable",
+                "Speech recognition is not available yet.",
+            )
+            return
+
         try:
-            self._on_audio_captured(captured_audio)
+            callback(captured_audio)
         except Exception:
             self._voice_controller.report_error(
                 "speech_input_failed",
@@ -115,13 +145,34 @@ class VoiceCaptureController:
 
     def _handle_listen_cancel_requested(self, event: Event) -> None:
         del event
+        self._capture_source = "chat"
         self._capture.cancel()
 
     def _handle_capture_timeout(self) -> None:
+        self._capture_source = "chat"
         self._voice_controller.report_error(
             "capture_timeout",
             "Microphone capture reached its time limit.",
         )
 
     def _handle_capture_error(self, code: str, message: str) -> None:
+        self._capture_source = "chat"
         self._voice_controller.report_error(code, message)
+
+    def _handle_audio_snapshot(self, audio: CapturedAudio) -> None:
+        if (
+            self._voice_controller.state != VoiceState.LISTENING
+            or self._on_audio_snapshot is None
+        ):
+            return
+        self._on_audio_snapshot(audio)
+
+    def _handle_silence(self) -> None:
+        if (
+            self._capture.is_capturing
+            and self._voice_controller.state == VoiceState.LISTENING
+        ):
+            self._event_bus.publish(
+                EventType.VOICE_LISTEN_STOP_REQUESTED,
+                {"reason": "silence_detected"},
+            )

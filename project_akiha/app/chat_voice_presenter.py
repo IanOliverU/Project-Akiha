@@ -25,8 +25,14 @@ class ChatVoiceSurface(Protocol):
     def insert_voice_transcript(self, text: str) -> None:
         """Place recognized text in the editable chat input."""
 
+    def submit_voice_transcript(self, text: str) -> None:
+        """Place and submit a final recognized utterance."""
+
     def set_voice_input_status(self, status: str) -> None:
         """Show microphone and transcription progress."""
+
+    def show_live_voice_transcript(self, text: str) -> None:
+        """Show a revisable interim transcript without persisting it."""
 
     def show_voice_transcript_preview(self, text: str) -> None:
         """Preview recognized speech without persisting or sending it."""
@@ -50,10 +56,15 @@ class ChatVoicePresenter:
         initial_operation: str = "none",
     ) -> None:
         self._surface = surface
+        self._config = config
 
         event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
             self._handle_state_changed,
+        )
+        event_bus.subscribe(
+            EventType.VOICE_TRANSCRIPT_PARTIAL,
+            self._handle_transcript_partial,
         )
         event_bus.subscribe(
             EventType.VOICE_TRANSCRIPT_READY,
@@ -73,6 +84,7 @@ class ChatVoicePresenter:
 
     def apply_config(self, config: VoiceConfig) -> None:
         """Update chat controls after voice settings change."""
+        self._config = config
         self._surface.set_voice_capabilities(
             input_enabled=config.input_enabled and config.push_to_talk_enabled,
             output_enabled=config.output_enabled,
@@ -89,8 +101,22 @@ class ChatVoicePresenter:
         text = event.payload.get("text")
         if not isinstance(text, str) or not text.strip():
             return
-        self._surface.show_voice_transcript_preview(text)
-        self._surface.insert_voice_transcript(text)
+        if self._config.auto_send_transcript_enabled:
+            self._surface.set_voice_input_status(
+                f'Heard: "{text.strip()}" - sent automatically.'
+            )
+            self._surface.submit_voice_transcript(text)
+        else:
+            self._surface.show_voice_transcript_preview(text)
+            self._surface.insert_voice_transcript(text)
+
+    def _handle_transcript_partial(self, event: Event) -> None:
+        if not self._config.live_transcription_enabled:
+            return
+        text = event.payload.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return
+        self._surface.show_live_voice_transcript(text)
 
     def _handle_voice_error(self, event: Event) -> None:
         message = event.payload.get("message")
@@ -106,15 +132,26 @@ class ChatVoicePresenter:
 
     def _present_voice_state(self, state: str, operation: str) -> None:
         self._surface.set_voice_state(state, operation)
-        status = _voice_input_status(state, operation)
+        status = _voice_input_status(
+            state,
+            operation,
+            auto_stop_on_silence=self._config.auto_stop_on_silence_enabled,
+        )
         if status is not None:
             self._surface.set_voice_input_status(status)
 
 
-def _voice_input_status(state: str, operation: str) -> str | None:
+def _voice_input_status(
+    state: str,
+    operation: str,
+    *,
+    auto_stop_on_silence: bool,
+) -> str | None:
     if state == "muted":
         return "Microphone disabled in Voice settings."
     if state == "listening" and operation == "input":
+        if auto_stop_on_silence:
+            return "Listening... pause when you finish speaking."
         return "Listening... click Stop when you finish speaking."
     if state == "thinking" and operation == "input":
         return "Transcribing speech..."

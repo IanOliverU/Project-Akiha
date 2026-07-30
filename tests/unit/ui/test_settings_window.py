@@ -128,6 +128,10 @@ class SettingsWindowTest(unittest.TestCase):
 
             window._voice_enabled_input.setChecked(True)
             window._automatic_speech_enabled_input.setChecked(True)
+            window._live_transcription_enabled_input.setChecked(True)
+            window._auto_stop_on_silence_enabled_input.setChecked(True)
+            window._auto_send_transcript_enabled_input.setChecked(True)
+            window._voice_silence_timeout_input.setValue(1.5)
             window._voice_input_model_input.setText("medium")
             window._voice_input_language_input.setCurrentText("ja")
             window._voice_input_device_input.setCurrentText("USB microphone")
@@ -144,6 +148,10 @@ class SettingsWindowTest(unittest.TestCase):
         voice = emitted[0].voice
         self.assertTrue(voice.enabled)
         self.assertTrue(voice.automatic_speech_enabled)
+        self.assertTrue(voice.live_transcription_enabled)
+        self.assertTrue(voice.auto_stop_on_silence_enabled)
+        self.assertTrue(voice.auto_send_transcript_enabled)
+        self.assertEqual(voice.silence_timeout_seconds, 1.5)
         self.assertEqual(voice.input_provider, "faster-whisper")
         self.assertEqual(voice.input_model, "medium")
         self.assertEqual(voice.input_language, "ja")
@@ -162,10 +170,48 @@ class SettingsWindowTest(unittest.TestCase):
             window = SettingsWindow(AppConfig(), log_dir=Path(directory))
 
             self.assertFalse(window._automatic_speech_enabled_input.isEnabled())
+            self.assertFalse(window._live_transcription_enabled_input.isEnabled())
             window._voice_enabled_input.setChecked(True)
 
         self.assertTrue(window._automatic_speech_enabled_input.isEnabled())
+        self.assertTrue(window._live_transcription_enabled_input.isEnabled())
         self.assertTrue(window._voice_output_base_url_input.isEnabled())
+
+    def test_voice_diagnostic_actions_and_results_are_presented(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            requested: list[str] = []
+            window.voice_health_check_requested.connect(
+                lambda: requested.append("health")
+            )
+            window.voice_microphone_test_requested.connect(
+                lambda: requested.append("microphone")
+            )
+            window.voice_output_test_requested.connect(
+                lambda: requested.append("output")
+            )
+            window._voice_enabled_input.setChecked(True)
+
+            window._voice_health_check_button.click()
+            window._voice_microphone_test_button.click()
+            window._voice_output_test_button.click()
+            window.set_voice_health(
+                "available",
+                "Whisper ready.",
+                "unavailable",
+                "VOICEVOX is not running.",
+            )
+            window.set_voice_diagnostic_status("Needs attention.", True)
+            window.set_voice_test_active("microphone", True)
+
+        self.assertEqual(requested, ["health", "microphone", "output"])
+        self.assertIn("Whisper ready.", window._voice_input_health.text())
+        self.assertIn("VOICEVOX is not running.", window._voice_output_health.text())
+        self.assertEqual(window._voice_diagnostic_status.text(), "Needs attention.")
+        self.assertEqual(
+            window._voice_microphone_test_button.text(),
+            "Stop microphone test",
+        )
 
     def test_system_default_devices_save_as_empty_names(self) -> None:
         with TemporaryDirectory() as directory:

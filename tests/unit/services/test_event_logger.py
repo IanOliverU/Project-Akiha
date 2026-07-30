@@ -57,6 +57,20 @@ class EventLoggerTest(unittest.TestCase):
         self.assertIn("text_present", repr(logged_arguments))
         self.assertIn("ja", repr(logged_arguments))
 
+    def test_partial_transcript_text_is_also_redacted(self) -> None:
+        bus = EventBus()
+        logger = Mock(spec=logging.Logger)
+        EventLogger(bus, logger)
+
+        bus.publish(
+            EventType.VOICE_TRANSCRIPT_PARTIAL,
+            {"text": "Private interim words.", "detected_language": "en"},
+        )
+
+        logged_arguments = logger.info.call_args.args
+        self.assertNotIn("Private interim words.", repr(logged_arguments))
+        self.assertIn("text_present", repr(logged_arguments))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from array import array
 from collections.abc import Callable
+from math import sqrt
+from sys import byteorder
 from typing import Any
 
 from PySide6.QtCore import QObject, QTimer
@@ -22,6 +25,8 @@ from project_akiha.providers.voice.base import (
 _SAMPLE_RATE_HZ = 16_000
 _CHANNELS = 1
 _SAMPLE_WIDTH_BYTES = 2
+_SPEECH_RMS_THRESHOLD = 350.0
+_MINIMUM_SPEECH_SECONDS = 0.25
 
 
 class QtMicrophoneCapture(QObject):
@@ -50,6 +55,16 @@ class QtMicrophoneCapture(QObject):
         self._is_capturing = False
         self._on_timeout: Callable[[], None] | None = None
         self._on_error: Callable[[str, str], None] | None = None
+        self._on_audio_snapshot: Callable[[CapturedAudio], None] | None = None
+        self._on_silence: Callable[[], None] | None = None
+        self._live_interval_bytes = 0
+        self._next_snapshot_bytes = 0
+        self._silence_timeout_bytes = 0
+        self._speech_bytes = 0
+        self._silence_bytes = 0
+        self._has_speech = False
+        self._auto_stop_on_silence = False
+        self._endpoint_requested = False
 
     @property
     def is_capturing(self) -> bool:
@@ -71,6 +86,11 @@ class QtMicrophoneCapture(QObject):
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
+        on_silence: Callable[[], None] | None = None,
+        live_interval_seconds: float = 1.0,
+        silence_timeout_seconds: float = 1.2,
+        auto_stop_on_silence: bool = False,
     ) -> None:
         """Start a bounded push-to-talk recording."""
         if self._is_capturing:
@@ -82,6 +102,16 @@ class QtMicrophoneCapture(QObject):
             raise MicrophoneCaptureError(
                 "invalid_capture_timeout",
                 "Microphone capture timeout must be greater than zero.",
+            )
+        if live_interval_seconds <= 0:
+            raise MicrophoneCaptureError(
+                "invalid_live_interval",
+                "Live transcription interval must be greater than zero.",
+            )
+        if silence_timeout_seconds <= 0:
+            raise MicrophoneCaptureError(
+                "invalid_silence_timeout",
+                "Silence timeout must be greater than zero.",
             )
 
         device = self._device_resolver(self._device_name)
@@ -101,6 +131,23 @@ class QtMicrophoneCapture(QObject):
         self._buffer.clear()
         self._on_timeout = on_timeout
         self._on_error = on_error
+        self._on_audio_snapshot = on_audio_snapshot
+        self._on_silence = on_silence
+        bytes_per_second = _SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES
+        self._live_interval_bytes = max(
+            _SAMPLE_WIDTH_BYTES,
+            int(bytes_per_second * live_interval_seconds),
+        )
+        self._next_snapshot_bytes = self._live_interval_bytes
+        self._silence_timeout_bytes = max(
+            _SAMPLE_WIDTH_BYTES,
+            int(bytes_per_second * silence_timeout_seconds),
+        )
+        self._speech_bytes = 0
+        self._silence_bytes = 0
+        self._has_speech = False
+        self._auto_stop_on_silence = auto_stop_on_silence
+        self._endpoint_requested = False
         try:
             self._source = self._source_factory(device, audio_format, self)
             self._source.stateChanged.connect(self._handle_source_state_changed)
@@ -166,6 +213,52 @@ class QtMicrophoneCapture(QObject):
         chunk = bytes(self._io_device.readAll())
         if chunk:
             self._buffer.extend(chunk)
+            self._process_audio_chunk(chunk)
+
+    def _process_audio_chunk(self, chunk: bytes) -> None:
+        chunk_size = len(chunk)
+        is_speech = _pcm_rms(chunk) >= _SPEECH_RMS_THRESHOLD
+        if is_speech:
+            self._speech_bytes += chunk_size
+            self._silence_bytes = 0
+            minimum_speech_bytes = int(
+                _SAMPLE_RATE_HZ
+                * _CHANNELS
+                * _SAMPLE_WIDTH_BYTES
+                * _MINIMUM_SPEECH_SECONDS
+            )
+            self._has_speech = self._speech_bytes >= minimum_speech_bytes
+        elif self._has_speech:
+            self._silence_bytes += chunk_size
+
+        if (
+            self._has_speech
+            and is_speech
+            and self._on_audio_snapshot is not None
+            and len(self._buffer) >= self._next_snapshot_bytes
+        ):
+            self._on_audio_snapshot(self._snapshot())
+            while len(self._buffer) >= self._next_snapshot_bytes:
+                self._next_snapshot_bytes += self._live_interval_bytes
+
+        if (
+            self._auto_stop_on_silence
+            and self._has_speech
+            and not self._endpoint_requested
+            and self._silence_bytes >= self._silence_timeout_bytes
+        ):
+            self._endpoint_requested = True
+            callback = self._on_silence
+            if callback is not None:
+                callback()
+
+    def _snapshot(self) -> CapturedAudio:
+        return CapturedAudio(
+            data=bytes(self._buffer),
+            sample_rate_hz=_SAMPLE_RATE_HZ,
+            channels=_CHANNELS,
+            sample_width_bytes=_SAMPLE_WIDTH_BYTES,
+        )
 
     def _handle_timeout(self) -> None:
         if not self._is_capturing:
@@ -194,6 +287,16 @@ class QtMicrophoneCapture(QObject):
         self._io_device = None
         self._on_timeout = None
         self._on_error = None
+        self._on_audio_snapshot = None
+        self._on_silence = None
+        self._live_interval_bytes = 0
+        self._next_snapshot_bytes = 0
+        self._silence_timeout_bytes = 0
+        self._speech_bytes = 0
+        self._silence_bytes = 0
+        self._has_speech = False
+        self._auto_stop_on_silence = False
+        self._endpoint_requested = False
         self._buffer.clear()
         if source is not None:
             source.stop()
@@ -207,6 +310,17 @@ def _build_audio_format() -> QAudioFormat:
     audio_format.setChannelCount(_CHANNELS)
     audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
     return audio_format
+
+
+def _pcm_rms(data: bytes) -> float:
+    sample_bytes = len(data) - (len(data) % _SAMPLE_WIDTH_BYTES)
+    if sample_bytes == 0:
+        return 0.0
+    samples = array("h")
+    samples.frombytes(data[:sample_bytes])
+    if byteorder != "little":
+        samples.byteswap()
+    return sqrt(sum(sample * sample for sample in samples) / len(samples))
 
 
 def _resolve_input_device(device_name: str) -> QAudioDevice:

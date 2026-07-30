@@ -43,6 +43,70 @@ class VoiceCaptureControllerTest(unittest.TestCase):
             )
         )
 
+    def test_live_snapshot_uses_direct_non_logging_callback(self) -> None:
+        snapshots: list[CapturedAudio] = []
+        config = VoiceConfig(enabled=True, live_transcription_enabled=True)
+        bus, _, capture, events = _build_controller(
+            config=config,
+            on_audio_snapshot=snapshots.append,
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        audio = CapturedAudio(data=b"\x10\x20", sample_rate_hz=16_000)
+
+        capture.trigger_snapshot(audio)
+
+        self.assertEqual(snapshots, [audio])
+        self.assertFalse(
+            any(
+                isinstance(value, (bytes, bytearray))
+                for event in events
+                for value in event.payload.values()
+            )
+        )
+
+    def test_silence_endpoint_stops_and_submits_final_audio(self) -> None:
+        submitted: list[CapturedAudio] = []
+        config = VoiceConfig(
+            enabled=True,
+            auto_stop_on_silence_enabled=True,
+            silence_timeout_seconds=1.5,
+        )
+        bus, voice, capture, events = _build_controller(
+            submitted.append,
+            config=config,
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        capture.trigger_silence()
+
+        self.assertEqual(voice.state, VoiceState.THINKING)
+        self.assertEqual(submitted[0].data, b"\x00\x01")
+        stop_events = [
+            event
+            for event in events
+            if event.event_type == EventType.VOICE_LISTEN_STOP_REQUESTED
+        ]
+        self.assertEqual(stop_events[-1].payload["reason"], "silence_detected")
+        self.assertEqual(capture.silence_timeout_seconds, 1.5)
+        self.assertTrue(capture.auto_stop_on_silence)
+
+    def test_microphone_test_routes_audio_away_from_chat_callback(self) -> None:
+        submitted: list[CapturedAudio] = []
+        tested: list[CapturedAudio] = []
+        bus, _, _, _ = _build_controller(
+            submitted.append,
+            on_microphone_test_captured=tested.append,
+        )
+        bus.publish(
+            EventType.VOICE_LISTEN_REQUESTED,
+            {"source": "settings_microphone_test"},
+        )
+
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        self.assertEqual(submitted, [])
+        self.assertEqual(tested[0].data, b"\x00\x01")
+
     def test_stop_without_stt_reports_unavailable(self) -> None:
         bus, voice, _, events = _build_controller()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)
@@ -136,6 +200,11 @@ class _FakeCapture:
         self.start_error = start_error
         self.on_timeout: Callable[[], None] | None = None
         self.on_error: Callable[[str, str], None] | None = None
+        self.on_audio_snapshot: Callable[[CapturedAudio], None] | None = None
+        self.on_silence: Callable[[], None] | None = None
+        self.live_interval_seconds = 0.0
+        self.silence_timeout_seconds = 0.0
+        self.auto_stop_on_silence = False
         self.controller: VoiceCaptureController
 
     def set_device_name(self, device_name: str) -> None:
@@ -147,6 +216,11 @@ class _FakeCapture:
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
+        on_silence: Callable[[], None] | None = None,
+        live_interval_seconds: float = 1.0,
+        silence_timeout_seconds: float = 1.2,
+        auto_stop_on_silence: bool = False,
     ) -> None:
         self.started = True
         if self.start_error is not None:
@@ -155,6 +229,11 @@ class _FakeCapture:
         self.timeout_seconds = timeout_seconds
         self.on_timeout = on_timeout
         self.on_error = on_error
+        self.on_audio_snapshot = on_audio_snapshot
+        self.on_silence = on_silence
+        self.live_interval_seconds = live_interval_seconds
+        self.silence_timeout_seconds = silence_timeout_seconds
+        self.auto_stop_on_silence = auto_stop_on_silence
 
     def stop(self) -> CapturedAudio:
         self.is_capturing = False
@@ -175,12 +254,22 @@ class _FakeCapture:
         assert self.on_error is not None
         self.on_error(code, message)
 
+    def trigger_snapshot(self, audio: CapturedAudio | None = None) -> None:
+        assert self.on_audio_snapshot is not None
+        self.on_audio_snapshot(audio or self.stop())
+
+    def trigger_silence(self) -> None:
+        assert self.on_silence is not None
+        self.on_silence()
+
 
 def _build_controller(
     on_audio_captured: Callable[[CapturedAudio], None] | None = None,
     *,
     config: VoiceConfig | None = None,
     capture: _FakeCapture | None = None,
+    on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
+    on_microphone_test_captured: Callable[[CapturedAudio], None] | None = None,
 ) -> tuple[EventBus, VoiceController, _FakeCapture, list[Event]]:
     resolved_config = config or VoiceConfig(
         enabled=True,
@@ -198,6 +287,8 @@ def _build_controller(
         capture=resolved_capture,
         config=resolved_config,
         on_audio_captured=on_audio_captured,
+        on_audio_snapshot=on_audio_snapshot,
+        on_microphone_test_captured=on_microphone_test_captured,
     )
     resolved_capture.controller = controller
     return bus, voice, resolved_capture, events

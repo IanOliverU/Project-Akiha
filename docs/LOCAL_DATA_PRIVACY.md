@@ -85,8 +85,11 @@ Phase 7 microphone input is push-to-talk only.
   cancellation, timeout, failure, or shutdown.
 - Raw microphone bytes are not published through the application event bus,
   written to logs, or saved as audio files.
-- Recognized text is inserted into the editable Chat input and is not sent until
-  the user submits it.
+- Optional interim transcription is display-only and is not persisted or sent.
+- The Settings microphone test discards recognized words and retains only a
+  temporary pass/fail result.
+- Final recognized text is inserted into the editable Chat input by default.
+  It is sent automatically only when the user enables that Voice setting.
 - faster-whisper runs locally. Its model may be downloaded on first use and is
   cached under `%LOCALAPPDATA%\Akiha\models\faster-whisper\`.
 

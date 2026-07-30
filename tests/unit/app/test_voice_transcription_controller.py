@@ -79,6 +79,67 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
 
         self.assertEqual(threads[0].wait_ms, 25)
 
+    def test_partial_transcript_keeps_listening_and_is_not_final(self) -> None:
+        bus, voice, controller, threads, transcripts, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        controller.submit_partial(_audio(b"\x01\x00"))
+        threads[0].transcript_ready.emit(VoiceTranscript("Interim words", "en"))
+
+        self.assertEqual(voice.state, VoiceState.LISTENING)
+        self.assertEqual(partials[-1].payload["text"], "Interim words")
+        self.assertEqual(transcripts, [])
+
+    def test_new_partial_snapshot_coalesces_while_worker_is_busy(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        first = _audio(b"\x01\x00")
+        second = _audio(b"\x02\x00")
+        latest = _audio(b"\x03\x00")
+
+        controller.submit_partial(first)
+        controller.submit_partial(second)
+        controller.submit_partial(latest)
+        threads[0].finished.emit()
+
+        self.assertEqual(len(threads), 2)
+        self.assertEqual(threads[1].audio, latest)
+
+    def test_final_recording_preempts_partial_and_retains_thinking_state(self) -> None:
+        bus, voice, controller, threads, transcripts, _ = _build()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        controller.submit_partial(_audio(b"\x01\x00"))
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        final_audio = _audio(b"\x02\x00")
+
+        controller.submit(final_audio)
+
+        self.assertTrue(threads[0].cancelled)
+        threads[0].transcription_cancelled.emit()
+        self.assertEqual(voice.state, VoiceState.THINKING)
+        threads[0].finished.emit()
+        self.assertEqual(threads[1].audio, final_audio)
+        threads[1].transcript_ready.emit(VoiceTranscript("Final words", "en"))
+        self.assertEqual(voice.state, VoiceState.IDLE)
+        self.assertEqual(transcripts[-1].payload["text"], "Final words")
+
+    def test_microphone_test_discards_text_and_publishes_pass_result(self) -> None:
+        bus, voice, controller, threads, transcripts, _ = _build()
+        completed: list[Event] = []
+        bus.subscribe(EventType.VOICE_MICROPHONE_TEST_COMPLETED, completed.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        controller.submit_test(_audio())
+        threads[0].transcript_ready.emit(VoiceTranscript("Private test words", "en"))
+
+        self.assertEqual(voice.state, VoiceState.IDLE)
+        self.assertEqual(transcripts, [])
+        self.assertTrue(completed[-1].payload["text_present"])
+        self.assertNotIn("text", completed[-1].payload)
+
 
 class _Signal:
     def __init__(self) -> None:
@@ -93,7 +154,7 @@ class _Signal:
 
 
 class _Thread:
-    def __init__(self, *, finished: bool) -> None:
+    def __init__(self, audio: CapturedAudio, *, finished: bool) -> None:
         self.transcript_ready = _Signal()
         self.transcription_failed = _Signal()
         self.transcription_cancelled = _Signal()
@@ -102,6 +163,7 @@ class _Thread:
         self.started = False
         self.cancelled = False
         self.wait_ms = 0
+        self.audio = audio
 
     def start(self) -> None:
         self.started = True
@@ -129,8 +191,8 @@ def _build(
     voice = VoiceController(bus, VoiceConfig(enabled=True))
     threads: list[_Thread] = []
 
-    def build_thread(_service: object, _audio_value: CapturedAudio) -> _Thread:
-        thread = _Thread(finished=thread_finished)
+    def build_thread(_service: object, audio_value: CapturedAudio) -> _Thread:
+        thread = _Thread(audio_value, finished=thread_finished)
         threads.append(thread)
         return thread
 
@@ -156,8 +218,8 @@ def _begin_transcription(
     controller.submit(_audio())
 
 
-def _audio() -> CapturedAudio:
-    return CapturedAudio(data=b"\x00\x00", sample_rate_hz=16_000)
+def _audio(data: bytes = b"\x00\x00") -> CapturedAudio:
+    return CapturedAudio(data=data, sample_rate_hz=16_000)
 
 
 if __name__ == "__main__":

@@ -147,6 +147,11 @@ class MicrophoneCapture(Protocol):
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
+        on_silence: Callable[[], None] | None = None,
+        live_interval_seconds: float = 1.0,
+        silence_timeout_seconds: float = 1.2,
+        auto_stop_on_silence: bool = False,
     ) -> None:
         """Start temporary microphone capture."""
 

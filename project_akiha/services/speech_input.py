@@ -6,6 +6,7 @@ from project_akiha.providers.voice import (
     CapturedAudio,
     VoiceInputProvider,
     VoiceProviderError,
+    VoiceProviderHealth,
     VoiceProviderStatus,
     VoiceTranscript,
 )
@@ -25,9 +26,19 @@ class SpeechInputService:
     def __init__(self, provider: VoiceInputProvider) -> None:
         self._provider = provider
 
+    async def health(self) -> VoiceProviderHealth:
+        """Return provider health without raising dependency failures."""
+        try:
+            return await self._provider.health()
+        except Exception as error:
+            return VoiceProviderHealth(
+                VoiceProviderStatus.UNAVAILABLE,
+                f"Speech recognition health check failed: {error}",
+            )
+
     async def transcribe(self, audio: CapturedAudio) -> VoiceTranscript:
         """Return recognized text or a stable diagnostic failure."""
-        health = await self._provider.health()
+        health = await self.health()
         if health.status != VoiceProviderStatus.AVAILABLE:
             raise SpeechInputServiceError(
                 "provider_unavailable",

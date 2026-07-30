@@ -89,6 +89,8 @@ Suggested configuration includes:
 - Microphone input device.
 - Audio output device.
 - Automatic speech for assistant replies.
+- Optional live transcription preview.
+- Optional silence endpointing and final-transcript auto-send.
 - Playback volume and speaking rate where supported.
 
 ### Speech Input
@@ -98,6 +100,9 @@ Suggested configuration includes:
 - [x] Add a local speech-to-text service.
 - [x] Add a `faster-whisper` provider adapter.
 - [x] Insert accepted transcripts into the existing chat input path.
+- [x] Show revisable interim transcription while recording when enabled.
+- [x] Stop recording after configurable silence when enabled.
+- [x] Auto-send only the authoritative final transcript when enabled.
 - [x] Prevent accidental sends for empty or failed transcripts.
 - [x] Keep microphone capture off until the user starts push-to-talk.
 
@@ -127,9 +132,9 @@ Suggested configuration includes:
 - [x] Add a Voice section to Settings.
 - [x] Add input and output device selectors.
 - [x] Add provider, endpoint, model, and speaker controls.
-- [ ] Add a test microphone action.
-- [ ] Add a test voice action with a short Japanese phrase.
-- [ ] Show clear diagnostics for a missing backend, unavailable model, missing
+- [x] Add a test microphone action.
+- [x] Add a test voice action with a short Japanese phrase.
+- [x] Show clear diagnostics for a missing backend, unavailable model, missing
   microphone, failed synthesis, and failed playback.
 - [x] Log technical voice failures without logging captured audio or unnecessary
   transcript content.
@@ -142,7 +147,7 @@ Suggested configuration includes:
 - [x] Test push-to-talk state transitions and cancellation.
 - [x] Test synthesis, playback, stop, and cleanup paths.
 - [ ] Test voice event publication and companion-state restoration.
-- [ ] Test diagnostics for backend, synthesis, microphone, and playback
+- [x] Test diagnostics for backend, synthesis, microphone, and playback
   failures.
 - [x] Test shutdown while listening, transcribing, synthesizing, and speaking.
 
@@ -172,7 +177,8 @@ Foundation note, 2026-07-29:
   request cannot cancel synthesis.
 - Chat now exposes a fixed-width push-to-talk control for idle, listening,
   transcription, synthesis, and speaking states. Recognized text is inserted at
-  the current input cursor for review and is never sent automatically.
+  the current input cursor for review unless the user explicitly enables final
+  transcript auto-send.
 - A framework-free chat voice presenter validates state, transcript, and error
   event payloads before updating Qt controls.
 - Qt Multimedia now provides bounded 16 kHz mono PCM microphone capture without
@@ -242,6 +248,23 @@ Foundation note, 2026-07-29:
 - Settings now exposes a dedicated Voice tab with a live master switch,
   push-to-talk and automatic-reply switches, provider configuration, editable
   device selectors, speaker ID, volume, speaking rate, and timeout controls.
+- Live dictation is an opt-in semi-real-time layer around faster-whisper.
+  Periodic in-memory snapshots produce revisable `Hearing:` text while a
+  coalescing queue prevents concurrent model work.
+- Optional local signal-energy endpointing stops capture after speech followed
+  by configurable silence. Manual Stop remains available in noisy rooms.
+- Interim guesses are never added to the message input, sent to the AI
+  provider, persisted, or logged verbatim. Capture completion runs one final
+  transcription pass; only that result can enter the normal chat submission
+  path.
+- Voice Settings now includes provider health, microphone, and Japanese output
+  tests. The microphone test uses the real capture and faster-whisper pipeline
+  but discards recognized words and publishes only non-content success
+  metadata. The output test uses the configured VOICEVOX speaker, playback
+  device, volume, and speaking rate.
+- Provider health checks run off the Qt UI thread and report STT and TTS status
+  independently. Missing dependencies, unavailable VOICEVOX, capture failures,
+  synthesis failures, and playback failures remain recoverable.
 - Saving Voice settings applies them immediately and persists them for future
   launches. Voice remains opt-in for fresh installs because its local STT and
   TTS backends may not be present.
@@ -251,8 +274,8 @@ Foundation note, 2026-07-29:
   push-to-talk for the rest of the session.
 - Chat now shows explicit microphone-ready, listening, and transcribing states.
   A successful transcript appears in a non-persistent `Heard:` preview and is
-  inserted into the editable message field for review; it is still never sent
-  automatically or added to stored chat before the user presses Send.
+  inserted into the editable message field for review by default. An explicit
+  auto-send setting can submit the final transcript instead.
 
 ### Phase 7A Smoke Checkpoint
 
@@ -266,7 +289,7 @@ Foundation note, 2026-07-29:
 - [ ] Listening, thinking, and speaking states appear and return to the prior
   companion state.
 - [ ] Stop-speaking and app Quit end audio work without hanging.
-- [ ] Unit tests, Ruff, Black, and source smoke pass.
+- [x] Unit tests, Ruff, Black, and source smoke pass.
 
 Phase 7A is done only when the voice system works technically and passes this
 checkpoint. The output may still sound generic at this point.
@@ -352,9 +375,16 @@ Avoid:
 
 - [ ] Start the source app with voice disabled and no voice dependencies.
 - [ ] Open Voice settings, save changes, and restart the app.
+- [ ] Run Check setup and confirm both provider results are visible.
+- [ ] Run Test microphone, speak briefly, stop, and confirm the pass result.
+- [ ] Run Test voice and hear the short Japanese phrase.
 - [ ] Verify microphone use starts only after push-to-talk.
 - [ ] Speak a Japanese phrase and an English phrase through push-to-talk.
 - [ ] Edit a transcript before sending it.
+- [ ] Enable live transcription and confirm `Hearing:` text revises while
+  speaking.
+- [ ] Enable silence endpointing and confirm a pause stops the recording.
+- [ ] Enable final-transcript auto-send and confirm interim text is never sent.
 - [ ] Generate a mock-provider response and hear it through VOICEVOX.
 - [ ] Stop playback and start another response.
 - [ ] Disable automatic speech and confirm chat still works.
@@ -370,8 +400,9 @@ Avoid:
 - Microphone recording is push-to-talk only in Phase 7.
 - No always-listening wake word is added.
 - Raw microphone recordings are temporary and are not retained by default.
-- Transcripts follow the existing conversation and memory controls only after
-  the user sends them.
+- Interim transcripts remain display-only. Final transcripts follow the
+  existing conversation and memory controls after manual Send or after the user
+  explicitly enables auto-send.
 - Voice diagnostics avoid recording raw audio or unnecessary transcript text.
 - Cloud STT and TTS providers are outside the initial Phase 7 scope.
 - Custom voice training and public-distribution rights require a separate future

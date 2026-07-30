@@ -80,6 +80,10 @@ class UserConfigStoreTest(unittest.TestCase):
                         output_voice_id="14",
                         output_device="Desktop speakers",
                         automatic_speech_enabled=True,
+                        live_transcription_enabled=True,
+                        auto_stop_on_silence_enabled=True,
+                        auto_send_transcript_enabled=True,
+                        silence_timeout_seconds=1.5,
                         volume_percent=75,
                         speaking_rate=1.2,
                         capture_timeout_seconds=12,
@@ -134,6 +138,10 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.output_voice_id, "14")
         self.assertEqual(config.voice.output_device, "Desktop speakers")
         self.assertTrue(config.voice.automatic_speech_enabled)
+        self.assertTrue(config.voice.live_transcription_enabled)
+        self.assertTrue(config.voice.auto_stop_on_silence_enabled)
+        self.assertTrue(config.voice.auto_send_transcript_enabled)
+        self.assertEqual(config.voice.silence_timeout_seconds, 1.5)
         self.assertEqual(config.voice.volume_percent, 75)
         self.assertEqual(config.voice.speaking_rate, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 12)

@@ -25,6 +25,7 @@ from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInCont
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
+from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
 from project_akiha.app.voice_playback_controller import VoicePlaybackController
 from project_akiha.app.voice_synthesis_controller import VoiceSynthesisController
 from project_akiha.app.voice_transcription_controller import (
@@ -102,6 +103,7 @@ from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
 )
+from project_akiha.services.voice_diagnostics import VoiceDiagnosticsService
 from project_akiha.services.window_placement import (
     ScreenBounds,
     WindowSize,
@@ -290,10 +292,11 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         playback=audio_playback,
     )
+    speech_output_service = _build_speech_output_service(config.voice)
     voice_synthesis_controller = VoiceSynthesisController(
         event_bus=event_bus,
         voice_controller=voice_controller,
-        service=_build_speech_output_service(config.voice),
+        service=speech_output_service,
         on_audio_synthesized=voice_playback_controller.play,
     )
     voice_capture_controller = VoiceCaptureController(
@@ -302,11 +305,22 @@ def _run_application() -> int:
         capture=microphone_capture,
         config=config.voice,
         on_audio_captured=voice_transcription_controller.submit,
+        on_audio_snapshot=voice_transcription_controller.submit_partial,
+        on_microphone_test_captured=voice_transcription_controller.submit_test,
     )
     assistant_speech_controller = AssistantSpeechController(
         event_bus=event_bus,
         voice_controller=voice_controller,
         config=config.voice,
+    )
+    voice_diagnostics_controller = VoiceDiagnosticsController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        service=VoiceDiagnosticsService(
+            speech_input_service,
+            speech_output_service,
+        ),
+        surface=settings_window,
     )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
@@ -322,7 +336,7 @@ def _run_application() -> int:
         window_state_store.save_position(WindowPosition(x=window.x(), y=window.y()))
 
     def apply_settings(updated_config: AppConfig) -> None:
-        nonlocal config
+        nonlocal config, speech_input_service, speech_output_service
         config = updated_config
         user_config_store.save_config(updated_config)
         window.apply_config(updated_config.pet_window)
@@ -356,11 +370,18 @@ def _run_application() -> int:
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
         assistant_speech_controller.apply_config(updated_config.voice)
-        voice_transcription_controller.apply_service(
-            _build_speech_input_service(updated_config.voice, paths.model_dir)
+        speech_input_service = _build_speech_input_service(
+            updated_config.voice,
+            paths.model_dir,
         )
-        voice_synthesis_controller.apply_service(
-            _build_speech_output_service(updated_config.voice)
+        speech_output_service = _build_speech_output_service(updated_config.voice)
+        voice_transcription_controller.apply_service(speech_input_service)
+        voice_synthesis_controller.apply_service(speech_output_service)
+        voice_diagnostics_controller.apply_service(
+            VoiceDiagnosticsService(
+                speech_input_service,
+                speech_output_service,
+            )
         )
         voice_playback_controller.apply_config(updated_config.voice)
         voice_capture_controller.apply_config(updated_config.voice)
@@ -388,6 +409,15 @@ def _run_application() -> int:
 
     settings_window.settings_saved.connect(apply_settings)
     settings_window.position_reset_requested.connect(reset_window_position)
+    settings_window.voice_health_check_requested.connect(
+        voice_diagnostics_controller.check_health
+    )
+    settings_window.voice_microphone_test_requested.connect(
+        voice_diagnostics_controller.toggle_microphone_test
+    )
+    settings_window.voice_output_test_requested.connect(
+        voice_diagnostics_controller.toggle_output_test
+    )
 
     def show_settings(event: Event | None = None) -> None:
         del event
@@ -670,6 +700,7 @@ def _run_application() -> int:
             save_window_position=save_window_position,
             logger=logger,
             voice_capture=voice_capture_controller,
+            voice_diagnostics=voice_diagnostics_controller,
             voice_transcription=voice_transcription_controller,
             voice_synthesis=voice_synthesis_controller,
             voice_playback=voice_playback_controller,
@@ -677,13 +708,15 @@ def _run_application() -> int:
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
             "cancelled_threads=%s, unfinished_threads=%s, "
-            "voice_capture_stopped=%s, voice_transcription_stopped=%s, "
+            "voice_capture_stopped=%s, voice_diagnostics_stopped=%s, "
+            "voice_transcription_stopped=%s, "
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
             result.unfinished_threads,
             result.voice_capture_stopped,
+            result.voice_diagnostics_stopped,
             result.voice_transcription_stopped,
             result.voice_synthesis_stopped,
             result.voice_playback_stopped,
@@ -757,6 +790,7 @@ def _run_application() -> int:
         user_config_store,
         voice_capture_controller,
         voice_controller,
+        voice_diagnostics_controller,
         voice_playback_controller,
         voice_synthesis_controller,
         voice_transcription_controller,

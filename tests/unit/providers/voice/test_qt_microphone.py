@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from array import array
 from collections.abc import Callable
 from typing import Any
 
@@ -145,6 +146,31 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         with self.assertRaisesRegex(MicrophoneCaptureError, "Cannot change"):
             capture.set_device_name("Another microphone")
 
+    def test_live_snapshot_and_silence_endpoint_are_local_callbacks(self) -> None:
+        speech = _pcm_chunk(1_200, seconds=0.3)
+        silence = _pcm_chunk(0, seconds=1.3)
+        fixture = _CaptureFixture(chunks=[speech, silence])
+        capture = fixture.build()
+        snapshots: list[bytes] = []
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_audio_snapshot=lambda audio: snapshots.append(audio.data),
+            on_silence=lambda: silence_events.append(True),
+            live_interval_seconds=0.2,
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+
+        fixture.io_device.readyRead.emit()
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(snapshots, [speech])
+        self.assertEqual(silence_events, [True])
+        self.assertTrue(capture.is_capturing)
+
 
 class _Signal:
     def __init__(self) -> None:
@@ -253,6 +279,12 @@ class _CaptureFixture:
             source_factory=build_source,
             timer_factory=lambda _parent: self.timer,
         )
+
+
+def _pcm_chunk(amplitude: int, *, seconds: float) -> bytes:
+    sample_count = int(16_000 * seconds)
+    samples = array("h", [amplitude]) * sample_count
+    return samples.tobytes()
 
 
 if __name__ == "__main__":

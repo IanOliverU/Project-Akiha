@@ -163,6 +163,18 @@ class VoiceController:
         self._publish_error(code=code, message=message)
         self.recover()
 
+    def complete_input_test(self) -> None:
+        """Complete a diagnostic input operation without publishing text."""
+        if (
+            self._operation == _VoiceOperation.INPUT
+            and self.state == VoiceState.THINKING
+        ):
+            self._transition_to(
+                VoiceState.IDLE,
+                "microphone_test_complete",
+                operation=_VoiceOperation.NONE,
+            )
+
     def notify_error(self, code: str, message: str) -> None:
         """Publish a rejected-action diagnostic without interrupting voice."""
         self._publish_error(code=code, message=message)

@@ -70,6 +70,9 @@ class SettingsWindow(QWidget):
     position_reset_requested = Signal()
     memory_manager_requested = Signal()
     behavior_history_requested = Signal()
+    voice_health_check_requested = Signal()
+    voice_microphone_test_requested = Signal()
+    voice_output_test_requested = Signal()
 
     def __init__(
         self,
@@ -201,6 +204,24 @@ class SettingsWindow(QWidget):
         self._automatic_speech_enabled_input.setChecked(
             config.voice.automatic_speech_enabled
         )
+        self._live_transcription_enabled_input = QCheckBox()
+        self._live_transcription_enabled_input.setChecked(
+            config.voice.live_transcription_enabled
+        )
+        self._auto_stop_on_silence_enabled_input = QCheckBox()
+        self._auto_stop_on_silence_enabled_input.setChecked(
+            config.voice.auto_stop_on_silence_enabled
+        )
+        self._auto_send_transcript_enabled_input = QCheckBox()
+        self._auto_send_transcript_enabled_input.setChecked(
+            config.voice.auto_send_transcript_enabled
+        )
+        self._voice_silence_timeout_input = QDoubleSpinBox()
+        self._voice_silence_timeout_input.setRange(0.5, 5.0)
+        self._voice_silence_timeout_input.setSingleStep(0.1)
+        self._voice_silence_timeout_input.setDecimals(1)
+        self._voice_silence_timeout_input.setValue(config.voice.silence_timeout_seconds)
+        self._voice_silence_timeout_input.setSuffix(" sec")
         self._voice_volume_input = _build_spinbox(
             0,
             100,
@@ -224,6 +245,24 @@ class SettingsWindow(QWidget):
             config.voice.request_timeout_seconds,
         )
         self._voice_request_timeout_input.setSuffix(" sec")
+        self._voice_health_check_button = QPushButton("Check setup")
+        self._voice_health_check_button.clicked.connect(
+            self.voice_health_check_requested.emit
+        )
+        self._voice_microphone_test_button = QPushButton("Test microphone")
+        self._voice_microphone_test_button.clicked.connect(
+            self.voice_microphone_test_requested.emit
+        )
+        self._voice_output_test_button = QPushButton("Test voice")
+        self._voice_output_test_button.clicked.connect(
+            self.voice_output_test_requested.emit
+        )
+        self._voice_input_health = QLabel("Not checked")
+        self._voice_input_health.setWordWrap(True)
+        self._voice_output_health = QLabel("Not checked")
+        self._voice_output_health.setWordWrap(True)
+        self._voice_diagnostic_status = QLabel("Ready")
+        self._voice_diagnostic_status.setWordWrap(True)
         self._ai_provider_input.currentTextChanged.connect(
             self._handle_ai_provider_changed
         )
@@ -340,11 +379,57 @@ class SettingsWindow(QWidget):
         self._automatic_speech_enabled_input.setChecked(
             config.voice.automatic_speech_enabled
         )
+        self._live_transcription_enabled_input.setChecked(
+            config.voice.live_transcription_enabled
+        )
+        self._auto_stop_on_silence_enabled_input.setChecked(
+            config.voice.auto_stop_on_silence_enabled
+        )
+        self._auto_send_transcript_enabled_input.setChecked(
+            config.voice.auto_send_transcript_enabled
+        )
+        self._voice_silence_timeout_input.setValue(config.voice.silence_timeout_seconds)
         self._voice_volume_input.setValue(config.voice.volume_percent)
         self._voice_speaking_rate_input.setValue(config.voice.speaking_rate)
         self._voice_capture_timeout_input.setValue(config.voice.capture_timeout_seconds)
         self._voice_request_timeout_input.setValue(config.voice.request_timeout_seconds)
         self._sync_voice_controls(config.voice.enabled)
+
+    def set_voice_health(
+        self,
+        input_status: str,
+        input_detail: str,
+        output_status: str,
+        output_detail: str,
+    ) -> None:
+        """Display speech provider health without exposing private content."""
+        self._voice_input_health.setText(
+            _format_voice_health(input_status, input_detail)
+        )
+        self._voice_output_health.setText(
+            _format_voice_health(output_status, output_detail)
+        )
+
+    def set_voice_diagnostic_status(
+        self,
+        status: str,
+        is_error: bool = False,
+    ) -> None:
+        """Display a diagnostic action result."""
+        self._voice_diagnostic_status.setText(status.strip() or "Ready")
+        color = "#c62828" if is_error else "#2e7d32"
+        self._voice_diagnostic_status.setStyleSheet(f"color: {color};")
+
+    def set_voice_test_active(self, test_name: str, active: bool) -> None:
+        """Update the active voice test command."""
+        if test_name == "microphone":
+            self._voice_microphone_test_button.setText(
+                "Stop microphone test" if active else "Test microphone"
+            )
+        elif test_name == "output":
+            self._voice_output_test_button.setText(
+                "Stop voice test" if active else "Test voice"
+            )
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -426,6 +511,7 @@ class SettingsWindow(QWidget):
 
     def _build_voice_tab(self) -> QWidget:
         form_layout = QFormLayout()
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form_layout.addRow("Voice enabled", self._voice_enabled_input)
         form_layout.addRow(
             "Push-to-talk enabled",
@@ -464,6 +550,22 @@ class SettingsWindow(QWidget):
             "Speak replies automatically",
             self._automatic_speech_enabled_input,
         )
+        form_layout.addRow(
+            "Show transcription while speaking",
+            self._live_transcription_enabled_input,
+        )
+        form_layout.addRow(
+            "Stop recording after silence",
+            self._auto_stop_on_silence_enabled_input,
+        )
+        form_layout.addRow(
+            "Send final transcript automatically",
+            self._auto_send_transcript_enabled_input,
+        )
+        form_layout.addRow(
+            "Silence duration",
+            self._voice_silence_timeout_input,
+        )
         form_layout.addRow("Volume", self._voice_volume_input)
         form_layout.addRow("Speaking rate", self._voice_speaking_rate_input)
         form_layout.addRow(
@@ -474,6 +576,12 @@ class SettingsWindow(QWidget):
             "Provider timeout",
             self._voice_request_timeout_input,
         )
+        form_layout.addRow("Provider check", self._voice_health_check_button)
+        form_layout.addRow("Microphone test", self._voice_microphone_test_button)
+        form_layout.addRow("Voice test", self._voice_output_test_button)
+        form_layout.addRow("Speech recognition", self._voice_input_health)
+        form_layout.addRow("Speech output", self._voice_output_health)
+        form_layout.addRow("Diagnostic status", self._voice_diagnostic_status)
         return _build_scroll_tab(form_layout)
 
     def _browse_manifest(self) -> None:
@@ -561,6 +669,16 @@ class SettingsWindow(QWidget):
                 automatic_speech_enabled=(
                     self._automatic_speech_enabled_input.isChecked()
                 ),
+                live_transcription_enabled=(
+                    self._live_transcription_enabled_input.isChecked()
+                ),
+                auto_stop_on_silence_enabled=(
+                    self._auto_stop_on_silence_enabled_input.isChecked()
+                ),
+                auto_send_transcript_enabled=(
+                    self._auto_send_transcript_enabled_input.isChecked()
+                ),
+                silence_timeout_seconds=self._voice_silence_timeout_input.value(),
                 volume_percent=self._voice_volume_input.value(),
                 speaking_rate=self._voice_speaking_rate_input.value(),
                 capture_timeout_seconds=(self._voice_capture_timeout_input.value()),
@@ -649,10 +767,17 @@ class SettingsWindow(QWidget):
             self._voice_output_voice_id_input,
             self._voice_output_device_input,
             self._automatic_speech_enabled_input,
+            self._live_transcription_enabled_input,
+            self._auto_stop_on_silence_enabled_input,
+            self._auto_send_transcript_enabled_input,
+            self._voice_silence_timeout_input,
             self._voice_volume_input,
             self._voice_speaking_rate_input,
             self._voice_capture_timeout_input,
             self._voice_request_timeout_input,
+            self._voice_health_check_button,
+            self._voice_microphone_test_button,
+            self._voice_output_test_button,
         ):
             control.setEnabled(enabled)
 
@@ -668,6 +793,12 @@ def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
     spinbox.setRange(minimum, maximum)
     spinbox.setValue(value)
     return spinbox
+
+
+def _format_voice_health(status: str, detail: str) -> str:
+    label = status.strip().replace("_", " ").capitalize() or "Unknown"
+    cleaned_detail = detail.strip()
+    return f"{label}: {cleaned_detail}" if cleaned_detail else label
 
 
 def _build_combo(

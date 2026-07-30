@@ -43,7 +43,10 @@ def _privacy_safe_payload(event: Event) -> dict[str, object]:
         if isinstance(source, str) and source:
             payload["source"] = source
         return payload
-    if event.event_type == EventType.VOICE_TRANSCRIPT_READY:
+    if event.event_type in {
+        EventType.VOICE_TRANSCRIPT_PARTIAL,
+        EventType.VOICE_TRANSCRIPT_READY,
+    }:
         text = event.payload.get("text")
         payload = {"text_present": isinstance(text, str) and bool(text.strip())}
         language = event.payload.get("detected_language")

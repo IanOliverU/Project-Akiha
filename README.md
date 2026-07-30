@@ -210,6 +210,8 @@ Give Akiha an optional local-first voice without coupling character identity to
 one speech engine.
 
 - Push-to-talk input through a local Whisper-compatible provider.
+- Optional live transcription, silence endpointing, and final-transcript
+  auto-send.
 - Temporary Japanese speech through a local VOICEVOX provider.
 - Replaceable speech-to-text and text-to-speech provider interfaces.
 - Listening, thinking, speaking, muted, and error states.
