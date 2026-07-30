@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** Planned
+**Status:** In progress - Phase 8A complete
 
 ## Phase Goal
 
@@ -271,14 +271,15 @@ No file content is sent to a hosted AI provider as part of Phase 8.
 
 ### Phase 8A: Contracts And Policy
 
-- Add framework-free action models and result types.
-- Implement the action registry and schema validation.
-- Implement protected-path and permission policy.
-- Add migration `0008`, permission repository, and audit repository.
-- Add tests proving provider text cannot execute an action.
+- [x] Add framework-free action models and result types.
+- [x] Implement the action registry and schema validation.
+- [x] Implement protected-path and permission policy.
+- [x] Add migration `0008`, permission repository, and audit repository.
+- [x] Add tests proving provider text cannot execute an action.
 
 Checkpoint: requests can be validated, denied, confirmed, and audited without
-any real desktop executor enabled.
+any real desktop executor enabled. Completed with no executor dependency in
+`AssistantActionService`.
 
 ### Phase 8B: Read-Only File Discovery
 
@@ -312,20 +313,37 @@ execution or AI-controlled arguments.
 
 ## Required Boundary Tests
 
-- [ ] Provider or chat text alone cannot invoke an executor.
-- [ ] Unknown action identifiers are denied and audited.
-- [ ] Invalid typed parameters are denied before permission checks.
-- [ ] A path outside an approved root is denied.
-- [ ] Traversal, junction, reparse-point, device-path, and protected-path
+- [x] Provider or chat text alone cannot invoke an executor.
+- [x] Unknown action identifiers are denied and audited.
+- [x] Invalid typed parameters are denied before permission checks.
+- [x] A path outside an approved root is denied.
+- [x] Traversal, junction, reparse-point, device-path, and protected-path
   escapes are denied.
 - [ ] Search limits, cancellation, and timeout behavior are enforced.
 - [ ] Only allowlisted passive file types can be opened through file actions.
-- [ ] An unregistered application or AI-provided executable path is denied.
-- [ ] Application arguments and elevation requests are denied.
-- [ ] Revoked permission prevents the next matching action.
-- [ ] Denied and failed actions do not fall back to shell execution.
-- [ ] Audit records exclude file contents and credentials.
-- [ ] Migration `0008` applies cleanly to fresh and existing databases.
+- [x] An unregistered application or AI-provided executable path is denied.
+- [x] Application arguments and elevation requests are denied.
+- [x] Revoked permission prevents the next matching action.
+- [x] Denied and failed actions do not fall back to shell execution.
+- [x] Audit records exclude file contents and credentials.
+- [x] Migration `0008` applies cleanly to fresh and existing databases.
+
+## Phase 8A Completion
+
+- Added immutable action requests, definitions, validation results, permission
+  grants, sanitized results, and audit records.
+- Registered only file search, approved-directory/file open, and allowlisted
+  application-launch action identifiers.
+- Added protected-root, drive-root, network/device path, alternate-stream,
+  traversal, link, junction, reparse-point, and credential-path guards.
+- Added typed directory and application permission management.
+- Added SQLite permission and audit persistence through migration `0008`.
+- Added fail-closed request evaluation that stops at `executor_unavailable`
+  after validation and authorization.
+- No file, application, shell, subprocess, or operating-system executor exists
+  in Phase 8A.
+- Full verification passed with 643 tests; one environment-dependent live
+  symlink test was skipped while deterministic reparse rejection passed.
 
 ## Out Of Scope
 

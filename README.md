@@ -45,7 +45,9 @@ mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
 OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
 Windows user and never stored in ordinary TOML configuration. Phase 8 will add
 permission-gated, deliberately shallow desktop actions before the pet
-simulation is researched and implemented in Phase 9.
+simulation is researched and implemented in Phase 9. Phase 8A now provides the
+typed registry, validation, protected-path policy, scoped permission storage,
+and sanitized action auditing without enabling any desktop executor.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -56,7 +58,7 @@ simulation is researched and implemented in Phase 9.
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | Planned | Permission-gated file discovery and allowlisted application launching |
+| Phase 8 | In progress | Permission-gated file discovery and allowlisted application launching |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

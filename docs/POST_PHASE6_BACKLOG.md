@@ -53,10 +53,10 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
 
 ## Assistant Commands And Plugins
 
-- [ ] Implement the Phase 8 assistant-action contracts and permission policy
+- [x] Implement the Phase 8 assistant-action contracts and permission policy
   defined in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
-- [ ] Keep AI output away from direct execution paths.
-- [ ] Add the typed action registry and validation before enabling executors.
+- [x] Keep AI output away from direct execution paths.
+- [x] Add the typed action registry and validation before enabling executors.
 - [ ] Add user confirmation flows and scoped, revocable grants.
 - [ ] Add read-only file discovery inside user-approved directories.
 - [ ] Add allowlisted launching for explicitly enabled everyday applications.
