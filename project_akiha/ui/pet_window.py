@@ -275,7 +275,7 @@ class PetWindow(QWidget):
         return self._mood_visual_mapper.cue_for(self._current_mood)
 
     def _paint_mood_visual(self, painter: QPainter, cue: MoodVisualCue) -> None:
-        bubble_rect = QRectF(max(8, self.width() - 58), 10, 44, 44)
+        bubble_rect = QRectF(max(8, self.width() - 46), 10, 44, 44)
         color = _mood_visual_color(cue)
         border = QColor(AKIHA_PALETTE.border)
         if cue == MoodVisualCue.VOICE_LISTENING:
