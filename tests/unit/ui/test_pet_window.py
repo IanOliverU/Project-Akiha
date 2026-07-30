@@ -16,7 +16,12 @@ from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation.base import AnimationFrame
-from project_akiha.ui.pet_window import PetWindow, _mood_visual_color
+from project_akiha.ui.pet_window import (
+    PetWindow,
+    _listening_pulse,
+    _mood_visual_color,
+    _speaking_wave_heights,
+)
 from project_akiha.ui.theme import AKIHA_PALETTE
 
 
@@ -100,6 +105,24 @@ class PetWindowTest(unittest.TestCase):
             _mood_visual_color(MoodVisualCue.VOICE_SPEAKING).name().upper(),
             AKIHA_PALETTE.speaking,
         )
+
+    def test_listening_pulse_uses_a_slow_symmetric_curve(self) -> None:
+        start_size, start_alpha = _listening_pulse(0)
+        peak_size, peak_alpha = _listening_pulse(800)
+        end_size, end_alpha = _listening_pulse(1_600)
+
+        self.assertEqual(start_size, end_size)
+        self.assertEqual(start_alpha, end_alpha)
+        self.assertGreater(peak_size, start_size)
+        self.assertGreater(peak_alpha, start_alpha)
+
+    def test_speaking_wave_changes_smoothly_with_elapsed_time(self) -> None:
+        initial = _speaking_wave_heights(0)
+        quarter_cycle = _speaking_wave_heights(90)
+
+        self.assertNotEqual(initial, quarter_cycle)
+        self.assertTrue(all(5 <= height <= 16 for height in initial))
+        self.assertTrue(all(5 <= height <= 16 for height in quarter_cycle))
 
     def test_context_menu_behavior_history_action_publishes_request(self) -> None:
         event_bus = EventBus()

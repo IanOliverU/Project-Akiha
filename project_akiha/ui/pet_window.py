@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from math import pi, sin
 
-from PySide6.QtCore import QPoint, QRectF, Qt, QTimer
+from PySide6.QtCore import QElapsedTimer, QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -31,6 +32,9 @@ from project_akiha.providers.animation.base import AnimationFrame
 from project_akiha.ui.pet_renderer import PetRenderer
 from project_akiha.ui.theme import AKIHA_PALETTE
 
+_LISTENING_PULSE_PERIOD_MS = 1_600
+_SPEAKING_WAVE_PERIOD_MS = 360
+
 
 class PetWindow(QWidget):
     """Always-on-top draggable pet window with a simple idle animation."""
@@ -54,6 +58,8 @@ class PetWindow(QWidget):
         self._walk_direction = 1
         self._current_mood = CompanionMood.CALM
         self._mood_visual_mapper = MoodVisualCueMapper()
+        self._mood_animation_clock = QElapsedTimer()
+        self._mood_animation_clock.start()
 
         self.setWindowTitle("Project Akiha")
         self.setFixedSize(config.width, config.height)
@@ -265,10 +271,13 @@ class PetWindow(QWidget):
             return
 
         try:
-            self._current_mood = CompanionMood(mood)
+            next_mood = CompanionMood(mood)
         except ValueError:
             return
 
+        if next_mood != self._current_mood:
+            self._current_mood = next_mood
+            self._mood_animation_clock.restart()
         self.update()
 
     def _mood_visual_cue_for_current_mood(self) -> MoodVisualCue:
@@ -327,10 +336,11 @@ class PetWindow(QWidget):
             text = "..." if cue == MoodVisualCue.RESTING else "Zz"
             painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, text)
         elif cue == MoodVisualCue.VOICE_LISTENING:
-            pulse_step = self._frame_number % 12
-            pulse_size = 22 + min(pulse_step, 12 - pulse_step)
+            pulse_size, pulse_alpha = _listening_pulse(
+                self._mood_animation_clock.elapsed()
+            )
             pulse_color = QColor(AKIHA_PALETTE.listening)
-            pulse_color.setAlpha(75)
+            pulse_color.setAlpha(pulse_alpha)
             painter.setPen(QPen(pulse_color, 3))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(
@@ -355,12 +365,7 @@ class PetWindow(QWidget):
             wave_pen = QPen(color, 3)
             wave_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(wave_pen)
-            phase = self._frame_number % 3
-            heights = (
-                (8, 16, 11, 5),
-                (12, 7, 16, 9),
-                (6, 12, 8, 16),
-            )[phase]
+            heights = _speaking_wave_heights(self._mood_animation_clock.elapsed())
             for index, height in enumerate(heights):
                 x = bubble_rect.x() + 11 + index * 7
                 painter.drawLine(
@@ -404,3 +409,19 @@ def _mood_visual_color(cue: MoodVisualCue) -> QColor:
         MoodVisualCue.VOICE_ERROR: QColor(AKIHA_PALETTE.error),
     }
     return colors[cue]
+
+
+def _listening_pulse(elapsed_ms: int) -> tuple[float, int]:
+    phase = 2 * pi * (elapsed_ms % _LISTENING_PULSE_PERIOD_MS)
+    phase /= _LISTENING_PULSE_PERIOD_MS
+    intensity = (sin(phase - pi / 2) + 1) / 2
+    return 22 + intensity * 7, round(45 + intensity * 45)
+
+
+def _speaking_wave_heights(elapsed_ms: int) -> tuple[int, ...]:
+    base_phase = 2 * pi * (elapsed_ms % _SPEAKING_WAVE_PERIOD_MS)
+    base_phase /= _SPEAKING_WAVE_PERIOD_MS
+    offsets = (0.0, 0.9, 1.8, 2.7)
+    return tuple(
+        round(5 + ((sin(base_phase + offset) + 1) / 2) * 11) for offset in offsets
+    )
