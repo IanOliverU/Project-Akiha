@@ -285,7 +285,7 @@ any real desktop executor enabled. Completed with no executor dependency in
 
 - [x] Add approved-directory management.
 - [x] Implement bounded, cancellable file search.
-- [ ] Add search-result presentation and audit history.
+- [x] Add search-result presentation and audit history.
 - [ ] Add open-directory support for approved roots.
 - [ ] Add safe-file opening with per-action confirmation and blocked-type
   policy.
@@ -318,6 +318,15 @@ Bounded file search now:
 - remains unavailable until an application composition root explicitly provides
   `FileSearchExecutor`; chat and AI provider text still have no direct executor
   access
+
+Search-result and audit presentation now:
+
+- adds an Assistant actions window to the Settings surface
+- presents the latest bounded file metadata separately from audit history
+- supports refresh, action-text filtering, and result-status filtering
+- shows only sanitized action fields such as action id, source, target, status,
+  duration, and failure category
+- never renders file contents, credentials, or unrestricted exception text
 
 ### Phase 8C: Allowlisted Applications
 

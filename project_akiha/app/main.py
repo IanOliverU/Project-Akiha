@@ -61,6 +61,7 @@ from project_akiha.core.memory.extraction import (
 )
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.database import (
+    SQLiteActionRepository,
     SQLiteBehaviorRepository,
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
@@ -125,6 +126,9 @@ from project_akiha.services.window_placement import (
     clamp_window_position,
 )
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
+from project_akiha.ui.assistant_action_history_window import (
+    AssistantActionHistoryWindow,
+)
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
@@ -206,6 +210,7 @@ def _run_application() -> int:
         scheduled_check_in_engine,
     )
     behavior_repository = SQLiteBehaviorRepository(paths.database_path)
+    action_repository = SQLiteActionRepository(paths.database_path)
     behavior_history_recorder = BehaviorHistoryRecorder(
         event_bus=event_bus,
         repository=behavior_repository,
@@ -389,6 +394,7 @@ def _run_application() -> int:
     )
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
+    assistant_action_history_window = AssistantActionHistoryWindow()
     _populate_chat_window(
         chat_window=chat_window,
         messages=recent_messages,
@@ -590,6 +596,16 @@ def _run_application() -> int:
         behavior_history_window.raise_()
         behavior_history_window.activateWindow()
 
+    def refresh_assistant_action_history_window() -> None:
+        audits = asyncio.run(action_repository.get_recent_action_audits(limit=200))
+        assistant_action_history_window.update_audits(audits)
+
+    def show_assistant_action_history() -> None:
+        refresh_assistant_action_history_window()
+        assistant_action_history_window.show()
+        assistant_action_history_window.raise_()
+        assistant_action_history_window.activateWindow()
+
     def clear_behavior_history() -> None:
         asyncio.run(behavior_repository.clear_events())
         refresh_behavior_history_window()
@@ -762,6 +778,9 @@ def _run_application() -> int:
     event_bus.subscribe(EventType.APP_QUIT_REQUESTED, lambda event: app.quit())
     settings_window.memory_manager_requested.connect(show_memory_manager)
     settings_window.behavior_history_requested.connect(show_behavior_history)
+    settings_window.assistant_action_history_requested.connect(
+        show_assistant_action_history
+    )
     event_bus.subscribe(EventType.PET_DRAG_ENDED, save_window_position)
 
     def tick_behavior() -> None:
@@ -859,6 +878,8 @@ def _run_application() -> int:
     )
     app._akiha_services = (
         assistant_speech_controller,
+        action_repository,
+        assistant_action_history_window,
         assistant_translation_controller,
         chat_controller,
         activity_controller,

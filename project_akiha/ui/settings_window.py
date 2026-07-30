@@ -81,6 +81,7 @@ class SettingsWindow(QWidget):
     position_reset_requested = Signal()
     memory_manager_requested = Signal()
     behavior_history_requested = Signal()
+    assistant_action_history_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
     voice_output_test_requested = Signal()
@@ -365,6 +366,11 @@ class SettingsWindow(QWidget):
         behavior_history_button = QPushButton("Behavior history")
         behavior_history_button.clicked.connect(self.behavior_history_requested.emit)
 
+        assistant_action_history_button = QPushButton("Assistant actions")
+        assistant_action_history_button.clicked.connect(
+            self.assistant_action_history_requested.emit
+        )
+
         button_layout = QHBoxLayout()
         button_layout.addWidget(save_button)
         button_layout.addWidget(reset_position_button)
@@ -372,6 +378,7 @@ class SettingsWindow(QWidget):
         button_layout.addWidget(open_data_button)
         button_layout.addWidget(memories_button)
         button_layout.addWidget(behavior_history_button)
+        button_layout.addWidget(assistant_action_history_button)
         button_layout.addStretch(1)
 
         layout = QVBoxLayout()

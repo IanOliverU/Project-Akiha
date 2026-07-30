@@ -339,3 +339,86 @@ def chat_stylesheet() -> str:
     color: {color.text};
 }}
 """
+
+
+def action_history_stylesheet() -> str:
+    """Return the scoped stylesheet for assistant action history."""
+    color = AKIHA_PALETTE
+    root = "QWidget#akihaAssistantActionHistoryWindow"
+    return f"""
+{root} {{
+    background-color: {color.window};
+    color: {color.text};
+    font-family: "Segoe UI";
+    font-size: 13px;
+}}
+{root} QLabel {{
+    color: {color.text};
+    background: transparent;
+}}
+{root} QLabel#actionHistoryStatus {{
+    color: {color.highlight};
+    font-weight: 600;
+}}
+{root} QTabWidget::pane {{
+    border: 1px solid {color.border};
+    border-radius: 8px;
+    background-color: {color.window};
+}}
+{root} QTabBar::tab {{
+    min-width: 108px;
+    min-height: 34px;
+    padding: 0 12px;
+    margin-right: 2px;
+    border: none;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    color: {color.muted_text};
+}}
+{root} QTabBar::tab:selected {{
+    background-color: {color.primary};
+    color: {color.window};
+    font-weight: 600;
+}}
+{root} QLineEdit,
+{root} QComboBox,
+{root} QPlainTextEdit,
+{root} QListWidget {{
+    min-height: 30px;
+    padding: 7px 9px;
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.panel};
+    color: {color.text};
+    selection-background-color: {color.primary};
+    selection-color: {color.window};
+}}
+{root} QPlainTextEdit {{
+    padding: 10px;
+}}
+{root} QLineEdit:focus,
+{root} QComboBox:focus,
+{root} QPlainTextEdit:focus,
+{root} QListWidget:focus {{
+    border-color: {color.highlight};
+}}
+{root} QPushButton {{
+    min-height: 32px;
+    padding: 0 13px;
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QPushButton:hover {{
+    border-color: {color.highlight};
+    background-color: #343846;
+}}
+{root} QSplitter::handle {{
+    background-color: {color.border};
+}}
+{root} QComboBox::drop-down {{
+    width: 26px;
+    border: none;
+}}
+"""
