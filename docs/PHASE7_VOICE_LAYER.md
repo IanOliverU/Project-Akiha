@@ -368,7 +368,7 @@ Avoid:
 - [x] Test that displayed and stored chat text remains unchanged.
 - [x] Test raw-text fallback for exceptions, empty output, and malformed output.
 - [x] Test that style processing cannot block TTS playback indefinitely.
-- [ ] Complete a manual listening pass across normal, concerned, strict,
+- [x] Complete a manual listening pass across normal, concerned, strict,
   proactive, and error scenarios.
 
 ### Optional English Subtitles
@@ -401,7 +401,7 @@ Avoid:
 - [x] Provider replacement does not require changes to identity rules.
 - [x] Manual listening confirms the result feels at least directionally
   Akiha-like.
-- [ ] Unit tests, Ruff, Black, source smoke, and the Phase 7 manual smoke pass.
+- [x] Unit tests, Ruff, Black, source smoke, and the Phase 7 manual smoke pass.
 
 ### Managed VOICEVOX Engine
 
@@ -434,12 +434,12 @@ engine.
 - [x] Run Test voice and hear the short Japanese phrase.
 - [x] Verify microphone use starts only after push-to-talk.
 - [x] Speak a Japanese phrase and an English phrase through push-to-talk.
-- [ ] Edit a transcript before sending it.
+- [x] Edit a transcript before sending it.
 - [x] Enable live transcription and confirm `Hearing:` text revises while
   speaking.
 - [x] Enable silence endpointing and confirm a pause stops the recording.
 - [x] Enable final-transcript auto-send and confirm interim text is never sent.
-- [ ] Generate a mock-provider response and hear it through VOICEVOX.
+- [x] Generate a mock-provider response and hear it through VOICEVOX.
 - [x] Enable English subtitles with a non-mock AI provider and confirm a
   separate English line appears without delaying Japanese speech.
 - [x] Stop or fail a translation request and confirm the Japanese response
@@ -473,6 +473,10 @@ confirmed that shutdown leaves externally started VOICEVOX processes running.
 The final package explicitly includes and validates both PyAV's `av.utils`
 extension and faster-whisper's Silero VAD ONNX model, which packaged microphone
 input requires.
+
+Phase 7 was closed on 2026-07-30 after the packaged application passed the
+manual microphone, speech-recognition, synthesis, playback, and provider
+diagnostic checks.
 
 ## Privacy And Safety
 

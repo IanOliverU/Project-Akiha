@@ -30,12 +30,13 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 6 are complete. Phase 7 is in progress with local microphone
-capture, faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX
-playback, and automatic reply speech implemented. Chat can now switch between
-mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, and custom OpenAI-compatible
-endpoints. Hosted API keys are encrypted for the current Windows user and never
-stored in ordinary TOML configuration.
+Phases 1 through 7 are complete. Akiha now supports local microphone capture,
+faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX playback,
+automatic reply speech, and a minimal speech identity. Chat can switch between
+mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
+OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
+Windows user and never stored in ordinary TOML configuration. Phase 8 will add
+the pet statistics and care loop.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -45,7 +46,8 @@ stored in ordinary TOML configuration.
 | Phase 4 | Done | Activity awareness, mood, proactive behavior |
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
-| Phase 7 | In progress | Local-first voice plumbing and Akiha voice identity |
+| Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
+| Phase 8 | Planned | Pet statistics, care actions, progression, and attention behavior |
 
 ## Tech Stack
 
