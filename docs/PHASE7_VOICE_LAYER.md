@@ -39,21 +39,42 @@ speaking, muted, and error states.
 Microphone / Push-to-talk
     -> Speech-to-text provider
         -> Existing chat and memory pipeline
-            -> AI provider response
-                -> Post-response speech style layer
-                    -> Text-to-speech provider
-                        -> Audio playback
-                            -> Speaking state and animation
+            -> Base personality + built-in Akiha identity/language direction
+                -> AI provider response
+                    -> Canonical Japanese chat/persistence/memory path
+                    -> Optional derived English subtitle
+                    -> Post-response speech-only style layer
+                        -> Text-to-speech provider
+                            -> Audio playback
+                                -> Speaking state and animation
 ```
 
-The identity hook is deliberately placed **after the provider response and
-before the TTS call**. It may prepare a spoken rendering of the response, but it
-must not rewrite the stored assistant message or bypass the existing chat and
-memory pipeline.
+Phase 7B ultimately uses two separate identity hooks:
+
+- Provider-facing identity and language direction asks for natural Japanese by
+  default and shapes the canonical assistant response.
+- A post-response speech-only style layer removes speech-hostile formatting and
+  adjusts delivery without rewriting the stored assistant message.
 
 If speech styling fails or produces unusable text, the voice pipeline falls
 back to the original assistant response. A style failure must never turn an
 otherwise valid response into silence.
+
+## Canonical Language Decision
+
+Japanese is the default canonical assistant-response language. The original
+provider response is displayed, persisted, summarized, and processed by the
+memory pipeline. Optional English subtitles are derived data attached to that
+message and do not replace it.
+
+User messages remain in the language the user typed or spoke. AI-assisted
+memory extraction accepts multilingual input. The deterministic fallback
+recognizes explicit memory, identity, and preference statements in both English
+and Japanese.
+
+This language decision applies to conversation content, not application state.
+Behavior, voice, and future pet-simulation logic must use structured events and
+stored fields rather than infer state by parsing Japanese or English dialogue.
 
 ## Temporary Provider Direction
 
@@ -467,7 +488,8 @@ The Phase 7 release candidate at
 `dist\nuitka-phase7-final-voice\main.dist\Akiha.exe` uses the Windows GUI
 subsystem, creates no visible console window, and passed fresh-data and
 existing-data packaged smoke on 2026-07-30. The final source gate passed 585
-unit tests, Ruff, Black, compilation, and isolated source smoke. Runtime logs
+unit tests before the closure audit and 597 afterward, plus Ruff, Black,
+compilation, and isolated source smoke. Runtime logs
 confirmed managed engine cleanup, and a real external-engine ownership probe
 confirmed that shutdown leaves externally started VOICEVOX processes running.
 The final package explicitly includes and validates both PyAV's `av.utils`
@@ -476,7 +498,15 @@ input requires.
 
 Phase 7 was closed on 2026-07-30 after the packaged application passed the
 manual microphone, speech-recognition, synthesis, playback, and provider
-diagnostic checks.
+diagnostic checks. A closure audit then reopened the phase for a versioned
+privacy notice, Japanese deterministic memory fallback, and documentation
+reconciliation.
+
+The corrective closure was completed on 2026-07-30. The packaged application
+showed the privacy notice once, persisted acknowledgement across relaunch, and
+produced an approval-gated Japanese identity memory through the deterministic
+mock-provider path. The test memory was rejected after verification. Phase 7 is
+now closed.
 
 ## Privacy And Safety
 
@@ -487,6 +517,9 @@ diagnostic checks.
   existing conversation and memory controls after manual Send or after the user
   explicitly enables auto-send.
 - Voice diagnostics avoid recording raw audio or unnecessary transcript text.
+- A versioned first-run privacy notice explains microphone, local-provider,
+  hosted-provider, storage, and credential boundaries. Acknowledgement is
+  stored in `[privacy]` within the local user config.
 - The configured standalone engine path is stored in the local user config.
 - Project Akiha does not download, update, or execute an unconfigured remote
   voice engine.
@@ -518,4 +551,6 @@ Phase 7 is complete when:
 - Listening, thinking, speaking, muted, and error states integrate with the
   existing companion experience.
 - Shutdown, privacy, and failure paths are verified.
+- The current privacy notice has a persisted acknowledgement path.
+- Japanese deterministic memory extraction works without an AI provider.
 - The roadmap and user documentation match the implemented behavior.

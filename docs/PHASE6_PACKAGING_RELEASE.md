@@ -197,6 +197,10 @@ Data and privacy note, 2026-07-29:
   first-run privacy modal. Revisit a first-run notice before adding cloud AI
   providers, voice capture, sync, plugins, or local assistant commands.
 
+Phase 7 follow-up, 2026-07-30: hosted providers and push-to-talk voice triggered
+that review. A versioned privacy notice is now implemented and its
+acknowledgement is persisted in the local user config.
+
 ### 6. Dependency And Build Review
 
 - [x] Confirm supported Python version.

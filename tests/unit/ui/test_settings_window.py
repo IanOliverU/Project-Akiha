@@ -14,7 +14,7 @@ from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication
 
 import project_akiha.ui.settings_window as settings_window_module
-from project_akiha.config import AIConfig, AppConfig
+from project_akiha.config import AIConfig, AppConfig, PrivacyConfig
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
@@ -185,7 +185,12 @@ class SettingsWindowTest(unittest.TestCase):
 
     def test_saves_voice_controls(self) -> None:
         with TemporaryDirectory() as directory:
-            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            window = SettingsWindow(
+                AppConfig(
+                    privacy=PrivacyConfig(notice_version_acknowledged=1),
+                ),
+                log_dir=Path(directory),
+            )
             emitted: list[AppConfig] = []
             window.settings_saved.connect(emitted.append)
 
@@ -242,6 +247,7 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(voice.speaking_rate, 1.2)
         self.assertEqual(voice.capture_timeout_seconds, 12)
         self.assertEqual(voice.request_timeout_seconds, 10)
+        self.assertEqual(emitted[0].privacy.notice_version_acknowledged, 1)
 
     def test_voice_controls_follow_master_switch(self) -> None:
         with TemporaryDirectory() as directory:

@@ -13,6 +13,7 @@ from project_akiha.config import (
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
+    PrivacyConfig,
     VoiceConfig,
     load_config,
 )
@@ -55,6 +56,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         retrieval_limit=3,
                         require_approval=True,
                     ),
+                    privacy=PrivacyConfig(notice_version_acknowledged=1),
                     behavior=BehaviorConfig(
                         enabled=True,
                         proactive_enabled=True,
@@ -122,6 +124,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
+        self.assertEqual(config.privacy.notice_version_acknowledged, 1)
         self.assertTrue(config.behavior.enabled)
         self.assertTrue(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 60)

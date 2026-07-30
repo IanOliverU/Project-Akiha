@@ -222,9 +222,21 @@ one speech engine.
 - Voice settings, diagnostics, device selection, and failure recovery.
 - A minimal Akiha speech identity derived from `docs/AKIHA.MD`.
 - Raw-text fallback when speech styling fails.
-- Custom voice training and cloud providers deferred.
+- Japanese canonical assistant responses with optional persisted English
+  subtitles.
+- A versioned first-run privacy notice for microphone and hosted processing.
+- Japanese deterministic memory fallback for mock or unavailable AI providers.
+- Custom voice training and cloud voice providers deferred.
 
 Details: `docs/PHASE7_VOICE_LAYER.md`
+
+### Phase 8: Pet Sim Layer
+
+Add persistent pet statistics, care actions, progression, and attention
+behavior. Pet state is structured and language-neutral: dialogue reflects
+stored state but never determines it through keyword or sentiment parsing.
+
+Details: `docs/PHASE8_PET_SIM_LAYER.md`
 
 ## Architecture
 
@@ -331,6 +343,8 @@ Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 Security review: `docs/SECURITY_REVIEW.md`
 
 Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
+
+Phase 8 plan: `docs/PHASE8_PET_SIM_LAYER.md`
 
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
 

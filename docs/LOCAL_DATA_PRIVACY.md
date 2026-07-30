@@ -110,11 +110,22 @@ This removes user config, encrypted API credentials, chat history, memories,
 behavior history, logs, local voice models, and pet window state. If only the
 pet position should be reset, use Settings -> Reset position instead.
 
-## First Packaged Build Privacy Decision
+## First-Run Privacy Notice
 
-The first packaged build remains local-first and does not include a blocking
-first-run privacy modal. Privacy behavior is documented here and visible through
-Settings diagnostics actions.
+The app shows a versioned privacy notice until the current notice is
+acknowledged. The acknowledgement version is stored as
+`privacy.notice_version_acknowledged` in `user_config.toml`; it contains no
+personal content and can be incremented when the privacy boundary materially
+changes.
 
-Revisit a first-run privacy notice before adding cloud AI providers, persistent
-or always-listening voice capture, sync, plugins, or local assistant commands.
+The notice explains:
+
+- push-to-talk microphone behavior and temporary raw audio
+- local processing through faster-whisper, VOICEVOX, and Ollama
+- hosted-provider transmission of chat text and relevant context
+- additional hosted requests for subtitles, summaries, and memory extraction
+- local conversation, memory, settings, and log storage
+- Windows-user encryption for hosted API credentials
+
+Revisit and version the notice again before adding persistent or
+always-listening capture, sync, plugins, or local assistant commands.

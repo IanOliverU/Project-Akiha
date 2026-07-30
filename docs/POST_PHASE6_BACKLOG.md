@@ -15,22 +15,33 @@ and manual smoke validation.
 
 ## Provider And API Expansion
 
-- Add a provider abstraction for multiple external model APIs.
-- Add configurable providers for OpenAI, Gemini, Claude, Kimi, and other
-  compatible chat APIs.
-- Keep Ollama as the local/self-hosted provider option.
-- Add provider availability checks and clearer provider-specific diagnostics.
-- Add settings validation for API keys, base URLs, model names, and timeouts.
-- Decide how provider credentials should be stored locally.
+- [x] Add a provider abstraction for multiple external model APIs.
+- [x] Add presets for OpenAI, Gemini, OpenRouter, Kimi, Grok, and custom
+  OpenAI-compatible chat APIs.
+- [ ] Add a Claude-specific preset if direct Anthropic API support is needed.
+- [x] Keep Ollama as the local/self-hosted provider option.
+- [x] Add provider availability checks and clearer provider-specific diagnostics.
+- [x] Add settings validation for API keys, base URLs, model names, and timeouts.
+- [x] Store hosted credentials with Windows DPAPI outside ordinary TOML config.
+
+These provider-expansion items shipped alongside Phase 7 but are parallel
+post-Phase-6 backlog work, not part of the core voice-layer scope.
 
 ## Voice
 
-- Add push-to-talk or explicit voice input controls.
-- Add speech-to-text provider abstraction.
-- Add text-to-speech provider abstraction.
-- Add local/offline voice options where practical.
-- Add clear privacy notices before microphone capture is introduced.
-- Add visual states for listening, thinking, speaking, and muted modes.
+- [x] Add push-to-talk or explicit voice input controls.
+- [x] Add speech-to-text provider abstraction.
+- [x] Add text-to-speech provider abstraction.
+- [x] Add local/offline voice options where practical.
+- [x] Add a versioned privacy notice for microphone and hosted processing.
+- [x] Add visual states for listening, thinking, speaking, and muted modes.
+
+## Voice Runtime Hardening
+
+- Add a Project Akiha single-instance guard before relying on one managed local
+  engine process across multiple launches.
+- Decide whether a managed VOICEVOX Engine that crashes mid-session should
+  restart automatically or require an explicit user retry.
 
 ## Animation And Model Improvements
 

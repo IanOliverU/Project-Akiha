@@ -1,24 +1,25 @@
 # Release Notes Draft
 
-These notes are a draft for the first Project Akiha standalone Windows package.
-They match the Phase 6 standalone candidate after automated and manual smoke
-validation.
+These notes describe the Phase 7 Project Akiha standalone Windows preview after
+automated and manual voice validation.
 
 ## Project Akiha 0.1.0 Standalone Preview
 
-Project Akiha is a Windows-first local desktop companion with a draggable 2D pet,
-chat, local memory, activity-aware mood behavior, proactive check-ins, and
-diagnostics.
+Project Akiha is a Windows-first desktop companion with a draggable 2D pet,
+provider-neutral chat, local memory, activity-aware mood behavior, proactive
+check-ins, optional local voice, and diagnostics.
 
 ## Included
 
 - Transparent desktop pet window with draggable position.
 - Right-click pet controls and system tray controls.
-- Settings window for pet, AI, memory, and behavior options.
+- Settings window for pet, AI, memory, behavior, and voice options.
 - Chat window with streaming responses, cancellation, new chat, clear chat, and
   transcript export.
-- Mock AI provider for offline deterministic use.
-- Optional Ollama HTTP provider when Ollama is installed separately.
+- Mock AI provider for offline deterministic use and optional local Ollama.
+- Explicitly selected Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
+  OpenAI-compatible providers.
+- Windows-user encrypted storage for hosted API credentials.
 - SQLite persistence for conversations, messages, summaries, memories,
   embeddings, and behavior history.
 - Memory Manager for active, archived, and pending memories.
@@ -27,12 +28,21 @@ diagnostics.
   guardrail systems.
 - Local diagnostics: logs, startup diagnostics summary, and Settings actions to
   open logs/data folders.
+- Local push-to-talk transcription through faster-whisper.
+- Local Japanese synthesis through VOICEVOX with optional managed engine
+  startup and owned-process shutdown.
+- Live transcription, silence endpointing, final-transcript auto-send,
+  automatic reply speech, stop, and replay controls.
+- Canonical Japanese assistant replies with optional persisted English
+  subtitles.
+- Versioned first-run privacy notice for microphone and hosted processing.
+- English and Japanese deterministic memory fallback.
 
 ## Packaging
 
 - First package format: standalone folder.
 - Current candidate package:
-  `dist\nuitka-phase6-py313\main.dist\Akiha.exe`
+  `dist\nuitka-phase7-final-voice\main.dist\Akiha.exe`
 - Release-candidate packaging uses Python 3.13.14 with Nuitka 4.1.3.
 - Automated source smoke, packaged smoke, and manual packaged smoke passed on
   the current candidate package.
@@ -53,9 +63,13 @@ diagnostics.
 - Direct tray Show/Hide interaction may need additional polish on some Windows
   tray setups. The pet right-click menu provides fallback access to critical
   controls, including Behavior History and Quit.
-- The first package does not include cloud AI providers.
-- Voice input and voice output are not implemented yet.
 - Ollama is not bundled.
+- faster-whisper models and VOICEVOX are separately installed local
+  dependencies.
+- Hosted providers require the user's own API key and may impose quotas or
+  charges.
+- The Japanese VOICEVOX speaker is temporary; custom voice training is deferred.
+- There is no always-listening wake word or background microphone capture.
 - The 2D model and animation assets are functional but still planned for later
   refinement.
 - No installer, shortcuts, auto-start, updater, or code signing are included in

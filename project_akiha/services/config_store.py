@@ -31,6 +31,7 @@ def _serialize_config(config: AppConfig) -> str:
     ai = config.ai
     personality = config.personality
     memory = config.memory
+    privacy = config.privacy
     behavior = config.behavior
     voice = config.voice
     always_on_top = str(pet_window.always_on_top).lower()
@@ -89,6 +90,10 @@ def _serialize_config(config: AppConfig) -> str:
         f"enabled = {memory_enabled}\n"
         f"retrieval_limit = {memory.retrieval_limit}\n"
         f"require_approval = {str(memory.require_approval).lower()}\n"
+        "\n"
+        "[privacy]\n"
+        "notice_version_acknowledged = "
+        f"{privacy.notice_version_acknowledged}\n"
         "\n"
         "[behavior]\n"
         f"enabled = {behavior_enabled}\n"

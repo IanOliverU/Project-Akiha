@@ -251,17 +251,11 @@ opening, drag behavior, and graceful Tray Quit.
 
 ## Lockfile Decision
 
-No lockfile workflow is being added in Phase 6. The project is still small, and
-the current dependency constraints in `pyproject.toml` are sufficient for local
-development and packaging validation.
-
-Revisit a lockfile when any of these become true:
-
-- cloud providers are added
-- voice dependencies are added
-- installer distribution begins
-- reproducible public release builds become a requirement
-- dependency resolution starts changing behavior between machines
+Phase 7 added hosted providers and optional voice dependencies. The current
+personal/local preview still uses the constraints in `pyproject.toml`, but a
+locked release environment is now required before installer or public
+distribution work begins. Revisit this decision before the next distributable
+release rather than treating dependency resolution as reproducible today.
 
 ## Local Data Reset
 

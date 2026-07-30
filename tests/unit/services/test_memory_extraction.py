@@ -130,6 +130,26 @@ class AIMemoryExtractorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(candidates, ())
 
+    async def test_provider_failure_falls_back_for_japanese_identity(self) -> None:
+        extractor = AIMemoryExtractor(FailingProvider())
+
+        candidates = await extractor.extract(
+            (ChatMessage(role="user", content="私の名前はユキです。"),)
+        )
+
+        self.assertEqual(candidates[0].content, "ユーザーの名前はユキです")
+        self.assertEqual(candidates[0].tags, ("identity",))
+
+    async def test_multilingual_direction_is_sent_to_provider(self) -> None:
+        provider = RecordingProvider("[]")
+        extractor = AIMemoryExtractor(provider)
+
+        await extractor.extract(
+            (ChatMessage(role="user", content="私は紅茶が好きです。"),)
+        )
+
+        self.assertIn("any language", provider.messages[0].content)
+
 
 if __name__ == "__main__":
     unittest.main()

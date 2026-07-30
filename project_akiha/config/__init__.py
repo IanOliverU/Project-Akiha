@@ -9,6 +9,7 @@ from project_akiha.config.settings import (
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
+    PrivacyConfig,
     VoiceConfig,
     load_config,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "MemoryConfig",
     "PetWindowConfig",
     "PersonalityConfig",
+    "PrivacyConfig",
     "VoiceConfig",
     "load_config",
 ]

@@ -32,6 +32,13 @@ account and stored separately from TOML configuration. Keys are not included in
 provider logs, application events, chat history, memory records, or exports.
 Environment-variable credentials are supported as an alternative.
 
+## First-Run Privacy Notice
+
+A versioned application-modal notice now explains the microphone, local
+provider, hosted provider, local storage, and encrypted credential boundaries.
+Acknowledgement is persisted in the user config and the notice returns only
+when its version is increased or local data is reset.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:
@@ -53,5 +60,5 @@ print chat transcripts, memory contents, or user config contents.
 - Dependency auditing.
 - Installer-specific permissions and uninstall behavior.
 - Explicit permission gates for any future assistant command execution.
-- A first-run privacy notice before cloud providers, voice capture, sync,
-  plugins, or local assistant commands are added.
+- A revised privacy-notice version before sync, plugins, persistent microphone
+  capture, or local assistant commands are added.

@@ -127,6 +127,18 @@ class MemoryConfig:
             raise ValueError("memory.retrieval_limit must be greater than zero.")
 
 
+@dataclass(frozen=True, slots=True)
+class PrivacyConfig:
+    """Versioned acknowledgement state for privacy notices."""
+
+    notice_version_acknowledged: int = 0
+
+    def __post_init__(self) -> None:
+        """Reject invalid persisted notice versions."""
+        if self.notice_version_acknowledged < 0:
+            raise ValueError("privacy.notice_version_acknowledged cannot be negative.")
+
+
 def _validate_hh_mm(value: str, field_name: str) -> None:
     parts = value.split(":")
     if len(parts) != 2 or not all(part.isdigit() for part in parts):
@@ -272,6 +284,7 @@ class AppConfig:
     ai: AIConfig = AIConfig()
     personality: PersonalityConfig = PersonalityConfig()
     memory: MemoryConfig = MemoryConfig()
+    privacy: PrivacyConfig = PrivacyConfig()
     behavior: BehaviorConfig = BehaviorConfig()
     voice: VoiceConfig = VoiceConfig()
 
@@ -290,6 +303,10 @@ class AppConfig:
     def with_memory(self, memory: MemoryConfig) -> AppConfig:
         """Return a copy with updated memory settings."""
         return replace(self, memory=memory)
+
+    def with_privacy(self, privacy: PrivacyConfig) -> AppConfig:
+        """Return a copy with updated privacy acknowledgement state."""
+        return replace(self, privacy=privacy)
 
     def with_behavior(self, behavior: BehaviorConfig) -> AppConfig:
         """Return a copy with updated behavior settings."""
@@ -324,6 +341,10 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(memory_data, dict):
         raise ValueError("memory config must be a TOML table.")
 
+    privacy_data = data.get("privacy", {})
+    if not isinstance(privacy_data, dict):
+        raise ValueError("privacy config must be a TOML table.")
+
     behavior_data = data.get("behavior", {})
     if not isinstance(behavior_data, dict):
         raise ValueError("behavior config must be a TOML table.")
@@ -337,6 +358,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         ai=AIConfig(**ai_data),
         personality=PersonalityConfig(**personality_data),
         memory=MemoryConfig(**memory_data),
+        privacy=PrivacyConfig(**privacy_data),
         behavior=BehaviorConfig(**behavior_data),
         voice=VoiceConfig(**voice_data),
     )

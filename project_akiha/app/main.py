@@ -103,6 +103,10 @@ from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.privacy_notice import (
+    acknowledge_current_privacy_notice,
+    privacy_notice_required,
+)
 from project_akiha.services.speech_identity import (
     AkihaSpeechStyleService,
     build_akiha_identity_system_prompt,
@@ -127,6 +131,7 @@ from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
+from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.tray import AkihaTrayIcon
@@ -282,6 +287,19 @@ def _run_application() -> int:
         data_dir=paths.data_dir,
         credential_store=credential_store,
     )
+    privacy_notice = PrivacyNoticeDialog()
+
+    def acknowledge_privacy_notice() -> None:
+        nonlocal config
+        config = config.with_privacy(acknowledge_current_privacy_notice(config.privacy))
+        user_config_store.save_config(config)
+        settings_window.update_config(config)
+        logger.info(
+            "Acknowledged privacy notice version %s.",
+            config.privacy.notice_version_acknowledged,
+        )
+
+    privacy_notice.accepted.connect(acknowledge_privacy_notice)
     voicevox_engine_manager = VoiceVoxEngineManager(paths.project_root)
 
     def apply_voicevox_engine_config(voice_config: VoiceConfig) -> None:
@@ -825,6 +843,8 @@ def _run_application() -> int:
     tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
     tray_icon.show()
+    if privacy_notice_required(config.privacy):
+        QTimer.singleShot(0, privacy_notice.show)
     proactive_delivery_controller = ProactiveDeliveryController(
         event_bus=event_bus,
         delivery_service=ProactiveDeliveryService(),
@@ -859,6 +879,7 @@ def _run_application() -> int:
         notification_policy,
         pet_controller,
         presence_mapper,
+        privacy_notice,
         proactive_controller,
         proactive_delivery_controller,
         proactive_speech_controller,

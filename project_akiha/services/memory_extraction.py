@@ -49,7 +49,8 @@ class AIMemoryExtractor:
                             '"user" only. Include stable user facts, preferences, '
                             "identity, tools, goals, and constraints. Ignore "
                             "assistant claims, transient chatter, and uncertain "
-                            "details."
+                            "details. Understand user statements in any language "
+                            "and preserve their meaning."
                         ),
                     ),
                     ChatMessage(

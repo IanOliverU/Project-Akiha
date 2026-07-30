@@ -25,6 +25,9 @@ enabled = true
 retrieval_limit = 5
 require_approval = false
 
+[privacy]
+notice_version_acknowledged = 0
+
 [behavior]
 enabled = true
 proactive_enabled = false

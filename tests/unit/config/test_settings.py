@@ -10,6 +10,7 @@ from project_akiha.config import (
     AIConfig,
     BehaviorConfig,
     PersonalityConfig,
+    PrivacyConfig,
     VoiceConfig,
     load_config,
 )
@@ -35,6 +36,7 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 5)
         self.assertFalse(config.memory.require_approval)
+        self.assertEqual(config.privacy.notice_version_acknowledged, 0)
         self.assertTrue(config.behavior.enabled)
         self.assertFalse(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 300)
@@ -77,6 +79,9 @@ class SettingsTest(unittest.TestCase):
                 "enabled = false\n"
                 "retrieval_limit = 3\n"
                 "require_approval = true\n"
+                "\n"
+                "[privacy]\n"
+                "notice_version_acknowledged = 1\n"
                 "\n"
                 "[behavior]\n"
                 "proactive_enabled = true\n"
@@ -130,6 +135,7 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(config.memory.enabled)
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
+        self.assertEqual(config.privacy.notice_version_acknowledged, 1)
         self.assertTrue(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 60)
         self.assertEqual(config.behavior.away_after_seconds, 120)
@@ -191,6 +197,10 @@ class SettingsTest(unittest.TestCase):
     def test_behavior_config_rejects_invalid_quiet_hours(self) -> None:
         with self.assertRaises(ValueError):
             BehaviorConfig(quiet_hours_start="25:00")
+
+    def test_privacy_config_rejects_negative_notice_version(self) -> None:
+        with self.assertRaises(ValueError):
+            PrivacyConfig(notice_version_acknowledged=-1)
 
     def test_behavior_config_rejects_away_threshold_before_idle(self) -> None:
         with self.assertRaises(ValueError):

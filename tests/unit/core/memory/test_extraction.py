@@ -53,6 +53,51 @@ class HeuristicMemoryExtractorTest(unittest.TestCase):
 
         self.assertEqual(candidates, ())
 
+    def test_extracts_japanese_explicit_remember_request(self) -> None:
+        extractor = HeuristicMemoryExtractor()
+
+        candidates = extractor.extract(
+            (
+                ChatMessage(
+                    role="user",
+                    content="覚えておいて、私はKritaを使います。",
+                ),
+            )
+        )
+
+        self.assertEqual(candidates[0].content, "私はKritaを使います")
+        self.assertEqual(candidates[0].tags, ("explicit",))
+
+    def test_extracts_japanese_identity_statement(self) -> None:
+        extractor = HeuristicMemoryExtractor()
+
+        candidates = extractor.extract(
+            (ChatMessage(role="user", content="私の名前はユキです。"),)
+        )
+
+        self.assertEqual(candidates[0].content, "ユーザーの名前はユキです")
+        self.assertEqual(candidates[0].tags, ("identity",))
+
+    def test_extracts_japanese_preference_statement(self) -> None:
+        extractor = HeuristicMemoryExtractor()
+
+        candidates = extractor.extract(
+            (ChatMessage(role="user", content="私は紅茶が好きです。"),)
+        )
+
+        self.assertEqual(candidates[0].content, "ユーザーは紅茶が好きです")
+        self.assertEqual(candidates[0].tags, ("preference",))
+
+    def test_extracts_japanese_formal_preference_statement(self) -> None:
+        extractor = HeuristicMemoryExtractor()
+
+        candidates = extractor.extract(
+            (ChatMessage(role="user", content="私は静かな場所を好みます。"),)
+        )
+
+        self.assertEqual(candidates[0].content, "ユーザーは静かな場所が好きです")
+        self.assertEqual(candidates[0].tags, ("preference",))
+
 
 if __name__ == "__main__":
     unittest.main()

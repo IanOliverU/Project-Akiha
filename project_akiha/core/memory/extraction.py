@@ -38,6 +38,23 @@ class HeuristicMemoryExtractor:
         ("preference", re.compile(r"\bi\s+like\s+(?P<content>.+)", re.IGNORECASE)),
         ("identity", re.compile(r"\bmy\s+name\s+is\s+(?P<content>.+)", re.IGNORECASE)),
     )
+    _japanese_remember_patterns = (
+        re.compile(
+            r"(?:覚えておいて|覚えていて|覚えてください|記憶しておいて)"
+            r"[\s、,:：]*(?P<content>.+)"
+        ),
+        re.compile(
+            r"(?P<content>.+?)(?:を)?"
+            r"(?:覚えておいて|覚えていて|覚えてください|記憶しておいて)$"
+        ),
+    )
+    _japanese_identity_pattern = re.compile(
+        r"(?:私|わたし|僕|ぼく|俺)の名前は[\s、]*(?P<content>.+)$"
+    )
+    _japanese_preference_pattern = re.compile(
+        r"(?:私|わたし|僕|ぼく|俺)は[\s、]*(?P<content>.+?)"
+        r"(?:が好き(?:です)?|を好みます|を好んでいます)$"
+    )
 
     def extract(
         self,
@@ -71,6 +88,47 @@ def _extract_from_user_text(content: str) -> tuple[MemoryCandidate, ...]:
             ),
         )
 
+    for pattern in HeuristicMemoryExtractor._japanese_remember_patterns:
+        remember_match = pattern.search(text)
+        if remember_match is not None:
+            return (
+                MemoryCandidate(
+                    content=remember_match.group("content").strip(),
+                    source_role="user",
+                    confidence=0.95,
+                    importance=4,
+                    tags=("explicit",),
+                ),
+            )
+
+    identity_match = HeuristicMemoryExtractor._japanese_identity_pattern.search(text)
+    if identity_match is not None:
+        name = _strip_japanese_copula(identity_match.group("content"))
+        return (
+            MemoryCandidate(
+                content=f"ユーザーの名前は{name}です",
+                source_role="user",
+                confidence=0.8,
+                importance=5,
+                tags=("identity",),
+            ),
+        )
+
+    preference_match = HeuristicMemoryExtractor._japanese_preference_pattern.search(
+        text
+    )
+    if preference_match is not None:
+        preference = preference_match.group("content").strip()
+        return (
+            MemoryCandidate(
+                content=f"ユーザーは{preference}が好きです",
+                source_role="user",
+                confidence=0.8,
+                importance=3,
+                tags=("preference",),
+            ),
+        )
+
     for candidate_type, pattern in HeuristicMemoryExtractor._preference_patterns:
         match = pattern.search(text)
         if match is None:
@@ -99,7 +157,7 @@ def _extract_from_user_text(content: str) -> tuple[MemoryCandidate, ...]:
 
 
 def _strip_terminal_punctuation(content: str) -> str:
-    return content.strip().rstrip(" .!?")
+    return content.strip().rstrip(" .!?。！？")
 
 
 def _sentence_case(content: str) -> str:
@@ -107,3 +165,7 @@ def _sentence_case(content: str) -> str:
     if not normalized:
         return normalized
     return f"{normalized[0].upper()}{normalized[1:]}"
+
+
+def _strip_japanese_copula(content: str) -> str:
+    return re.sub(r"(?:です|だ)$", "", content.strip()).strip()
