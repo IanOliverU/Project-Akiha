@@ -80,6 +80,11 @@ print private chat, memory, or config contents.
 
 Phase 7 microphone input is push-to-talk only.
 
+The optional standalone VOICEVOX Engine executable path is stored in
+`user_config.toml`. Automatic engine management is disabled by default, only
+supports local HTTP endpoints, does not download an engine, and never stops an
+external VOICEVOX process that Project Akiha did not launch.
+
 - The microphone opens only after the user requests listening.
 - PCM audio remains in memory and is discarded after transcription,
   cancellation, timeout, failure, or shutdown.

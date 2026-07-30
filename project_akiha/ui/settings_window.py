@@ -220,6 +220,26 @@ class SettingsWindow(QWidget):
         self._voice_output_device_input = _build_device_combo(
             config.voice.output_device
         )
+        self._voice_output_engine_auto_start_input = QCheckBox()
+        self._voice_output_engine_auto_start_input.setChecked(
+            config.voice.output_engine_auto_start
+        )
+        self._voice_output_engine_path_input = QLineEdit(
+            config.voice.output_engine_path
+        )
+        self._voice_output_engine_path_input.setPlaceholderText(
+            "Auto-detect or select standalone run.exe"
+        )
+        self._voice_output_engine_browse_button = QPushButton("Browse")
+        self._voice_output_engine_browse_button.clicked.connect(
+            self._browse_voicevox_engine
+        )
+        self._voice_output_engine_stop_on_exit_input = QCheckBox()
+        self._voice_output_engine_stop_on_exit_input.setChecked(
+            config.voice.output_engine_stop_on_exit
+        )
+        self._voice_output_engine_status = QLabel("Not managed")
+        self._voice_output_engine_status.setWordWrap(True)
         self._automatic_speech_enabled_input = QCheckBox()
         self._automatic_speech_enabled_input.setChecked(
             config.voice.automatic_speech_enabled
@@ -302,6 +322,12 @@ class SettingsWindow(QWidget):
             self._handle_ai_provider_changed
         )
         self._voice_enabled_input.toggled.connect(self._sync_voice_controls)
+        self._voice_output_provider_input.currentTextChanged.connect(
+            lambda _provider: self._sync_voice_engine_controls()
+        )
+        self._voice_output_engine_auto_start_input.toggled.connect(
+            lambda _enabled: self._sync_voice_engine_controls()
+        )
 
         tabs = QTabWidget()
         tabs.addTab(self._build_pet_tab(), "Pet")
@@ -411,6 +437,13 @@ class SettingsWindow(QWidget):
             self._voice_output_device_input,
             config.voice.output_device,
         )
+        self._voice_output_engine_auto_start_input.setChecked(
+            config.voice.output_engine_auto_start
+        )
+        self._voice_output_engine_path_input.setText(config.voice.output_engine_path)
+        self._voice_output_engine_stop_on_exit_input.setChecked(
+            config.voice.output_engine_stop_on_exit
+        )
         self._automatic_speech_enabled_input.setChecked(
             config.voice.automatic_speech_enabled
         )
@@ -474,6 +507,12 @@ class SettingsWindow(QWidget):
             self._voice_output_test_button.setText(
                 "Stop voice test" if active else "Test voice"
             )
+
+    def set_voice_engine_status(self, status: str, is_error: bool = False) -> None:
+        """Display the managed VOICEVOX Engine lifecycle status."""
+        self._voice_output_engine_status.setText(status.strip() or "Not managed")
+        color = "#c62828" if is_error else "#2e7d32"
+        self._voice_output_engine_status.setStyleSheet(f"color: {color};")
 
     def _build_manifest_row(self) -> QWidget:
         browse_button = QPushButton("Browse")
@@ -609,6 +648,22 @@ class SettingsWindow(QWidget):
             self._voice_output_device_input,
         )
         form_layout.addRow(
+            "Start VOICEVOX automatically",
+            self._voice_output_engine_auto_start_input,
+        )
+        form_layout.addRow(
+            "VOICEVOX Engine executable",
+            self._build_voicevox_engine_path_row(),
+        )
+        form_layout.addRow(
+            "Stop managed engine on quit",
+            self._voice_output_engine_stop_on_exit_input,
+        )
+        form_layout.addRow(
+            "Managed engine",
+            self._voice_output_engine_status,
+        )
+        form_layout.addRow(
             "Speak replies automatically",
             self._automatic_speech_enabled_input,
         )
@@ -667,6 +722,25 @@ class SettingsWindow(QWidget):
         )
         if selected_path:
             self._manifest_path_input.setText(selected_path)
+
+    def _build_voicevox_engine_path_row(self) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._voice_output_engine_path_input)
+        layout.addWidget(self._voice_output_engine_browse_button)
+        row.setLayout(layout)
+        return row
+
+    def _browse_voicevox_engine(self) -> None:
+        selected_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select standalone VOICEVOX Engine",
+            self._voice_output_engine_path_input.text(),
+            "Executable files (*.exe);;All files (*)",
+        )
+        if selected_path:
+            self._voice_output_engine_path_input.setText(selected_path)
 
     def _save(self) -> None:
         if not self._validate_ai_inputs():
@@ -742,6 +816,13 @@ class SettingsWindow(QWidget):
                 output_base_url=self._voice_output_base_url_input.text(),
                 output_voice_id=self._voice_output_voice_id_input.text(),
                 output_device=_selected_device_name(self._voice_output_device_input),
+                output_engine_auto_start=(
+                    self._voice_output_engine_auto_start_input.isChecked()
+                ),
+                output_engine_path=self._voice_output_engine_path_input.text(),
+                output_engine_stop_on_exit=(
+                    self._voice_output_engine_stop_on_exit_input.isChecked()
+                ),
                 automatic_speech_enabled=(
                     self._automatic_speech_enabled_input.isChecked()
                 ),
@@ -1006,6 +1087,10 @@ class SettingsWindow(QWidget):
             self._voice_output_base_url_input,
             self._voice_output_voice_id_input,
             self._voice_output_device_input,
+            self._voice_output_engine_auto_start_input,
+            self._voice_output_engine_path_input,
+            self._voice_output_engine_browse_button,
+            self._voice_output_engine_stop_on_exit_input,
             self._automatic_speech_enabled_input,
             self._proactive_speech_enabled_input,
             self._english_subtitles_enabled_input,
@@ -1023,6 +1108,20 @@ class SettingsWindow(QWidget):
             self._voice_output_test_button,
         ):
             control.setEnabled(enabled)
+        self._sync_voice_engine_controls()
+
+    def _sync_voice_engine_controls(self) -> None:
+        provider_enabled = (
+            self._voice_enabled_input.isChecked()
+            and self._voice_output_provider_input.currentText() == "voicevox"
+        )
+        self._voice_output_engine_auto_start_input.setEnabled(provider_enabled)
+        manager_enabled = (
+            provider_enabled and self._voice_output_engine_auto_start_input.isChecked()
+        )
+        self._voice_output_engine_path_input.setEnabled(manager_enabled)
+        self._voice_output_engine_browse_button.setEnabled(manager_enabled)
+        self._voice_output_engine_stop_on_exit_input.setEnabled(manager_enabled)
 
     def _open_logs(self) -> None:
         _open_directory(self._log_dir)

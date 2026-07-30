@@ -245,6 +245,10 @@ class SettingsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             VoiceConfig(output_base_url="http:///voicevox")
 
+    def test_voice_config_rejects_multiline_engine_path(self) -> None:
+        with self.assertRaisesRegex(ValueError, "single line"):
+            VoiceConfig(output_engine_path="C:/VOICEVOX\nrun.exe")
+
     def test_voice_config_rejects_invalid_playback_values(self) -> None:
         with self.assertRaises(ValueError):
             VoiceConfig(volume_percent=101)

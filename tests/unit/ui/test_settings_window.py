@@ -204,6 +204,9 @@ class SettingsWindowTest(unittest.TestCase):
             window._voice_output_base_url_input.setText("http://localhost:50021")
             window._voice_output_voice_id_input.setText("14")
             window._voice_output_device_input.setCurrentText("Desktop speakers")
+            window._voice_output_engine_auto_start_input.setChecked(True)
+            window._voice_output_engine_path_input.setText("C:/VOICEVOX Engine/run.exe")
+            window._voice_output_engine_stop_on_exit_input.setChecked(False)
             window._voice_volume_input.setValue(75)
             window._voice_speaking_rate_input.setValue(1.2)
             window._voice_capture_timeout_input.setValue(12)
@@ -229,6 +232,12 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(voice.output_base_url, "http://localhost:50021")
         self.assertEqual(voice.output_voice_id, "14")
         self.assertEqual(voice.output_device, "Desktop speakers")
+        self.assertTrue(voice.output_engine_auto_start)
+        self.assertEqual(
+            voice.output_engine_path,
+            "C:/VOICEVOX Engine/run.exe",
+        )
+        self.assertFalse(voice.output_engine_stop_on_exit)
         self.assertEqual(voice.volume_percent, 75)
         self.assertEqual(voice.speaking_rate, 1.2)
         self.assertEqual(voice.capture_timeout_seconds, 12)
@@ -243,6 +252,7 @@ class SettingsWindowTest(unittest.TestCase):
             self.assertFalse(window._english_subtitles_enabled_input.isEnabled())
             self.assertFalse(window._export_english_subtitles_enabled_input.isEnabled())
             self.assertFalse(window._live_transcription_enabled_input.isEnabled())
+            self.assertFalse(window._voice_output_engine_auto_start_input.isEnabled())
             window._voice_enabled_input.setChecked(True)
 
         self.assertTrue(window._automatic_speech_enabled_input.isEnabled())
@@ -251,6 +261,10 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertTrue(window._export_english_subtitles_enabled_input.isEnabled())
         self.assertTrue(window._live_transcription_enabled_input.isEnabled())
         self.assertTrue(window._voice_output_base_url_input.isEnabled())
+        self.assertTrue(window._voice_output_engine_auto_start_input.isEnabled())
+        self.assertFalse(window._voice_output_engine_path_input.isEnabled())
+        window._voice_output_engine_auto_start_input.setChecked(True)
+        self.assertTrue(window._voice_output_engine_path_input.isEnabled())
 
     def test_voice_diagnostic_actions_and_results_are_presented(self) -> None:
         with TemporaryDirectory() as directory:

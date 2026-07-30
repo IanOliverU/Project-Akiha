@@ -213,6 +213,8 @@ one speech engine.
 - Optional live transcription, silence endpointing, and final-transcript
   auto-send.
 - Temporary Japanese speech through a local VOICEVOX provider.
+- Optional background launch and owned-process shutdown for a configured
+  standalone VOICEVOX Engine.
 - Replaceable speech-to-text and text-to-speech provider interfaces.
 - Listening, thinking, speaking, muted, and error states.
 - Voice settings, diagnostics, device selection, and failure recovery.
@@ -280,6 +282,10 @@ Start Akiha:
 ```powershell
 python -m project_akiha.app.main
 ```
+
+To run speech without keeping the VOICEVOX editor open, open **Settings >
+Voice**, enable **Start VOICEVOX automatically**, and select the standalone
+VOICEVOX Engine `run.exe`. Akiha only stops an engine process that it started.
 
 After installation, the console script is also available:
 

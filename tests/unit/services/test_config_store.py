@@ -79,6 +79,9 @@ class UserConfigStoreTest(unittest.TestCase):
                         output_base_url="http://localhost:50021",
                         output_voice_id="14",
                         output_device="Desktop speakers",
+                        output_engine_auto_start=True,
+                        output_engine_path='C:\\VOICEVOX "Engine"\\run.exe',
+                        output_engine_stop_on_exit=False,
                         automatic_speech_enabled=True,
                         proactive_speech_enabled=True,
                         english_subtitles_enabled=True,
@@ -140,6 +143,12 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.output_base_url, "http://localhost:50021")
         self.assertEqual(config.voice.output_voice_id, "14")
         self.assertEqual(config.voice.output_device, "Desktop speakers")
+        self.assertTrue(config.voice.output_engine_auto_start)
+        self.assertEqual(
+            config.voice.output_engine_path,
+            'C:\\VOICEVOX "Engine"\\run.exe',
+        )
+        self.assertFalse(config.voice.output_engine_stop_on_exit)
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertTrue(config.voice.proactive_speech_enabled)
         self.assertTrue(config.voice.english_subtitles_enabled)

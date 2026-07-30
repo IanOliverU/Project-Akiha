@@ -32,6 +32,13 @@ class CancellableVoiceCapture(Protocol):
         """Stop capture and discard temporary audio."""
 
 
+class ManagedVoiceEngine(Protocol):
+    """Managed local voice engine that follows an exit policy."""
+
+    def shutdown(self) -> bool:
+        """Stop or release the managed engine."""
+
+
 @dataclass(frozen=True, slots=True)
 class ShutdownResult:
     """Summary of shutdown cleanup work."""
@@ -45,6 +52,7 @@ class ShutdownResult:
     voice_transcription_stopped: bool
     voice_synthesis_stopped: bool
     voice_playback_stopped: bool
+    voice_engine_stopped: bool
 
 
 def shutdown_runtime(
@@ -59,6 +67,7 @@ def shutdown_runtime(
     voice_transcription: CancellableVoiceCapture | None = None,
     voice_synthesis: CancellableVoiceCapture | None = None,
     voice_playback: CancellableVoiceCapture | None = None,
+    voice_engine: ManagedVoiceEngine | None = None,
 ) -> ShutdownResult:
     """Stop long-running app resources before Qt exits."""
     timer_stopped = _stop_timer(activity_timer, logger)
@@ -79,6 +88,7 @@ def shutdown_runtime(
     )
     voice_synthesis_stopped = _cancel_voice_synthesis(voice_synthesis, logger)
     voice_playback_stopped = _cancel_voice_playback(voice_playback, logger)
+    voice_engine_stopped = _shutdown_voice_engine(voice_engine, logger)
     return ShutdownResult(
         position_saved=position_saved,
         cancelled_threads=cancelled_threads,
@@ -89,6 +99,7 @@ def shutdown_runtime(
         voice_transcription_stopped=voice_transcription_stopped,
         voice_synthesis_stopped=voice_synthesis_stopped,
         voice_playback_stopped=voice_playback_stopped,
+        voice_engine_stopped=voice_engine_stopped,
     )
 
 
@@ -206,3 +217,16 @@ def _cancel_voice_playback(
         logger.exception("Failed to stop voice playback during shutdown.")
         return False
     return True
+
+
+def _shutdown_voice_engine(
+    voice_engine: ManagedVoiceEngine | None,
+    logger: logging.Logger,
+) -> bool:
+    if voice_engine is None:
+        return True
+    try:
+        return voice_engine.shutdown()
+    except Exception:
+        logger.exception("Failed to stop the managed voice engine during shutdown.")
+        return False

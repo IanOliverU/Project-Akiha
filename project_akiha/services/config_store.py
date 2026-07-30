@@ -60,6 +60,7 @@ def _serialize_config(config: AppConfig) -> str:
     voice_output_base_url = _escape_toml_string(voice.output_base_url)
     voice_output_voice_id = _escape_toml_string(voice.output_voice_id)
     voice_output_device = _escape_toml_string(voice.output_device)
+    voice_output_engine_path = _escape_toml_string(voice.output_engine_path)
 
     return (
         "[pet_window]\n"
@@ -115,6 +116,11 @@ def _serialize_config(config: AppConfig) -> str:
         f'output_base_url = "{voice_output_base_url}"\n'
         f'output_voice_id = "{voice_output_voice_id}"\n'
         f'output_device = "{voice_output_device}"\n'
+        "output_engine_auto_start = "
+        f"{str(voice.output_engine_auto_start).lower()}\n"
+        f'output_engine_path = "{voice_output_engine_path}"\n'
+        "output_engine_stop_on_exit = "
+        f"{str(voice.output_engine_stop_on_exit).lower()}\n"
         "automatic_speech_enabled = "
         f"{str(voice.automatic_speech_enabled).lower()}\n"
         "proactive_speech_enabled = "

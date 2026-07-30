@@ -200,6 +200,9 @@ class VoiceConfig:
     output_base_url: str = "http://127.0.0.1:50021"
     output_voice_id: str = "0"
     output_device: str = ""
+    output_engine_auto_start: bool = False
+    output_engine_path: str = ""
+    output_engine_stop_on_exit: bool = True
     automatic_speech_enabled: bool = False
     proactive_speech_enabled: bool = False
     english_subtitles_enabled: bool = False
@@ -229,6 +232,8 @@ class VoiceConfig:
             raise ValueError("voice.input_language cannot be empty.")
         if not self.output_voice_id.strip():
             raise ValueError("voice.output_voice_id cannot be empty.")
+        if "\n" in self.output_engine_path or "\r" in self.output_engine_path:
+            raise ValueError("voice.output_engine_path must be a single line.")
 
         parsed_output_url = urlparse(self.output_base_url)
         if parsed_output_url.scheme not in {"http", "https"}:

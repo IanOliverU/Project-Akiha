@@ -394,14 +394,36 @@ Avoid:
 
 - [x] Spoken text uses the style layer before TTS while displayed chat remains
   unchanged.
-- [ ] The temporary voice consistently uses the minimum Akiha character
+- [x] The temporary voice consistently uses the minimum Akiha character
   direction.
 - [x] Style failures fall back to safe raw text and do not cause silent
   responses.
 - [x] Provider replacement does not require changes to identity rules.
-- [ ] Manual listening confirms the result feels at least directionally
+- [x] Manual listening confirms the result feels at least directionally
   Akiha-like.
 - [ ] Unit tests, Ruff, Black, source smoke, and the Phase 7 manual smoke pass.
+
+### Managed VOICEVOX Engine
+
+- [x] Add a default-off setting to start a standalone VOICEVOX Engine with
+  Project Akiha.
+- [x] Support a configured executable path and conservative local
+  auto-discovery through the standard Windows VOICEVOX installation,
+  `VOICEVOX_ENGINE_PATH`, or known project-local folders.
+- [x] Launch the engine without a visible console window and use the configured
+  local host and port.
+- [x] Never stop a VOICEVOX Engine process that Project Akiha did not launch.
+- [x] Add a configurable stop-on-exit policy for the managed process.
+- [x] Display launch, running, external, missing, and failure states in Voice
+  settings.
+- [x] Reject automatic process launch for non-local VOICEVOX URLs.
+- [x] Cover launch ownership, discovery, timeout cleanup, settings persistence,
+  and shutdown integration with automated tests.
+
+To enable management, select **Start VOICEVOX automatically** in Voice
+settings and browse to the standalone engine's `run.exe`. This is not the
+VOICEVOX editor executable. Project Akiha does not download or install the
+engine.
 
 ## Manual Phase 7 Smoke
 
@@ -420,21 +442,26 @@ Avoid:
 - [ ] Generate a mock-provider response and hear it through VOICEVOX.
 - [x] Enable English subtitles with a non-mock AI provider and confirm a
   separate English line appears without delaying Japanese speech.
-- [ ] Stop or fail a translation request and confirm the Japanese response
+- [x] Stop or fail a translation request and confirm the Japanese response
   remains intact.
 - [x] Restart the app with English subtitles enabled and confirm saved
   subtitles return beneath their original Japanese messages.
 - [x] Export once with subtitle export disabled and once enabled; confirm the
   first file is Japanese-only and the second adds `English:` beneath translated
   assistant messages.
-- [ ] Stop playback and start another response.
-- [ ] Disable automatic speech and confirm chat still works.
-- [ ] Stop VOICEVOX and confirm the app reports the failure without crashing.
-- [ ] Confirm listening, thinking, speaking, muted, and error states.
-- [ ] Confirm quiet hours and mute prevent unsolicited speech.
-- [ ] Quit while listening and while speaking; confirm the process exits cleanly.
+- [x] Stop playback and start another response.
+- [x] Disable automatic speech and confirm chat still works.
+- [x] Stop VOICEVOX and confirm the app reports the failure without crashing.
+- [x] Confirm listening, thinking, speaking, muted, and error states.
+- [x] Confirm quiet hours and mute prevent unsolicited speech.
+- [x] Quit while listening and while speaking; confirm the process exits cleanly.
 - [x] Re-run relevant packaged smoke with all voice providers treated as
   optional dependencies.
+- [ ] Close the VOICEVOX editor, configure the standalone engine executable,
+  enable automatic start, and confirm Akiha starts speaking without the editor.
+- [ ] Quit Akiha with stop-on-exit enabled and confirm the managed engine exits.
+- [ ] Start the standalone engine outside Akiha and confirm quitting Akiha does
+  not stop that external process.
 
 The Phase 7 release candidate at
 `dist\nuitka-phase7-final-clean\main.dist\Akiha.exe` passed fresh-data and
@@ -450,6 +477,9 @@ and creates no visible console window.
   existing conversation and memory controls after manual Send or after the user
   explicitly enables auto-send.
 - Voice diagnostics avoid recording raw audio or unnecessary transcript text.
+- The configured standalone engine path is stored in the local user config.
+- Project Akiha does not download, update, or execute an unconfigured remote
+  voice engine.
 - Cloud STT and TTS providers are outside the initial Phase 7 scope.
 - Custom voice training and public-distribution rights require a separate future
   decision.

@@ -114,6 +114,7 @@ from project_akiha.services.transcript_export import (
     write_chat_transcript,
 )
 from project_akiha.services.voice_diagnostics import VoiceDiagnosticsService
+from project_akiha.services.voicevox_engine_manager import VoiceVoxEngineManager
 from project_akiha.services.window_placement import (
     ScreenBounds,
     WindowSize,
@@ -281,6 +282,31 @@ def _run_application() -> int:
         data_dir=paths.data_dir,
         credential_store=credential_store,
     )
+    voicevox_engine_manager = VoiceVoxEngineManager(paths.project_root)
+
+    def apply_voicevox_engine_config(voice_config: VoiceConfig) -> None:
+        status = voicevox_engine_manager.apply_config(voice_config)
+        settings_window.set_voice_engine_status(status.detail, status.is_error)
+        logger.info("VOICEVOX Engine management state: %s.", status.state)
+        if status.state == "starting":
+            expected_url = voice_config.output_base_url
+
+            def refresh_voicevox_engine_status() -> None:
+                if config.voice.output_base_url != expected_url:
+                    return
+                refreshed = voicevox_engine_manager.refresh_status(expected_url)
+                settings_window.set_voice_engine_status(
+                    refreshed.detail,
+                    refreshed.is_error,
+                )
+                logger.info(
+                    "VOICEVOX Engine management state: %s.",
+                    refreshed.state,
+                )
+
+            QTimer.singleShot(3_000, refresh_voicevox_engine_status)
+
+    apply_voicevox_engine_config(config.voice)
     chat_window = ChatWindow()
     assistant_translation_controller = AssistantTranslationController(
         service=AssistantTranslationService(ai_provider, conversation_repository),
@@ -398,6 +424,7 @@ def _run_application() -> int:
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
         assistant_speech_controller.apply_config(updated_config.voice)
+        apply_voicevox_engine_config(updated_config.voice)
         speech_input_service = _build_speech_input_service(
             updated_config.voice,
             paths.model_dir,
@@ -744,6 +771,7 @@ def _run_application() -> int:
             voice_transcription=voice_transcription_controller,
             voice_synthesis=voice_synthesis_controller,
             voice_playback=voice_playback_controller,
+            voice_engine=voicevox_engine_manager,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
@@ -751,6 +779,7 @@ def _run_application() -> int:
             "voice_capture_stopped=%s, voice_diagnostics_stopped=%s, "
             "voice_transcription_stopped=%s, "
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
+            "voice_engine_stopped=%s, "
             "ai_discovery_stopped=%s, translations_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
@@ -761,6 +790,7 @@ def _run_application() -> int:
             result.voice_transcription_stopped,
             result.voice_synthesis_stopped,
             result.voice_playback_stopped,
+            result.voice_engine_stopped,
             ai_discovery_stopped,
             translations_stopped,
         )

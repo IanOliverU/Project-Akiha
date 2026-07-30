@@ -38,6 +38,7 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertTrue(result.voice_transcription_stopped)
         self.assertTrue(result.voice_synthesis_stopped)
         self.assertTrue(result.voice_playback_stopped)
+        self.assertTrue(result.voice_engine_stopped)
         self.assertEqual(threads, [])
 
     def test_shutdown_reports_unfinished_threads(self) -> None:
@@ -237,6 +238,35 @@ class ShutdownRuntimeTest(unittest.TestCase):
         self.assertFalse(result.voice_playback_stopped)
         self.assertIn("voice playback", captured.output[0])
 
+    def test_shutdown_applies_managed_voice_engine_exit_policy(self) -> None:
+        engine = _VoiceEngine()
+
+        result = shutdown_runtime(
+            activity_timer=_Timer(),
+            active_chat_threads=[],
+            save_window_position=lambda: None,
+            logger=logging.getLogger("test_shutdown_voice_engine"),
+            voice_engine=engine,
+        )
+
+        self.assertTrue(engine.shutdown_called)
+        self.assertTrue(result.voice_engine_stopped)
+
+    def test_shutdown_reports_managed_voice_engine_failure(self) -> None:
+        logger = logging.getLogger("test_shutdown_voice_engine_failure")
+
+        with self.assertLogs(logger, level="ERROR") as captured:
+            result = shutdown_runtime(
+                activity_timer=_Timer(),
+                active_chat_threads=[],
+                save_window_position=lambda: None,
+                logger=logger,
+                voice_engine=_FailingVoiceEngine(),
+            )
+
+        self.assertFalse(result.voice_engine_stopped)
+        self.assertIn("managed voice engine", captured.output[0])
+
 
 class _Timer:
     def __init__(self) -> None:
@@ -285,6 +315,20 @@ class _VoiceCapture:
 class _FailingVoiceCapture:
     def cancel(self) -> None:
         raise RuntimeError("capture failed")
+
+
+class _VoiceEngine:
+    def __init__(self) -> None:
+        self.shutdown_called = False
+
+    def shutdown(self) -> bool:
+        self.shutdown_called = True
+        return True
+
+
+class _FailingVoiceEngine:
+    def shutdown(self) -> bool:
+        raise RuntimeError("engine failed")
 
 
 if __name__ == "__main__":
