@@ -66,6 +66,8 @@ class ActionFailureCategory(StrEnum):
     PERMISSION_REQUIRED = "permission_required"
     CONFIRMATION_REQUIRED = "confirmation_required"
     EXECUTOR_UNAVAILABLE = "executor_unavailable"
+    TARGET_UNAVAILABLE = "target_unavailable"
+    EXECUTION_FAILED = "execution_failed"
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +232,51 @@ class ActionResult:
     metadata: Mapping[str, object] = MappingProxyType({})
 
     def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "metadata",
+            MappingProxyType(dict(self.metadata)),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class FileSearchMatch:
+    """Bounded metadata for one regular file found by an approved search."""
+
+    name: str
+    path: str
+    size_bytes: int
+    modified_at: str
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("file search match name cannot be empty.")
+        if not self.path.strip():
+            raise ValueError("file search match path cannot be empty.")
+        if self.size_bytes < 0:
+            raise ValueError("file search match size cannot be negative.")
+
+
+@dataclass(frozen=True, slots=True)
+class ActionExecutionResult:
+    """Sanitized executor outcome before the action service records an audit."""
+
+    status: ActionStatus
+    summary: str
+    metadata: Mapping[str, object] = MappingProxyType({})
+    failure_category: ActionFailureCategory | None = None
+
+    def __post_init__(self) -> None:
+        if self.status not in {
+            ActionStatus.SUCCESS,
+            ActionStatus.CANCELLED,
+            ActionStatus.UNAVAILABLE,
+            ActionStatus.TIMED_OUT,
+            ActionStatus.FAILED,
+        }:
+            raise ValueError("executors can return only execution outcome statuses.")
+        if not self.summary.strip():
+            raise ValueError("execution result summary cannot be empty.")
         object.__setattr__(
             self,
             "metadata",

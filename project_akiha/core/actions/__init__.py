@@ -1,9 +1,15 @@
 """Framework-free contracts and policy for safe assistant actions."""
 
 from project_akiha.core.actions.errors import ActionValidationError
+from project_akiha.core.actions.executors import (
+    ActionCancellationToken,
+    AssistantActionExecutor,
+    FileSearchExecutor,
+)
 from project_akiha.core.actions.models import (
     ActionAuditEntry,
     ActionDefinition,
+    ActionExecutionResult,
     ActionFailureCategory,
     ActionParameterSpec,
     ActionRequest,
@@ -12,6 +18,7 @@ from project_akiha.core.actions.models import (
     ActionStatus,
     ApprovedDirectory,
     ConfirmationPolicy,
+    FileSearchMatch,
     ParameterKind,
     PermissionDecision,
     PermissionGrant,
@@ -40,9 +47,11 @@ __all__ = [
     "ALLOWLISTED_APPLICATION_IDS",
     "APPLICATION_LAUNCH_CAPABILITY",
     "ApprovedDirectory",
+    "ActionCancellationToken",
     "ActionAuditEntry",
     "ActionAuditRepository",
     "ActionDefinition",
+    "ActionExecutionResult",
     "ActionFailureCategory",
     "ActionParameterSpec",
     "ActionPermissionPolicy",
@@ -54,9 +63,12 @@ __all__ = [
     "ActionRisk",
     "ActionStatus",
     "ActionValidationError",
+    "AssistantActionExecutor",
     "ConfirmationPolicy",
     "FILE_OPEN_CAPABILITY",
     "FILE_SEARCH_CAPABILITY",
+    "FileSearchExecutor",
+    "FileSearchMatch",
     "LAUNCH_APPLICATION_ACTION",
     "OPEN_DIRECTORY_ACTION",
     "OPEN_FILE_ACTION",

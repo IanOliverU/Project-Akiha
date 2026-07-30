@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - Phase 8B approved-directory management complete
+**Status:** In progress - Phase 8B approved-directory management and bounded file search complete
 
 ## Phase Goal
 
@@ -284,7 +284,7 @@ any real desktop executor enabled. Completed with no executor dependency in
 ### Phase 8B: Read-Only File Discovery
 
 - [x] Add approved-directory management.
-- [ ] Implement bounded, cancellable file search.
+- [x] Implement bounded, cancellable file search.
 - [ ] Add search-result presentation and audit history.
 - [ ] Add open-directory support for approved roots.
 - [ ] Add safe-file opening with per-action confirmation and blocked-type
@@ -301,7 +301,23 @@ Approved-directory management now:
 - can revoke stale roots after a directory is moved or deleted
 - excludes application permissions from directory listings and revocation
 - remains service-only until the Settings management UI is added in Phase 8D
-- passed full verification with 651 tests; no file executor is enabled
+- passed full verification with 651 tests; no file executor was enabled at this
+  management-only checkpoint
+
+Bounded file search now:
+
+- enumerates only regular filenames and basic metadata inside a granted root
+- searches case-insensitively without reading file contents
+- limits recursion depth, result count, and registry-owned execution time
+- streams directory enumeration so cancellation and timeout checks occur during
+  traversal rather than after collecting a complete directory listing
+- skips symbolic links, junctions, reparse points, unavailable directories, and
+  inaccessible entries
+- returns a sanitized cancelled, timed-out, unavailable-root, or success result
+  and records it through the existing action audit repository
+- remains unavailable until an application composition root explicitly provides
+  `FileSearchExecutor`; chat and AI provider text still have no direct executor
+  access
 
 ### Phase 8C: Allowlisted Applications
 
@@ -331,7 +347,7 @@ execution or AI-controlled arguments.
 - [x] A path outside an approved root is denied.
 - [x] Traversal, junction, reparse-point, device-path, and protected-path
   escapes are denied.
-- [ ] Search limits, cancellation, and timeout behavior are enforced.
+- [x] Search limits, cancellation, and timeout behavior are enforced.
 - [ ] Only allowlisted passive file types can be opened through file actions.
 - [x] An unregistered application or AI-provided executable path is denied.
 - [x] Application arguments and elevation requests are denied.

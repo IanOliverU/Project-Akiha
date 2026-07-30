@@ -8,11 +8,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from project_akiha.core.actions import (
+    ActionCancellationToken,
     ActionFailureCategory,
     ActionPermissionPolicy,
     ActionRequest,
     ActionRequestValidator,
     ActionStatus,
+    FileSearchExecutor,
     PermissionDecision,
     ProtectedPathPolicy,
     build_default_action_registry,
@@ -45,6 +47,7 @@ class AssistantActionServiceTest(unittest.TestCase):
             ActionPermissionPolicy(self.path_policy),
             self.repository,
             self.repository,
+            executors=(FileSearchExecutor(max_depth=2, max_results=10),),
         )
 
     def test_plain_provider_text_has_no_action_entry_point(self) -> None:
@@ -141,6 +144,78 @@ class AssistantActionServiceTest(unittest.TestCase):
 
         self.assertEqual(result.status, ActionStatus.DENIED)
         self.assertEqual(result.permission_decision, PermissionDecision.MISSING)
+
+    def test_approved_directory_search_executes_and_is_audited(self) -> None:
+        report = self.approved_root / "report.txt"
+        report.write_text("private contents", encoding="utf-8")
+        asyncio.run(
+            self.permissions.approve_directory(
+                self.approved_root,
+                allow_search=True,
+                allow_open=False,
+            )
+        )
+
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.search",
+                    {"root": str(self.approved_root), "query": "report"},
+                )
+            )
+        )
+        audits = asyncio.run(self.repository.get_recent_action_audits(limit=1))
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.metadata["matches"][0].path, str(report.resolve()))
+        self.assertEqual(result.permission_decision, PermissionDecision.GRANTED)
+        self.assertEqual(audits[0].result_status, ActionStatus.SUCCESS)
+        self.assertEqual(
+            audits[0].normalized_target,
+            str(self.approved_root.resolve()),
+        )
+
+    def test_search_cancellation_is_recorded_without_results(self) -> None:
+        (self.approved_root / "report.txt").write_text("report", encoding="utf-8")
+        asyncio.run(
+            self.permissions.grant_directory("files.search", self.approved_root)
+        )
+        token = ActionCancellationToken()
+        token.cancel()
+
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.search",
+                    {"root": str(self.approved_root), "query": "report"},
+                ),
+                cancellation_token=token,
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.CANCELLED)
+        self.assertNotIn("matches", result.metadata)
+
+    def test_deleted_approved_root_fails_without_broadening_access(self) -> None:
+        asyncio.run(
+            self.permissions.grant_directory("files.search", self.approved_root)
+        )
+        self.approved_root.rmdir()
+
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.search",
+                    {"root": str(self.approved_root), "query": "report"},
+                )
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(
+            result.failure_category,
+            ActionFailureCategory.TARGET_UNAVAILABLE,
+        )
 
     def test_ai_supplied_executable_path_is_denied_before_permission(self) -> None:
         asyncio.run(self.permissions.grant_application("chrome"))
