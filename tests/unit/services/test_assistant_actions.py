@@ -16,6 +16,7 @@ from project_akiha.core.actions import (
     ActionStatus,
     FileSearchExecutor,
     OpenDirectoryExecutor,
+    OpenFileExecutor,
     PermissionDecision,
     ProtectedPathPolicy,
     build_default_action_registry,
@@ -51,9 +52,11 @@ class AssistantActionServiceTest(unittest.TestCase):
             executors=(
                 FileSearchExecutor(max_depth=2, max_results=10),
                 OpenDirectoryExecutor(self._open_directory),
+                OpenFileExecutor(self._open_file),
             ),
         )
         self.opened_directories: list[Path] = []
+        self.opened_files: list[Path] = []
 
     def test_plain_provider_text_has_no_action_entry_point(self) -> None:
         with self.assertRaises(TypeError):
@@ -118,7 +121,7 @@ class AssistantActionServiceTest(unittest.TestCase):
             ActionFailureCategory.EXECUTOR_UNAVAILABLE,
         )
 
-    def test_open_file_requires_confirmation_before_executor_checkpoint(self) -> None:
+    def test_open_file_requires_confirmation_before_executor(self) -> None:
         file_path = self.approved_root / "notes.txt"
         file_path.write_text("notes", encoding="utf-8")
         asyncio.run(self.permissions.grant_directory("files.open", self.approved_root))
@@ -128,7 +131,8 @@ class AssistantActionServiceTest(unittest.TestCase):
         confirmed = asyncio.run(self.service.evaluate_request(request, confirmed=True))
 
         self.assertEqual(pending.status, ActionStatus.CONFIRMATION_REQUIRED)
-        self.assertEqual(confirmed.status, ActionStatus.UNAVAILABLE)
+        self.assertEqual(confirmed.status, ActionStatus.SUCCESS)
+        self.assertEqual(self.opened_files, [file_path.resolve()])
 
     def test_traversal_escape_is_not_covered_by_directory_grant(self) -> None:
         asyncio.run(
@@ -305,6 +309,9 @@ class AssistantActionServiceTest(unittest.TestCase):
 
     def _open_directory(self, path: Path) -> None:
         self.opened_directories.append(path.resolve())
+
+    def _open_file(self, path: Path) -> None:
+        self.opened_files.append(path.resolve())
 
     @staticmethod
     def _request(

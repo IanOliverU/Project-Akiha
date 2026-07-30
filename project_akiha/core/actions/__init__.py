@@ -6,6 +6,7 @@ from project_akiha.core.actions.executors import (
     AssistantActionExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
+    OpenFileExecutor,
 )
 from project_akiha.core.actions.models import (
     ActionAuditEntry,
@@ -84,6 +85,7 @@ __all__ = [
     "LAUNCH_APPLICATION_ACTION",
     "OPEN_DIRECTORY_ACTION",
     "OpenDirectoryExecutor",
+    "OpenFileExecutor",
     "OPEN_FILE_ACTION",
     "PASSIVE_AUDIO_EXTENSIONS",
     "PASSIVE_DOCUMENT_EXTENSIONS",

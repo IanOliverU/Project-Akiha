@@ -51,8 +51,22 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             r"C:\Users\Akiha\Documents",
         )
 
+    def test_parses_open_file_command_with_explicit_prefix(self) -> None:
+        request = self.parser.parse(
+            r"/open-file C:\Users\Akiha\Documents\notes.txt",
+            correlation_id="chat-4",
+        )
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "files.open")
+        self.assertEqual(
+            request.parameters["path"],
+            r"C:\Users\Akiha\Documents\notes.txt",
+        )
+
     def test_ordinary_conversation_does_not_become_an_action(self) -> None:
         self.assertIsNone(self.parser.parse("Could you open the directory later?"))
+        self.assertIsNone(self.parser.parse("Could you open this file later?"))
         self.assertIsNone(self.parser.parse("Please help me plan today."))
 
     def test_empty_command_does_not_become_an_action(self) -> None:

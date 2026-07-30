@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - Phase 8B search, presentation, and approved-directory opening complete
+**Status:** In progress - Phase 8B file discovery and passive-file opening complete
 
 ## Phase Goal
 
@@ -281,7 +281,7 @@ Checkpoint: requests can be validated, denied, confirmed, and audited without
 any real desktop executor enabled. The service now accepts explicitly supplied,
 capability-specific executors while remaining unavailable by default.
 
-### Phase 8B: Read-Only File Discovery
+### Phase 8B: Read-Only File Discovery And Passive Opening
 
 - [x] Add approved-directory management.
 - [x] Implement bounded, cancellable file search.
@@ -289,7 +289,7 @@ capability-specific executors while remaining unavailable by default.
 - [x] Add open-directory support for approved roots.
 - [x] Connect direct chat or UI requests to the typed action service.
 - [x] Finalize the passive file-extension allowlist.
-- [ ] Add safe-file opening with per-action confirmation.
+- [x] Add safe-file opening with per-action confirmation.
 
 Checkpoint: Akiha can find and reveal safe files only inside approved roots.
 
@@ -360,7 +360,23 @@ Passive file allowlist now:
   can run
 
 The allowlist is finalized and enforced during typed `files.open` validation;
-the passive-file executor and confirmation UI remain Phase 8B work.
+the passive-file executor rechecks the file immediately before opening. The
+explicit `/open-file <absolute path>` chat command and `open file: <absolute
+path>` form require an active approved-directory grant, show a visible Yes/No
+confirmation, and open the file only after confirmation. Ordinary conversation
+does not enter this path.
+
+Passive-file opening now:
+
+- rechecks existence, regular-file status, link/reparse-point status, and the
+  passive allowlist immediately before invoking the system opener
+- uses the Windows default file handler without shell commands or AI-provided
+  executable paths or arguments
+- supports cancellation before the desktop opener is called
+- returns sanitized success, unavailable, timeout, or execution-failure results
+  and records each decision through the existing audit repository
+- refuses the action when the approved-directory permission is missing or the
+  user declines confirmation
 
 ### Phase 8C: Allowlisted Applications
 
@@ -376,7 +392,7 @@ execution or AI-controlled arguments.
 ### Phase 8D: UX, Privacy, And Packaging
 
 - Add Assistant settings for directories, applications, and grants.
-- Add confirmation and denial UI.
+- Complete confirmation and denial UI for the remaining action surfaces.
 - Add action history with clear controls.
 - Update the versioned privacy notice.
 - Add diagnostics and reset behavior.
@@ -393,6 +409,7 @@ execution or AI-controlled arguments.
 - [x] Search limits, cancellation, and timeout behavior are enforced.
 - [x] Approved-directory opening remains scoped, argument-free, and audited.
 - [x] Only allowlisted passive file types can be opened through file actions.
+- [x] Passive file opening requires a scoped grant and visible confirmation.
 - [x] An unregistered application or AI-provided executable path is denied.
 - [x] Application arguments and elevation requests are denied.
 - [x] Revoked permission prevents the next matching action.

@@ -11,6 +11,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Protocol
 
+from project_akiha.core.actions.errors import ActionValidationError
 from project_akiha.core.actions.models import (
     ActionExecutionResult,
     ActionFailureCategory,
@@ -18,9 +19,11 @@ from project_akiha.core.actions.models import (
     FileSearchMatch,
     ValidatedAction,
 )
+from project_akiha.core.actions.passive_files import PassiveFilePolicy
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
     OPEN_DIRECTORY_ACTION,
+    OPEN_FILE_ACTION,
 )
 
 _WINDOWS_REPARSE_POINT = 0x400
@@ -228,6 +231,69 @@ class OpenDirectoryExecutor:
         )
 
 
+class OpenFileExecutor:
+    """Open one validated passive file through its normal desktop handler."""
+
+    executor_id = "open_safe_file"
+    action_id = OPEN_FILE_ACTION
+
+    def __init__(
+        self,
+        opener: Callable[[Path], None] | None = None,
+        passive_file_policy: PassiveFilePolicy | None = None,
+    ) -> None:
+        self._opener = opener or _open_file_with_system
+        self._passive_file_policy = passive_file_policy or PassiveFilePolicy()
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        """Recheck the file and open it without shell commands or arguments."""
+        if action.definition.action_id != self.action_id:
+            raise ValueError("file opener received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return ActionExecutionResult(
+                status=ActionStatus.CANCELLED,
+                summary="File opening was cancelled.",
+            )
+
+        file_path = Path(action.normalized_target)
+        try:
+            self._passive_file_policy.validate_file(file_path)
+        except ActionValidationError as error:
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary="The approved file is unavailable or no longer allowlisted.",
+                failure_category=error.category,
+            )
+
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._opener, file_path),
+                timeout=action.definition.timeout_seconds,
+            )
+        except TimeoutError:
+            return ActionExecutionResult(
+                status=ActionStatus.TIMED_OUT,
+                summary="Opening the file reached its time limit.",
+            )
+        except OSError:
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary="The file could not be opened.",
+                failure_category=ActionFailureCategory.EXECUTION_FAILED,
+            )
+
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary="The approved file was opened.",
+            metadata={"opened_file": str(file_path)},
+        )
+
+
 def _is_link_or_reparse_point(entry: os.DirEntry[str]) -> bool:
     try:
         details = entry.stat(follow_symlinks=False)
@@ -251,6 +317,14 @@ def _open_directory_with_system(path: Path) -> None:
     startfile = getattr(os, "startfile", None)
     if startfile is None:
         raise OSError("the system directory opener is unavailable")
+    startfile(str(path))
+
+
+def _open_file_with_system(path: Path) -> None:
+    """Ask Windows to open a validated passive file with its default handler."""
+    startfile = getattr(os, "startfile", None)
+    if startfile is None:
+        raise OSError("the system file opener is unavailable")
     startfile(str(path))
 
 

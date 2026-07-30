@@ -24,11 +24,13 @@ class AssistantActionThread(QThread):
         self,
         bridge: AssistantActionBridge,
         request: ActionRequest,
+        confirmed: bool = False,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge
         self._request = request
+        self._confirmed = confirmed
         self._cancellation_token = ActionCancellationToken()
 
     def run(self) -> None:
@@ -55,6 +57,7 @@ class AssistantActionThread(QThread):
     async def _dispatch(self) -> AssistantActionDispatch:
         return await self._bridge.dispatch(
             self._request,
+            confirmed=self._confirmed,
             cancellation_token=self._cancellation_token,
         )
 

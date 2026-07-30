@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Protocol
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.assistant_speech_controller import AssistantSpeechController
@@ -39,9 +39,11 @@ from project_akiha.app.voice_transcription_controller import (
 from project_akiha.config import AIConfig, AppConfig, VoiceConfig, load_config
 from project_akiha.core.actions import (
     ActionPermissionPolicy,
+    ActionRequest,
     ActionRequestValidator,
     FileSearchExecutor,
     OpenDirectoryExecutor,
+    OpenFileExecutor,
     ProtectedPathPolicy,
     build_default_action_registry,
 )
@@ -233,7 +235,11 @@ def _run_application() -> int:
         ActionPermissionPolicy(action_path_policy),
         action_repository,
         action_repository,
-        executors=(FileSearchExecutor(), OpenDirectoryExecutor()),
+        executors=(
+            FileSearchExecutor(),
+            OpenDirectoryExecutor(),
+            OpenFileExecutor(),
+        ),
     )
     assistant_action_bridge = AssistantActionBridge(assistant_action_service)
     behavior_history_recorder = BehaviorHistoryRecorder(
@@ -632,6 +638,28 @@ def _run_application() -> int:
         assistant_action_history_window.raise_()
         assistant_action_history_window.activateWindow()
 
+    def start_action_thread(
+        action_request: ActionRequest,
+        *,
+        confirmed: bool = False,
+    ) -> None:
+        chat_window.set_busy(True)
+        action_thread = AssistantActionThread(
+            assistant_action_bridge,
+            action_request,
+            confirmed=confirmed,
+        )
+        active_action_threads.append(action_thread)
+        action_thread.result_ready.connect(handle_action_dispatch)
+        action_thread.failed.connect(handle_action_failure)
+        action_thread.cancelled.connect(
+            lambda: chat_window.append_notice("Desktop action stopped.")
+        )
+        action_thread.finished.connect(
+            lambda thread=action_thread: cleanup_action_thread(thread)
+        )
+        action_thread.start()
+
     def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
         result = dispatch.result
         matches = result.metadata.get("matches")
@@ -647,7 +675,25 @@ def _run_application() -> int:
                 config.personality.character_name, result.summary
             )
         elif result.status.value == "confirmation_required":
-            chat_window.append_notice(f"Action needs confirmation: {result.summary}")
+            if dispatch.request.action_id == "files.open":
+                target = str(
+                    dispatch.request.parameters.get("path", "the selected file")
+                )
+                answer = QMessageBox.question(
+                    chat_window,
+                    "Confirm file opening",
+                    f"Open this passive file with its default application?\n\n{target}",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    start_action_thread(dispatch.request, confirmed=True)
+                else:
+                    chat_window.append_notice("File opening was not confirmed.")
+            else:
+                chat_window.append_notice(
+                    f"Action needs confirmation: {result.summary}"
+                )
         else:
             chat_window.append_error(f"Action unavailable: {result.summary}")
 
@@ -656,9 +702,9 @@ def _run_application() -> int:
         chat_window.append_error("Akiha could not complete that desktop action.")
 
     def cleanup_action_thread(thread: AssistantActionThread) -> None:
-        chat_window.set_busy(False)
         if thread in active_action_threads:
             active_action_threads.remove(thread)
+        chat_window.set_busy(bool(active_action_threads))
         thread.deleteLater()
 
     def clear_behavior_history() -> None:
@@ -689,21 +735,7 @@ def _run_application() -> int:
         action_request = assistant_action_bridge.parse_user_text(message)
         if action_request is not None:
             chat_window.append_message("You", message)
-            chat_window.set_busy(True)
-            action_thread = AssistantActionThread(
-                assistant_action_bridge,
-                action_request,
-            )
-            active_action_threads.append(action_thread)
-            action_thread.result_ready.connect(handle_action_dispatch)
-            action_thread.failed.connect(handle_action_failure)
-            action_thread.cancelled.connect(
-                lambda: chat_window.append_notice("Desktop action stopped.")
-            )
-            action_thread.finished.connect(
-                lambda thread=action_thread: cleanup_action_thread(thread)
-            )
-            action_thread.start()
+            start_action_thread(action_request)
             return
 
         chat_window.append_message("You", message)

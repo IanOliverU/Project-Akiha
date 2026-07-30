@@ -14,6 +14,7 @@ from project_akiha.core.actions import (
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
     OPEN_DIRECTORY_ACTION,
+    OPEN_FILE_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 
@@ -24,6 +25,10 @@ _OPEN_DIRECTORY_PATTERN = re.compile(
 _SEARCH_FILES_PATTERN = re.compile(
     r"^(?:(?:/search-files)\s+|(?:search\s+files)\s*[:=]\s*)"
     r"(?P<query>[^|]+?)\s*\|\s*(?P<root>.+)$",
+    re.IGNORECASE,
+)
+_OPEN_FILE_PATTERN = re.compile(
+    r"^(?:(?:/open-file)\s+|(?:open\s+file)\s*[:=]\s*)" r"(?P<path>.+)$",
     re.IGNORECASE,
 )
 
@@ -54,6 +59,14 @@ class AssistantActionRequestParser:
                 correlation_id=request_id,
                 action_id=OPEN_DIRECTORY_ACTION,
                 parameters={"path": open_match.group("path").strip()},
+            )
+
+        file_match = _OPEN_FILE_PATTERN.fullmatch(normalized)
+        if file_match is not None:
+            return _request(
+                correlation_id=request_id,
+                action_id=OPEN_FILE_ACTION,
+                parameters={"path": file_match.group("path").strip()},
             )
 
         search_match = _SEARCH_FILES_PATTERN.fullmatch(normalized)
