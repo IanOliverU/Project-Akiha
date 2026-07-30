@@ -25,8 +25,15 @@ from project_akiha.providers.voice.base import (
 _SAMPLE_RATE_HZ = 16_000
 _CHANNELS = 1
 _SAMPLE_WIDTH_BYTES = 2
-_SPEECH_RMS_THRESHOLD = 350.0
+_SPEECH_START_RMS_THRESHOLD = 160.0
+_SILENCE_MINIMUM_RMS_THRESHOLD = 120.0
+_SILENCE_PEAK_RATIO = 0.85
 _MINIMUM_SPEECH_SECONDS = 0.25
+_CONTINUED_SPEECH_SECONDS = 0.1
+_ANALYSIS_FRAME_SECONDS = 0.02
+_ANALYSIS_FRAME_BYTES = int(
+    _SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES * _ANALYSIS_FRAME_SECONDS
+)
 
 
 class QtMicrophoneCapture(QObject):
@@ -40,6 +47,7 @@ class QtMicrophoneCapture(QObject):
         device_resolver: Callable[[str], Any] | None = None,
         source_factory: Callable[[Any, QAudioFormat, QObject], Any] | None = None,
         timer_factory: Callable[[QObject], Any] | None = None,
+        endpoint_timer_factory: Callable[[QObject], Any] | None = None,
     ) -> None:
         super().__init__(parent)
         self._device_name = device_name
@@ -48,10 +56,14 @@ class QtMicrophoneCapture(QObject):
         self._timer = (timer_factory or QTimer)(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._handle_timeout)
+        self._endpoint_timer = (endpoint_timer_factory or QTimer)(self)
+        self._endpoint_timer.setSingleShot(True)
+        self._endpoint_timer.timeout.connect(self._handle_silence_timeout)
 
         self._source: Any | None = None
         self._io_device: Any | None = None
         self._buffer = bytearray()
+        self._analysis_buffer = bytearray()
         self._is_capturing = False
         self._on_timeout: Callable[[], None] | None = None
         self._on_error: Callable[[str, str], None] | None = None
@@ -60,8 +72,11 @@ class QtMicrophoneCapture(QObject):
         self._live_interval_bytes = 0
         self._next_snapshot_bytes = 0
         self._silence_timeout_bytes = 0
+        self._silence_timeout_ms = 0
         self._speech_bytes = 0
         self._silence_bytes = 0
+        self._continued_speech_bytes = 0
+        self._peak_speech_rms = 0.0
         self._has_speech = False
         self._auto_stop_on_silence = False
         self._endpoint_requested = False
@@ -129,6 +144,7 @@ class QtMicrophoneCapture(QObject):
             )
 
         self._buffer.clear()
+        self._analysis_buffer.clear()
         self._on_timeout = on_timeout
         self._on_error = on_error
         self._on_audio_snapshot = on_audio_snapshot
@@ -143,8 +159,11 @@ class QtMicrophoneCapture(QObject):
             _SAMPLE_WIDTH_BYTES,
             int(bytes_per_second * silence_timeout_seconds),
         )
+        self._silence_timeout_ms = max(1, round(silence_timeout_seconds * 1000))
         self._speech_bytes = 0
         self._silence_bytes = 0
+        self._continued_speech_bytes = 0
+        self._peak_speech_rms = 0.0
         self._has_speech = False
         self._auto_stop_on_silence = auto_stop_on_silence
         self._endpoint_requested = False
@@ -216,11 +235,37 @@ class QtMicrophoneCapture(QObject):
             self._process_audio_chunk(chunk)
 
     def _process_audio_chunk(self, chunk: bytes) -> None:
-        chunk_size = len(chunk)
-        is_speech = _pcm_rms(chunk) >= _SPEECH_RMS_THRESHOLD
-        if is_speech:
-            self._speech_bytes += chunk_size
-            self._silence_bytes = 0
+        self._analysis_buffer.extend(chunk)
+        while len(self._analysis_buffer) >= _ANALYSIS_FRAME_BYTES:
+            frame = bytes(self._analysis_buffer[:_ANALYSIS_FRAME_BYTES])
+            del self._analysis_buffer[:_ANALYSIS_FRAME_BYTES]
+            self._process_audio_frame(frame)
+            if not self._is_capturing:
+                return
+
+        if (
+            self._on_audio_snapshot is not None
+            and len(self._buffer) >= self._next_snapshot_bytes
+        ):
+            self._on_audio_snapshot(self._snapshot())
+            while len(self._buffer) >= self._next_snapshot_bytes:
+                self._next_snapshot_bytes += self._live_interval_bytes
+
+    def _process_audio_frame(self, frame: bytes) -> None:
+        frame_size = len(frame)
+        rms = _pcm_rms(frame)
+        if self._has_speech:
+            silence_threshold = max(
+                _SILENCE_MINIMUM_RMS_THRESHOLD,
+                self._peak_speech_rms * _SILENCE_PEAK_RATIO,
+            )
+            is_speech = rms >= silence_threshold
+        else:
+            is_speech = rms >= _SPEECH_START_RMS_THRESHOLD
+
+        if not self._has_speech and is_speech:
+            self._peak_speech_rms = max(self._peak_speech_rms, rms)
+            self._speech_bytes += frame_size
             minimum_speech_bytes = int(
                 _SAMPLE_RATE_HZ
                 * _CHANNELS
@@ -228,18 +273,27 @@ class QtMicrophoneCapture(QObject):
                 * _MINIMUM_SPEECH_SECONDS
             )
             self._has_speech = self._speech_bytes >= minimum_speech_bytes
+            if self._has_speech and self._auto_stop_on_silence:
+                self._endpoint_timer.start(self._silence_timeout_ms)
+        elif self._has_speech and is_speech:
+            self._peak_speech_rms = max(self._peak_speech_rms, rms)
+            self._continued_speech_bytes += frame_size
+            continued_speech_bytes = int(
+                _SAMPLE_RATE_HZ
+                * _CHANNELS
+                * _SAMPLE_WIDTH_BYTES
+                * _CONTINUED_SPEECH_SECONDS
+            )
+            if self._continued_speech_bytes >= continued_speech_bytes:
+                self._silence_bytes = 0
+                self._continued_speech_bytes = 0
+                if self._auto_stop_on_silence:
+                    self._endpoint_timer.start(self._silence_timeout_ms)
         elif self._has_speech:
-            self._silence_bytes += chunk_size
-
-        if (
-            self._has_speech
-            and is_speech
-            and self._on_audio_snapshot is not None
-            and len(self._buffer) >= self._next_snapshot_bytes
-        ):
-            self._on_audio_snapshot(self._snapshot())
-            while len(self._buffer) >= self._next_snapshot_bytes:
-                self._next_snapshot_bytes += self._live_interval_bytes
+            self._continued_speech_bytes = 0
+            self._silence_bytes += frame_size
+        else:
+            self._speech_bytes = 0
 
         if (
             self._auto_stop_on_silence
@@ -247,10 +301,7 @@ class QtMicrophoneCapture(QObject):
             and not self._endpoint_requested
             and self._silence_bytes >= self._silence_timeout_bytes
         ):
-            self._endpoint_requested = True
-            callback = self._on_silence
-            if callback is not None:
-                callback()
+            self._request_silence_endpoint()
 
     def _snapshot(self) -> CapturedAudio:
         return CapturedAudio(
@@ -268,6 +319,22 @@ class QtMicrophoneCapture(QObject):
         if callback is not None:
             callback()
 
+    def _handle_silence_timeout(self) -> None:
+        if (
+            self._is_capturing
+            and self._auto_stop_on_silence
+            and self._has_speech
+            and not self._endpoint_requested
+        ):
+            self._request_silence_endpoint()
+
+    def _request_silence_endpoint(self) -> None:
+        self._endpoint_requested = True
+        self._endpoint_timer.stop()
+        callback = self._on_silence
+        if callback is not None:
+            callback()
+
     def _handle_source_state_changed(self, state: QAudio.State) -> None:
         if not self._is_capturing or state != QAudio.State.StoppedState:
             return
@@ -282,6 +349,7 @@ class QtMicrophoneCapture(QObject):
     def _cleanup(self) -> None:
         self._is_capturing = False
         self._timer.stop()
+        self._endpoint_timer.stop()
         source = self._source
         self._source = None
         self._io_device = None
@@ -292,12 +360,16 @@ class QtMicrophoneCapture(QObject):
         self._live_interval_bytes = 0
         self._next_snapshot_bytes = 0
         self._silence_timeout_bytes = 0
+        self._silence_timeout_ms = 0
         self._speech_bytes = 0
         self._silence_bytes = 0
+        self._continued_speech_bytes = 0
+        self._peak_speech_rms = 0.0
         self._has_speech = False
         self._auto_stop_on_silence = False
         self._endpoint_requested = False
         self._buffer.clear()
+        self._analysis_buffer.clear()
         if source is not None:
             source.stop()
             if isinstance(source, QObject):

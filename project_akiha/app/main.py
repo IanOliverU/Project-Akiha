@@ -31,6 +31,7 @@ from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
+from project_akiha.app.voice_endpoint_controller import VoiceEndpointController
 from project_akiha.app.voice_playback_controller import VoicePlaybackController
 from project_akiha.app.voice_synthesis_controller import VoiceSynthesisController
 from project_akiha.app.voice_transcription_controller import (
@@ -391,6 +392,11 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         service=speech_input_service,
     )
+    voice_endpoint_controller = VoiceEndpointController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        config=config.voice,
+    )
     audio_playback = QtAudioPlayback(
         device_name=config.voice.output_device,
         volume_percent=config.voice.volume_percent,
@@ -505,6 +511,7 @@ def _run_application() -> int:
         )
         voice_playback_controller.apply_config(updated_config.voice)
         voice_capture_controller.apply_config(updated_config.voice)
+        voice_endpoint_controller.apply_config(updated_config.voice)
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
@@ -1086,6 +1093,7 @@ def _run_application() -> int:
     activity_tick_timer.start(30_000)
 
     def shutdown_app() -> None:
+        voice_endpoint_controller.cancel()
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:
             logger.warning("AI provider discovery did not stop before shutdown.")
@@ -1209,6 +1217,7 @@ def _run_application() -> int:
         voice_capture_controller,
         voice_controller,
         voice_diagnostics_controller,
+        voice_endpoint_controller,
         voice_playback_controller,
         voice_synthesis_controller,
         voice_transcription_controller,

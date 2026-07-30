@@ -81,7 +81,10 @@ class VoiceCaptureController:
                 on_error=self._handle_capture_error,
                 on_audio_snapshot=(
                     self._handle_audio_snapshot
-                    if self._config.live_transcription_enabled
+                    if (
+                        self._config.live_transcription_enabled
+                        or self._config.auto_stop_on_silence_enabled
+                    )
                     else None
                 ),
                 on_silence=(

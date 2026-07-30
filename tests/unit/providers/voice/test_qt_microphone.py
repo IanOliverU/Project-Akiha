@@ -167,9 +167,152 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         fixture.io_device.readyRead.emit()
         fixture.io_device.readyRead.emit()
 
-        self.assertEqual(snapshots, [speech])
+        self.assertEqual(snapshots, [speech, speech + silence])
         self.assertEqual(silence_events, [True])
         self.assertTrue(capture.is_capturing)
+
+    def test_quiet_speech_then_room_noise_reaches_silence_endpoint(self) -> None:
+        speech = _pcm_chunk(220, seconds=0.3)
+        room_noise = _pcm_chunk(125, seconds=3.1)
+        fixture = _CaptureFixture(chunks=[speech, room_noise])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        fixture.io_device.readyRead.emit()
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
+    def test_speech_and_muted_audio_in_one_read_reach_silence_endpoint(self) -> None:
+        mixed_chunk = _pcm_chunk(1_200, seconds=0.3) + _pcm_chunk(0, seconds=3.1)
+        fixture = _CaptureFixture(chunks=[mixed_chunk])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
+    def test_muted_device_with_no_more_audio_uses_wall_clock_endpoint(self) -> None:
+        speech = _pcm_chunk(1_200, seconds=0.3)
+        fixture = _CaptureFixture(chunks=[speech])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+        fixture.io_device.readyRead.emit()
+
+        fixture.endpoint_timer.timeout.emit()
+
+        self.assertEqual(fixture.endpoint_timer.started_ms, 3_000)
+        self.assertEqual(silence_events, [True])
+
+    def test_unaligned_qt_reads_preserve_silence_accounting(self) -> None:
+        audio = _pcm_chunk(1_200, seconds=0.3) + _pcm_chunk(0, seconds=3.1)
+        chunks = [audio[:777], audio[777:12_345], audio[12_345:]]
+        fixture = _CaptureFixture(chunks=chunks)
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        for _ in chunks:
+            fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
+    def test_live_snapshot_continues_during_post_speech_silence(self) -> None:
+        speech = _pcm_chunk(1_200, seconds=0.3)
+        silence = _pcm_chunk(0, seconds=0.3)
+        fixture = _CaptureFixture(chunks=[speech, silence])
+        capture = fixture.build()
+        snapshots: list[bytes] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_audio_snapshot=lambda audio: snapshots.append(audio.data),
+            live_interval_seconds=0.2,
+        )
+
+        fixture.io_device.readyRead.emit()
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(snapshots, [speech, speech + silence])
+
+    def test_live_snapshot_does_not_depend_on_the_volume_gate(self) -> None:
+        quiet_audio = _pcm_chunk(80, seconds=1.1)
+        fixture = _CaptureFixture(chunks=[quiet_audio])
+        capture = fixture.build()
+        snapshots: list[bytes] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_audio_snapshot=lambda audio: snapshots.append(audio.data),
+            live_interval_seconds=1.0,
+        )
+
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(snapshots, [quiet_audio])
+
+    def test_brief_noise_spike_does_not_reset_silence_endpoint(self) -> None:
+        speech = _pcm_chunk(220, seconds=0.3)
+        room_noise_before = _pcm_chunk(180, seconds=1.5)
+        brief_noise_spike = _pcm_chunk(250, seconds=0.02)
+        room_noise_after = _pcm_chunk(180, seconds=1.6)
+        fixture = _CaptureFixture(
+            chunks=[
+                speech,
+                room_noise_before,
+                brief_noise_spike,
+                room_noise_after,
+            ]
+        )
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        for _ in range(4):
+            fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
 
 
 class _Signal:
@@ -257,6 +400,7 @@ class _CaptureFixture:
         source_error: QAudio.Error = QAudio.Error.NoError,
     ) -> None:
         self.timer = _FakeTimer()
+        self.endpoint_timer = _FakeTimer()
         self.device = _FakeDevice(
             is_null=device_null,
             format_supported=format_supported,
@@ -278,6 +422,7 @@ class _CaptureFixture:
             device_resolver=lambda _name: self.device,
             source_factory=build_source,
             timer_factory=lambda _parent: self.timer,
+            endpoint_timer_factory=lambda _parent: self.endpoint_timer,
         )
 
 

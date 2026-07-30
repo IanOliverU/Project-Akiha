@@ -64,6 +64,24 @@ class VoiceCaptureControllerTest(unittest.TestCase):
             )
         )
 
+    def test_auto_stop_enables_private_snapshots_when_live_display_is_off(self) -> None:
+        snapshots: list[CapturedAudio] = []
+        config = VoiceConfig(
+            enabled=True,
+            live_transcription_enabled=False,
+            auto_stop_on_silence_enabled=True,
+        )
+        bus, _, capture, _ = _build_controller(
+            config=config,
+            on_audio_snapshot=snapshots.append,
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        audio = CapturedAudio(data=b"\x10\x20", sample_rate_hz=16_000)
+
+        capture.trigger_snapshot(audio)
+
+        self.assertEqual(snapshots, [audio])
+
     def test_silence_endpoint_stops_and_submits_final_audio(self) -> None:
         submitted: list[CapturedAudio] = []
         config = VoiceConfig(
