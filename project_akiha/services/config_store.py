@@ -119,6 +119,8 @@ def _serialize_config(config: AppConfig) -> str:
         f"{str(voice.automatic_speech_enabled).lower()}\n"
         "proactive_speech_enabled = "
         f"{str(voice.proactive_speech_enabled).lower()}\n"
+        "english_subtitles_enabled = "
+        f"{str(voice.english_subtitles_enabled).lower()}\n"
         "live_transcription_enabled = "
         f"{str(voice.live_transcription_enabled).lower()}\n"
         "auto_stop_on_silence_enabled = "

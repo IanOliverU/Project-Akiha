@@ -44,6 +44,29 @@ class ChatWindowTest(unittest.TestCase):
         self.assertIn("<b>Take a break</b>", window._history_view.toPlainText())
         self.assertNotIn("<b>Take a break</b>", window._history_view.toHtml())
 
+    def test_appends_escaped_english_subtitle_separately(self) -> None:
+        window = ChatWindow()
+        window.append_message("Akiha", "こんにちは。")
+
+        window.append_assistant_translation("<b>Hello.</b>")
+
+        plain_text = window._history_view.toPlainText()
+        self.assertIn("Akiha: こんにちは。", plain_text)
+        self.assertIn("English: <b>Hello.</b>", plain_text)
+        self.assertNotIn("<b>Hello.</b>", window._history_view.toHtml())
+
+    def test_blank_subtitle_is_ignored_and_fallback_is_quiet(self) -> None:
+        window = ChatWindow()
+
+        window.append_assistant_translation(" ")
+        self.assertEqual(window._history_view.toPlainText(), "")
+
+        window.append_translation_unavailable()
+        self.assertEqual(
+            window._history_view.toPlainText(),
+            "English subtitle unavailable.",
+        )
+
     def test_sets_presence_text_without_touching_status(self) -> None:
         window = ChatWindow()
         window.set_status("Thinking...")

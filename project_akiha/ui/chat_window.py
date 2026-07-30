@@ -47,6 +47,8 @@ class ChatWindow(QWidget):
             .notice { color: #666666; }
             .proactive-title { color: #7a2e8f; font-weight: 700; }
             .proactive-body { color: #2f3136; }
+            .subtitle-label { color: #666666; font-weight: 600; }
+            .subtitle-body { color: #666666; font-style: italic; }
             .error { color: #b00020; font-weight: 600; }
             """)
 
@@ -158,6 +160,22 @@ class ChatWindow(QWidget):
         self._history_view.append(
             f'<span class="proactive-title">{escape(title)}</span>: '
             f'<span class="proactive-body">{escape(content)}</span>'
+        )
+
+    def append_assistant_translation(self, content: str) -> None:
+        """Append a non-canonical English subtitle below an assistant reply."""
+        translation = content.strip()
+        if not translation:
+            return
+        self._history_view.append(
+            '<span class="subtitle-label">English</span>: '
+            f'<span class="subtitle-body">{escape(translation)}</span>'
+        )
+
+    def append_translation_unavailable(self) -> None:
+        """Show a quiet fallback while preserving the Japanese response."""
+        self._history_view.append(
+            '<span class="notice">English subtitle unavailable.</span>'
         )
 
     def set_status(self, status: str) -> None:

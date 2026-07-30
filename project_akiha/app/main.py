@@ -14,6 +14,9 @@ from PySide6.QtWidgets import QApplication
 
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.assistant_speech_controller import AssistantSpeechController
+from project_akiha.app.assistant_translation_controller import (
+    AssistantTranslationController,
+)
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
 from project_akiha.app.mood_animation_controller import MoodAnimationController
@@ -82,6 +85,7 @@ from project_akiha.providers.voice import (
     VoiceVoxProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
+from project_akiha.services.assistant_translation import AssistantTranslationService
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
 from project_akiha.services.conversation_summary import AIConversationSummarizer
@@ -277,6 +281,11 @@ def _run_application() -> int:
         credential_store=credential_store,
     )
     chat_window = ChatWindow()
+    assistant_translation_controller = AssistantTranslationController(
+        service=AssistantTranslationService(ai_provider),
+        surface=chat_window,
+        config=config.voice,
+    )
     chat_voice_presenter = ChatVoicePresenter(
         event_bus=event_bus,
         surface=chat_window,
@@ -360,6 +369,10 @@ def _run_application() -> int:
             credential_store,
         )
         chat_controller.set_ai_provider(ai_provider)
+        assistant_translation_controller.apply_service(
+            AssistantTranslationService(ai_provider)
+        )
+        assistant_translation_controller.apply_config(updated_config.voice)
         chat_controller.set_conversation_summarizer(
             _build_conversation_summarizer(ai_provider, updated_config.ai)
         )
@@ -588,6 +601,9 @@ def _run_application() -> int:
         thread.response_ready.connect(
             assistant_speech_controller.submit_assistant_reply
         )
+        thread.response_ready.connect(
+            assistant_translation_controller.translate_assistant_response
+        )
         thread.response_failed.connect(handle_error)
         thread.response_cancelled.connect(handle_cancelled)
         thread.finished.connect(cleanup_thread)
@@ -605,6 +621,7 @@ def _run_application() -> int:
             return
 
         asyncio.run(chat_controller.start_new_conversation())
+        assistant_translation_controller.cancel(wait_ms=0)
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         chat_window.clear_history()
@@ -618,6 +635,7 @@ def _run_application() -> int:
             return
 
         asyncio.run(chat_controller.clear_current_conversation())
+        assistant_translation_controller.cancel(wait_ms=0)
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         chat_window.clear_history()
@@ -709,6 +727,9 @@ def _run_application() -> int:
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:
             logger.warning("AI provider discovery did not stop before shutdown.")
+        translations_stopped = assistant_translation_controller.cancel()
+        if not translations_stopped:
+            logger.warning("Assistant translation did not stop before shutdown.")
         result = shutdown_runtime(
             activity_timer=activity_tick_timer,
             active_chat_threads=active_chat_threads,
@@ -726,7 +747,7 @@ def _run_application() -> int:
             "voice_capture_stopped=%s, voice_diagnostics_stopped=%s, "
             "voice_transcription_stopped=%s, "
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
-            "ai_discovery_stopped=%s.",
+            "ai_discovery_stopped=%s, translations_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -737,6 +758,7 @@ def _run_application() -> int:
             result.voice_synthesis_stopped,
             result.voice_playback_stopped,
             ai_discovery_stopped,
+            translations_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -783,6 +805,7 @@ def _run_application() -> int:
     )
     app._akiha_services = (
         assistant_speech_controller,
+        assistant_translation_controller,
         chat_controller,
         activity_controller,
         activity_tick_timer,

@@ -228,6 +228,13 @@ class SettingsWindow(QWidget):
         self._proactive_speech_enabled_input.setChecked(
             config.voice.proactive_speech_enabled
         )
+        self._english_subtitles_enabled_input = QCheckBox()
+        self._english_subtitles_enabled_input.setChecked(
+            config.voice.english_subtitles_enabled
+        )
+        self._english_subtitles_enabled_input.setToolTip(
+            "Uses the selected AI provider for an additional translation request."
+        )
         self._live_transcription_enabled_input = QCheckBox()
         self._live_transcription_enabled_input.setChecked(
             config.voice.live_transcription_enabled
@@ -405,6 +412,9 @@ class SettingsWindow(QWidget):
         )
         self._proactive_speech_enabled_input.setChecked(
             config.voice.proactive_speech_enabled
+        )
+        self._english_subtitles_enabled_input.setChecked(
+            config.voice.english_subtitles_enabled
         )
         self._live_transcription_enabled_input.setChecked(
             config.voice.live_transcription_enabled
@@ -600,6 +610,10 @@ class SettingsWindow(QWidget):
             self._proactive_speech_enabled_input,
         )
         form_layout.addRow(
+            "Show English subtitles",
+            self._english_subtitles_enabled_input,
+        )
+        form_layout.addRow(
             "Show transcription while speaking",
             self._live_transcription_enabled_input,
         )
@@ -722,6 +736,9 @@ class SettingsWindow(QWidget):
                 ),
                 proactive_speech_enabled=(
                     self._proactive_speech_enabled_input.isChecked()
+                ),
+                english_subtitles_enabled=(
+                    self._english_subtitles_enabled_input.isChecked()
                 ),
                 live_transcription_enabled=(
                     self._live_transcription_enabled_input.isChecked()
@@ -977,6 +994,7 @@ class SettingsWindow(QWidget):
             self._voice_output_device_input,
             self._automatic_speech_enabled_input,
             self._proactive_speech_enabled_input,
+            self._english_subtitles_enabled_input,
             self._live_transcription_enabled_input,
             self._auto_stop_on_silence_enabled_input,
             self._auto_send_transcript_enabled_input,

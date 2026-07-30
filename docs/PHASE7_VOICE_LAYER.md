@@ -371,6 +371,22 @@ Avoid:
 - [ ] Complete a manual listening pass across normal, concerned, strict,
   proactive, and error scenarios.
 
+### Optional English Subtitles
+
+- [x] Add a default-off `Show English subtitles` Voice setting.
+- [x] Translate completed Japanese assistant responses through the currently
+  selected AI provider without delaying TTS playback.
+- [x] Display English as a visually separate, non-canonical subtitle.
+- [x] Preserve the original Japanese response for chat persistence, memory,
+  context assembly, and speech.
+- [x] Cancel or discard late subtitle work when the setting is disabled, chat
+  is cleared, a new chat starts, the provider changes, or the app exits.
+- [x] Fall back to the original Japanese response when translation fails or
+  returns unusable text.
+- [x] Avoid logging the source response or provider error details.
+- [ ] Persist successful subtitles across application restarts.
+- [ ] Define and implement translated transcript export behavior.
+
 ### Phase 7B Done Criteria
 
 - [x] Spoken text uses the style layer before TTS while displayed chat remains
@@ -399,6 +415,10 @@ Avoid:
 - [ ] Enable silence endpointing and confirm a pause stops the recording.
 - [ ] Enable final-transcript auto-send and confirm interim text is never sent.
 - [ ] Generate a mock-provider response and hear it through VOICEVOX.
+- [ ] Enable English subtitles with a non-mock AI provider and confirm a
+  separate English line appears without delaying Japanese speech.
+- [ ] Stop or fail a translation request and confirm the Japanese response
+  remains intact.
 - [ ] Stop playback and start another response.
 - [ ] Disable automatic speech and confirm chat still works.
 - [ ] Stop VOICEVOX and confirm the app reports the failure without crashing.

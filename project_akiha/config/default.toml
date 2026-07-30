@@ -51,6 +51,7 @@ output_voice_id = "0"
 output_device = ""
 automatic_speech_enabled = false
 proactive_speech_enabled = false
+english_subtitles_enabled = false
 live_transcription_enabled = false
 auto_stop_on_silence_enabled = false
 auto_send_transcript_enabled = false
