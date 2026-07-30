@@ -1,3 +1,11 @@
+<p align="center">
+  <img
+    src="assets/animations/akiha/Akiha.gif"
+    alt="Animated pixel-art Akiha sitting at a table"
+    width="256"
+  />
+</p>
+
 # Project Akiha
 
 Project Akiha is a Windows-first desktop companion: a small animated character
