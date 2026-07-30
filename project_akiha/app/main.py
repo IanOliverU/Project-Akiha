@@ -97,6 +97,10 @@ from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.speech_identity import (
+    AkihaSpeechStyleService,
+    build_akiha_identity_system_prompt,
+)
 from project_akiha.services.speech_input import SpeechInputService
 from project_akiha.services.speech_output import SpeechOutputService
 from project_akiha.services.transcript_export import (
@@ -209,7 +213,9 @@ def _run_application() -> int:
     )
     chat_controller = ChatController(
         ai_provider,
-        system_prompt=config.personality.rendered_system_prompt(),
+        system_prompt=build_akiha_identity_system_prompt(
+            config.personality.rendered_system_prompt()
+        ),
         conversation_repository=conversation_repository,
         conversation_id=current_conversation.id,
         initial_messages=_stored_messages_to_chat_messages(recent_messages),
@@ -313,6 +319,8 @@ def _run_application() -> int:
         event_bus=event_bus,
         voice_controller=voice_controller,
         config=config.voice,
+        style_service=AkihaSpeechStyleService(),
+        mood_provider=lambda: mood_controller.snapshot.mood,
     )
     voice_diagnostics_controller = VoiceDiagnosticsController(
         event_bus=event_bus,
@@ -358,7 +366,9 @@ def _run_application() -> int:
             _build_memory_extractor(ai_provider, updated_config.ai)
         )
         chat_controller.set_system_prompt(
-            updated_config.personality.rendered_system_prompt()
+            build_akiha_identity_system_prompt(
+                updated_config.personality.rendered_system_prompt()
+            )
         )
         chat_controller.set_memory_enabled(updated_config.memory.enabled)
         chat_controller.set_memory_retrieval_limit(

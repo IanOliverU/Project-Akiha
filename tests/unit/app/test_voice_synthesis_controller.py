@@ -48,7 +48,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
 
     def test_replay_resynthesizes_last_text_after_voice_returns_idle(self) -> None:
         bus, voice, _, threads, _, _ = _build()
-        _request_speech(bus, "Remember this line.")
+        _request_speech(bus, "Remember this line.", rate_multiplier=0.94)
         threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
         threads[0].finished.emit()
         bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
@@ -58,6 +58,28 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         self.assertEqual(voice.state, VoiceState.THINKING)
         self.assertEqual(len(threads), 2)
         self.assertEqual(threads[1].text, "Remember this line.")
+        self.assertAlmostEqual(threads[1].speaking_rate, 1.128)
+
+    def test_identity_rate_multiplier_adjusts_configured_speaking_rate(self) -> None:
+        bus, _, _, threads, _, _ = _build()
+
+        _request_speech(bus, rate_multiplier=0.94)
+
+        self.assertAlmostEqual(threads[0].speaking_rate, 1.128)
+
+    def test_invalid_identity_rate_multiplier_uses_configured_rate(self) -> None:
+        for invalid_value in (True, "0.94", 2.0):
+            with self.subTest(value=invalid_value):
+                bus, _, _, threads, _, _ = _build()
+                bus.publish(
+                    EventType.VOICE_SPEAK_REQUESTED,
+                    {
+                        "text": "Good morning.",
+                        "speaking_rate_multiplier": invalid_value,
+                    },
+                )
+
+                self.assertEqual(threads[0].speaking_rate, 1.2)
 
     def test_clear_replay_forgets_text_and_publishes_unavailable(self) -> None:
         bus, _, controller, threads, _, _ = _build()
@@ -272,8 +294,16 @@ def _build(
     return bus, voice, controller, threads, audio, errors
 
 
-def _request_speech(bus: EventBus, text: str = "Good morning.") -> None:
-    bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": text})
+def _request_speech(
+    bus: EventBus,
+    text: str = "Good morning.",
+    *,
+    rate_multiplier: float | None = None,
+) -> None:
+    payload: dict[str, object] = {"text": text}
+    if rate_multiplier is not None:
+        payload["speaking_rate_multiplier"] = rate_multiplier
+    bus.publish(EventType.VOICE_SPEAK_REQUESTED, payload)
 
 
 if __name__ == "__main__":

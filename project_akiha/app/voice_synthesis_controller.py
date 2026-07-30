@@ -53,6 +53,7 @@ class VoiceSynthesisController:
         self._active_threads: list[_SynthesisThread] = []
         self._cancelled_threads: list[_SynthesisThread] = []
         self._last_spoken_text: str | None = None
+        self._last_spoken_rate_multiplier = 1.0
 
         event_bus.subscribe(
             EventType.VOICE_SPEAK_REQUESTED,
@@ -82,6 +83,7 @@ class VoiceSynthesisController:
         if self._last_spoken_text is None:
             return
         self._last_spoken_text = None
+        self._last_spoken_rate_multiplier = 1.0
         self._publish_replay_availability()
 
     def cancel(self, wait_ms: int = 2000) -> None:
@@ -115,18 +117,24 @@ class VoiceSynthesisController:
 
         config = self._voice_controller.config
         spoken_text = text.strip()
+        rate_multiplier = _speaking_rate_multiplier(event.payload)
         thread = self._thread_factory(
             self._service,
             spoken_text,
             config.output_voice_id,
             "ja-JP",
-            config.speaking_rate,
+            min(2.0, max(0.5, config.speaking_rate * rate_multiplier)),
         )
-        thread.audio_ready.connect(
-            lambda audio, worker=thread, replay_text=spoken_text: (
-                self._handle_audio_ready(worker, audio, replay_text)
+
+        def handle_audio_ready(audio: object) -> None:
+            self._handle_audio_ready(
+                thread,
+                audio,
+                spoken_text,
+                rate_multiplier,
             )
-        )
+
+        thread.audio_ready.connect(handle_audio_ready)
         thread.synthesis_failed.connect(
             lambda code, message, worker=thread: self._handle_failure(
                 worker,
@@ -161,7 +169,11 @@ class VoiceSynthesisController:
             return
         self._event_bus.publish(
             EventType.VOICE_SPEAK_REQUESTED,
-            {"text": self._last_spoken_text, "source": "replay"},
+            {
+                "text": self._last_spoken_text,
+                "source": "replay",
+                "speaking_rate_multiplier": self._last_spoken_rate_multiplier,
+            },
         )
 
     def _handle_audio_ready(
@@ -169,6 +181,7 @@ class VoiceSynthesisController:
         thread: _SynthesisThread,
         audio: object,
         spoken_text: str,
+        rate_multiplier: float,
     ) -> None:
         if thread not in self._active_threads or thread in self._cancelled_threads:
             return
@@ -197,7 +210,7 @@ class VoiceSynthesisController:
                 f"Speech playback failed: {error}",
             )
             return
-        self._remember_spoken_text(spoken_text)
+        self._remember_spoken_text(spoken_text, rate_multiplier)
 
     def _handle_failure(
         self,
@@ -224,8 +237,9 @@ class VoiceSynthesisController:
         if thread in self._cancelled_threads:
             self._cancelled_threads.remove(thread)
 
-    def _remember_spoken_text(self, text: str) -> None:
+    def _remember_spoken_text(self, text: str, rate_multiplier: float) -> None:
         self._last_spoken_text = text
+        self._last_spoken_rate_multiplier = rate_multiplier
         self._publish_replay_availability()
 
     def _publish_replay_availability(self) -> None:
@@ -233,3 +247,14 @@ class VoiceSynthesisController:
             EventType.VOICE_REPLAY_AVAILABILITY_CHANGED,
             {"available": self.has_replay},
         )
+
+
+def _speaking_rate_multiplier(payload: dict[str, object]) -> float:
+    value = payload.get("speaking_rate_multiplier", 1.0)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not 0.5 <= value <= 1.5
+    ):
+        return 1.0
+    return float(value)

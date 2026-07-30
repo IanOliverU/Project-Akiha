@@ -286,15 +286,19 @@ Foundation note, 2026-07-29:
 
 - [x] Source app starts normally with no voice backend installed.
 - [ ] Voice can be enabled and disabled without restarting the app.
-- [ ] Push-to-talk captures a short phrase and places the transcript in chat.
-- [ ] A temporary Japanese TTS phrase can be synthesized and played when
+- [x] Push-to-talk captures a short phrase and places the transcript in chat.
+- [x] A temporary Japanese TTS phrase can be synthesized and played when
   VOICEVOX is available.
-- [ ] Missing backend and audio-device failures are visible but do not crash the
+- [x] Missing backend and audio-device failures are visible but do not crash the
   app.
-- [ ] Listening, thinking, and speaking states appear and return to the prior
+- [x] Listening, thinking, and speaking states appear and return to the prior
   companion state.
-- [ ] Stop-speaking and app Quit end audio work without hanging.
+- [x] Stop-speaking and app Quit end audio work without hanging.
 - [x] Unit tests, Ruff, Black, and source smoke pass.
+
+Phase 7A manual checkpoint completed on 2026-07-30. Provider setup,
+microphone recognition, Japanese voice output, mood cues, presence changes,
+and companion-state restoration were confirmed in the running application.
 
 Phase 7A is done only when the voice system works technically and passes this
 checkpoint. The output may still sound generic at this point.
@@ -303,13 +307,13 @@ checkpoint. The output may still sound generic at this point.
 
 ### Identity Profile
 
-- [ ] Create a small runtime speech identity profile derived from
+- [x] Create a small runtime speech identity profile derived from
   `docs/AKIHA.MD`.
-- [ ] Keep identity rules independent from STT and TTS providers.
-- [ ] Define rules for normal conversation, concern, reminders, errors, and
+- [x] Keep identity rules independent from STT and TTS providers.
+- [x] Define rules for normal conversation, concern, reminders, errors, and
   proactive check-ins.
-- [ ] Add a compact set of original sample phrases for manual testing.
-- [ ] Do not copy official dialogue or train against game voice clips in this
+- [x] Add a compact set of original sample phrases for manual testing.
+- [x] Do not copy official dialogue or train against game voice clips in this
   phase.
 
 Minimum spoken character direction:
@@ -333,22 +337,22 @@ Avoid:
 
 ### Style Layer
 
-- [ ] Add a lightweight speech style service after provider response generation
+- [x] Add a lightweight speech style service after provider response generation
   and before TTS synthesis.
-- [ ] Preserve the original assistant message for chat display and persistence.
-- [ ] Produce a separate spoken-text value when speech-specific adjustment is
+- [x] Preserve the original assistant message for chat display and persistence.
+- [x] Produce a separate spoken-text value when speech-specific adjustment is
   needed.
-- [ ] Keep factual meaning, names, numbers, and safety-critical content intact.
-- [ ] Avoid repeatedly transforming already styled text.
-- [ ] Fall back to the raw assistant response when styling fails, returns empty
+- [x] Keep factual meaning, names, numbers, and safety-critical content intact.
+- [x] Avoid repeatedly transforming already styled text.
+- [x] Fall back to the raw assistant response when styling fails, returns empty
   text, or produces malformed output.
-- [ ] Log style fallback without exposing unnecessary conversation content.
+- [x] Log style fallback without exposing unnecessary conversation content.
 
 ### Mood And Delivery
 
-- [ ] Let the current mood influence restraint, concern, and speaking pace where
+- [x] Let the current mood influence restraint, concern, and speaking pace where
   the selected TTS provider supports it.
-- [ ] Add original spoken lines for idle check-ins, self-care reminders,
+- [x] Add original spoken lines for idle check-ins, self-care reminders,
   settings tests, and recoverable errors.
 - [ ] Keep proactive speech behind the existing notification policy and
   cooldowns.
@@ -356,22 +360,22 @@ Avoid:
 
 ### Verification
 
-- [ ] Test style rules for representative assistant responses.
-- [ ] Test that displayed and stored chat text remains unchanged.
-- [ ] Test raw-text fallback for exceptions, empty output, and malformed output.
-- [ ] Test that style processing cannot block TTS playback indefinitely.
+- [x] Test style rules for representative assistant responses.
+- [x] Test that displayed and stored chat text remains unchanged.
+- [x] Test raw-text fallback for exceptions, empty output, and malformed output.
+- [x] Test that style processing cannot block TTS playback indefinitely.
 - [ ] Complete a manual listening pass across normal, concerned, strict,
   proactive, and error scenarios.
 
 ### Phase 7B Done Criteria
 
-- [ ] Spoken text uses the style layer before TTS while displayed chat remains
+- [x] Spoken text uses the style layer before TTS while displayed chat remains
   unchanged.
 - [ ] The temporary voice consistently uses the minimum Akiha character
   direction.
-- [ ] Style failures fall back to safe raw text and do not cause silent
+- [x] Style failures fall back to safe raw text and do not cause silent
   responses.
-- [ ] Provider replacement does not require changes to identity rules.
+- [x] Provider replacement does not require changes to identity rules.
 - [ ] Manual listening confirms the result feels at least directionally
   Akiha-like.
 - [ ] Unit tests, Ruff, Black, source smoke, and the Phase 7 manual smoke pass.
