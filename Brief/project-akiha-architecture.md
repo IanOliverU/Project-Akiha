@@ -1,5 +1,8 @@
 # Project Akiha — Architecture Analysis & Recommendations
 
+> Historical project brief and design input. For current implementation status,
+> use `README.md` and the phase documents in `docs/`.
+
 *Working title: Project Akiha (Melty Blood) — AI Desktop Pet / Waifu Companion / Local Assistant, Windows-first*
 
 ---

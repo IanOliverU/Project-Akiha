@@ -1,12 +1,13 @@
 # Build And Release Workflow
 
-This document captures the Phase 6 build workflow for Project Akiha.
+This document captures the release workflow established in Phase 6 and updated
+for the Phase 7 voice-enabled standalone package.
 
 ## Supported Python
 
 Project Akiha declares Python `>=3.12` in `pyproject.toml`.
 
-The current Phase 6 source validation environment is:
+The recorded source validation environment is:
 
 - Python 3.14.6 on Windows 11
 - PySide6 6.11.1
@@ -14,7 +15,7 @@ The current Phase 6 source validation environment is:
 - Black 26.5.1
 - Nuitka 4.1.3 with Zig 0.16.0
 
-The current Phase 6 release-candidate packaging environment is:
+The current release-candidate packaging environment is:
 
 - Python 3.13.14 on Windows 11
 - PySide6 6.11.1
@@ -66,6 +67,12 @@ Adds everything needed by the packaging script:
 - Black
 - Nuitka
 
+The current voice-enabled release package also needs the local STT dependency:
+
+```powershell
+pip install -e ".[package,voice]"
+```
+
 ## Source Run
 
 ```powershell
@@ -80,7 +87,7 @@ akiha
 
 ## Quality Gate
 
-Run this before packaging and before treating a Phase 6 task as verified:
+Run this before packaging and before treating a release task as verified:
 
 ```powershell
 .\scripts\build_akiha_nuitka.ps1 -SkipBuild
@@ -102,7 +109,7 @@ Run this before the final manual packaged smoke pass:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
@@ -134,12 +141,13 @@ and then force-stop the process.
 
 ## Standalone Package Build
 
-The first Phase 6 release artifact is a standalone folder. See
+Phase 6 established the standalone-folder artifact. The current Phase 7
+candidate adds packaged voice support while retaining that format. See
 `docs/DISTRIBUTION_DECISION.md` for the standalone-vs-installer decision.
 
 ```powershell
-pip install -e .[package]
-.\scripts\build_akiha_nuitka.ps1
+pip install -e ".[package,voice]"
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
 ```
 
 Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
@@ -153,13 +161,13 @@ Nuitka standalone output:
 Only use `-AllowExperimentalPython` when investigating packaging behavior, not
 when preparing a release candidate.
 
-The local Phase 6 release-candidate environment was created with:
+Create the current release-candidate environment with:
 
 ```powershell
 py -3.13 -m venv .venv313
-.\.venv313\Scripts\python.exe -m pip install -e .[package]
+.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
 ```
 
 The build clears Nuitka's compilation caches, then uses standalone mode,
@@ -195,7 +203,7 @@ After a standalone build, run:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 

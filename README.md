@@ -201,7 +201,7 @@ Prepare Akiha for longer-term use and eventual distribution.
 - Dependency, privacy, and local-data review.
 - Security checklist for future assistant capabilities.
 - Final documentation pass and release notes.
-- Python 3.13 standalone package smoke-tested from `dist\nuitka-phase6-py313`.
+- Python 3.13 standalone packaging and smoke workflow established.
 - Pet-menu fallback controls for Behavior History and Quit.
 
 Details: `docs/PHASE6_PACKAGING_RELEASE.md`
@@ -323,16 +323,16 @@ release-candidate standalone builds:
 
 ```powershell
 py -3.13 -m venv .venv313
-.\.venv313\Scripts\python.exe -m pip install -e .[package]
+.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase6-py313
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
 ```
 
 Automated release readiness for the current standalone package:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-phase6-py313\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 

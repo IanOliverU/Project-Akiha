@@ -1,5 +1,9 @@
 # SECURITY.md — Project Akiha
 
+> Historical security input. The maintained implementation review is
+> `docs/SECURITY_REVIEW.md`; privacy behavior is documented in
+> `docs/LOCAL_DATA_PRIVACY.md`.
+
 Two separate concerns: (A) the app must not become an actual attack vector, (B) the packaged binary must not get falsely flagged as malware on Windows. Both matter starting now, even while this is personal-only — habits formed early are what hold once it's public.
 
 ## (A) Runtime security rules

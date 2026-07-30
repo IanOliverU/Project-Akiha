@@ -1,5 +1,9 @@
 # ARCHITECTURE.md — Project Akiha
 
+> Historical architecture input. For the current implementation and phase
+> status, use `README.md`, `docs/PHASE7_VOICE_LAYER.md`, and
+> `docs/PHASE8_PET_SIM_LAYER.md`.
+
 Quick-reference architecture doc. For full rationale and the original analysis, see the project's architecture brief; this file is the condensed version meant to be re-read at the start of any session that touches structure.
 
 ## Layers

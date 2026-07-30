@@ -1,5 +1,8 @@
 # CLAUDE.md — Project Akiha
 
+> Historical architecture rules with a current milestone marker. For shipped
+> behavior and operational guidance, use `README.md` and `docs/`.
+
 This file is read by the AI assistant at the start of every session working on this repo. Its job is to keep architectural discipline consistent across many separate sessions, months apart, possibly with context that doesn't carry over. Follow it even when a shortcut looks easier — the shortcuts are exactly what this file exists to prevent.
 
 ## What this project is
@@ -20,7 +23,7 @@ These are expensive to fix later if violated early. Never break them to "move fa
 
 *(Update this section as the project progresses — it's the most important line in this file for keeping the AI's suggestions scoped correctly.)*
 
-- Current milestone: **Phase 3 — Memory layer** (Phase 2 chat companion foundation is complete)
+- Current milestone: **Phase 8 — Pet Sim layer** (Phases 1 through 7 are complete)
 - Do not build ahead of the current phase unless explicitly asked. If asked to add a feature from a later phase, flag that it's out of current sequence before proceeding.
 
 ## Coding conventions

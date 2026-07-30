@@ -21,23 +21,32 @@ smoke testing. Python 3.14 packaging is currently diagnostic-only because Phase
 Build the standalone package:
 
 ```powershell
-pip install -e .[package]
-.\scripts\build_akiha_nuitka.ps1
+pip install -e ".[package,voice]"
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
 ```
 
 Run the automated packaged smoke:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
 Then launch the packaged app manually:
 
 ```text
-dist\nuitka-phase6-py313\main.dist\Akiha.exe
+dist\nuitka-phase7-final-voice\main.dist\Akiha.exe
 ```
+
+## First-Run Privacy
+
+- [ ] With fresh local config, the versioned privacy notice appears.
+- [ ] The notice accurately describes push-to-talk capture, local providers,
+  optional hosted processing, and encrypted hosted credentials.
+- [ ] Clicking **I understand** continues startup normally.
+- [ ] After quitting and relaunching, the acknowledged notice does not appear
+  again.
 
 ## Visual Startup
 
@@ -80,6 +89,20 @@ manual check is still kept as a human visual confirmation.
 - [ ] Clear chat clears the current transcript after confirmation.
 - [ ] Export writes a readable transcript to a selected file.
 
+## Voice
+
+- [ ] **Check setup** reports the configured STT and TTS providers accurately.
+- [ ] **Test microphone** captures and transcribes speech.
+- [ ] Live transcription appears while speaking.
+- [ ] A final transcript auto-sends when that option is enabled.
+- [ ] **Test voice** synthesizes and plays the Japanese test phrase.
+- [ ] Automatic reply speech works when enabled.
+- [ ] Stop voice interrupts playback without crashing.
+- [ ] Listening, thinking, speaking, muted, and error states remain coherent.
+- [ ] A configured standalone VOICEVOX Engine starts in the background.
+- [ ] Quitting Akiha stops only a VOICEVOX process that Akiha started.
+- [ ] An externally started VOICEVOX process remains running after Akiha quits.
+
 ## Memory Manager
 
 - [ ] Memory Manager opens from Settings.
@@ -89,6 +112,10 @@ manual check is still kept as a human visual confirmation.
 - [ ] Refresh does not crash.
 - [ ] Edit/archive/restore/delete/clear actions still match
   `docs/LOCAL_DATA_PRIVACY.md`.
+- [ ] With mock AI and memory approval enabled, sending
+  `私の名前はテストユーザーです。` creates the pending memory
+  `ユーザーの名前はテストユーザーです`.
+- [ ] The Japanese test memory can be rejected cleanly after verification.
 
 ## Behavior History
 

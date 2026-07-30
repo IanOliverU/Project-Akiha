@@ -1,7 +1,8 @@
 # Distribution Decision
 
-Phase 6 ships the first packaged build as a standalone folder, not as an
-installer.
+Phase 6 established the first packaged build as a standalone folder rather
+than an installer. Phase 7 retains that decision for the voice-enabled
+candidate.
 
 ## Decision
 
@@ -11,10 +12,10 @@ Use the Nuitka standalone output as the first release artifact:
 dist\nuitka\main.dist\
 ```
 
-The current Phase 6 candidate package is:
+The current Phase 7 candidate package is:
 
 ```text
-dist\nuitka-phase6-py313\main.dist\
+dist\nuitka-phase7-final-voice\main.dist\
 ```
 
 The user launches:
@@ -22,6 +23,10 @@ The user launches:
 ```text
 Akiha.exe
 ```
+
+The entire `main.dist` folder is the distributable artifact. `Akiha.exe`
+depends on the adjacent packaged libraries and assets and should not be moved
+or distributed by itself.
 
 Installer work is postponed until after the standalone build has had daily-use
 feedback.
