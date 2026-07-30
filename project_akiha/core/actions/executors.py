@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
@@ -17,7 +18,10 @@ from project_akiha.core.actions.models import (
     FileSearchMatch,
     ValidatedAction,
 )
-from project_akiha.core.actions.registry import FILE_SEARCH_ACTION
+from project_akiha.core.actions.registry import (
+    FILE_SEARCH_ACTION,
+    OPEN_DIRECTORY_ACTION,
+)
 
 _WINDOWS_REPARSE_POINT = 0x400
 
@@ -168,6 +172,62 @@ class FileSearchExecutor:
         return _success_result(matches, skipped_entries, limited=False)
 
 
+class OpenDirectoryExecutor:
+    """Open one approved directory through the normal desktop file browser."""
+
+    executor_id = "open_directory"
+    action_id = OPEN_DIRECTORY_ACTION
+
+    def __init__(self, opener: Callable[[Path], None] | None = None) -> None:
+        self._opener = opener or _open_directory_with_system
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        """Open a validated directory without accepting shell arguments."""
+        if action.definition.action_id != self.action_id:
+            raise ValueError("directory opener received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return ActionExecutionResult(
+                status=ActionStatus.CANCELLED,
+                summary="Directory opening was cancelled.",
+            )
+
+        directory = Path(action.normalized_target)
+        if _is_path_link_or_reparse_point(directory) or not directory.is_dir():
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary="The approved directory is unavailable.",
+                failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+            )
+
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._opener, directory),
+                timeout=action.definition.timeout_seconds,
+            )
+        except TimeoutError:
+            return ActionExecutionResult(
+                status=ActionStatus.TIMED_OUT,
+                summary="Opening the directory reached its time limit.",
+            )
+        except OSError:
+            return ActionExecutionResult(
+                status=ActionStatus.FAILED,
+                summary="The directory could not be opened.",
+                failure_category=ActionFailureCategory.EXECUTION_FAILED,
+            )
+
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary="The approved directory was opened.",
+            metadata={"opened_directory": str(directory)},
+        )
+
+
 def _is_link_or_reparse_point(entry: os.DirEntry[str]) -> bool:
     try:
         details = entry.stat(follow_symlinks=False)
@@ -184,6 +244,14 @@ def _is_path_link_or_reparse_point(path: Path) -> bool:
         return True
     attributes = getattr(details, "st_file_attributes", 0)
     return path.is_symlink() or bool(attributes & _WINDOWS_REPARSE_POINT)
+
+
+def _open_directory_with_system(path: Path) -> None:
+    """Ask Windows Explorer to open a validated directory, without a shell command."""
+    startfile = getattr(os, "startfile", None)
+    if startfile is None:
+        raise OSError("the system directory opener is unavailable")
+    startfile(str(path))
 
 
 def _interruption_result(

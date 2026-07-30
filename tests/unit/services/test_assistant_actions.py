@@ -15,6 +15,7 @@ from project_akiha.core.actions import (
     ActionRequestValidator,
     ActionStatus,
     FileSearchExecutor,
+    OpenDirectoryExecutor,
     PermissionDecision,
     ProtectedPathPolicy,
     build_default_action_registry,
@@ -47,8 +48,12 @@ class AssistantActionServiceTest(unittest.TestCase):
             ActionPermissionPolicy(self.path_policy),
             self.repository,
             self.repository,
-            executors=(FileSearchExecutor(max_depth=2, max_results=10),),
+            executors=(
+                FileSearchExecutor(max_depth=2, max_results=10),
+                OpenDirectoryExecutor(self._open_directory),
+            ),
         )
+        self.opened_directories: list[Path] = []
 
     def test_plain_provider_text_has_no_action_entry_point(self) -> None:
         with self.assertRaises(TypeError):
@@ -196,6 +201,62 @@ class AssistantActionServiceTest(unittest.TestCase):
         self.assertEqual(result.status, ActionStatus.CANCELLED)
         self.assertNotIn("matches", result.metadata)
 
+    def test_approved_directory_open_uses_injected_desktop_opener(self) -> None:
+        asyncio.run(
+            self.permissions.approve_directory(
+                self.approved_root,
+                allow_search=False,
+                allow_open=True,
+            )
+        )
+
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.open_directory",
+                    {"path": str(self.approved_root)},
+                )
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(self.opened_directories, [self.approved_root.resolve()])
+        self.assertEqual(
+            result.metadata["opened_directory"],
+            str(self.approved_root.resolve()),
+        )
+
+    def test_directory_open_does_not_call_opener_without_permission(self) -> None:
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.open_directory",
+                    {"path": str(self.approved_root)},
+                )
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.DENIED)
+        self.assertEqual(self.opened_directories, [])
+
+    def test_directory_open_cancellation_does_not_call_opener(self) -> None:
+        asyncio.run(self.permissions.grant_directory("files.open", self.approved_root))
+        token = ActionCancellationToken()
+        token.cancel()
+
+        result = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.open_directory",
+                    {"path": str(self.approved_root)},
+                ),
+                cancellation_token=token,
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.CANCELLED)
+        self.assertEqual(self.opened_directories, [])
+
     def test_deleted_approved_root_fails_without_broadening_access(self) -> None:
         asyncio.run(
             self.permissions.grant_directory("files.search", self.approved_root)
@@ -241,6 +302,9 @@ class AssistantActionServiceTest(unittest.TestCase):
             result.permission_decision,
             PermissionDecision.NOT_EVALUATED,
         )
+
+    def _open_directory(self, path: Path) -> None:
+        self.opened_directories.append(path.resolve())
 
     @staticmethod
     def _request(

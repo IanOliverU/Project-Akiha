@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - Phase 8B approved-directory management and bounded file search complete
+**Status:** In progress - Phase 8B search, presentation, and approved-directory opening complete
 
 ## Phase Goal
 
@@ -278,15 +278,16 @@ No file content is sent to a hosted AI provider as part of Phase 8.
 - [x] Add tests proving provider text cannot execute an action.
 
 Checkpoint: requests can be validated, denied, confirmed, and audited without
-any real desktop executor enabled. Completed with no executor dependency in
-`AssistantActionService`.
+any real desktop executor enabled. The service now accepts explicitly supplied,
+capability-specific executors while remaining unavailable by default.
 
 ### Phase 8B: Read-Only File Discovery
 
 - [x] Add approved-directory management.
 - [x] Implement bounded, cancellable file search.
 - [x] Add search-result presentation and audit history.
-- [ ] Add open-directory support for approved roots.
+- [x] Add open-directory support for approved roots.
+- [ ] Connect direct chat or UI requests to the typed action service.
 - [ ] Add safe-file opening with per-action confirmation and blocked-type
   policy.
 
@@ -328,6 +329,21 @@ Search-result and audit presentation now:
   duration, and failure category
 - never renders file contents, credentials, or unrestricted exception text
 
+Approved-directory opening now:
+
+- uses the registered `files.open_directory` action and `files.open` capability
+- opens only an existing directory inside an active approved root
+- uses Windows' normal directory opener without shell commands, arguments, or
+  AI-controlled executable paths
+- skips links and reparse-point targets and reports unavailable or failed opens
+  through the existing sanitized result and audit path
+- supports cancellation before the desktop opener is called
+
+The conversational trigger remains separate from the executor. Plain provider
+text cannot open a directory; a future chat/UI bridge must first create a typed
+`ActionRequest` and pass it through the same validation, permission, and audit
+pipeline.
+
 ### Phase 8C: Allowlisted Applications
 
 - Add the trusted application catalog.
@@ -357,6 +373,7 @@ execution or AI-controlled arguments.
 - [x] Traversal, junction, reparse-point, device-path, and protected-path
   escapes are denied.
 - [x] Search limits, cancellation, and timeout behavior are enforced.
+- [x] Approved-directory opening remains scoped, argument-free, and audited.
 - [ ] Only allowlisted passive file types can be opened through file actions.
 - [x] An unregistered application or AI-provided executable path is denied.
 - [x] Application arguments and elevation requests are denied.
@@ -377,8 +394,8 @@ execution or AI-controlled arguments.
 - Added SQLite permission and audit persistence through migration `0008`.
 - Added fail-closed request evaluation that stops at `executor_unavailable`
   after validation and authorization.
-- No file, application, shell, subprocess, or operating-system executor exists
-  in Phase 8A.
+- No executor was enabled at the Phase 8A checkpoint; Phase 8B now adds only
+  explicitly supplied file-search and approved-directory executors.
 - Full verification passed with 643 tests; one environment-dependent live
   symlink test was skipped while deterministic reparse rejection passed.
 

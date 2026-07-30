@@ -5,6 +5,7 @@ from project_akiha.core.actions.executors import (
     ActionCancellationToken,
     AssistantActionExecutor,
     FileSearchExecutor,
+    OpenDirectoryExecutor,
 )
 from project_akiha.core.actions.models import (
     ActionAuditEntry,
@@ -71,6 +72,7 @@ __all__ = [
     "FileSearchMatch",
     "LAUNCH_APPLICATION_ACTION",
     "OPEN_DIRECTORY_ACTION",
+    "OpenDirectoryExecutor",
     "OPEN_FILE_ACTION",
     "ParameterKind",
     "PermissionDecision",
