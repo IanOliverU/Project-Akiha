@@ -440,6 +440,11 @@ Phase 8D now:
 - [x] Keep Akiha's approved roots, search results, paths, metadata, and file
   contents out of provider prompts.
 - [x] Resolve media titles through the bounded local file-search executor.
+- [x] Filter to passive media during enumeration so unrelated files cannot
+  consume the bounded result budget.
+- [x] Use bounded fallback terms and local fuzzy/phonetic matching to tolerate
+  common speech variants such as `Alice`/`Elis` and
+  `Megorin`/`Megurine`.
 - [x] Present multiple matches as local numbered results.
 - [x] Preserve existing permission checks, audit records, and file-open
   confirmation.

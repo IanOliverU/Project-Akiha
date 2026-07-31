@@ -21,7 +21,11 @@ from project_akiha.core.actions.models import (
     FileSearchMatch,
     ValidatedAction,
 )
-from project_akiha.core.actions.passive_files import PassiveFilePolicy
+from project_akiha.core.actions.passive_files import (
+    PASSIVE_AUDIO_EXTENSIONS,
+    PASSIVE_VIDEO_EXTENSIONS,
+    PassiveFilePolicy,
+)
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
     LAUNCH_APPLICATION_ACTION,
@@ -30,6 +34,7 @@ from project_akiha.core.actions.registry import (
 )
 
 _WINDOWS_REPARSE_POINT = 0x400
+_PASSIVE_MEDIA_EXTENSIONS = PASSIVE_AUDIO_EXTENSIONS | PASSIVE_VIDEO_EXTENSIONS
 
 
 class ActionCancellationToken:
@@ -90,6 +95,7 @@ class FileSearchExecutor:
             self._search,
             root=Path(action.normalized_target),
             query=str(action.parameters["query"]),
+            media_only=bool(action.parameters.get("media_only", False)),
             timeout_seconds=action.definition.timeout_seconds,
             action_max_results=action.definition.max_results,
             cancellation_token=cancellation_token,
@@ -100,6 +106,7 @@ class FileSearchExecutor:
         *,
         root: Path,
         query: str,
+        media_only: bool,
         timeout_seconds: int,
         action_max_results: int | None,
         cancellation_token: ActionCancellationToken,
@@ -148,6 +155,12 @@ class FileSearchExecutor:
                                     )
                                 continue
                             if not entry.is_file(follow_symlinks=False):
+                                continue
+                            if (
+                                media_only
+                                and Path(entry.name).suffix.casefold()
+                                not in _PASSIVE_MEDIA_EXTENSIONS
+                            ):
                                 continue
                             if normalized_query not in entry.name.casefold():
                                 continue

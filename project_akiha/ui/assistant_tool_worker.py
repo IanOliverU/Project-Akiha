@@ -18,6 +18,7 @@ from project_akiha.services.assistant_action_bridge import AssistantActionBridge
 from project_akiha.services.assistant_tool_gateway import (
     AssistantToolProposal,
     LLMAssistantToolGateway,
+    build_media_search_queries,
     filter_media_matches,
 )
 
@@ -114,34 +115,42 @@ class AssistantMediaSearchThread(QThread):
 
     async def _search(self) -> MediaSearchOutcome:
         collected: list[FileSearchMatch] = []
-        searched_roots = 0
-        for root in self._roots:
-            if self._is_cancelled():
-                break
-            request = ActionRequest(
-                correlation_id=f"llm-media-{uuid4().hex}",
-                action_id=FILE_SEARCH_ACTION,
-                source="llm_proposal",
-                parameters={
-                    "query": self._proposal.title,
-                    "root": root,
-                },
-            )
-            dispatch = await self._bridge.dispatch(
-                request,
-                cancellation_token=self._cancellation_token,
-            )
-            searched_roots += 1
-            matches = dispatch.result.metadata.get("matches")
-            if not isinstance(matches, tuple):
-                continue
-            collected.extend(
-                match for match in matches if isinstance(match, FileSearchMatch)
-            )
+        searched_roots: set[str] = set()
+        for query in build_media_search_queries(self._proposal):
+            for root in self._roots:
+                if self._is_cancelled():
+                    break
+                request = ActionRequest(
+                    correlation_id=f"llm-media-{uuid4().hex}",
+                    action_id=FILE_SEARCH_ACTION,
+                    source="llm_proposal",
+                    parameters={
+                        "query": query,
+                        "root": root,
+                        "media_only": True,
+                    },
+                )
+                dispatch = await self._bridge.dispatch(
+                    request,
+                    cancellation_token=self._cancellation_token,
+                )
+                searched_roots.add(root)
+                matches = dispatch.result.metadata.get("matches")
+                if not isinstance(matches, tuple):
+                    continue
+                collected.extend(
+                    match for match in matches if isinstance(match, FileSearchMatch)
+                )
+            filtered = filter_media_matches(tuple(collected), self._proposal)
+            if filtered or self._is_cancelled():
+                return MediaSearchOutcome(
+                    matches=filtered,
+                    searched_roots=len(searched_roots),
+                )
 
         return MediaSearchOutcome(
-            matches=filter_media_matches(tuple(collected), self._proposal),
-            searched_roots=searched_roots,
+            matches=(),
+            searched_roots=len(searched_roots),
         )
 
     def _is_cancelled(self) -> bool:

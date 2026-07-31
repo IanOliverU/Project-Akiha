@@ -52,6 +52,27 @@ class FileSearchExecutorTest(unittest.TestCase):
         self.assertEqual(matches[0].size_bytes, report.stat().st_size)
         self.assertNotIn("content", result.metadata)
 
+    def test_media_only_search_does_not_spend_limit_on_other_files(self) -> None:
+        for index in range(5):
+            (self.root / f"FileList-{index}.txt").write_text(
+                "irrelevant",
+                encoding="utf-8",
+            )
+        song = self.root / "Megurine Luka - Elis.mp3"
+        song.write_bytes(b"audio")
+
+        result = asyncio.run(
+            FileSearchExecutor(max_results=1).execute(
+                self._search_action("elis", media_only=True),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(
+            tuple(match.name for match in result.metadata["matches"]),
+            (song.name,),
+        )
+
     def test_enforces_recursion_depth_and_result_limit(self) -> None:
         (self.root / "report-one.txt").write_text("one", encoding="utf-8")
         first_level = self.root / "first"
@@ -125,13 +146,19 @@ class FileSearchExecutorTest(unittest.TestCase):
         self.assertEqual(result.metadata["matches"], ())
         self.assertGreaterEqual(result.metadata["skipped_entries"], 1)
 
-    def _search_action(self, query: str):
+    def _search_action(self, query: str, *, media_only: bool = False):
+        parameters: dict[str, object] = {
+            "root": str(self.root),
+            "query": query,
+        }
+        if media_only:
+            parameters["media_only"] = True
         return self.validator.validate(
             ActionRequest(
                 correlation_id="search-1",
                 action_id="files.search",
                 source="chat",
-                parameters={"root": str(self.root), "query": query},
+                parameters=parameters,
             )
         )
 

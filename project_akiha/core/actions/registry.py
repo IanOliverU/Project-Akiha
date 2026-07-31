@@ -76,6 +76,11 @@ def build_default_action_registry() -> ActionRegistry:
                         kind=ParameterKind.STRING,
                         max_length=256,
                     ),
+                    ActionParameterSpec(
+                        name="media_only",
+                        kind=ParameterKind.BOOLEAN,
+                        required=False,
+                    ),
                 ),
                 timeout_seconds=10,
                 max_results=100,

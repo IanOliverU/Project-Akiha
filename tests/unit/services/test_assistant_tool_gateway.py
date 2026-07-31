@@ -13,6 +13,7 @@ from project_akiha.services.assistant_tool_gateway import (
     AssistantToolResultStore,
     LLMAssistantToolGateway,
     MediaKind,
+    build_media_search_queries,
     filter_media_matches,
     parse_assistant_tool_proposal,
     should_request_tool_proposal,
@@ -102,6 +103,26 @@ class AssistantToolMediaTest(unittest.TestCase):
             tuple(match.name for match in filtered),
             ("Megurine Luka - Elis.mp3",),
         )
+
+    def test_tolerates_common_transcription_variants_locally(self) -> None:
+        proposal = AssistantToolProposal(
+            AssistantToolKind.PLAY_MEDIA,
+            title="Alice",
+            artist="Megorin Luka",
+            media_kind=MediaKind.AUDIO,
+        )
+
+        filtered = filter_media_matches(
+            (_match(r"C:\Desktop\Solitude\Megurine Luka - Elis.mp3"),),
+            proposal,
+        )
+
+        self.assertEqual(
+            tuple(match.name for match in filtered),
+            ("Megurine Luka - Elis.mp3",),
+        )
+        self.assertIn("luka", build_media_search_queries(proposal))
+        self.assertEqual(build_media_search_queries(proposal)[-1], ".")
 
     def test_result_store_resolves_only_explicit_valid_number(self) -> None:
         store = AssistantToolResultStore()

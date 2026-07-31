@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from enum import StrEnum
 from pathlib import Path
 from uuid import uuid4
@@ -221,8 +223,9 @@ def filter_media_matches(
     """Return deterministic media matches for one validated proposal."""
     if proposal.kind is not AssistantToolKind.PLAY_MEDIA:
         raise ValueError("media filtering requires a play_media proposal.")
-    required_tokens = _query_tokens(f"{proposal.title} {proposal.artist}")
-    if not required_tokens:
+    title_tokens = _query_tokens(proposal.title)
+    artist_tokens = _query_tokens(proposal.artist)
+    if not title_tokens:
         return ()
 
     allowed_extensions = {
@@ -236,8 +239,13 @@ def filter_media_matches(
         path = Path(match.path)
         if path.suffix.casefold() not in allowed_extensions:
             continue
-        name_tokens = set(_query_tokens(path.stem))
-        if not required_tokens.issubset(name_tokens):
+        name_tokens = _query_tokens(path.stem)
+        if not _tokens_are_represented(title_tokens, name_tokens):
+            continue
+        if artist_tokens and not _tokens_are_represented(
+            artist_tokens,
+            name_tokens,
+        ):
             continue
         normalized_path = str(path).casefold()
         if normalized_path in seen_paths:
@@ -255,6 +263,35 @@ def filter_media_matches(
             ),
         )
     )
+
+
+def build_media_search_queries(
+    proposal: AssistantToolProposal,
+) -> tuple[str, ...]:
+    """Build a bounded sequence of local lookup terms from one media intent."""
+    if proposal.kind is not AssistantToolKind.PLAY_MEDIA:
+        raise ValueError("media search queries require a play_media proposal.")
+
+    candidates = (
+        proposal.title,
+        proposal.artist,
+        *sorted(_query_tokens(proposal.artist)),
+        *sorted(_query_tokens(proposal.title)),
+    )
+    queries: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = candidate.strip()
+        key = normalized.casefold()
+        if not normalized or key in seen:
+            continue
+        seen.add(key)
+        queries.append(normalized)
+        if len(queries) >= 5:
+            break
+    if "." not in seen:
+        queries.append(".")
+    return tuple(queries)
 
 
 def should_request_tool_proposal(user_text: str) -> bool:
@@ -319,3 +356,59 @@ def _query_tokens(value: str) -> frozenset[str]:
         for token in (match.casefold() for match in _TOKEN_PATTERN.findall(value))
         if token not in _IGNORED_QUERY_TOKENS
     )
+
+
+def _tokens_are_represented(
+    required: frozenset[str],
+    candidates: frozenset[str],
+) -> bool:
+    return all(
+        any(_tokens_are_similar(token, candidate) for candidate in candidates)
+        for token in required
+    )
+
+
+def _tokens_are_similar(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if min(len(left), len(right)) >= 4:
+        if SequenceMatcher(None, left, right).ratio() >= 0.74:
+            return True
+    left_soundex = _soundex(left)
+    right_soundex = _soundex(right)
+    if not left_soundex or not right_soundex:
+        return False
+    if left_soundex == right_soundex:
+        return True
+    vowels = frozenset("aeiouy")
+    return (
+        left[0] in vowels
+        and right[0] in vowels
+        and left_soundex[1:] == right_soundex[1:]
+    )
+
+
+def _soundex(value: str) -> str:
+    ascii_value = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value).casefold()
+        if "a" <= character <= "z"
+    )
+    if not ascii_value:
+        return ""
+    groups = {
+        **dict.fromkeys("bfpv", "1"),
+        **dict.fromkeys("cgjkqsxz", "2"),
+        **dict.fromkeys("dt", "3"),
+        "l": "4",
+        **dict.fromkeys("mn", "5"),
+        "r": "6",
+    }
+    encoded: list[str] = []
+    previous = groups.get(ascii_value[0], "")
+    for character in ascii_value[1:]:
+        digit = groups.get(character, "")
+        if digit and digit != previous:
+            encoded.append(digit)
+        previous = digit
+    return (ascii_value[0].upper() + "".join(encoded) + "000")[:4]

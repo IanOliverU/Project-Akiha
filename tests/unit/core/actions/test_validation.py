@@ -35,13 +35,18 @@ class ActionRequestValidatorTest(unittest.TestCase):
     def test_validates_and_normalizes_file_search(self) -> None:
         request = self._request(
             "files.search",
-            {"root": f"  {self.safe_root}  ", "query": " report "},
+            {
+                "root": f"  {self.safe_root}  ",
+                "query": " report ",
+                "media_only": True,
+            },
         )
 
         result = self.validator.validate(request)
 
         self.assertEqual(result.normalized_target, str(self.safe_root.resolve()))
         self.assertEqual(result.parameters["query"], "report")
+        self.assertTrue(result.parameters["media_only"])
 
     def test_rejects_missing_and_unexpected_parameters(self) -> None:
         self._assert_invalid(
@@ -65,6 +70,17 @@ class ActionRequestValidatorTest(unittest.TestCase):
             self._request(
                 "files.search",
                 {"root": str(self.safe_root), "query": True},
+            ),
+            ActionFailureCategory.INVALID_PARAMETERS,
+        )
+        self._assert_invalid(
+            self._request(
+                "files.search",
+                {
+                    "root": str(self.safe_root),
+                    "query": "report",
+                    "media_only": "true",
+                },
             ),
             ActionFailureCategory.INVALID_PARAMETERS,
         )

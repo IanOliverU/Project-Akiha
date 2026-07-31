@@ -47,6 +47,9 @@ class AssistantMediaSearchThreadTest(unittest.TestCase):
             tuple(request.source for request in bridge.requests),
             ("llm_proposal", "llm_proposal"),
         )
+        self.assertTrue(
+            all(request.parameters["media_only"] for request in bridge.requests)
+        )
 
 
 class _SearchBridge:
