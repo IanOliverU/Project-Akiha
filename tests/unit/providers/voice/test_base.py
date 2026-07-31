@@ -68,6 +68,9 @@ class VoiceProviderContractTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             VoiceTranscript(text=" ")
 
+        with self.assertRaisesRegex(ValueError, "between zero and one"):
+            VoiceTranscript(text="Speech", confidence=1.1)
+
     def test_rejects_invalid_synthesis_values(self) -> None:
         with self.assertRaises(ValueError):
             SpeechSynthesisRequest(text="")

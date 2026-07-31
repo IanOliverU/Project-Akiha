@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from array import array
 from collections.abc import Callable
-from math import sqrt
+from math import ceil, sqrt
 from statistics import median
 from sys import byteorder
 from typing import Any
@@ -20,6 +20,7 @@ from PySide6.QtMultimedia import (
 
 from project_akiha.providers.voice.base import (
     CapturedAudio,
+    MicrophoneActivity,
     MicrophoneCaptureError,
 )
 
@@ -79,6 +80,8 @@ class QtMicrophoneCapture(QObject):
         self._on_error: Callable[[str, str], None] | None = None
         self._on_audio_snapshot: Callable[[CapturedAudio], None] | None = None
         self._on_silence: Callable[[], None] | None = None
+        self._on_activity: Callable[[MicrophoneActivity], None] | None = None
+        self._last_activity: MicrophoneActivity | None = None
         self._live_interval_bytes = 0
         self._next_snapshot_bytes = 0
         self._silence_timeout_bytes = 0
@@ -116,6 +119,7 @@ class QtMicrophoneCapture(QObject):
         on_error: Callable[[str, str], None],
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
+        on_activity: Callable[[MicrophoneActivity], None] | None = None,
         live_interval_seconds: float = 1.0,
         silence_timeout_seconds: float = 1.2,
         auto_stop_on_silence: bool = False,
@@ -162,6 +166,8 @@ class QtMicrophoneCapture(QObject):
         self._on_error = on_error
         self._on_audio_snapshot = on_audio_snapshot
         self._on_silence = on_silence
+        self._on_activity = on_activity
+        self._last_activity = None
         bytes_per_second = _SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES
         self._live_interval_bytes = max(
             _SAMPLE_WIDTH_BYTES,
@@ -291,6 +297,8 @@ class QtMicrophoneCapture(QObject):
             self._silence_bytes += frame_size
             self._update_noise_floor(rms)
 
+        self._emit_activity(rms)
+
         if (
             self._auto_stop_on_silence
             and self._has_speech
@@ -369,6 +377,50 @@ class QtMicrophoneCapture(QObject):
             1.0 - _NOISE_FLOOR_UPDATE_WEIGHT
         ) * self._noise_floor_rms + _NOISE_FLOOR_UPDATE_WEIGHT * rms
 
+    def _emit_activity(self, rms: float) -> None:
+        callback = self._on_activity
+        if callback is None:
+            return
+
+        calibration_bytes = self._duration_bytes(_NOISE_CALIBRATION_SECONDS)
+        release_threshold = self._speech_release_threshold()
+        if self._noise_calibration_bytes < calibration_bytes and not self._has_speech:
+            activity = "calibrating"
+        elif not self._has_speech:
+            activity = "waiting"
+        elif rms >= release_threshold:
+            activity = "speaking"
+        else:
+            activity = "pause"
+
+        start_threshold = self._speech_start_threshold()
+        if rms >= start_threshold * 2.0:
+            level = "loud"
+        elif rms >= release_threshold:
+            level = "speech"
+        elif rms >= max(1.0, self._noise_floor_rms * 0.65):
+            level = "ambient"
+        else:
+            level = "quiet"
+
+        silence_remaining: float | None = None
+        if activity == "pause" and self._auto_stop_on_silence:
+            elapsed = self._silence_bytes / (
+                _SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES
+            )
+            remaining = max(0.0, self._silence_timeout_ms / 1000.0 - elapsed)
+            silence_remaining = ceil(remaining * 10.0) / 10.0
+
+        snapshot = MicrophoneActivity(
+            activity=activity,
+            level=level,
+            silence_remaining_seconds=silence_remaining,
+        )
+        if snapshot == self._last_activity:
+            return
+        self._last_activity = snapshot
+        callback(snapshot)
+
     @staticmethod
     def _duration_bytes(seconds: float) -> int:
         return int(_SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES * seconds)
@@ -427,6 +479,8 @@ class QtMicrophoneCapture(QObject):
         self._on_error = None
         self._on_audio_snapshot = None
         self._on_silence = None
+        self._on_activity = None
+        self._last_activity = None
         self._live_interval_bytes = 0
         self._next_snapshot_bytes = 0
         self._silence_timeout_bytes = 0

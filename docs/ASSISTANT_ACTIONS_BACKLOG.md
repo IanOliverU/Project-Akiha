@@ -27,14 +27,14 @@ typed actions may reach an executor.
 - [x] Add adaptive noise-floor calibration without continuous background
   recording.
 - [x] Improve streaming partial transcripts and stable final-text replacement.
-- [ ] Prevent duplicated wrappers such as `I heard you say` from entering the
+- [x] Prevent duplicated wrappers such as `I heard you say` from entering the
   final transcript or intent parser.
-- [ ] Surface microphone level, detected speech, silence countdown, and final
+- [x] Surface microphone level, detected speech, silence countdown, and final
   transcript state without logging transcript content by default.
-- [ ] Add confidence-aware finalization and retain the manual Stop fallback.
+- [x] Add confidence-aware finalization and retain the manual Stop fallback.
 - [x] Add deterministic endpoint tests for steady fan noise, speech over fan
   noise, immediate speech, muted silence, and brief noise spikes.
-- [ ] Add broader deterministic tests for pauses, corrections, and false
+- [x] Add broader deterministic tests for pauses, corrections, and false
   starts as transcript stabilization is implemented.
 
 The first endpoint-hardening pass landed on 2026-07-31. Microphone capture now
@@ -52,6 +52,25 @@ shorter regressions, and disruptive one-off rewrites are suppressed. The final
 provider transcript remains authoritative. Focused coverage includes English
 and Japanese growth, correction confirmation, duplicate/regression handling,
 recording reset, cancellation, and final-transcript handoff.
+
+Manual source verification confirmed the faster preview and reliable action
+dispatch. Provider transcripts now pass through one conservative shared
+normalizer before partial or final presentation. Repeated leading
+`I heard you say` wrappers and their surrounding quotes are removed, wrapper-
+only output becomes an empty-transcript failure, and the same normalization is
+reused by the strict action parser. Ordinary sentences containing that phrase
+away from the beginning remain unchanged.
+
+The diagnostics and confidence pass exposes only coarse microphone states
+(`calibrating`, `waiting`, `speaking`, and `pause`), level bands, and a rounded
+silence countdown. Raw RMS values, audio, and transcript content never enter
+the diagnostic payload. faster-whisper segment metadata is reduced to a local
+bounded score and then to `low`, `medium`, or `high` before presentation. A
+low-confidence final transcript is placed in the editable input for review
+even when automatic sending is enabled; unknown confidence preserves existing
+provider behavior. Manual Stop remains available throughout capture. Coverage
+now includes short pauses, resumed speech, false starts, disruptive correction
+recovery, diagnostic privacy, and confidence-gated submission.
 
 ## Intent And Context
 

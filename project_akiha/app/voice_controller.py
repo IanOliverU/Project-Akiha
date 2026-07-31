@@ -113,6 +113,9 @@ class VoiceController:
         self,
         text: str,
         detected_language: str | None = None,
+        confidence_level: str | None = None,
+        *,
+        requires_review: bool = False,
     ) -> None:
         """Publish an accepted transcript without sending it to chat."""
         if self._operation != _VoiceOperation.INPUT:
@@ -151,6 +154,10 @@ class VoiceController:
         payload: dict[str, object] = {"text": cleaned_text}
         if detected_language:
             payload["detected_language"] = detected_language
+        if confidence_level in {"low", "medium", "high"}:
+            payload["confidence_level"] = confidence_level
+        if requires_review:
+            payload["requires_review"] = True
         self._event_bus.publish(EventType.VOICE_TRANSCRIPT_READY, payload)
 
     def report_error(self, code: str, message: str) -> None:

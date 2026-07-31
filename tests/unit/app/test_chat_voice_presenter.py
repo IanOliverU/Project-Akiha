@@ -149,6 +149,29 @@ class ChatVoicePresenterTest(unittest.TestCase):
         self.assertEqual(surface.transcript_previews, [])
         self.assertIn("sent automatically", surface.voice_input_statuses[-1])
 
+    def test_low_confidence_transcript_requires_review_before_send(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(
+            bus,
+            surface,
+            VoiceConfig(auto_send_transcript_enabled=True),
+            "muted",
+        )
+
+        bus.publish(
+            EventType.VOICE_TRANSCRIPT_READY,
+            {
+                "text": "Open Discord",
+                "confidence_level": "low",
+                "requires_review": True,
+            },
+        )
+
+        self.assertEqual(surface.submitted_transcripts, [])
+        self.assertEqual(surface.transcripts, ["Open Discord"])
+        self.assertIn("confidence is low", surface.voice_input_statuses[-1])
+
     def test_silence_endpoint_changes_listening_instruction(self) -> None:
         bus = EventBus()
         surface = _ChatVoiceSurface()

@@ -51,10 +51,37 @@ class VoiceTranscript:
 
     text: str
     detected_language: str | None = None
+    confidence: float | None = None
 
     def __post_init__(self) -> None:
         if not self.text.strip():
             raise ValueError("Voice transcript text cannot be empty.")
+        if self.confidence is not None and (
+            isinstance(self.confidence, bool) or not 0.0 <= self.confidence <= 1.0
+        ):
+            raise ValueError(
+                "Voice transcript confidence must be between zero and one."
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class MicrophoneActivity:
+    """Coarse microphone state safe to display without exposing audio."""
+
+    activity: str
+    level: str
+    silence_remaining_seconds: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.activity not in {"calibrating", "waiting", "speaking", "pause"}:
+            raise ValueError("Unknown microphone activity state.")
+        if self.level not in {"quiet", "ambient", "speech", "loud"}:
+            raise ValueError("Unknown microphone level band.")
+        if (
+            self.silence_remaining_seconds is not None
+            and self.silence_remaining_seconds < 0
+        ):
+            raise ValueError("Silence countdown cannot be negative.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +176,7 @@ class MicrophoneCapture(Protocol):
         on_error: Callable[[str, str], None],
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
+        on_activity: Callable[[MicrophoneActivity], None] | None = None,
         live_interval_seconds: float = 1.0,
         silence_timeout_seconds: float = 1.2,
         auto_stop_on_silence: bool = False,

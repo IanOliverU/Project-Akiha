@@ -101,7 +101,8 @@ class ChatVoicePresenter:
         text = event.payload.get("text")
         if not isinstance(text, str) or not text.strip():
             return
-        if self._config.auto_send_transcript_enabled:
+        requires_review = event.payload.get("requires_review") is True
+        if self._config.auto_send_transcript_enabled and not requires_review:
             self._surface.set_voice_input_status(
                 f'Heard: "{text.strip()}" - sent automatically.'
             )
@@ -109,6 +110,10 @@ class ChatVoicePresenter:
         else:
             self._surface.show_voice_transcript_preview(text)
             self._surface.insert_voice_transcript(text)
+            if requires_review:
+                self._surface.set_voice_input_status(
+                    "Recognition confidence is low. Review the message, then Send."
+                )
 
     def _handle_transcript_partial(self, event: Event) -> None:
         if not self._config.live_transcription_enabled:

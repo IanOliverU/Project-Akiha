@@ -37,6 +37,9 @@ class VoiceDiagnosticsSurface(Protocol):
     def set_voice_test_active(self, test_name: str, active: bool) -> None:
         """Update test button state."""
 
+    def set_microphone_activity(self, status: str) -> None:
+        """Display privacy-safe microphone and endpoint activity."""
+
 
 class _DiagnosticsThread(Protocol):
     diagnostics_ready: object
@@ -76,6 +79,10 @@ class VoiceDiagnosticsController:
         event_bus.subscribe(
             EventType.VOICE_MICROPHONE_TEST_COMPLETED,
             self._handle_microphone_test_completed,
+        )
+        event_bus.subscribe(
+            EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED,
+            self._handle_microphone_activity,
         )
         event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
@@ -124,6 +131,7 @@ class VoiceDiagnosticsController:
             return
         self._active_test = "microphone"
         self._surface.set_voice_test_active("microphone", True)
+        self._surface.set_microphone_activity("Waiting for microphone data...")
         self._surface.set_voice_diagnostic_status("Listening for microphone test...")
         self._event_bus.publish(
             EventType.VOICE_LISTEN_REQUESTED,
@@ -230,9 +238,39 @@ class VoiceDiagnosticsController:
         )
 
     def _handle_microphone_test_completed(self, event: Event) -> None:
-        del event
         if self._active_test == "microphone":
-            self._finish_test("Microphone and speech recognition are working.")
+            confidence_level = event.payload.get("confidence_level")
+            confidence_suffix = (
+                f" ({confidence_level} confidence)"
+                if confidence_level in {"low", "medium", "high"}
+                else ""
+            )
+            self._finish_test(
+                "Microphone and speech recognition are working" f"{confidence_suffix}."
+            )
+
+    def _handle_microphone_activity(self, event: Event) -> None:
+        if self._active_test != "microphone":
+            return
+        activity = event.payload.get("activity")
+        level = event.payload.get("level")
+        if not isinstance(activity, str) or not isinstance(level, str):
+            return
+        if activity == "calibrating":
+            status = "Calibrating room noise..."
+        elif activity == "waiting":
+            status = f"Waiting for speech ({level} level)."
+        elif activity == "speaking":
+            status = f"Speech detected ({level} level)."
+        elif activity == "pause":
+            remaining = event.payload.get("silence_remaining_seconds")
+            if isinstance(remaining, (int, float)) and not isinstance(remaining, bool):
+                status = f"Pause detected; finishing in {float(remaining):.1f} sec."
+            else:
+                status = "Pause detected."
+        else:
+            return
+        self._surface.set_microphone_activity(status)
 
     def _handle_voice_state_changed(self, event: Event) -> None:
         if self._active_test != "output":
@@ -257,6 +295,8 @@ class VoiceDiagnosticsController:
         self._active_test = None
         if test_name is not None:
             self._surface.set_voice_test_active(test_name, False)
+        if test_name == "microphone":
+            self._surface.set_microphone_activity("Not active")
         self._surface.set_voice_diagnostic_status(status, is_error)
 
     def _remove_thread(self, thread: _DiagnosticsThread) -> None:

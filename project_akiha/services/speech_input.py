@@ -10,6 +10,7 @@ from project_akiha.providers.voice import (
     VoiceProviderStatus,
     VoiceTranscript,
 )
+from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 
 class SpeechInputServiceError(RuntimeError):
@@ -46,7 +47,7 @@ class SpeechInputService:
             )
 
         try:
-            return await self._provider.transcribe(audio)
+            transcript = await self._provider.transcribe(audio)
         except VoiceProviderError as error:
             raise SpeechInputServiceError(error.code, str(error)) from error
         except Exception as error:
@@ -54,3 +55,17 @@ class SpeechInputService:
                 "transcription_failed",
                 f"Speech recognition failed: {error}",
             ) from error
+
+        normalized_text = strip_speech_echo_wrappers(transcript.text)
+        if not normalized_text:
+            raise SpeechInputServiceError(
+                "empty_transcript",
+                "No speech was recognized in the recording.",
+            )
+        if normalized_text == transcript.text:
+            return transcript
+        return VoiceTranscript(
+            text=normalized_text,
+            detected_language=transcript.detected_language,
+            confidence=transcript.confidence,
+        )

@@ -27,7 +27,10 @@ class EventLogger:
             EventType.VOICE_ERROR_OCCURRED,
         }:
             self._logger.error("%s %s", event.event_type.value, payload)
-        elif event.event_type == EventType.PET_DRAGGED:
+        elif event.event_type in {
+            EventType.PET_DRAGGED,
+            EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED,
+        }:
             self._logger.debug("%s %s", event.event_type.value, payload)
         else:
             self._logger.info("%s %s", event.event_type.value, payload)
@@ -52,5 +55,10 @@ def _privacy_safe_payload(event: Event) -> dict[str, object]:
         language = event.payload.get("detected_language")
         if isinstance(language, str) and language:
             payload["detected_language"] = language
+        confidence_level = event.payload.get("confidence_level")
+        if confidence_level in {"low", "medium", "high"}:
+            payload["confidence_level"] = confidence_level
+        if event.payload.get("requires_review") is True:
+            payload["requires_review"] = True
         return payload
     return event.payload

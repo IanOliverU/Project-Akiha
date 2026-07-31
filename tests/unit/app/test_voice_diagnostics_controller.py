@@ -90,6 +90,24 @@ class VoiceDiagnosticsControllerTest(unittest.TestCase):
         self.assertEqual(surface.active[-1], ("microphone", False))
         self.assertIn("working", surface.statuses[-1][0])
 
+    def test_microphone_activity_is_presented_without_content(self) -> None:
+        bus, _, controller, surface, _ = _build()
+        controller.toggle_microphone_test()
+
+        bus.publish(
+            EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED,
+            {
+                "activity": "pause",
+                "level": "ambient",
+                "silence_remaining_seconds": 0.8,
+            },
+        )
+
+        self.assertEqual(
+            surface.microphone_activity[-1],
+            "Pause detected; finishing in 0.8 sec.",
+        )
+
     def test_output_test_tracks_playback_to_completion(self) -> None:
         _, voice, controller, surface, _ = _build()
 
@@ -144,6 +162,7 @@ class _Surface:
         self.health: tuple[str, str, str, str] | None = None
         self.statuses: list[tuple[str, bool]] = []
         self.active: list[tuple[str, bool]] = []
+        self.microphone_activity: list[str] = []
 
     def set_voice_health(
         self,
@@ -168,6 +187,9 @@ class _Surface:
 
     def set_voice_test_active(self, test_name: str, active: bool) -> None:
         self.active.append((test_name, active))
+
+    def set_microphone_activity(self, status: str) -> None:
+        self.microphone_activity.append(status)
 
 
 def _build() -> tuple[

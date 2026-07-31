@@ -6,6 +6,7 @@ import asyncio
 import wave
 from collections.abc import Callable
 from io import BytesIO
+from math import exp, isfinite
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -70,7 +71,8 @@ class FasterWhisperProvider:
                 beam_size=5,
                 vad_filter=True,
             )
-            text = "".join(str(segment.text) for segment in segments).strip()
+            resolved_segments = tuple(segments)
+            text = "".join(str(segment.text) for segment in resolved_segments).strip()
         except VoiceProviderError:
             raise
         except Exception as error:
@@ -91,6 +93,7 @@ class FasterWhisperProvider:
         return VoiceTranscript(
             text=text,
             detected_language=detected_language,
+            confidence=_aggregate_segment_confidence(resolved_segments),
         )
 
     def _get_model(self) -> Any:
@@ -135,6 +138,37 @@ def _captured_audio_to_wav(audio: CapturedAudio) -> BytesIO:
         ) from error
     stream.seek(0)
     return stream
+
+
+def _aggregate_segment_confidence(segments: tuple[object, ...]) -> float | None:
+    weighted_total = 0.0
+    total_weight = 0
+    for segment in segments:
+        avg_logprob = getattr(segment, "avg_logprob", None)
+        no_speech_prob = getattr(segment, "no_speech_prob", None)
+        if (
+            not isinstance(avg_logprob, (int, float))
+            or isinstance(avg_logprob, bool)
+            or not isfinite(float(avg_logprob))
+        ):
+            continue
+        if (
+            not isinstance(no_speech_prob, (int, float))
+            or isinstance(no_speech_prob, bool)
+            or not isfinite(float(no_speech_prob))
+        ):
+            no_speech_prob = 0.0
+
+        speech_probability = 1.0 - min(1.0, max(0.0, float(no_speech_prob)))
+        token_probability = exp(min(0.0, float(avg_logprob)))
+        confidence = min(1.0, max(0.0, token_probability * speech_probability))
+        weight = max(1, len(str(getattr(segment, "text", "")).strip()))
+        weighted_total += confidence * weight
+        total_weight += weight
+
+    if total_weight == 0:
+        return None
+    return min(1.0, max(0.0, weighted_total / total_weight))
 
 
 def _load_model_class() -> Any:

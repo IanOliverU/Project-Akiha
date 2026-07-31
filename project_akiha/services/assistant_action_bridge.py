@@ -20,6 +20,7 @@ from project_akiha.core.actions.registry import (
     OPEN_FILE_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
+from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _OPEN_DIRECTORY_PATTERN = re.compile(
     r"^(?:(?:/open-dir)\s+|(?:open\s+(?:directory|folder))\s*[:=]\s*)" r"(?P<path>.+)$",
@@ -96,10 +97,6 @@ _APPLICATION_ALIASES = {
     "visual studio code": "vscode",
 }
 
-_VOICE_WRAPPER_PATTERN = re.compile(
-    r"^(?:i\s+heard\s+you\s+say\s*:\s*)+",
-    re.IGNORECASE,
-)
 _VOICE_FILLER_PATTERN = re.compile(
     r"^(?:okay|ok|alright|all\s+right|hey)" r"(?:\s*,?\s*(?:huh|uh|um))?\s*[,!.?]?\s*",
     re.IGNORECASE,
@@ -296,11 +293,10 @@ def _request(
 
 def _normalize_voice_wrappers(text: str) -> str:
     """Remove common speech-recognition wrappers before strict parsing."""
-    normalized = text.strip()
+    normalized = strip_speech_echo_wrappers(text)
     while normalized:
         unwrapped = normalized
         for pattern in (
-            _VOICE_WRAPPER_PATTERN,
             _VOICE_FILLER_PATTERN,
             _VOICE_CONTEXT_FILLER_PATTERN,
             _VOICE_NAME_PATTERN,

@@ -11,7 +11,11 @@ from project_akiha.config import VoiceConfig
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
-from project_akiha.providers.voice import CapturedAudio, MicrophoneCaptureError
+from project_akiha.providers.voice import (
+    CapturedAudio,
+    MicrophoneActivity,
+    MicrophoneCaptureError,
+)
 
 
 class VoiceCaptureControllerTest(unittest.TestCase):
@@ -108,6 +112,36 @@ class VoiceCaptureControllerTest(unittest.TestCase):
         self.assertEqual(stop_events[-1].payload["reason"], "silence_detected")
         self.assertEqual(capture.silence_timeout_seconds, 1.5)
         self.assertTrue(capture.auto_stop_on_silence)
+
+    def test_microphone_activity_event_contains_no_audio_or_transcript(self) -> None:
+        bus, _, capture, events = _build_controller()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        capture.trigger_activity(
+            MicrophoneActivity(
+                activity="pause",
+                level="ambient",
+                silence_remaining_seconds=0.8,
+            )
+        )
+
+        diagnostic = next(
+            event
+            for event in reversed(events)
+            if event.event_type == EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED
+        )
+        self.assertEqual(
+            diagnostic.payload,
+            {
+                "activity": "pause",
+                "level": "ambient",
+                "silence_remaining_seconds": 0.8,
+            },
+        )
+        self.assertNotIn("text", diagnostic.payload)
+        self.assertFalse(
+            any(isinstance(value, bytes) for value in diagnostic.payload.values())
+        )
 
     def test_microphone_test_routes_audio_away_from_chat_callback(self) -> None:
         submitted: list[CapturedAudio] = []
@@ -221,6 +255,7 @@ class _FakeCapture:
         self.on_error: Callable[[str, str], None] | None = None
         self.on_audio_snapshot: Callable[[CapturedAudio], None] | None = None
         self.on_silence: Callable[[], None] | None = None
+        self.on_activity: Callable[[MicrophoneActivity], None] | None = None
         self.live_interval_seconds = 0.0
         self.silence_timeout_seconds = 0.0
         self.auto_stop_on_silence = False
@@ -237,6 +272,7 @@ class _FakeCapture:
         on_error: Callable[[str, str], None],
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
+        on_activity: Callable[[MicrophoneActivity], None] | None = None,
         live_interval_seconds: float = 1.0,
         silence_timeout_seconds: float = 1.2,
         auto_stop_on_silence: bool = False,
@@ -250,6 +286,7 @@ class _FakeCapture:
         self.on_error = on_error
         self.on_audio_snapshot = on_audio_snapshot
         self.on_silence = on_silence
+        self.on_activity = on_activity
         self.live_interval_seconds = live_interval_seconds
         self.silence_timeout_seconds = silence_timeout_seconds
         self.auto_stop_on_silence = auto_stop_on_silence
@@ -280,6 +317,10 @@ class _FakeCapture:
     def trigger_silence(self) -> None:
         assert self.on_silence is not None
         self.on_silence()
+
+    def trigger_activity(self, activity: MicrophoneActivity) -> None:
+        assert self.on_activity is not None
+        self.on_activity(activity)
 
 
 def _build_controller(

@@ -64,6 +64,18 @@ class FasterWhisperProviderTest(unittest.TestCase):
         self.assertIsNone(fixture.transcribe_args["language"])
         self.assertTrue(fixture.transcribe_args["vad_filter"])
 
+    def test_reports_bounded_segment_confidence(self) -> None:
+        fixture = _ModelFixture(avg_logprob=-0.2, no_speech_prob=0.1)
+        with TemporaryDirectory() as directory:
+            transcript = asyncio.run(
+                _provider(Path(directory), fixture).transcribe(_audio())
+            )
+
+        self.assertIsNotNone(transcript.confidence)
+        assert transcript.confidence is not None
+        self.assertGreater(transcript.confidence, 0.7)
+        self.assertLessEqual(transcript.confidence, 1.0)
+
     def test_configured_language_is_forwarded(self) -> None:
         fixture = _ModelFixture(text=" Hello.", language="en")
         with TemporaryDirectory() as directory:
@@ -117,9 +129,17 @@ class FasterWhisperProviderTest(unittest.TestCase):
 
 
 class _ModelFixture:
-    def __init__(self, text: str = " Test.", language: str = "en") -> None:
+    def __init__(
+        self,
+        text: str = " Test.",
+        language: str = "en",
+        avg_logprob: float | None = None,
+        no_speech_prob: float | None = None,
+    ) -> None:
         self.text = text
         self.language = language
+        self.avg_logprob = avg_logprob
+        self.no_speech_prob = no_speech_prob
         self.instances: list[object] = []
         self.model_args: dict[str, object] = {}
         self.transcribe_args: dict[str, object] = {}
@@ -146,7 +166,17 @@ class _ModelFixture:
                         wav_file.getframerate(),
                     )
                 return (
-                    [SimpleNamespace(text=fixture.text)] if fixture.text else [],
+                    (
+                        [
+                            SimpleNamespace(
+                                text=fixture.text,
+                                avg_logprob=fixture.avg_logprob,
+                                no_speech_prob=fixture.no_speech_prob,
+                            )
+                        ]
+                        if fixture.text
+                        else []
+                    ),
                     SimpleNamespace(language=fixture.language),
                 )
 

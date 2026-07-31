@@ -91,10 +91,15 @@ external VOICEVOX process that Project Akiha did not launch.
 - Raw microphone bytes are not published through the application event bus,
   written to logs, or saved as audio files.
 - Optional interim transcription is display-only and is not persisted or sent.
-- The Settings microphone test discards recognized words and retains only a
-  temporary pass/fail result.
+- The Settings microphone test discards recognized words and shows only a
+  temporary result, coarse activity/level bands, a rounded silence countdown,
+  and an optional qualitative confidence band.
+- Exact microphone RMS values and exact recognition-confidence scores are not
+  published through the event bus or written to logs.
 - Final recognized text is inserted into the editable Chat input by default.
   It is sent automatically only when the user enables that Voice setting.
+- A final transcript reported with low confidence is held in the editable Chat
+  input for user review instead of being sent automatically.
 - faster-whisper runs locally. Its model may be downloaded on first use and is
   cached under `%LOCALAPPDATA%\Akiha\models\faster-whisper\`.
 

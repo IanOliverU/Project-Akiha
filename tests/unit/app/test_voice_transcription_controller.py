@@ -169,6 +169,23 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
             ["Open Chrome", "Launch the browser now"],
         )
 
+    def test_one_off_correction_does_not_displace_resumed_transcript(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        candidates = ["Open Chrome", "Start Discord", "Open Chrome please"]
+        for index, candidate in enumerate(candidates, start=1):
+            controller.submit_partial(_audio(bytes([index, 0])))
+            threads[index - 1].transcript_ready.emit(VoiceTranscript(candidate, "en"))
+            threads[index - 1].finished.emit()
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["Open Chrome", "Open Chrome please"],
+        )
+
     def test_partial_stabilization_supports_japanese_without_word_boundaries(
         self,
     ) -> None:
@@ -238,6 +255,32 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
         self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(transcripts, [])
         self.assertTrue(completed[-1].payload["text_present"])
+        self.assertNotIn("text", completed[-1].payload)
+
+    def test_low_confidence_final_transcript_requires_manual_review(self) -> None:
+        bus, _, controller, threads, transcripts, _ = _build()
+        _begin_transcription(bus, controller)
+
+        threads[0].transcript_ready.emit(
+            VoiceTranscript("Open Discord", "en", confidence=0.2)
+        )
+
+        self.assertEqual(transcripts[-1].payload["confidence_level"], "low")
+        self.assertTrue(transcripts[-1].payload["requires_review"])
+
+    def test_microphone_test_reports_confidence_without_transcript(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        completed: list[Event] = []
+        bus.subscribe(EventType.VOICE_MICROPHONE_TEST_COMPLETED, completed.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        controller.submit_test(_audio())
+        threads[0].transcript_ready.emit(
+            VoiceTranscript("Private test words", "en", confidence=0.8)
+        )
+
+        self.assertEqual(completed[-1].payload["confidence_level"], "high")
         self.assertNotIn("text", completed[-1].payload)
 
 

@@ -90,6 +90,24 @@ class VoiceControllerTest(unittest.TestCase):
         self.assertEqual(errors[-1].payload["code"], "empty_transcript")
         self.assertEqual(transcripts, [])
 
+    def test_transcript_publishes_only_qualitative_confidence_policy(self) -> None:
+        bus = EventBus()
+        transcripts = _subscribe(bus, EventType.VOICE_TRANSCRIPT_READY)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        controller.publish_transcript(
+            "Open Discord",
+            "en",
+            "low",
+            requires_review=True,
+        )
+
+        self.assertEqual(transcripts[-1].payload["confidence_level"], "low")
+        self.assertTrue(transcripts[-1].payload["requires_review"])
+        self.assertNotIn("confidence", transcripts[-1].payload)
+
     def test_disabled_voice_rejects_listen_request_without_state_change(self) -> None:
         bus = EventBus()
         errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)

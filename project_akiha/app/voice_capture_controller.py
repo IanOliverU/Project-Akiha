@@ -11,6 +11,7 @@ from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.providers.voice import (
     CapturedAudio,
+    MicrophoneActivity,
     MicrophoneCapture,
     MicrophoneCaptureError,
 )
@@ -94,6 +95,7 @@ class VoiceCaptureController:
                     if self._config.auto_stop_on_silence_enabled
                     else None
                 ),
+                on_activity=self._handle_microphone_activity,
                 live_interval_seconds=_LIVE_TRANSCRIPTION_INTERVAL_SECONDS,
                 silence_timeout_seconds=self._config.silence_timeout_seconds,
                 auto_stop_on_silence=self._config.auto_stop_on_silence_enabled,
@@ -182,3 +184,17 @@ class VoiceCaptureController:
                 EventType.VOICE_LISTEN_STOP_REQUESTED,
                 {"reason": "silence_detected"},
             )
+
+    def _handle_microphone_activity(self, activity: MicrophoneActivity) -> None:
+        if self._voice_controller.state != VoiceState.LISTENING:
+            return
+        payload: dict[str, object] = {
+            "activity": activity.activity,
+            "level": activity.level,
+        }
+        if activity.silence_remaining_seconds is not None:
+            payload["silence_remaining_seconds"] = activity.silence_remaining_seconds
+        self._event_bus.publish(
+            EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED,
+            payload,
+        )

@@ -9,7 +9,7 @@ from typing import Any
 
 from PySide6.QtMultimedia import QAudio, QAudioFormat
 
-from project_akiha.providers.voice import MicrophoneCaptureError
+from project_akiha.providers.voice import MicrophoneActivity, MicrophoneCaptureError
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 
 
@@ -378,6 +378,99 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         fixture.io_device.readyRead.emit()
 
         self.assertEqual(silence_events, [True])
+
+    def test_short_pause_does_not_finish_before_speech_resumes(self) -> None:
+        fixture = _CaptureFixture(
+            chunks=[
+                _pcm_chunk(125, seconds=0.25),
+                _pcm_chunk(500, seconds=0.3),
+                _pcm_chunk(0, seconds=0.7),
+                _pcm_chunk(500, seconds=0.2),
+                _pcm_chunk(0, seconds=1.3),
+            ]
+        )
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+
+        for index in range(5):
+            fixture.io_device.readyRead.emit()
+            if index < 4:
+                self.assertEqual(silence_events, [])
+
+        self.assertEqual(silence_events, [True])
+
+    def test_false_start_does_not_arm_endpoint_before_real_speech(self) -> None:
+        fixture = _CaptureFixture(
+            chunks=[
+                _pcm_chunk(125, seconds=0.25),
+                _pcm_chunk(220, seconds=0.1),
+                _pcm_chunk(0, seconds=1.3),
+                _pcm_chunk(500, seconds=0.3),
+                _pcm_chunk(0, seconds=1.3),
+            ]
+        )
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+
+        for index in range(5):
+            fixture.io_device.readyRead.emit()
+            if index < 4:
+                self.assertEqual(silence_events, [])
+
+        self.assertEqual(silence_events, [True])
+
+    def test_activity_callback_exposes_only_coarse_bands_and_countdown(self) -> None:
+        fixture = _CaptureFixture(
+            chunks=[
+                _pcm_chunk(125, seconds=0.25),
+                _pcm_chunk(500, seconds=0.3),
+                _pcm_chunk(0, seconds=0.4),
+            ]
+        )
+        capture = fixture.build()
+        activity: list[MicrophoneActivity] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_activity=activity.append,
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+
+        for _ in range(3):
+            fixture.io_device.readyRead.emit()
+
+        states = [snapshot.activity for snapshot in activity]
+        self.assertIn("calibrating", states)
+        self.assertIn("waiting", states)
+        self.assertIn("speaking", states)
+        self.assertIn("pause", states)
+        pause_snapshots = [
+            snapshot for snapshot in activity if snapshot.activity == "pause"
+        ]
+        self.assertTrue(
+            all(
+                snapshot.silence_remaining_seconds is not None
+                for snapshot in pause_snapshots
+            )
+        )
 
 
 class _Signal:

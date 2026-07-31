@@ -12,6 +12,10 @@ from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.providers.voice import CapturedAudio, VoiceTranscript
 from project_akiha.services.speech_input import SpeechInputService
+from project_akiha.services.voice_confidence import (
+    transcript_requires_review,
+    voice_confidence_level,
+)
 from project_akiha.ui.voice_transcription_worker import VoiceTranscriptionThread
 
 
@@ -243,18 +247,25 @@ class VoiceTranscriptionController:
             )
             return
         if self._thread_modes.get(thread) == "test":
+            confidence_level = voice_confidence_level(transcript.confidence)
             self._voice_controller.complete_input_test()
+            payload: dict[str, object] = {
+                "detected_language": transcript.detected_language,
+                "text_present": bool(transcript.text.strip()),
+            }
+            if confidence_level is not None:
+                payload["confidence_level"] = confidence_level
             self._event_bus.publish(
                 EventType.VOICE_MICROPHONE_TEST_COMPLETED,
-                {
-                    "detected_language": transcript.detected_language,
-                    "text_present": bool(transcript.text.strip()),
-                },
+                payload,
             )
             return
+        confidence_level = voice_confidence_level(transcript.confidence)
         self._voice_controller.publish_transcript(
             transcript.text,
             transcript.detected_language,
+            confidence_level,
+            requires_review=transcript_requires_review(transcript.confidence),
         )
 
     def _handle_failure(

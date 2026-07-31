@@ -352,6 +352,8 @@ class SettingsWindow(QWidget):
         self._voice_output_health.setWordWrap(True)
         self._voice_diagnostic_status = QLabel("Ready")
         self._voice_diagnostic_status.setWordWrap(True)
+        self._voice_microphone_activity = QLabel("Not active")
+        self._voice_microphone_activity.setWordWrap(True)
         self._ai_provider_input.currentTextChanged.connect(
             self._handle_ai_provider_changed
         )
@@ -558,6 +560,10 @@ class SettingsWindow(QWidget):
             self._voice_output_test_button.setText(
                 "Stop voice test" if active else "Test voice"
             )
+
+    def set_microphone_activity(self, status: str) -> None:
+        """Display coarse microphone activity without transcript content."""
+        self._voice_microphone_activity.setText(status.strip() or "Not active")
 
     def set_voice_engine_status(self, status: str, is_error: bool = False) -> None:
         """Display the managed VOICEVOX Engine lifecycle status."""
@@ -876,6 +882,10 @@ class SettingsWindow(QWidget):
             self._voice_microphone_test_button,
         )
         diagnostics_layout.addRow("Voice test", self._voice_output_test_button)
+        diagnostics_layout.addRow(
+            "Microphone activity",
+            self._voice_microphone_activity,
+        )
         diagnostics_layout.addRow("Speech recognition", self._voice_input_health)
         diagnostics_layout.addRow("Speech output", self._voice_output_health)
         diagnostics_layout.addRow("Diagnostic status", self._voice_diagnostic_status)
