@@ -1,6 +1,6 @@
 # Spotify Integration
 
-**Status:** In progress - OAuth foundation implemented
+**Status:** In progress - authentication, lookup, and device resolution implemented
 
 ## Purpose
 
@@ -14,6 +14,9 @@ an assistant-action extension, not direct AI access to Spotify.
 - Fixed callback: `http://127.0.0.1:43821/callback`.
 - Spotify Premium is required for Web API playback control.
 - Akiha launches Spotify when playback needs an available desktop device.
+- Device IDs are fetched immediately before use and are never persisted.
+- An active unrestricted device wins; otherwise Akiha selects one unambiguous
+  computer or sole usable device and refuses to guess between peers.
 - Ambiguous songs, albums, artists, or playlists require a user choice.
 - Favorites combine Liked Songs, private playlists, top items, and recent
   listening when the corresponding data is available.
@@ -79,7 +82,8 @@ track and artist names rather than the user's data.
 - [x] Authenticated session and automatic access-token refresh.
 - [x] Bounded Spotify catalog/library client for tracks, artists, albums,
   playlists, Liked Songs, top items, and recent tracks.
-- [ ] Device selection and desktop-app activation.
+- [x] Fresh active-device selection with restricted-device refusal and bounded
+  desktop-app activation through the existing permission/audit boundary.
 - [ ] Typed playback action contracts and executors.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Voice/chat intent integration and end-to-end tests.

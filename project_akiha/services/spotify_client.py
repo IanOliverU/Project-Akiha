@@ -49,6 +49,29 @@ class SpotifyItemKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class SpotifyDevice:
+    """Minimal, short-lived metadata for one controllable Spotify device."""
+
+    device_id: str
+    name: str
+    device_type: str
+    is_active: bool
+    is_restricted: bool
+    volume_percent: int | None = None
+    supports_volume: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.device_id.strip():
+            raise ValueError("Spotify device ID cannot be empty.")
+        if not self.name.strip():
+            raise ValueError("Spotify device name cannot be empty.")
+        if not self.device_type.strip():
+            raise ValueError("Spotify device type cannot be empty.")
+        if self.volume_percent is not None and not 0 <= self.volume_percent <= 100:
+            raise ValueError("Spotify device volume must be between 0 and 100.")
+
+
+@dataclass(frozen=True, slots=True)
 class SpotifyCatalogItem:
     """Minimal Spotify metadata retained for local ranking and presentation."""
 
@@ -187,6 +210,19 @@ class SpotifyClient:
             unwrap_key="track",
         )
 
+    def get_available_devices(self) -> tuple[SpotifyDevice, ...]:
+        """Return a fresh minimal snapshot of usable Spotify device metadata."""
+        payload = self._request_json("/me/player/devices", {})
+        raw_devices = payload.get("devices")
+        if not isinstance(raw_devices, list):
+            raise SpotifyAPIError("Spotify returned an invalid device collection.")
+        devices: list[SpotifyDevice] = []
+        for raw_device in raw_devices:
+            device = _parse_device(raw_device)
+            if device is not None:
+                devices.append(device)
+        return tuple(devices)
+
     def _get_offset_items(
         self,
         path: str,
@@ -222,7 +258,10 @@ class SpotifyClient:
             raise ValueError(
                 "Spotify API paths must be relative to the fixed API host."
             )
-        url = f"{SPOTIFY_API_BASE_URL}{path}?{urlencode(dict(query))}"
+        encoded_query = urlencode(dict(query))
+        url = f"{SPOTIFY_API_BASE_URL}{path}"
+        if encoded_query:
+            url = f"{url}?{encoded_query}"
         timeout = min(max(float(self._config.request_timeout_seconds), 1.0), 60.0)
         for attempt in range(2):
             access_token = self._session.get_access_token()
@@ -378,6 +417,39 @@ def _parse_item(raw_item: object, kind: SpotifyItemKind) -> SpotifyCatalogItem |
         owner_name=owner_name,
         duration_ms=duration_ms,
         is_playable=is_playable if isinstance(is_playable, bool) else True,
+    )
+
+
+def _parse_device(raw_device: object) -> SpotifyDevice | None:
+    if not isinstance(raw_device, dict):
+        return None
+    device_id = _nonempty_string(raw_device.get("id"))
+    name = _nonempty_string(raw_device.get("name"))
+    device_type = _nonempty_string(raw_device.get("type"))
+    if device_id is None or name is None or device_type is None:
+        return None
+
+    volume = raw_device.get("volume_percent")
+    volume_percent = (
+        volume
+        if isinstance(volume, int)
+        and not isinstance(volume, bool)
+        and 0 <= volume <= 100
+        else None
+    )
+    supports_volume = raw_device.get("supports_volume", False)
+    is_active = raw_device.get("is_active", False)
+    is_restricted = raw_device.get("is_restricted", False)
+    return SpotifyDevice(
+        device_id=device_id,
+        name=name,
+        device_type=device_type.casefold(),
+        is_active=is_active if isinstance(is_active, bool) else False,
+        is_restricted=is_restricted if isinstance(is_restricted, bool) else True,
+        volume_percent=volume_percent,
+        supports_volume=(
+            supports_volume if isinstance(supports_volume, bool) else False
+        ),
     )
 
 

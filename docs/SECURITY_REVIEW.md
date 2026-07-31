@@ -54,6 +54,11 @@ never follows pagination URLs supplied by a provider response. One HTTP 401 can
 clear the memory-only access token and retry through the encrypted refresh-token
 session; other failures remain privacy-safe and are not retried automatically.
 
+Playback-device discovery uses a fresh minimal provider snapshot and does not
+persist device identifiers. Restricted devices are rejected, ambiguous peers
+are not guessed, and optional Spotify desktop activation can occur only through
+the existing typed `applications.launch` permission, executor, and audit path.
+
 ## First-Run Privacy Notice
 
 A versioned application-modal notice now explains the microphone, local

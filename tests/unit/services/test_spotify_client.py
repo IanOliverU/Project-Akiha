@@ -11,6 +11,7 @@ from project_akiha.services.spotify_client import (
     SPOTIFY_API_BASE_URL,
     SpotifyAPIError,
     SpotifyClient,
+    SpotifyDevice,
     SpotifyItemKind,
 )
 
@@ -219,6 +220,62 @@ class SpotifyClientTest(unittest.TestCase):
         self.assertEqual(top_url.path, "/v1/me/top/artists")
         self.assertEqual(parse_qs(top_url.query)["time_range"], ["short_term"])
         self.assertEqual(recent_url.path, "/v1/me/player/recently-played")
+
+    def test_available_devices_keep_only_minimal_valid_metadata(self) -> None:
+        transport = _Transport(
+            [
+                {
+                    "devices": [
+                        {
+                            "id": "desktop-id",
+                            "is_active": True,
+                            "is_private_session": True,
+                            "is_restricted": False,
+                            "name": "Windows PC",
+                            "supports_volume": True,
+                            "type": "Computer",
+                            "volume_percent": 42,
+                        },
+                        {
+                            "id": None,
+                            "name": "Unaddressable device",
+                            "type": "Computer",
+                        },
+                        "invalid",
+                    ]
+                }
+            ]
+        )
+        client = SpotifyClient(self.config, self.session, transport=transport)
+
+        devices = client.get_available_devices()
+
+        self.assertEqual(
+            devices,
+            (
+                SpotifyDevice(
+                    device_id="desktop-id",
+                    name="Windows PC",
+                    device_type="computer",
+                    is_active=True,
+                    is_restricted=False,
+                    volume_percent=42,
+                    supports_volume=True,
+                ),
+            ),
+        )
+        self.assertFalse(hasattr(devices[0], "is_private_session"))
+        url = transport.requests[0][0]
+        self.assertEqual(url, f"{SPOTIFY_API_BASE_URL}/me/player/devices")
+
+    def test_invalid_device_collection_fails_without_echoing_content(self) -> None:
+        transport = _Transport([{"devices": {"private": "do-not-echo"}}])
+        client = SpotifyClient(self.config, self.session, transport=transport)
+
+        with self.assertRaises(SpotifyAPIError) as raised:
+            client.get_available_devices()
+
+        self.assertNotIn("do-not-echo", str(raised.exception))
 
     def test_invalid_top_kind_time_range_and_library_bounds_fail_locally(self) -> None:
         client = SpotifyClient(self.config, self.session, transport=_Transport([]))
