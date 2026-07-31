@@ -45,6 +45,7 @@ from project_akiha.config import (
 from project_akiha.core.actions import (
     APPLICATION_CLOSE_CAPABILITY,
     APPLICATION_LAUNCH_CAPABILITY,
+    SPOTIFY_PLAYBACK_CAPABILITY,
     ApprovedDirectory,
     InstalledApplication,
     PermissionGrant,
@@ -102,6 +103,9 @@ class SettingsWindow(QWidget):
     assistant_application_revoke_requested = Signal(str)
     assistant_application_close_grant_requested = Signal(str)
     assistant_application_close_revoke_requested = Signal(str)
+    spotify_playback_grant_requested = Signal()
+    spotify_playback_revoke_requested = Signal()
+    spotify_session_changed = Signal()
     assistant_permissions_reset_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
@@ -733,11 +737,31 @@ class SettingsWindow(QWidget):
 
         playback_layout = _build_form_layout()
         playback_layout.addRow("Launch desktop app", self._spotify_auto_launch_input)
+        playback_layout.addRow(
+            "Assistant controls", self._build_spotify_permission_row()
+        )
         playback_layout.addRow("Request timeout", self._spotify_timeout_input)
         return _build_scroll_tab(
             _build_section("Spotify account", account_layout),
             _build_section("Playback", playback_layout),
         )
+
+    def _build_spotify_permission_row(self) -> QWidget:
+        self._spotify_playback_permission_status = QLabel("Disabled")
+        enable_button = QPushButton("Enable playback")
+        enable_button.clicked.connect(self.spotify_playback_grant_requested.emit)
+        disable_button = QPushButton("Disable playback")
+        disable_button.clicked.connect(self.spotify_playback_revoke_requested.emit)
+        buttons = QHBoxLayout()
+        buttons.addWidget(enable_button)
+        buttons.addWidget(disable_button)
+        row = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(buttons)
+        layout.addWidget(self._spotify_playback_permission_status)
+        row.setLayout(layout)
+        return row
 
     def _build_spotify_connection_row(self) -> QWidget:
         buttons = QHBoxLayout()
@@ -996,6 +1020,18 @@ class SettingsWindow(QWidget):
             for grant in application_grants
             if grant.is_active and grant.capability == APPLICATION_CLOSE_CAPABILITY
         }
+        spotify_playback_enabled = any(
+            grant.is_active
+            and grant.capability == SPOTIFY_PLAYBACK_CAPABILITY
+            and grant.target.casefold() == "spotify"
+            for grant in application_grants
+        )
+        self._spotify_playback_permission_status.setText(
+            "Enabled" if spotify_playback_enabled else "Disabled"
+        )
+        self._spotify_playback_permission_status.setStyleSheet(
+            f"color: {AKIHA_PALETTE.success};" if spotify_playback_enabled else ""
+        )
         self._assistant_application_list.clear()
         for application in applications:
             availability = "discovered" if application.is_available else "not found"
@@ -1379,6 +1415,7 @@ class SettingsWindow(QWidget):
             )
             return
         self._set_spotify_connection_status("Spotify connected securely.")
+        self.spotify_session_changed.emit()
 
     def _handle_spotify_authorization_failed(self, message: str) -> None:
         self._set_spotify_connection_status(message, is_error=True)
@@ -1412,6 +1449,7 @@ class SettingsWindow(QWidget):
             )
             return
         self._set_spotify_connection_status("Spotify disconnected.")
+        self.spotify_session_changed.emit()
 
     def _refresh_spotify_connection_status(self) -> None:
         if self._spotify_auth_thread is not None:

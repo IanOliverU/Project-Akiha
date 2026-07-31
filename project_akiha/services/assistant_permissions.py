@@ -12,6 +12,7 @@ from project_akiha.core.actions import (
     APPLICATION_LAUNCH_CAPABILITY,
     FILE_OPEN_CAPABILITY,
     FILE_SEARCH_CAPABILITY,
+    SPOTIFY_PLAYBACK_CAPABILITY,
     ActionPermissionRepository,
     ApprovedDirectory,
     PermissionGrant,
@@ -84,6 +85,24 @@ class AssistantPermissionService:
         revoked = False
         for grant in grants:
             if grant.target.casefold() == normalized:
+                revoked = await self._repository.revoke_permission(grant.id) or revoked
+        return revoked
+
+    async def grant_spotify_playback(self) -> PermissionGrant:
+        """Grant only Akiha's fixed Spotify playback capability."""
+        return await self._repository.grant_permission(
+            SPOTIFY_PLAYBACK_CAPABILITY,
+            "spotify",
+        )
+
+    async def revoke_spotify_playback(self) -> bool:
+        """Revoke every active grant for the fixed Spotify target."""
+        grants = await self._repository.get_active_permissions(
+            SPOTIFY_PLAYBACK_CAPABILITY
+        )
+        revoked = False
+        for grant in grants:
+            if grant.target.casefold() == "spotify":
                 revoked = await self._repository.revoke_permission(grant.id) or revoked
         return revoked
 

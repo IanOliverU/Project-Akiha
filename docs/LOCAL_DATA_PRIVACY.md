@@ -54,6 +54,9 @@ does not request or store a Spotify Client Secret.
 - Device snapshots are reduced to the fields needed for local selection.
   Device IDs are fetched fresh for playback and are not persisted or sent to
   an AI provider.
+- Generic play, pause, resume, next, and previous phrases are parsed locally
+  into typed actions. Their Spotify API mutations contain only the fresh target
+  device ID and no library metadata.
 - Catalog and library responses are reduced to minimal identifiers, names,
   artist/album or playlist-owner labels, duration, URI, and playability. Akiha
   does not retain artwork, descriptions, or raw provider responses.

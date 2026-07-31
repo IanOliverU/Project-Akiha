@@ -17,6 +17,7 @@ from project_akiha.core.actions import (
     ActionStatus,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
+from project_akiha.services.spotify_auth import SpotifyOAuthError
 from project_akiha.services.spotify_client import SpotifyAPIError, SpotifyDevice
 
 _SPOTIFY_APPLICATION_ID = "spotify"
@@ -51,6 +52,7 @@ class SpotifyDeviceStatus(StrEnum):
     APP_START_TIMEOUT = "app_start_timeout"
     CANCELLED = "cancelled"
     FAILED = "failed"
+    NOT_CONNECTED = "not_connected"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +68,11 @@ class SpotifyDeviceResolution:
 class PermissionGatedSpotifyActivator:
     """Launch Spotify exclusively through the Phase 8 action boundary."""
 
-    def __init__(self, action_service: AssistantActionService) -> None:
+    def __init__(self, action_service: AssistantActionService | None = None) -> None:
+        self._action_service = action_service
+
+    def apply_service(self, action_service: AssistantActionService) -> None:
+        """Finish runtime wiring after the action service owns Spotify executors."""
         self._action_service = action_service
 
     async def activate(
@@ -75,6 +81,8 @@ class PermissionGatedSpotifyActivator:
         *,
         cancellation_token: ActionCancellationToken | None = None,
     ) -> ActionResult:
+        if self._action_service is None:
+            raise RuntimeError("Spotify desktop activation is not configured.")
         request = ActionRequest(
             correlation_id=correlation_id,
             action_id=LAUNCH_APPLICATION_ACTION,
@@ -121,6 +129,7 @@ class SpotifyDeviceCoordinator:
         correlation_id: str,
         *,
         cancellation_token: ActionCancellationToken | None = None,
+        allow_activation: bool = True,
     ) -> SpotifyDeviceResolution:
         """Return a fresh playback target without persisting its device ID."""
         if _is_cancelled(cancellation_token):
@@ -131,7 +140,7 @@ class SpotifyDeviceCoordinator:
             SpotifyDeviceStatus.RESTRICTED_ONLY,
         }:
             return initial
-        if not self._auto_launch_desktop_app:
+        if not self._auto_launch_desktop_app or not allow_activation:
             return initial
 
         launch = await self._activator.activate(
@@ -158,6 +167,11 @@ class SpotifyDeviceCoordinator:
     async def _load_and_select(self) -> SpotifyDeviceResolution:
         try:
             devices = await asyncio.to_thread(self._device_source.get_available_devices)
+        except SpotifyOAuthError:
+            return SpotifyDeviceResolution(
+                status=SpotifyDeviceStatus.NOT_CONNECTED,
+                detail="Connect Spotify from Settings before using playback.",
+            )
         except SpotifyAPIError:
             return SpotifyDeviceResolution(
                 status=SpotifyDeviceStatus.FAILED,

@@ -29,6 +29,10 @@ _SEARCH_RESPONSE_KEYS = {
 
 JSONPayload = dict[str, Any]
 SpotifyTransport = Callable[[str, Mapping[str, str], float], JSONPayload]
+SpotifyMutationTransport = Callable[
+    [str, str, Mapping[str, str], bytes | None, float],
+    None,
+]
 
 
 class SpotifyAPIError(RuntimeError):
@@ -112,10 +116,12 @@ class SpotifyClient:
         session: SpotifySession,
         *,
         transport: SpotifyTransport | None = None,
+        mutation_transport: SpotifyMutationTransport | None = None,
     ) -> None:
         self._config = config
         self._session = session
         self._transport = transport or _get_json
+        self._mutation_transport = mutation_transport or _send_no_content
 
     def apply_config(self, config: SpotifyConfig) -> None:
         """Apply public request settings to future Spotify calls."""
@@ -223,6 +229,39 @@ class SpotifyClient:
                 devices.append(device)
         return tuple(devices)
 
+    def start_or_resume_playback(self, device_id: str) -> None:
+        """Start or resume the current Spotify context on one fresh device ID."""
+        self._request_no_content(
+            "PUT",
+            "/me/player/play",
+            {"device_id": _validate_device_id(device_id)},
+            body=b"{}",
+        )
+
+    def pause_playback(self, device_id: str) -> None:
+        """Pause playback on one fresh device ID."""
+        self._request_no_content(
+            "PUT",
+            "/me/player/pause",
+            {"device_id": _validate_device_id(device_id)},
+        )
+
+    def skip_to_next(self, device_id: str) -> None:
+        """Skip to the next item on one fresh device ID."""
+        self._request_no_content(
+            "POST",
+            "/me/player/next",
+            {"device_id": _validate_device_id(device_id)},
+        )
+
+    def skip_to_previous(self, device_id: str) -> None:
+        """Return to the previous item on one fresh device ID."""
+        self._request_no_content(
+            "POST",
+            "/me/player/previous",
+            {"device_id": _validate_device_id(device_id)},
+        )
+
     def _get_offset_items(
         self,
         path: str,
@@ -254,14 +293,7 @@ class SpotifyClient:
         return _deduplicate_items(items)[:max_items]
 
     def _request_json(self, path: str, query: Mapping[str, str]) -> JSONPayload:
-        if not path.startswith("/") or "://" in path:
-            raise ValueError(
-                "Spotify API paths must be relative to the fixed API host."
-            )
-        encoded_query = urlencode(dict(query))
-        url = f"{SPOTIFY_API_BASE_URL}{path}"
-        if encoded_query:
-            url = f"{url}?{encoded_query}"
+        url = _spotify_api_url(path, query)
         timeout = min(max(float(self._config.request_timeout_seconds), 1.0), 60.0)
         for attempt in range(2):
             access_token = self._session.get_access_token()
@@ -274,6 +306,33 @@ class SpotifyClient:
                     },
                     timeout,
                 )
+            except SpotifyAPIError as error:
+                if error.status_code != 401 or attempt > 0:
+                    raise
+                self._session.clear_access_token()
+        raise SpotifyAPIError("Spotify authorization could not be refreshed.")
+
+    def _request_no_content(
+        self,
+        method: str,
+        path: str,
+        query: Mapping[str, str],
+        *,
+        body: bytes | None = None,
+    ) -> None:
+        url = _spotify_api_url(path, query)
+        timeout = min(max(float(self._config.request_timeout_seconds), 1.0), 60.0)
+        for attempt in range(2):
+            access_token = self._session.get_access_token()
+            headers = {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {access_token}",
+            }
+            if body is not None:
+                headers["Content-Type"] = "application/json"
+            try:
+                self._mutation_transport(method, url, headers, body, timeout)
+                return
             except SpotifyAPIError as error:
                 if error.status_code != 401 or attempt > 0:
                     raise
@@ -293,6 +352,28 @@ def _get_json(url: str, headers: Mapping[str, str], timeout: float) -> JSONPaylo
     if not isinstance(payload, dict):
         raise SpotifyAPIError("Spotify returned an invalid response.")
     return payload
+
+
+def _send_no_content(
+    method: str,
+    url: str,
+    headers: Mapping[str, str],
+    body: bytes | None,
+    timeout: float,
+) -> None:
+    request = Request(
+        url,
+        headers=dict(headers),
+        data=body,
+        method=method,
+    )
+    try:
+        with urlopen(request, timeout=timeout):
+            return
+    except HTTPError as error:
+        raise _http_error(error.code) from error
+    except (OSError, URLError) as error:
+        raise SpotifyAPIError("Spotify could not be reached.") from error
 
 
 def _http_error(status_code: int) -> SpotifyAPIError:
@@ -318,6 +399,23 @@ def _validate_query(query: str) -> str:
             f"Spotify search query cannot exceed {_QUERY_LENGTH_MAX} characters."
         )
     return normalized
+
+
+def _validate_device_id(device_id: str) -> str:
+    normalized = device_id.strip()
+    if not normalized or len(normalized) > 256:
+        raise ValueError("Spotify device ID is invalid.")
+    if any(character in normalized for character in ("\0", "\r", "\n")):
+        raise ValueError("Spotify device ID is invalid.")
+    return normalized
+
+
+def _spotify_api_url(path: str, query: Mapping[str, str]) -> str:
+    if not path.startswith("/") or "://" in path:
+        raise ValueError("Spotify API paths must be relative to the fixed API host.")
+    encoded_query = urlencode(dict(query))
+    url = f"{SPOTIFY_API_BASE_URL}{path}"
+    return f"{url}?{encoded_query}" if encoded_query else url
 
 
 def _normalize_kinds(

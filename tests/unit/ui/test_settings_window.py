@@ -172,6 +172,12 @@ class SettingsWindowTest(unittest.TestCase):
                         target="chrome",
                         created_at="2026-07-31T00:00:00+00:00",
                     ),
+                    PermissionGrant(
+                        id=4,
+                        capability="spotify.playback",
+                        target="spotify",
+                        created_at="2026-07-31T00:00:00+00:00",
+                    ),
                 ),
             )
 
@@ -195,6 +201,7 @@ class SettingsWindowTest(unittest.TestCase):
             "launch on, close on",
             window._assistant_application_list.item(0).text(),
         )
+        self.assertEqual(window._spotify_playback_permission_status.text(), "Enabled")
 
     def test_saves_ai_assistant_tool_opt_in(self) -> None:
         with TemporaryDirectory() as directory:

@@ -16,11 +16,15 @@ from project_akiha.core.actions.registry import (
     APPLICATION_LAUNCH_CAPABILITY,
     FILE_OPEN_CAPABILITY,
     FILE_SEARCH_CAPABILITY,
+    SPOTIFY_PLAYBACK_CAPABILITY,
 )
 
 _FILE_CAPABILITIES = frozenset({FILE_SEARCH_CAPABILITY, FILE_OPEN_CAPABILITY})
 _APPLICATION_CAPABILITIES = frozenset(
     {APPLICATION_LAUNCH_CAPABILITY, APPLICATION_CLOSE_CAPABILITY}
+)
+_EXACT_TARGET_CAPABILITIES = _APPLICATION_CAPABILITIES | frozenset(
+    {SPOTIFY_PLAYBACK_CAPABILITY}
 )
 
 
@@ -63,6 +67,6 @@ class ActionPermissionPolicy:
                 action.normalized_target,
                 grant.target,
             )
-        if capability in _APPLICATION_CAPABILITIES:
+        if capability in _EXACT_TARGET_CAPABILITIES:
             return grant.target.casefold() == action.normalized_target.casefold()
         return False

@@ -18,6 +18,11 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_NEXT_ACTION,
+    SPOTIFY_PAUSE_ACTION,
+    SPOTIFY_PLAY_ACTION,
+    SPOTIFY_PREVIOUS_ACTION,
+    SPOTIFY_RESUME_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
@@ -79,6 +84,29 @@ _SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
     r"(?:\s+(?:application|app))?[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_PLAYBACK_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
+    r"(?P<play>play)\s+(?:the\s+)?"
+    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
+    r"(?P<pause>pause|stop)\s+(?:the\s+)?"
+    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
+    r"(?P<resume>resume|continue)\s+(?:the\s+)?"
+    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
+    r"(?P<next>next|skip)\s+(?:the\s+)?(?:song|track)|"
+    r"(?P<previous>(?:previous|last)\s+(?:song|track)|"
+    r"go\s+back\s+to\s+(?:the\s+)?previous\s+(?:song|track)))"
+    r"\s*[.!?]?$",
+    re.IGNORECASE,
+)
+
+_SPOTIFY_ACTIONS = {
+    "play": SPOTIFY_PLAY_ACTION,
+    "pause": SPOTIFY_PAUSE_ACTION,
+    "resume": SPOTIFY_RESUME_ACTION,
+    "next": SPOTIFY_NEXT_ACTION,
+    "previous": SPOTIFY_PREVIOUS_ACTION,
+}
 
 _APPLICATION_ALIASES = {
     "chrome": "chrome",
@@ -142,6 +170,23 @@ class AssistantActionRequestParser:
         if not normalized:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
+
+        spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
+        if spotify_match is not None:
+            command = next(
+                name
+                for name in ("slash", "play", "pause", "resume", "next", "previous")
+                if spotify_match.group(name) is not None
+            )
+            if command == "slash":
+                command = spotify_match.group("slash").casefold()
+            elif command in {"next", "previous"}:
+                command = command
+            return _request(
+                correlation_id=request_id,
+                action_id=_SPOTIFY_ACTIONS[command],
+                parameters={"service": "spotify"},
+            )
 
         open_match = _OPEN_DIRECTORY_PATTERN.fullmatch(normalized)
         if open_match is not None:

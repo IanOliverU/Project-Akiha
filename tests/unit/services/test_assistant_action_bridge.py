@@ -109,6 +109,37 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.action_id, "applications.close")
                 self.assertEqual(request.parameters["application_id"], application_id)
 
+    def test_parses_typed_and_spoken_spotify_playback_commands(self) -> None:
+        cases = (
+            ("/spotify-play", "spotify.play"),
+            ("Akiha, play Spotify.", "spotify.play"),
+            ("Please pause the music", "spotify.pause"),
+            (
+                "I heard you say: Akiha, could you please pause the song?",
+                "spotify.pause",
+            ),
+            ("Continue Spotify playback", "spotify.resume"),
+            ("Okay, next track", "spotify.next"),
+            ("Akiha, go back to the previous song", "spotify.previous"),
+        )
+
+        for text, action_id in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, action_id)
+                self.assertEqual(dict(request.parameters), {"service": "spotify"})
+
+    def test_song_title_does_not_become_generic_spotify_control(self) -> None:
+        self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
+
+    def test_start_spotify_remains_an_application_launch(self) -> None:
+        request = self.parser.parse("Start Spotify")
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "applications.launch")
+
     def test_parses_spoken_directory_path(self) -> None:
         request = self.parser.parse(
             r"Akiha, please open the folder C:\Users\Akiha\Project Files."

@@ -152,6 +152,13 @@ from project_akiha.services.speech_identity import (
 )
 from project_akiha.services.speech_input import SpeechInputService
 from project_akiha.services.speech_output import SpeechOutputService
+from project_akiha.services.spotify_client import SpotifyClient
+from project_akiha.services.spotify_devices import (
+    PermissionGatedSpotifyActivator,
+    SpotifyDeviceCoordinator,
+)
+from project_akiha.services.spotify_playback import build_spotify_playback_executors
+from project_akiha.services.spotify_session import SpotifySession
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
@@ -261,6 +268,14 @@ def _run_application() -> int:
         credential_path=paths.credential_path,
     )
     application_catalog = ApplicationCatalog()
+    spotify_session = SpotifySession(config.spotify, credential_store)
+    spotify_client = SpotifyClient(config.spotify, spotify_session)
+    spotify_activator = PermissionGatedSpotifyActivator()
+    spotify_device_coordinator = SpotifyDeviceCoordinator(
+        spotify_client,
+        spotify_activator,
+        auto_launch_desktop_app=config.spotify.auto_launch_desktop_app,
+    )
     assistant_action_service = AssistantActionService(
         ActionRequestValidator(build_default_action_registry(), action_path_policy),
         ActionPermissionPolicy(action_path_policy),
@@ -273,8 +288,13 @@ def _run_application() -> int:
             OpenFileExecutor(),
             AllowlistedApplicationExecutor(application_catalog),
             CloseAllowlistedApplicationExecutor(application_catalog),
+            *build_spotify_playback_executors(
+                spotify_client,
+                spotify_device_coordinator,
+            ),
         ),
     )
+    spotify_activator.apply_service(assistant_action_service)
     assistant_permission_service = AssistantPermissionService(
         action_repository,
         action_path_policy,
@@ -515,6 +535,10 @@ def _run_application() -> int:
         chat_controller.set_ai_provider(ai_provider)
         assistant_tool_gateway.apply_provider(ai_provider)
         assistant_tool_gateway.set_enabled(updated_config.ai.assistant_tools_enabled)
+        spotify_client.apply_config(updated_config.spotify)
+        spotify_device_coordinator.apply_auto_launch(
+            updated_config.spotify.auto_launch_desktop_app
+        )
         assistant_tool_result_store.clear()
         navigation_context = None
         assistant_translation_controller.apply_service(
@@ -871,6 +895,41 @@ def _run_application() -> int:
                 True,
             )
 
+    def grant_spotify_playback() -> None:
+        try:
+            asyncio.run(assistant_permission_service.grant_spotify_playback())
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                "Spotify playback permission enabled."
+            )
+        except OSError:
+            logger.exception("Could not grant Spotify playback permission.")
+            settings_window.set_assistant_permission_status(
+                "Spotify playback permission could not be enabled.",
+                True,
+            )
+
+    def revoke_spotify_playback() -> None:
+        try:
+            removed = asyncio.run(
+                assistant_permission_service.revoke_spotify_playback()
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                (
+                    "Spotify playback permission disabled."
+                    if removed
+                    else "No Spotify playback permission was found."
+                ),
+                not removed,
+            )
+        except OSError:
+            logger.exception("Could not revoke Spotify playback permission.")
+            settings_window.set_assistant_permission_status(
+                "Spotify playback permission could not be disabled.",
+                True,
+            )
+
     def reset_assistant_permissions() -> None:
         try:
             count = asyncio.run(assistant_permission_service.reset_all_permissions())
@@ -906,6 +965,9 @@ def _run_application() -> int:
     settings_window.assistant_application_close_revoke_requested.connect(
         revoke_assistant_application_close
     )
+    settings_window.spotify_playback_grant_requested.connect(grant_spotify_playback)
+    settings_window.spotify_playback_revoke_requested.connect(revoke_spotify_playback)
+    settings_window.spotify_session_changed.connect(spotify_session.clear_access_token)
     settings_window.assistant_permissions_reset_requested.connect(
         reset_assistant_permissions
     )
@@ -1627,6 +1689,9 @@ def _run_application() -> int:
         scheduled_check_in_controller,
         scheduled_check_in_engine,
         settings_window,
+        spotify_client,
+        spotify_device_coordinator,
+        spotify_session,
         tray_icon,
         user_config_store,
         voice_capture_controller,

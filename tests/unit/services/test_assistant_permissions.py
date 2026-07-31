@@ -88,6 +88,18 @@ class AssistantPermissionServiceTest(unittest.TestCase):
             (launch,),
         )
 
+    def test_spotify_playback_permission_is_fixed_and_separate(self) -> None:
+        launch = asyncio.run(self.service.grant_application("spotify"))
+        playback = asyncio.run(self.service.grant_spotify_playback())
+
+        self.assertEqual(playback.capability, "spotify.playback")
+        self.assertEqual(playback.target, "spotify")
+        self.assertTrue(asyncio.run(self.service.revoke_spotify_playback()))
+        self.assertEqual(
+            asyncio.run(self.service.get_active_permissions()),
+            (launch,),
+        )
+
     def test_resets_all_permission_types(self) -> None:
         asyncio.run(self.service.grant_application("spotify"))
         asyncio.run(self.service.approve_directory(self.safe_root, allow_open=True))

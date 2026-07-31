@@ -50,6 +50,23 @@ class _Transport:
         return self.payloads.pop(0)
 
 
+class _MutationTransport:
+    def __init__(self) -> None:
+        self.requests: list[tuple[str, str, Mapping[str, str], bytes | None, float]] = (
+            []
+        )
+
+    def __call__(
+        self,
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes | None,
+        timeout: float,
+    ) -> None:
+        self.requests.append((method, url, headers, body, timeout))
+
+
 class SpotifyClientTest(unittest.TestCase):
     """Verify Spotify responses become minimal typed local metadata."""
 
@@ -276,6 +293,79 @@ class SpotifyClientTest(unittest.TestCase):
             client.get_available_devices()
 
         self.assertNotIn("do-not-echo", str(raised.exception))
+
+    def test_playback_controls_use_only_fixed_player_routes(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            transport=_Transport([]),
+            mutation_transport=mutations,
+        )
+
+        client.start_or_resume_playback(" desktop-id ")
+        client.pause_playback("desktop-id")
+        client.skip_to_next("desktop-id")
+        client.skip_to_previous("desktop-id")
+
+        self.assertEqual(
+            [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
+            [
+                ("PUT", "/v1/me/player/play"),
+                ("PUT", "/v1/me/player/pause"),
+                ("POST", "/v1/me/player/next"),
+                ("POST", "/v1/me/player/previous"),
+            ],
+        )
+        for _method, url, headers, _body, timeout in mutations.requests:
+            self.assertEqual(
+                parse_qs(urlparse(url).query),
+                {"device_id": ["desktop-id"]},
+            )
+            self.assertEqual(headers["Authorization"], "Bearer access-1")
+            self.assertEqual(timeout, 15.0)
+        self.assertEqual(mutations.requests[0][3], b"{}")
+        self.assertEqual(mutations.requests[1][3], None)
+
+    def test_playback_rejects_invalid_device_id_before_network(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for device_id in ("", " ", "bad\nidentifier", "x" * 257):
+            with self.subTest(device_id=device_id):
+                with self.assertRaises(ValueError):
+                    client.pause_playback(device_id)
+
+        self.assertEqual(mutations.requests, [])
+
+    def test_playback_unauthorized_request_refreshes_once(self) -> None:
+        requests: list[str] = []
+
+        def mutation_transport(
+            _method: str,
+            _url: str,
+            headers: Mapping[str, str],
+            _body: bytes | None,
+            _timeout: float,
+        ) -> None:
+            requests.append(headers["Authorization"])
+            if len(requests) == 1:
+                raise SpotifyAPIError("expired", status_code=401)
+
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutation_transport,
+        )
+
+        client.skip_to_next("desktop-id")
+
+        self.assertEqual(requests, ["Bearer access-1", "Bearer access-2"])
+        self.assertEqual(self.session.clear_count, 1)
 
     def test_invalid_top_kind_time_range_and_library_bounds_fail_locally(self) -> None:
         client = SpotifyClient(self.config, self.session, transport=_Transport([]))

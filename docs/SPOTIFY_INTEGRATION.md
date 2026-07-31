@@ -1,6 +1,6 @@
 # Spotify Integration
 
-**Status:** In progress - authentication, lookup, and device resolution implemented
+**Status:** In progress - generic typed and spoken playback controls implemented
 
 ## Purpose
 
@@ -51,6 +51,12 @@ typed/voice request -> constrained intent proposal
                     -> Spotify Web API
 ```
 
+Generic playback commands use the deterministic local parser before any AI
+provider. Supported typed or spoken forms include `play Spotify`, `pause the
+music`, `resume Spotify playback`, `next track`, and `previous song`, plus the
+explicit `/spotify-*` command forms. Track, artist, album, playlist, and
+favorites selection remain a separate local resolution step.
+
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
@@ -84,7 +90,11 @@ track and artist names rather than the user's data.
   playlists, Liked Songs, top items, and recent tracks.
 - [x] Fresh active-device selection with restricted-device refusal and bounded
   desktop-app activation through the existing permission/audit boundary.
-- [ ] Typed playback action contracts and executors.
+- [x] Separate local `spotify.playback` permission and audited typed play,
+  pause, resume, next, and previous action contracts and executors.
+- [x] Deterministic typed/voice parsing for generic playback controls without
+  sending the command through an AI provider.
 - [ ] Local preference ranking and ambiguity UI.
-- [ ] Voice/chat intent integration and end-to-end tests.
+- [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
+  end-to-end tests.
 - [ ] Packaged build and manual Spotify smoke test.

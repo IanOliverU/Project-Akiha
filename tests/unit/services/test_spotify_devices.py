@@ -14,6 +14,7 @@ from project_akiha.core.actions import (
     ActionStatus,
     PermissionDecision,
 )
+from project_akiha.services.spotify_auth import SpotifyOAuthError
 from project_akiha.services.spotify_client import SpotifyAPIError, SpotifyDevice
 from project_akiha.services.spotify_devices import (
     PermissionGatedSpotifyActivator,
@@ -173,6 +174,17 @@ class SpotifyDeviceCoordinatorTest(unittest.TestCase):
         self.assertNotIn("private provider response", result.detail)
         self.assertEqual(activator.calls, [])
 
+    def test_disconnected_session_returns_specific_safe_status(self) -> None:
+        source = _DeviceSource([SpotifyOAuthError("private auth detail")])
+        activator = _Activator(_action_result(ActionStatus.SUCCESS))
+        coordinator = SpotifyDeviceCoordinator(source, activator)
+
+        result = asyncio.run(coordinator.resolve("spotify-device-auth"))
+
+        self.assertEqual(result.status, SpotifyDeviceStatus.NOT_CONNECTED)
+        self.assertNotIn("private auth detail", result.detail)
+        self.assertEqual(activator.calls, [])
+
 
 class PermissionGatedSpotifyActivatorTest(unittest.TestCase):
     def test_activation_uses_only_the_registered_spotify_launch_action(self) -> None:
@@ -228,7 +240,9 @@ def _action_result(
 class _DeviceSource:
     def __init__(
         self,
-        responses: list[tuple[SpotifyDevice, ...] | SpotifyAPIError],
+        responses: list[
+            tuple[SpotifyDevice, ...] | SpotifyAPIError | SpotifyOAuthError
+        ],
     ) -> None:
         self.responses = list(responses)
         self.call_count = 0
@@ -238,7 +252,7 @@ class _DeviceSource:
         if not self.responses:
             raise AssertionError("Unexpected Spotify device request.")
         response = self.responses.pop(0)
-        if isinstance(response, SpotifyAPIError):
+        if isinstance(response, (SpotifyAPIError, SpotifyOAuthError)):
             raise response
         return response
 

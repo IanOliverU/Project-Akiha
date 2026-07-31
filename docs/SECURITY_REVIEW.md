@@ -58,6 +58,11 @@ Playback-device discovery uses a fresh minimal provider snapshot and does not
 persist device identifiers. Restricted devices are rejected, ambiguous peers
 are not guessed, and optional Spotify desktop activation can occur only through
 the existing typed `applications.launch` permission, executor, and audit path.
+Playback control has its own exact-target `spotify.playback` grant, separate
+from account connection and desktop launch permission. Generic control phrases
+are recognized by a strict local parser and can reach only the registered play,
+pause, resume, next, or previous executor; arbitrary provider text and Spotify
+URIs cannot enter those contracts.
 
 ## First-Run Privacy Notice
 

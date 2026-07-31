@@ -134,6 +134,24 @@ class ActionPermissionPolicyTest(unittest.TestCase):
             PermissionDecision.GRANTED,
         )
 
+    def test_spotify_playback_requires_its_exact_separate_grant(self) -> None:
+        action = self._validate("spotify.pause", {"service": "spotify"})
+
+        self.assertEqual(
+            self.policy.evaluate(
+                action,
+                (self._grant("applications.launch", "spotify"),),
+            ),
+            PermissionDecision.MISSING,
+        )
+        self.assertEqual(
+            self.policy.evaluate(
+                action,
+                (self._grant("spotify.playback", "spotify"),),
+            ),
+            PermissionDecision.GRANTED,
+        )
+
     def _validate(
         self,
         action_id: str,

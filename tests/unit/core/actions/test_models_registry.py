@@ -31,7 +31,7 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             request.parameters["application_id"] = "discord"  # type: ignore[index]
 
-    def test_default_registry_contains_only_initial_allowlisted_actions(self) -> None:
+    def test_default_registry_contains_only_allowlisted_actions(self) -> None:
         registry = build_default_action_registry()
 
         self.assertEqual(
@@ -43,6 +43,11 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
                 "files.open",
                 "applications.launch",
                 "applications.close",
+                "spotify.play",
+                "spotify.pause",
+                "spotify.resume",
+                "spotify.next",
+                "spotify.previous",
             ),
         )
 

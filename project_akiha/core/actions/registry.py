@@ -20,11 +20,17 @@ OPEN_DIRECTORY_ACTION = "files.open_directory"
 OPEN_FILE_ACTION = "files.open"
 LAUNCH_APPLICATION_ACTION = "applications.launch"
 CLOSE_APPLICATION_ACTION = "applications.close"
+SPOTIFY_PLAY_ACTION = "spotify.play"
+SPOTIFY_PAUSE_ACTION = "spotify.pause"
+SPOTIFY_RESUME_ACTION = "spotify.resume"
+SPOTIFY_NEXT_ACTION = "spotify.next"
+SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
 
 FILE_SEARCH_CAPABILITY = "files.search"
 FILE_OPEN_CAPABILITY = "files.open"
 APPLICATION_LAUNCH_CAPABILITY = "applications.launch"
 APPLICATION_CLOSE_CAPABILITY = "applications.close"
+SPOTIFY_PLAYBACK_CAPABILITY = "spotify.playback"
 
 ALLOWLISTED_APPLICATION_IDS = ("chrome", "discord", "spotify", "vlc", "vscode")
 
@@ -185,6 +191,53 @@ def build_default_action_registry() -> ActionRegistry:
                     ),
                 ),
                 timeout_seconds=10,
+            ),
+            *(
+                ActionDefinition(
+                    action_id=action_id,
+                    description=description,
+                    risk=ActionRisk.USER_VISIBLE,
+                    permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                    confirmation_policy=ConfirmationPolicy.NEVER,
+                    executor_id=f"spotify_{control}",
+                    target_parameter="service",
+                    parameters=(
+                        ActionParameterSpec(
+                            name="service",
+                            kind=ParameterKind.STRING,
+                            max_length=16,
+                            allowed_values=("spotify",),
+                        ),
+                    ),
+                    timeout_seconds=20,
+                )
+                for action_id, control, description in (
+                    (
+                        SPOTIFY_PLAY_ACTION,
+                        "play",
+                        "Start or resume playback on an approved Spotify device.",
+                    ),
+                    (
+                        SPOTIFY_PAUSE_ACTION,
+                        "pause",
+                        "Pause playback on an approved Spotify device.",
+                    ),
+                    (
+                        SPOTIFY_RESUME_ACTION,
+                        "resume",
+                        "Resume playback on an approved Spotify device.",
+                    ),
+                    (
+                        SPOTIFY_NEXT_ACTION,
+                        "next",
+                        "Skip to the next item on an approved Spotify device.",
+                    ),
+                    (
+                        SPOTIFY_PREVIOUS_ACTION,
+                        "previous",
+                        "Return to the previous item on an approved Spotify device.",
+                    ),
+                )
             ),
         )
     )

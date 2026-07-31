@@ -117,7 +117,9 @@ clear short command and a genuinely uncertain high-no-speech result.
 - [x] Add bounded local track, artist, album, playlist, Liked Songs, top-item,
   and recent-track lookup with minimal metadata retention.
 - [x] Add active-device selection and optional Spotify desktop-app launch.
-- [ ] Add typed play, pause, resume, next, previous, and library-play actions.
+- [x] Add typed and locally parsed voice play, pause, resume, next, and previous
+  actions behind a separate Spotify playback permission.
+- [ ] Add track, artist, album, playlist, and library-play actions.
 - [ ] Add local preference ranking and explicit ambiguity confirmation.
 - [ ] Connect constrained typed/voice proposals without exposing library data to
   hosted providers.
