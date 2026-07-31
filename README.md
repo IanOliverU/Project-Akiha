@@ -33,8 +33,8 @@ Akiha is intended to become a personal desktop companion that can:
   pipeline instead of a single monolithic memory service.
 - React to user activity with mood-aware behavior, idle/away awareness,
   proactive check-ins, reminders, delivery guardrails, and behavior logging.
-- Grow later into a safer local assistant with explicit command validation,
-  permissions, audit logs, packaging, and release hardening.
+- Perform a shallow set of permission-gated desktop actions through typed
+  validation, revocable grants, confirmations, and sanitized audit history.
 
 ## Current Status
 
@@ -43,13 +43,13 @@ faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX playback,
 automatic reply speech, and a minimal speech identity. Chat can switch between
 mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
 OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
-Windows user and never stored in ordinary TOML configuration. Phase 8 will add
-permission-gated, deliberately shallow desktop actions before the pet
-simulation is researched and implemented in Phase 9. Phase 8A now provides the
-typed registry, validation, protected-path policy, scoped permission storage,
-and sanitized action auditing without enabling any desktop executor. The first
-Phase 8B slice adds atomic approved-directory management while file discovery
-and opening remain disabled.
+Windows user and never stored in ordinary TOML configuration. Phase 8
+implementation now provides permission-gated file discovery, approved-directory
+and passive-file opening, allowlisted application launching, revocable grants,
+confirmation surfaces, and sanitized action history. Its source verification
+is complete; a current packaged build and manual packaged smoke pass remain
+before formal closure. Pet simulation research and implementation follow in
+Phase 9.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ and opening remain disabled.
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | In progress | Permission-gated file discovery and allowlisted application launching |
+| Phase 8 | Packaging pending | Permission-gated file discovery and allowlisted application launching |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -257,6 +257,9 @@ granting unrestricted operating-system access.
 - Open approved directories and safe files through validated actions.
 - Launch explicitly enabled applications such as Discord, Chrome, Spotify, and
   Visual Studio Code through a trusted application catalog.
+- Optionally let the selected AI provider interpret natural app-launch and
+  local-media requests without disclosing filesystem paths, listings, results,
+  metadata, or file contents.
 - Record permission decisions and sanitized outcomes in an action audit.
 - Deny shell commands, elevation, file mutation, system-critical access,
   arbitrary executables, arguments, and autonomous background actions.

@@ -40,7 +40,10 @@ class PrivacyNoticeDialog(QDialog):
             "open approved folders and passive files after confirmation, and "
             "launch separately enabled applications. She cannot run arbitrary "
             "commands, use AI-supplied paths or arguments, or modify system "
-            "files.</p>"
+            "files. If AI-assisted proposals are enabled, the selected AI "
+            "provider receives the action request. Akiha does not add approved "
+            "paths, directory listings, search results, or file contents to "
+            "that request.</p>"
         )
         summary.setWordWrap(True)
         summary.setTextFormat(Qt.TextFormat.RichText)

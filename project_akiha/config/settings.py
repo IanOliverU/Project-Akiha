@@ -57,6 +57,7 @@ class AIConfig:
     hosted_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
     hosted_model: str = "gemini-3.6-flash"
     request_timeout_seconds: int = 60
+    assistant_tools_enabled: bool = False
 
     def __post_init__(self) -> None:
         """Validate AI provider settings."""

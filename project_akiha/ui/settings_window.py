@@ -167,6 +167,13 @@ class SettingsWindow(QWidget):
             600,
             config.ai.request_timeout_seconds,
         )
+        self._assistant_tools_enabled_input = QCheckBox()
+        self._assistant_tools_enabled_input.setChecked(
+            config.ai.assistant_tools_enabled
+        )
+        self._assistant_tools_enabled_input.setToolTip(
+            "Let the selected AI interpret allowlisted app and local media requests."
+        )
         self._character_name_input = QLineEdit(config.personality.character_name)
         self._system_prompt_input = QPlainTextEdit(config.personality.system_prompt)
         self._system_prompt_input.setMinimumHeight(96)
@@ -423,6 +430,9 @@ class SettingsWindow(QWidget):
         self._hosted_base_url_input.setText(config.ai.hosted_base_url)
         self._hosted_model_input.setText(config.ai.hosted_model)
         self._ai_timeout_input.setValue(config.ai.request_timeout_seconds)
+        self._assistant_tools_enabled_input.setChecked(
+            config.ai.assistant_tools_enabled
+        )
         self._ai_api_key_input.clear()
         self._sync_ai_controls(config.ai.provider)
         self._character_name_input.setText(config.personality.character_name)
@@ -737,6 +747,10 @@ class SettingsWindow(QWidget):
         application_section.setLayout(application_layout)
 
         status_layout = QFormLayout()
+        status_layout.addRow(
+            "AI app/media requests",
+            self._assistant_tools_enabled_input,
+        )
         status_layout.addRow("Status", self._assistant_permission_status)
         return _build_scroll_tab(
             _build_section("Permission controls", status_layout),
@@ -1091,6 +1105,9 @@ class SettingsWindow(QWidget):
                 hosted_base_url=self._hosted_base_url_input.text(),
                 hosted_model=self._hosted_model_input.text(),
                 request_timeout_seconds=self._ai_timeout_input.value(),
+                assistant_tools_enabled=(
+                    self._assistant_tools_enabled_input.isChecked()
+                ),
             )
         )
         config = config.with_personality(

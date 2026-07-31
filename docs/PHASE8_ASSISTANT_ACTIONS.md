@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - Phase 8B file discovery and passive-file opening complete
+**Status:** In progress - implementation complete; packaged verification pending
 
 ## Phase Goal
 
@@ -18,6 +18,12 @@ The first capabilities are:
 The phase proves the complete action pipeline before any higher-risk
 automation is considered.
 
+The optional AI-assisted proposal layer remains off by default. When enabled,
+the selected provider may classify an explicit app-launch or local-media
+request, but it receives no local paths, directory listings, search results,
+file metadata, or file contents added by Akiha. As with ordinary hosted chat,
+text the user explicitly types is still sent to the selected provider.
+
 ## Security Position
 
 AI output is untrusted input, never executable authority.
@@ -34,7 +40,9 @@ AI output is untrusted input, never executable authority.
 
 ```text
 User request
-    -> AI or local parser proposes ActionRequest
+    -> local parser proposes ActionRequest
+       or selected AI proposes a constrained app/media intent
+          -> local resolver creates ActionRequest
         -> AssistantActionService
             -> ActionRegistry
             -> schema and target validation
@@ -410,7 +418,8 @@ Application launching now:
 - [x] Add action history with clear controls.
 - [x] Update the versioned privacy notice.
 - [x] Add diagnostics and reset behavior.
-- Run automated tests and packaged smoke verification.
+- [x] Run the automated test suite and static checks.
+- [ ] Rebuild the release package and complete packaged smoke verification.
 
 Phase 8D now:
 
@@ -422,6 +431,27 @@ Phase 8D now:
 - reports missing, unavailable, and failed permission operations without
   exposing exception details
 - versions the first-run privacy notice to explain assistant-action boundaries
+
+### Phase 8E: Constrained AI-Assisted Proposals
+
+- [x] Add a default-off Settings control for AI-assisted proposals.
+- [x] Accept only strict typed proposals for allowlisted app launch or passive
+  local media lookup.
+- [x] Keep Akiha's approved roots, search results, paths, metadata, and file
+  contents out of provider prompts.
+- [x] Resolve media titles through the bounded local file-search executor.
+- [x] Present multiple matches as local numbered results.
+- [x] Preserve existing permission checks, audit records, and file-open
+  confirmation.
+- [x] Fall back to normal chat when the provider returns no action or an
+  unusable proposal.
+- [x] Add proposal, filtering, result-follow-up, worker, config, and privacy
+  tests.
+
+The provider has no executor reference and cannot return a path. A successful
+proposal is still only an intent such as `launch_application: chrome` or
+`play_media: Elis / Megurine Luka`. Akiha performs discovery locally and turns
+the result into the same typed action request used by direct commands.
 
 ## Required Boundary Tests
 
@@ -436,6 +466,10 @@ Phase 8D now:
 - [x] Only allowlisted passive file types can be opened through file actions.
 - [x] Passive file opening requires a scoped grant and visible confirmation.
 - [x] An unregistered application or AI-provided executable path is denied.
+- [x] AI proposals containing paths, commands, URLs, or extra fields are
+  rejected.
+- [x] AI-assisted media resolution searches only approved roots and exposes
+  only opaque numbered follow-ups to the conversation.
 - [x] Application arguments and elevation requests are denied.
 - [x] Revoked permission prevents the next matching action.
 - [x] Denied and failed actions do not fall back to shell execution.
@@ -466,6 +500,8 @@ Phase 8D now:
 - Administrator elevation
 - Writing, renaming, moving, copying, downloading, or deleting files
 - Reading file contents into AI context
+- Sending local paths, directory listings, search results, or file metadata to
+  an AI provider
 - Registry, service, driver, task-scheduler, or Windows settings changes
 - Keyboard, mouse, browser, or anti-AFK automation
 - Autonomous or silent background actions

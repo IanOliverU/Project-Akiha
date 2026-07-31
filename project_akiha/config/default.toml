@@ -15,6 +15,7 @@ ollama_model = "llama3.2"
 hosted_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 hosted_model = "gemini-3.6-flash"
 request_timeout_seconds = 60
+assistant_tools_enabled = false
 
 [personality]
 character_name = "Akiha"

@@ -17,7 +17,7 @@ available without subscriptions or API keys.
 | Data | Location | Purpose |
 | --- | --- | --- |
 | User config | `%LOCALAPPDATA%\Akiha\user_config.toml` | User-editable settings saved from the Settings window. |
-| SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, and behavior history. |
+| SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, behavior history, assistant-action grants, and sanitized action history. |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` | Last saved pet position. |
 | Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys scoped to the current Windows user. |
 | Logs | `%LOCALAPPDATA%\Akiha\logs\app.log` | Startup, diagnostics, provider failures, migration failures, and runtime support logs. |
@@ -114,8 +114,13 @@ actions. Its design is documented in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
   Discord, Chrome, Spotify, or Visual Studio Code.
 - Action audit records contain decisions and sanitized metadata, not file
   contents or credentials.
-- No file content is added to an AI prompt or sent to a hosted provider in
-  Phase 8.
+- AI-assisted action proposals are off by default. When enabled, the selected
+  provider receives the user's explicit action sentence for constrained intent
+  classification.
+- Akiha never adds approved roots, local paths, directory listings, search
+  results, file metadata, or file contents to that proposal prompt. Text the
+  user explicitly enters remains part of the provider request, as it does in
+  normal hosted chat.
 - Settings provides local controls to review, enable, disable, and reset
   directory and application permissions.
 - Assistant-action audit history can be cleared from its history window.
@@ -134,8 +139,9 @@ To reset all local Project Akiha data, quit the app first, then remove:
 ```
 
 This removes user config, encrypted API credentials, chat history, memories,
-behavior history, logs, local voice models, and pet window state. If only the
-pet position should be reset, use Settings -> Reset position instead.
+behavior history, assistant-action grants and audit history, logs, local voice
+models, and pet window state. If only the pet position should be reset, use
+Settings -> Reset position instead.
 
 ## First-Run Privacy Notice
 
@@ -153,6 +159,10 @@ The notice explains:
 - additional hosted requests for subtitles, summaries, and memory extraction
 - local conversation, memory, settings, and log storage
 - Windows-user encryption for hosted API credentials
+- approved-directory and allowlisted-application grants
+- optional provider classification of explicit app/media requests without
+  local filesystem details
+- sanitized assistant-action audit history and prohibited action categories
 
 Revisit and version the notice again before adding persistent or always-listening
 capture, sync, plugins, file-content ingestion, or broader local commands.

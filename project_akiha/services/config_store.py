@@ -81,6 +81,7 @@ def _serialize_config(config: AppConfig) -> str:
         f'hosted_base_url = "{hosted_base_url}"\n'
         f'hosted_model = "{hosted_model}"\n'
         f"request_timeout_seconds = {ai.request_timeout_seconds}\n"
+        f"assistant_tools_enabled = {str(ai.assistant_tools_enabled).lower()}\n"
         "\n"
         "[personality]\n"
         f'character_name = "{character_name}"\n'

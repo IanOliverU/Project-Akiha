@@ -46,6 +46,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         hosted_base_url="https://example.test/v1",
                         hosted_model="hosted-test",
                         request_timeout_seconds=15,
+                        assistant_tools_enabled=True,
                     ),
                     personality=PersonalityConfig(
                         character_name="Mei",
@@ -118,6 +119,7 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.ai.hosted_base_url, "https://example.test/v1")
         self.assertEqual(config.ai.hosted_model, "hosted-test")
         self.assertEqual(config.ai.request_timeout_seconds, 15)
+        self.assertTrue(config.ai.assistant_tools_enabled)
         self.assertEqual(config.personality.character_name, "Mei")
         self.assertEqual(config.personality.system_prompt, "You are {character_name}.")
         self.assertEqual(config.personality.rendered_system_prompt(), "You are Mei.")

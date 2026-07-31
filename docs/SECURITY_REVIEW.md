@@ -5,13 +5,15 @@ Windows package.
 
 ## Current Scope
 
-- AI output is only rendered as chat text or used as memory/summarization text.
-- AI output is not passed to `eval`, `exec`, a shell, subprocess APIs, or local
-  assistant commands.
-- There is no plugin API, command runner, browser automation, file automation,
-  or operating-system control path in Phase 6.
-- The only app action that opens the operating system is the Settings action
-  that opens the logs or data folder through Qt's desktop-services API.
+- AI output is rendered as chat/memory text or, when explicitly enabled,
+  parsed as a narrow app/media proposal with no direct execution authority.
+- AI output is never passed to `eval`, `exec`, a shell, or a generic command
+  runner.
+- Typed assistant actions can search approved roots, open approved directories
+  or confirmed passive files, and launch separately enabled catalog apps.
+- There is no plugin API, shell runner, browser automation, filesystem
+  mutation, keyboard/mouse automation, or unrestricted operating-system
+  control path.
 - The app supports local mock/Ollama modes and explicitly selected hosted
   OpenAI-compatible endpoints.
 
@@ -54,30 +56,39 @@ Runtime data stays under `%LOCALAPPDATA%\Akiha\`:
 Diagnostics logs include paths and support metadata, but do not intentionally
 print chat transcripts, memory contents, or user config contents.
 
-## Planned Phase 8 Assistant-Action Boundary
+## Implemented Phase 8 Assistant-Action Boundary
 
-Phase 8 is specified in `docs/PHASE8_ASSISTANT_ACTIONS.md`. No assistant action
-is enabled until its typed registry, validation, scoped permissions,
-confirmation policy, capability-specific executor, and audit path are in place.
+Phase 8 is specified in `docs/PHASE8_ASSISTANT_ACTIONS.md`. Its enabled
+assistant actions pass through a typed registry, validation, scoped
+permissions, confirmation policy, capability-specific executor, and sanitized
+audit path.
 
-The planned scope is intentionally shallow:
+The implemented scope is intentionally shallow:
 
 - read-only filename and metadata search inside user-approved directories
 - opening an approved directory or validated safe file
 - launching an explicitly enabled catalog application such as Discord, Chrome,
   Spotify, or Visual Studio Code
+- optionally asking the selected AI provider to classify an explicit
+  allowlisted-app or passive-media request
 
 The design rejects shell text, arbitrary executable paths and arguments,
 administrator elevation, filesystem mutation, protected Windows locations,
 system utilities, and autonomous background actions. AI output remains an
 untrusted request and never becomes direct execution authority.
 
+The optional AI proposal gateway is disabled by default and accepts exact JSON
+for only allowlisted application identifiers or media title/artist terms. The
+provider receives the user's request, but Akiha does not append approved roots,
+local paths, directory listings, search results, metadata, or file contents.
+Media discovery, permission evaluation, confirmation, execution, and auditing
+remain local.
+
 ## Deferred Before Public Distribution
 
 - Code signing.
 - Dependency auditing.
 - Installer-specific permissions and uninstall behavior.
-- Implementation and verification of the Phase 8 permission and audit boundary
-  before any assistant action executor is enabled.
+- A current packaged build and manual Phase 8 smoke verification.
 - A revised privacy-notice version before sync, plugins, persistent microphone
-  capture, or local assistant commands are added.
+  capture, or broader assistant-action capabilities are added.

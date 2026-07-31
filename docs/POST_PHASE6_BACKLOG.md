@@ -57,9 +57,9 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
   defined in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
 - [x] Keep AI output away from direct execution paths.
 - [x] Add the typed action registry and validation before enabling executors.
-- [ ] Add user confirmation flows and scoped, revocable grants.
-- [ ] Add read-only file discovery inside user-approved directories.
-- [ ] Add allowlisted launching for explicitly enabled everyday applications.
+- [x] Add user confirmation flows and scoped, revocable grants.
+- [x] Add read-only file discovery inside user-approved directories.
+- [x] Add allowlisted launching for explicitly enabled everyday applications.
 - Explore a plugin API only after command safety boundaries are defined.
 
 Phase 8 intentionally excludes shell commands, filesystem mutation,

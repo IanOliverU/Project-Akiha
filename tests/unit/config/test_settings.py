@@ -31,6 +31,7 @@ class SettingsTest(unittest.TestCase):
             "https://generativelanguage.googleapis.com/v1beta/openai",
         )
         self.assertEqual(config.ai.hosted_model, "gemini-3.6-flash")
+        self.assertFalse(config.ai.assistant_tools_enabled)
         self.assertEqual(config.personality.character_name, "Akiha")
         self.assertIn("Akiha", config.personality.rendered_system_prompt())
         self.assertTrue(config.memory.enabled)
@@ -70,6 +71,7 @@ class SettingsTest(unittest.TestCase):
                 'provider = "gemini"\n'
                 'hosted_base_url = "https://example.test/v1"\n'
                 'hosted_model = "gemini-test"\n'
+                "assistant_tools_enabled = true\n"
                 "\n"
                 "[personality]\n"
                 'character_name = "Mei"\n'
@@ -128,6 +130,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.ai.provider, "gemini")
         self.assertEqual(config.ai.hosted_base_url, "https://example.test/v1")
         self.assertEqual(config.ai.hosted_model, "gemini-test")
+        self.assertTrue(config.ai.assistant_tools_enabled)
         self.assertTrue(config.ai.uses_hosted_api)
         self.assertTrue(config.ai.requires_api_key)
         self.assertEqual(config.personality.character_name, "Mei")

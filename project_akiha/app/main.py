@@ -9,6 +9,7 @@ import sys
 import traceback
 from pathlib import Path
 from typing import Protocol
+from uuid import uuid4
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -49,6 +50,10 @@ from project_akiha.core.actions import (
     OpenFileExecutor,
     ProtectedPathPolicy,
     build_default_action_registry,
+)
+from project_akiha.core.actions.registry import (
+    LAUNCH_APPLICATION_ACTION,
+    OPEN_FILE_ACTION,
 )
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -106,6 +111,13 @@ from project_akiha.services.assistant_action_bridge import (
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.assistant_permissions import AssistantPermissionService
+from project_akiha.services.assistant_tool_gateway import (
+    AssistantToolKind,
+    AssistantToolProposal,
+    AssistantToolResultStore,
+    LLMAssistantToolGateway,
+    should_request_tool_proposal,
+)
 from project_akiha.services.assistant_translation import AssistantTranslationService
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 from project_akiha.services.config_store import UserConfigStore
@@ -149,6 +161,11 @@ from project_akiha.ui.assistant_action_history_window import (
     AssistantActionHistoryWindow,
 )
 from project_akiha.ui.assistant_action_worker import AssistantActionThread
+from project_akiha.ui.assistant_tool_worker import (
+    AssistantMediaSearchThread,
+    AssistantToolProposalThread,
+    MediaSearchOutcome,
+)
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
@@ -259,6 +276,11 @@ def _run_application() -> int:
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
     ai_provider = _build_ai_provider(config.ai, logger, credential_store)
+    assistant_tool_gateway = LLMAssistantToolGateway(
+        ai_provider,
+        enabled=config.ai.assistant_tools_enabled,
+    )
+    assistant_tool_result_store = AssistantToolResultStore()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -449,6 +471,14 @@ def _run_application() -> int:
     )
     active_chat_threads: list[ChatResponseThread] = []
     active_action_threads: list[AssistantActionThread] = []
+    active_tool_threads: list[
+        AssistantToolProposalThread | AssistantMediaSearchThread
+    ] = []
+
+    def update_chat_busy_state() -> None:
+        chat_window.set_busy(
+            bool(active_chat_threads or active_action_threads or active_tool_threads)
+        )
 
     def save_window_position(event: Event | None = None) -> None:
         del event
@@ -469,6 +499,9 @@ def _run_application() -> int:
             credential_store,
         )
         chat_controller.set_ai_provider(ai_provider)
+        assistant_tool_gateway.apply_provider(ai_provider)
+        assistant_tool_gateway.set_enabled(updated_config.ai.assistant_tools_enabled)
+        assistant_tool_result_store.clear()
         assistant_translation_controller.apply_service(
             AssistantTranslationService(ai_provider, conversation_repository)
         )
@@ -889,7 +922,7 @@ def _run_application() -> int:
     def cleanup_action_thread(thread: AssistantActionThread) -> None:
         if thread in active_action_threads:
             active_action_threads.remove(thread)
-        chat_window.set_busy(bool(active_action_threads))
+        update_chat_busy_state()
         thread.deleteLater()
 
     def clear_behavior_history() -> None:
@@ -916,15 +949,7 @@ def _run_application() -> int:
         chat_window.raise_()
         chat_window.activateWindow()
 
-    def submit_chat_message(message: str) -> None:
-        refresh_assistant_action_aliases()
-        action_request = assistant_action_bridge.parse_user_text(message)
-        if action_request is not None:
-            chat_window.append_message("You", message)
-            start_action_thread(action_request)
-            return
-
-        chat_window.append_message("You", message)
+    def start_chat_response(message: str) -> None:
         chat_window.set_busy(True)
 
         thread = ChatResponseThread(
@@ -949,9 +974,9 @@ def _run_application() -> int:
             chat_window.append_notice("Response stopped.")
 
         def cleanup_thread() -> None:
-            chat_window.set_busy(False)
             if thread in active_chat_threads:
                 active_chat_threads.remove(thread)
+            update_chat_busy_state()
             thread.deleteLater()
 
         thread.response_delta.connect(handle_delta)
@@ -966,14 +991,170 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
+    def searchable_assistant_roots() -> tuple[str, ...]:
+        try:
+            directories = asyncio.run(
+                assistant_permission_service.get_approved_directories()
+            )
+        except Exception:
+            logger.exception("Could not load searchable assistant roots.")
+            return ()
+        roots = tuple(
+            directory.root
+            for directory in directories
+            if directory.can_search and directory.is_available
+        )
+        return _collapse_nested_roots(roots)
+
+    def start_media_search(proposal: AssistantToolProposal) -> None:
+        roots = searchable_assistant_roots()
+        if not roots:
+            chat_window.append_error(
+                "Action unavailable: No approved searchable directory is available."
+            )
+            chat_window.set_busy(False)
+            return
+
+        chat_window.set_busy(True)
+        thread = AssistantMediaSearchThread(
+            assistant_action_bridge,
+            proposal,
+            roots,
+        )
+        active_tool_threads.append(thread)
+
+        def handle_result(outcome: MediaSearchOutcome) -> None:
+            matches = outcome.matches
+            assistant_tool_result_store.replace(matches)
+            assistant_action_history_window.update_search_results(
+                matches,
+                summary=f"Found {len(matches)} matching media file(s).",
+            )
+            refresh_assistant_action_history_window()
+            if not matches:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    "I could not find matching audio or video in the approved "
+                    "directories.",
+                )
+                return
+            if len(matches) == 1:
+                selected = matches[0]
+                chat_window.append_message(
+                    config.personality.character_name,
+                    f"I found {selected.name}.",
+                )
+                request = ActionRequest(
+                    correlation_id=f"llm-media-open-{uuid4().hex}",
+                    action_id=OPEN_FILE_ACTION,
+                    source="llm_proposal",
+                    parameters={"path": selected.path},
+                )
+                start_action_thread(request)
+                return
+
+            lines = [
+                f"{index}. {match.name}"
+                for index, match in enumerate(matches[:10], start=1)
+            ]
+            chat_window.append_message(
+                config.personality.character_name,
+                "I found several matching media files:\n"
+                + "\n".join(lines)
+                + '\nSay "Play result 1" with the number you want.',
+            )
+            show_assistant_action_history()
+
+        def handle_failure(error_message: str) -> None:
+            logger.error("AI-assisted media search failed: %s", error_message)
+            chat_window.append_error(
+                "Akiha could not complete the approved media search."
+            )
+
+        def handle_cancelled() -> None:
+            chat_window.append_notice("Media search stopped.")
+
+        def cleanup_thread() -> None:
+            if thread in active_tool_threads:
+                active_tool_threads.remove(thread)
+            update_chat_busy_state()
+            thread.deleteLater()
+
+        thread.result_ready.connect(handle_result)
+        thread.failed.connect(handle_failure)
+        thread.cancelled.connect(handle_cancelled)
+        thread.finished.connect(cleanup_thread)
+        thread.start()
+
+    def start_tool_proposal(message: str) -> None:
+        chat_window.set_busy(True)
+        thread = AssistantToolProposalThread(
+            assistant_tool_gateway,
+            message,
+        )
+        active_tool_threads.append(thread)
+
+        def handle_proposal(proposal: AssistantToolProposal) -> None:
+            if proposal.kind is AssistantToolKind.NONE:
+                start_chat_response(message)
+                return
+            if proposal.kind is AssistantToolKind.LAUNCH_APPLICATION:
+                request = ActionRequest(
+                    correlation_id=f"llm-app-{uuid4().hex}",
+                    action_id=LAUNCH_APPLICATION_ACTION,
+                    source="llm_proposal",
+                    parameters={"application_id": proposal.application_id},
+                )
+                start_action_thread(request)
+                return
+            start_media_search(proposal)
+
+        def handle_failure(error_message: str) -> None:
+            logger.info(
+                "AI action proposal was unavailable; using normal chat: %s",
+                error_message,
+            )
+            start_chat_response(message)
+
+        def handle_cancelled() -> None:
+            chat_window.append_notice("Action interpretation stopped.")
+
+        def cleanup_thread() -> None:
+            if thread in active_tool_threads:
+                active_tool_threads.remove(thread)
+            update_chat_busy_state()
+            thread.deleteLater()
+
+        thread.proposal_ready.connect(handle_proposal)
+        thread.failed.connect(handle_failure)
+        thread.cancelled.connect(handle_cancelled)
+        thread.finished.connect(cleanup_thread)
+        thread.start()
+
+    def submit_chat_message(message: str) -> None:
+        refresh_assistant_action_aliases()
+        action_request = assistant_tool_result_store.parse_follow_up(message)
+        if action_request is None:
+            action_request = assistant_action_bridge.parse_user_text(message)
+        chat_window.append_message("You", message)
+        if action_request is not None:
+            start_action_thread(action_request)
+            return
+        if assistant_tool_gateway.enabled and should_request_tool_proposal(message):
+            start_tool_proposal(message)
+            return
+        start_chat_response(message)
+
     def cancel_active_chat() -> None:
         for thread in tuple(active_chat_threads):
             thread.cancel()
         for thread in tuple(active_action_threads):
             thread.cancel()
+        for thread in tuple(active_tool_threads):
+            thread.cancel()
 
     def has_active_operations() -> bool:
-        return bool(active_chat_threads or active_action_threads)
+        return bool(active_chat_threads or active_action_threads or active_tool_threads)
 
     def start_new_chat() -> None:
         if has_active_operations():
@@ -986,6 +1167,7 @@ def _run_application() -> int:
         assistant_translation_controller.cancel(wait_ms=0)
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
+        assistant_tool_result_store.clear()
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
@@ -1000,6 +1182,7 @@ def _run_application() -> int:
         assistant_translation_controller.cancel(wait_ms=0)
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
+        assistant_tool_result_store.clear()
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")
@@ -1100,9 +1283,14 @@ def _run_application() -> int:
         translations_stopped = assistant_translation_controller.cancel()
         if not translations_stopped:
             logger.warning("Assistant translation did not stop before shutdown.")
+        active_runtime_threads = [
+            *active_chat_threads,
+            *active_action_threads,
+            *active_tool_threads,
+        ]
         result = shutdown_runtime(
             activity_timer=activity_tick_timer,
-            active_chat_threads=active_chat_threads,
+            active_chat_threads=active_runtime_threads,
             save_window_position=save_window_position,
             logger=logger,
             voice_capture=voice_capture_controller,
@@ -1190,6 +1378,9 @@ def _run_application() -> int:
         activity_tick_timer,
         active_chat_threads,
         active_action_threads,
+        active_tool_threads,
+        assistant_tool_gateway,
+        assistant_tool_result_store,
         behavior_history_window,
         behavior_history_recorder,
         behavior_repository,
@@ -1240,6 +1431,28 @@ def _build_animation_provider(
     except AnimationManifestError as error:
         logger.warning("Animation manifest failed to load: %s", error)
         return PlaceholderAnimationProvider()
+
+
+def _collapse_nested_roots(roots: tuple[str, ...]) -> tuple[str, ...]:
+    """Remove duplicate and nested roots to avoid repeating the same search."""
+    retained: list[tuple[str, str]] = []
+    candidates = sorted(
+        roots,
+        key=lambda root: (
+            len(os.path.normcase(os.path.abspath(root))),
+            os.path.normcase(os.path.abspath(root)),
+        ),
+    )
+    for root in candidates:
+        normalized = os.path.normcase(os.path.abspath(root))
+        if any(
+            normalized == parent
+            or normalized.startswith(parent.rstrip(os.sep) + os.sep)
+            for _, parent in retained
+        ):
+            continue
+        retained.append((root, normalized))
+    return tuple(root for root, _ in retained)
 
 
 def _handle_chat_failure(

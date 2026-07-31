@@ -157,6 +157,17 @@ class SettingsWindowTest(unittest.TestCase):
             "Google Chrome", window._assistant_application_list.item(0).text()
         )
 
+    def test_saves_ai_assistant_tool_opt_in(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._assistant_tools_enabled_input.setChecked(True)
+
+            window._save()
+
+        self.assertTrue(emitted[0].ai.assistant_tools_enabled)
+
     def test_behavior_away_minimum_stays_after_idle(self) -> None:
         with TemporaryDirectory() as directory:
             window = SettingsWindow(AppConfig(), log_dir=Path(directory))
