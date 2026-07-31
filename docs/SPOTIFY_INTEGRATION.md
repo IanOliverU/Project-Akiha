@@ -54,8 +54,18 @@ typed/voice request -> constrained intent proposal
 Generic playback commands use the deterministic local parser before any AI
 provider. Supported typed or spoken forms include `play Spotify`, `pause the
 music`, `resume Spotify playback`, `next track`, and `previous song`, plus the
-explicit `/spotify-*` command forms. Track, artist, album, playlist, and
-favorites selection remain a separate local resolution step.
+explicit `/spotify-*` command forms. Speech punctuation between a control and
+its target is accepted, along with a small tested alias set for observed
+`pause`/`Spotify` transcription errors. Track, album, playlist, and favorites
+selection remain separate local resolution steps.
+
+Artist-catalog playback is resolved locally through Spotify search and the
+fixed playback-context endpoint. Explicit forms include `play songs by
+Megurine Luka`, `play Megurine Luka's catalog on Spotify`, and
+`/spotify-artist Megurine Luka`. One exact or clearly dominant artist match is
+played immediately. Ambiguous results are bounded to five local choices and
+require an explicit follow-up such as `play artist result 1`; Akiha never asks
+an AI provider to choose between Spotify artists.
 
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
@@ -94,6 +104,8 @@ track and artist names rather than the user's data.
   pause, resume, next, and previous action contracts and executors.
 - [x] Deterministic typed/voice parsing for generic playback controls without
   sending the command through an AI provider.
+- [x] Local artist search, guarded artist-context playback, and bounded
+  ambiguity follow-ups for typed and voice requests.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
   end-to-end tests.

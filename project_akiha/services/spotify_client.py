@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -20,6 +21,9 @@ _SEARCH_LIMIT_MAX = 10
 _PAGE_LIMIT_MAX = 50
 _LIBRARY_RESULT_MAX = 500
 _QUERY_LENGTH_MAX = 256
+_CONTEXT_URI_PATTERN = re.compile(
+    r"spotify:(?:album|artist|playlist):[A-Za-z0-9]{1,64}\Z"
+)
 _SEARCH_RESPONSE_KEYS = {
     "album": "albums",
     "artist": "artists",
@@ -236,6 +240,21 @@ class SpotifyClient:
             "/me/player/play",
             {"device_id": _validate_device_id(device_id)},
             body=b"{}",
+        )
+
+    def start_context_playback(self, device_id: str, context_uri: str) -> None:
+        """Start one validated album, artist, or playlist context."""
+        normalized_uri = context_uri.strip()
+        if _CONTEXT_URI_PATTERN.fullmatch(normalized_uri) is None:
+            raise ValueError("Spotify playback context URI is invalid.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/play",
+            {"device_id": _validate_device_id(device_id)},
+            body=json.dumps(
+                {"context_uri": normalized_uri},
+                separators=(",", ":"),
+            ).encode("utf-8"),
         )
 
     def pause_playback(self, device_id: str) -> None:

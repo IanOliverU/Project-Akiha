@@ -114,6 +114,10 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             ("/spotify-play", "spotify.play"),
             ("Akiha, play Spotify.", "spotify.play"),
             ("Please pause the music", "spotify.pause"),
+            ("Can you pause, Spotify?", "spotify.pause"),
+            ("pause, Spotify", "spotify.pause"),
+            ("Akia, POS, Spotify.", "spotify.pause"),
+            ("Akia ha Puzz Spatify", "spotify.pause"),
             (
                 "I heard you say: Akiha, could you please pause the song?",
                 "spotify.pause",
@@ -133,6 +137,25 @@ class AssistantActionRequestParserTest(unittest.TestCase):
 
     def test_song_title_does_not_become_generic_spotify_control(self) -> None:
         self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
+        self.assertIsNone(self.parser.parse("Can you pause, the meeting?"))
+
+    def test_parses_explicit_spotify_artist_catalog_commands(self) -> None:
+        cases = (
+            "/spotify-artist Megurine Luka",
+            "Play songs by Megurine Luka",
+            "Please play music from Megurine Luka on Spotify.",
+            "Akiha, listen to artist Megurine Luka.",
+            "Play Megurine Luka's catalog on Spotify",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.play_artist")
+                self.assertEqual(request.parameters["service"], "spotify")
+                self.assertEqual(request.parameters["artist_query"], "Megurine Luka")
 
     def test_start_spotify_remains_an_application_launch(self) -> None:
         request = self.parser.parse("Start Spotify")

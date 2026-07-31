@@ -304,6 +304,10 @@ class SpotifyClientTest(unittest.TestCase):
         )
 
         client.start_or_resume_playback(" desktop-id ")
+        client.start_context_playback(
+            "desktop-id",
+            "spotify:artist:artist1",
+        )
         client.pause_playback("desktop-id")
         client.skip_to_next("desktop-id")
         client.skip_to_previous("desktop-id")
@@ -311,6 +315,7 @@ class SpotifyClientTest(unittest.TestCase):
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
             [
+                ("PUT", "/v1/me/player/play"),
                 ("PUT", "/v1/me/player/play"),
                 ("PUT", "/v1/me/player/pause"),
                 ("POST", "/v1/me/player/next"),
@@ -325,7 +330,31 @@ class SpotifyClientTest(unittest.TestCase):
             self.assertEqual(headers["Authorization"], "Bearer access-1")
             self.assertEqual(timeout, 15.0)
         self.assertEqual(mutations.requests[0][3], b"{}")
-        self.assertEqual(mutations.requests[1][3], None)
+        self.assertEqual(
+            mutations.requests[1][3],
+            b'{"context_uri":"spotify:artist:artist1"}',
+        )
+        self.assertEqual(mutations.requests[2][3], None)
+
+    def test_context_playback_rejects_untrusted_or_unsupported_uri(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for context_uri in (
+            "",
+            "https://open.spotify.com/artist/artist1",
+            "spotify:track:track1",
+            "spotify:artist:bad/value",
+        ):
+            with self.subTest(context_uri=context_uri):
+                with self.assertRaises(ValueError):
+                    client.start_context_playback("desktop-id", context_uri)
+
+        self.assertEqual(mutations.requests, [])
 
     def test_playback_rejects_invalid_device_id_before_network(self) -> None:
         mutations = _MutationTransport()

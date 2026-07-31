@@ -59,6 +59,7 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_PLAY_ARTIST_ACTION,
 )
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -157,7 +158,10 @@ from project_akiha.services.spotify_devices import (
     PermissionGatedSpotifyActivator,
     SpotifyDeviceCoordinator,
 )
-from project_akiha.services.spotify_playback import build_spotify_playback_executors
+from project_akiha.services.spotify_playback import (
+    SpotifyArtistSelectionStore,
+    build_spotify_playback_executors,
+)
 from project_akiha.services.spotify_session import SpotifySession
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
@@ -312,6 +316,7 @@ def _run_application() -> int:
         enabled=config.ai.assistant_tools_enabled,
     )
     assistant_tool_result_store = AssistantToolResultStore()
+    spotify_artist_selection_store = SpotifyArtistSelectionStore()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -1011,7 +1016,32 @@ def _run_application() -> int:
             )
         refresh_assistant_action_history_window()
 
+        artist_candidates = result.metadata.get("artist_candidates")
+        if dispatch.request.action_id == SPOTIFY_PLAY_ARTIST_ACTION and isinstance(
+            artist_candidates, tuple
+        ):
+            try:
+                spotify_artist_selection_store.replace(artist_candidates)
+            except ValueError:
+                chat_window.append_error(
+                    "Akiha could not safely present those Spotify artists."
+                )
+                return
+            lines = [
+                f"{index}. {artist.name}"
+                for index, artist in enumerate(artist_candidates, start=1)
+            ]
+            chat_window.append_message(
+                config.personality.character_name,
+                "I found several possible Spotify artists:\n"
+                + "\n".join(lines)
+                + '\nSay "Play artist result 1" with the number you want.',
+            )
+            return
+
         if result.status.value == "success":
+            if dispatch.request.action_id == SPOTIFY_PLAY_ARTIST_ACTION:
+                spotify_artist_selection_store.clear()
             if dispatch.request.action_id == OPEN_DIRECTORY_ACTION:
                 opened_directory = result.metadata.get("opened_directory")
                 if isinstance(opened_directory, str):
@@ -1401,7 +1431,9 @@ def _run_application() -> int:
 
     def submit_chat_message(message: str) -> None:
         refresh_assistant_action_aliases()
-        action_request = assistant_tool_result_store.parse_follow_up(message)
+        action_request = spotify_artist_selection_store.parse_follow_up(message)
+        if action_request is None:
+            action_request = assistant_tool_result_store.parse_follow_up(message)
         if action_request is None:
             action_request = assistant_action_bridge.parse_user_text(message)
         directory_proposal = None
@@ -1446,6 +1478,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        spotify_artist_selection_store.clear()
         navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
@@ -1463,6 +1496,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        spotify_artist_selection_store.clear()
         navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")

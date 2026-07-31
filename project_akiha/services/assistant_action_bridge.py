@@ -21,6 +21,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_PLAY_ACTION,
+    SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
 )
@@ -84,18 +85,31 @@ _SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
     r"(?:\s+(?:application|app))?[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_CONTROL_SEPARATOR = r"[\s,;:.-]+"
+_SPOTIFY_TARGET = r"(?:spotify|spatify)(?:\s+playback)?|music|playback|song|track"
+_SPOTIFY_ARTIST_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-artist\s+|"
+    r"(?:play|listen\s+to)\s+(?:(?:some\s+)?(?:music|songs|tracks|catalog)\s+"
+    r"(?:by|from)\s+|(?:the\s+)?artist\s*[:=]?\s+))"
+    r"(?P<artist>.+?)(?:\s+on\s+spotify)?\s*[.!?]?$|"
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"play\s+(?P<possessive_artist>.+?)(?:'s|\u2019s)\s+"
+    r"(?:catalog|music|songs)(?:\s+on\s+spotify)?\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
-    r"(?P<play>play)\s+(?:the\s+)?"
-    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
-    r"(?P<pause>pause|stop)\s+(?:the\s+)?"
-    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
-    r"(?P<resume>resume|continue)\s+(?:the\s+)?"
-    r"(?:spotify(?:\s+playback)?|music|playback|song|track)|"
-    r"(?P<next>next|skip)\s+(?:the\s+)?(?:song|track)|"
-    r"(?P<previous>(?:previous|last)\s+(?:song|track)|"
-    r"go\s+back\s+to\s+(?:the\s+)?previous\s+(?:song|track)))"
+    rf"(?P<play>play){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
+    rf"(?:{_SPOTIFY_TARGET})|"
+    rf"(?P<pause>pause|paws|pos|puzz|stop){_SPOTIFY_CONTROL_SEPARATOR}"
+    rf"(?:the\s+)?(?:{_SPOTIFY_TARGET})|"
+    rf"(?P<resume>resume|continue){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
+    rf"(?:{_SPOTIFY_TARGET})|"
+    rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?(?:song|track)|"
+    rf"(?P<previous>(?:previous|last){_SPOTIFY_CONTROL_SEPARATOR}"
+    r"(?:song|track)|go\s+back\s+to\s+(?:the\s+)?previous\s+(?:song|track)))"
     r"\s*[.!?]?$",
     re.IGNORECASE,
 )
@@ -126,7 +140,8 @@ _APPLICATION_ALIASES = {
 }
 
 _VOICE_FILLER_PATTERN = re.compile(
-    r"^(?:okay|ok|alright|all\s+right|hey)" r"(?:\s*,?\s*(?:huh|uh|um))?\s*[,!.?]?\s*",
+    r"^(?:okay|ok|alright|all\s+right|hey|ha)"
+    r"(?:\s*,?\s*(?:huh|uh|um))?\s*[,!.?]?\s*",
     re.IGNORECASE,
 )
 _VOICE_CONTEXT_FILLER_PATTERN = re.compile(
@@ -170,6 +185,21 @@ class AssistantActionRequestParser:
         if not normalized:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
+
+        artist_match = _SPOTIFY_ARTIST_PATTERN.fullmatch(normalized)
+        if artist_match is not None:
+            artist = (
+                artist_match.group("artist") or artist_match.group("possessive_artist")
+            ).strip()
+            if artist:
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_PLAY_ARTIST_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "artist_query": artist,
+                    },
+                )
 
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
         if spotify_match is not None:
