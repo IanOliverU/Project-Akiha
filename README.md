@@ -60,7 +60,7 @@ Phase 9.
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | Packaging pending | Permission-gated file discovery and allowlisted application launching |
+| Phase 8 | Packaging pending | Permission-gated files and allowlisted app lifecycle actions |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -255,8 +255,13 @@ granting unrestricted operating-system access.
 - Store capability- and target-specific permission grants.
 - Search filenames and metadata only inside user-approved directories.
 - Open approved directories and safe files through validated actions.
+- Navigate ordinary child directories under an approved root using natural
+  requests such as `Open Compressed inside Downloads`, without granting each
+  child separately.
 - Launch explicitly enabled applications such as Discord, Chrome, Spotify, and
   Visual Studio Code through a trusted application catalog.
+- Gracefully close separately enabled applications such as VLC without shell
+  commands or forceful process termination.
 - Optionally let the selected AI provider interpret natural app-launch and
   local-media requests without disclosing filesystem paths, listings, results,
   metadata, or file contents.

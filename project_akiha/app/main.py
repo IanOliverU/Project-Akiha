@@ -45,6 +45,8 @@ from project_akiha.core.actions import (
     ActionRequestValidator,
     AllowlistedApplicationExecutor,
     ApplicationCatalog,
+    CloseAllowlistedApplicationExecutor,
+    DirectorySearchExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
     OpenFileExecutor,
@@ -52,7 +54,10 @@ from project_akiha.core.actions import (
     build_default_action_registry,
 )
 from project_akiha.core.actions.registry import (
+    APPLICATION_CLOSE_CAPABILITY,
+    CLOSE_APPLICATION_ACTION,
     LAUNCH_APPLICATION_ACTION,
+    OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
 )
 from project_akiha.core.behavior import (
@@ -116,6 +121,8 @@ from project_akiha.services.assistant_tool_gateway import (
     AssistantToolProposal,
     AssistantToolResultStore,
     LLMAssistantToolGateway,
+    directory_name_matches,
+    parse_directory_navigation_proposal,
     should_request_tool_proposal,
 )
 from project_akiha.services.assistant_translation import AssistantTranslationService
@@ -162,8 +169,10 @@ from project_akiha.ui.assistant_action_history_window import (
 )
 from project_akiha.ui.assistant_action_worker import AssistantActionThread
 from project_akiha.ui.assistant_tool_worker import (
+    AssistantDirectorySearchThread,
     AssistantMediaSearchThread,
     AssistantToolProposalThread,
+    DirectorySearchOutcome,
     MediaSearchOutcome,
 )
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
@@ -259,9 +268,11 @@ def _run_application() -> int:
         action_repository,
         executors=(
             FileSearchExecutor(),
+            DirectorySearchExecutor(),
             OpenDirectoryExecutor(),
             OpenFileExecutor(),
             AllowlistedApplicationExecutor(application_catalog),
+            CloseAllowlistedApplicationExecutor(application_catalog),
         ),
     )
     assistant_permission_service = AssistantPermissionService(
@@ -472,8 +483,11 @@ def _run_application() -> int:
     active_chat_threads: list[ChatResponseThread] = []
     active_action_threads: list[AssistantActionThread] = []
     active_tool_threads: list[
-        AssistantToolProposalThread | AssistantMediaSearchThread
+        AssistantToolProposalThread
+        | AssistantMediaSearchThread
+        | AssistantDirectorySearchThread
     ] = []
+    navigation_context: str | None = None
 
     def update_chat_busy_state() -> None:
         chat_window.set_busy(
@@ -485,7 +499,7 @@ def _run_application() -> int:
         window_state_store.save_position(WindowPosition(x=window.x(), y=window.y()))
 
     def apply_settings(updated_config: AppConfig) -> None:
-        nonlocal config, speech_input_service, speech_output_service
+        nonlocal config, navigation_context, speech_input_service, speech_output_service
         config = updated_config
         user_config_store.save_config(updated_config)
         window.apply_config(updated_config.pet_window)
@@ -502,6 +516,7 @@ def _run_application() -> int:
         assistant_tool_gateway.apply_provider(ai_provider)
         assistant_tool_gateway.set_enabled(updated_config.ai.assistant_tools_enabled)
         assistant_tool_result_store.clear()
+        navigation_context = None
         assistant_translation_controller.apply_service(
             AssistantTranslationService(ai_provider, conversation_repository)
         )
@@ -717,11 +732,7 @@ def _run_application() -> int:
             )
             refresh_assistant_action_aliases()
             applications = application_catalog.discover()
-            grants = asyncio.run(
-                assistant_permission_service.get_active_permissions(
-                    "applications.launch"
-                )
-            )
+            grants = asyncio.run(assistant_permission_service.get_active_permissions())
             settings_window.update_assistant_permissions(
                 directories,
                 applications,
@@ -817,6 +828,49 @@ def _run_application() -> int:
                 True,
             )
 
+    def grant_assistant_application_close(application_id: str) -> None:
+        try:
+            asyncio.run(
+                assistant_permission_service.grant_application(
+                    application_id,
+                    APPLICATION_CLOSE_CAPABILITY,
+                )
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                "Application close permission enabled."
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not grant application close permission.")
+            settings_window.set_assistant_permission_status(
+                "The application close permission could not be enabled.",
+                True,
+            )
+
+    def revoke_assistant_application_close(application_id: str) -> None:
+        try:
+            removed = asyncio.run(
+                assistant_permission_service.revoke_application(
+                    application_id,
+                    APPLICATION_CLOSE_CAPABILITY,
+                )
+            )
+            refresh_assistant_permissions()
+            settings_window.set_assistant_permission_status(
+                (
+                    "Application close permission disabled."
+                    if removed
+                    else "No matching application close permission was found."
+                ),
+                not removed,
+            )
+        except (OSError, ValueError):
+            logger.exception("Could not revoke application close permission.")
+            settings_window.set_assistant_permission_status(
+                "The application close permission could not be disabled.",
+                True,
+            )
+
     def reset_assistant_permissions() -> None:
         try:
             count = asyncio.run(assistant_permission_service.reset_all_permissions())
@@ -845,6 +899,12 @@ def _run_application() -> int:
     )
     settings_window.assistant_application_revoke_requested.connect(
         revoke_assistant_application
+    )
+    settings_window.assistant_application_close_grant_requested.connect(
+        grant_assistant_application_close
+    )
+    settings_window.assistant_application_close_revoke_requested.connect(
+        revoke_assistant_application_close
     )
     settings_window.assistant_permissions_reset_requested.connect(
         reset_assistant_permissions
@@ -879,6 +939,7 @@ def _run_application() -> int:
         action_thread.start()
 
     def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
+        nonlocal navigation_context
         result = dispatch.result
         matches = result.metadata.get("matches")
         if isinstance(matches, tuple):
@@ -889,6 +950,10 @@ def _run_application() -> int:
         refresh_assistant_action_history_window()
 
         if result.status.value == "success":
+            if dispatch.request.action_id == OPEN_DIRECTORY_ACTION:
+                opened_directory = result.metadata.get("opened_directory")
+                if isinstance(opened_directory, str):
+                    navigation_context = opened_directory
             chat_window.append_message(
                 config.personality.character_name, result.summary
             )
@@ -1006,6 +1071,135 @@ def _run_application() -> int:
         )
         return _collapse_nested_roots(roots)
 
+    def directory_navigation_roots(
+        proposal: AssistantToolProposal,
+    ) -> tuple[str, ...]:
+        try:
+            directories = asyncio.run(
+                assistant_permission_service.get_approved_directories()
+            )
+        except Exception:
+            logger.exception("Could not load directory navigation roots.")
+            return ()
+        eligible = tuple(
+            directory
+            for directory in directories
+            if directory.can_search and directory.can_open and directory.is_available
+        )
+        if proposal.parent_name:
+            roots = tuple(
+                directory.root
+                for directory in eligible
+                if directory_name_matches(
+                    proposal.parent_name,
+                    Path(directory.root).name,
+                )
+            )
+            if (
+                navigation_context is not None
+                and directory_name_matches(
+                    proposal.parent_name,
+                    Path(navigation_context).name,
+                )
+                and any(
+                    action_path_policy.is_within(
+                        navigation_context,
+                        directory.root,
+                    )
+                    for directory in eligible
+                )
+            ):
+                roots = (*roots, navigation_context)
+            return _collapse_nested_roots(roots)
+        if navigation_context is not None and any(
+            action_path_policy.is_within(
+                navigation_context,
+                directory.root,
+            )
+            for directory in eligible
+        ):
+            return (navigation_context,)
+        return _collapse_nested_roots(tuple(directory.root for directory in eligible))
+
+    def start_directory_search(proposal: AssistantToolProposal) -> None:
+        roots = directory_navigation_roots(proposal)
+        if not roots:
+            chat_window.append_error(
+                "Action unavailable: The parent directory is not an approved "
+                "search-and-open location."
+            )
+            update_chat_busy_state()
+            return
+
+        chat_window.set_busy(True)
+        thread = AssistantDirectorySearchThread(
+            assistant_action_bridge,
+            proposal,
+            roots,
+        )
+        active_tool_threads.append(thread)
+
+        def handle_result(outcome: DirectorySearchOutcome) -> None:
+            matches = outcome.matches[:10]
+            assistant_tool_result_store.replace_directories(matches)
+            noun = "directory" if len(matches) == 1 else "directories"
+            assistant_action_history_window.update_search_results(
+                matches,
+                summary=f"Found {len(matches)} matching {noun}.",
+            )
+            refresh_assistant_action_history_window()
+            if not matches:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    "I could not find that directory beneath the approved " "location.",
+                )
+                return
+            if len(matches) == 1:
+                selected = matches[0]
+                chat_window.append_message(
+                    config.personality.character_name,
+                    f"I found the {selected.name} directory.",
+                )
+                request = ActionRequest(
+                    correlation_id=f"directory-open-{uuid4().hex}",
+                    action_id=OPEN_DIRECTORY_ACTION,
+                    source="directory_navigation",
+                    parameters={"path": selected.path},
+                )
+                start_action_thread(request)
+                return
+            lines = [
+                f"{index}. {match.name}" for index, match in enumerate(matches, start=1)
+            ]
+            chat_window.append_message(
+                config.personality.character_name,
+                "I found several matching directories:\n"
+                + "\n".join(lines)
+                + '\nSay "Open result 1" with the number you want.',
+            )
+            show_assistant_action_history()
+
+        def handle_failure(error_message: str) -> None:
+            logger.error("Directory navigation failed: %s", error_message)
+            chat_window.append_error(
+                "Akiha could not complete the approved directory search."
+            )
+
+        def handle_cancelled() -> None:
+            chat_window.append_notice("Directory search stopped.")
+
+        def cleanup_thread() -> None:
+            if thread in active_tool_threads:
+                active_tool_threads.remove(thread)
+            update_chat_busy_state()
+            thread.deleteLater()
+
+        thread.result_ready.connect(handle_result)
+        thread.failed.connect(handle_failure)
+        thread.cancelled.connect(handle_cancelled)
+        thread.finished.connect(cleanup_thread)
+        thread.start()
+
     def start_media_search(proposal: AssistantToolProposal) -> None:
         roots = searchable_assistant_roots()
         if not roots:
@@ -1107,6 +1301,18 @@ def _run_application() -> int:
                 )
                 start_action_thread(request)
                 return
+            if proposal.kind is AssistantToolKind.CLOSE_APPLICATION:
+                request = ActionRequest(
+                    correlation_id=f"llm-app-close-{uuid4().hex}",
+                    action_id=CLOSE_APPLICATION_ACTION,
+                    source="llm_proposal",
+                    parameters={"application_id": proposal.application_id},
+                )
+                start_action_thread(request)
+                return
+            if proposal.kind is AssistantToolKind.OPEN_DIRECTORY:
+                start_directory_search(proposal)
+                return
             start_media_search(proposal)
 
         def handle_failure(error_message: str) -> None:
@@ -1136,9 +1342,18 @@ def _run_application() -> int:
         action_request = assistant_tool_result_store.parse_follow_up(message)
         if action_request is None:
             action_request = assistant_action_bridge.parse_user_text(message)
+        directory_proposal = None
+        if action_request is None:
+            directory_proposal = parse_directory_navigation_proposal(
+                message,
+                has_context=navigation_context is not None,
+            )
         chat_window.append_message("You", message)
         if action_request is not None:
             start_action_thread(action_request)
+            return
+        if directory_proposal is not None:
+            start_directory_search(directory_proposal)
             return
         if assistant_tool_gateway.enabled and should_request_tool_proposal(message):
             start_tool_proposal(message)
@@ -1157,6 +1372,7 @@ def _run_application() -> int:
         return bool(active_chat_threads or active_action_threads or active_tool_threads)
 
     def start_new_chat() -> None:
+        nonlocal navigation_context
         if has_active_operations():
             chat_window.append_notice(
                 "Stop the current response before starting a new chat."
@@ -1168,12 +1384,14 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
         logger.info("Started a new chat conversation.")
 
     def clear_current_chat() -> None:
+        nonlocal navigation_context
         if has_active_operations():
             chat_window.append_notice("Stop the current response before clearing chat.")
             return
@@ -1183,6 +1401,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")

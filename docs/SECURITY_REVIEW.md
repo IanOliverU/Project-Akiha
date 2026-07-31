@@ -66,9 +66,13 @@ audit path.
 The implemented scope is intentionally shallow:
 
 - read-only filename and metadata search inside user-approved directories
+- bounded directory-name discovery beneath approved roots, with inherited
+  scope validated again before opening a descendant
 - opening an approved directory or validated safe file
 - launching an explicitly enabled catalog application such as Discord, Chrome,
-  Spotify, or Visual Studio Code
+  Spotify, VLC, or Visual Studio Code
+- gracefully closing an explicitly enabled catalog application through a
+  normal window-close request
 - optionally asking the selected AI provider to classify an explicit
   allowlisted-app or passive-media request
 
@@ -77,12 +81,21 @@ administrator elevation, filesystem mutation, protected Windows locations,
 system utilities, and autonomous background actions. AI output remains an
 untrusted request and never becomes direct execution authority.
 
+Launch and close grants are separate. Graceful closing matches top-level
+windows to the catalog-resolved executable and posts `WM_CLOSE`; it cannot
+accept a process identifier or arbitrary path and never falls back to
+`taskkill`, shell execution, or force termination.
+
 The optional AI proposal gateway is disabled by default and accepts exact JSON
-for only allowlisted application identifiers or media title/artist terms. The
-provider receives the user's request, but Akiha does not append approved roots,
-local paths, directory listings, search results, metadata, or file contents.
-Media discovery, permission evaluation, confirmation, execution, and auditing
-remain local.
+for only allowlisted application identifiers, directory names, or media
+title/artist terms. The provider receives the user's request, but Akiha does
+not append approved roots, local paths, directory listings, search results,
+metadata, or file contents. Discovery, permission evaluation, confirmation,
+execution, and auditing remain local.
+
+Directory navigation does not build a persistent full-tree index. It searches
+on demand with depth, result, timeout, and cancellation bounds, skips links and
+reparse points, and keeps only temporary current-directory context.
 
 ## Deferred Before Public Distribution
 

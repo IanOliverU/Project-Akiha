@@ -93,6 +93,22 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.action_id, "applications.launch")
                 self.assertEqual(request.parameters["application_id"], application_id)
 
+    def test_parses_graceful_application_close_commands(self) -> None:
+        cases = (
+            ("close app: vlc", "vlc"),
+            ("Akiha, close VLC", "vlc"),
+            ("Please quit Spotify application.", "spotify"),
+            ("Could you close Visual Studio Code?", "vscode"),
+        )
+
+        for text, application_id in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "applications.close")
+                self.assertEqual(request.parameters["application_id"], application_id)
+
     def test_parses_spoken_directory_path(self) -> None:
         request = self.parser.parse(
             r"Akiha, please open the folder C:\Users\Akiha\Project Files."

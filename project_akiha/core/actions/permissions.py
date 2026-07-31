@@ -12,12 +12,16 @@ from project_akiha.core.actions.models import (
 )
 from project_akiha.core.actions.path_policy import ProtectedPathPolicy
 from project_akiha.core.actions.registry import (
+    APPLICATION_CLOSE_CAPABILITY,
     APPLICATION_LAUNCH_CAPABILITY,
     FILE_OPEN_CAPABILITY,
     FILE_SEARCH_CAPABILITY,
 )
 
 _FILE_CAPABILITIES = frozenset({FILE_SEARCH_CAPABILITY, FILE_OPEN_CAPABILITY})
+_APPLICATION_CAPABILITIES = frozenset(
+    {APPLICATION_LAUNCH_CAPABILITY, APPLICATION_CLOSE_CAPABILITY}
+)
 
 
 class ActionPermissionPolicy:
@@ -59,6 +63,6 @@ class ActionPermissionPolicy:
                 action.normalized_target,
                 grant.target,
             )
-        if capability == APPLICATION_LAUNCH_CAPABILITY:
+        if capability in _APPLICATION_CAPABILITIES:
             return grant.target.casefold() == action.normalized_target.casefold()
         return False

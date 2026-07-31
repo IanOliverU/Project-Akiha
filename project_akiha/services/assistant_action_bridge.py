@@ -13,6 +13,7 @@ from project_akiha.core.actions import (
     ActionResult,
 )
 from project_akiha.core.actions.registry import (
+    CLOSE_APPLICATION_ACTION,
     FILE_SEARCH_ACTION,
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
@@ -49,13 +50,28 @@ _LAUNCH_APPLICATION_PATTERN = re.compile(
     r"(?P<application_id>[a-z0-9_-]+)$",
     re.IGNORECASE,
 )
+_CLOSE_APPLICATION_PATTERN = re.compile(
+    r"^(?:(?:/close-app)\s+|(?:close|quit|exit)\s+app\s*[:=]\s*)"
+    r"(?P<application_id>[a-z0-9_-]+)$",
+    re.IGNORECASE,
+)
 _SPOKEN_LAUNCH_APPLICATION_PATTERN = re.compile(
     r"^(?:(?:(?:hello|hi)\s+)?akiha[,.]?\s+)?"
     r"(?:(?:please|can you|could you|would you)\s+)?"
     r"(?:open|launch|start)\s+(?:the\s+)?(?:this\s+)?"
     r"(?P<application>google\s+chrome|visual\s+studio\s+code|"
     r"visuals?\s+to\s+(?:the\s+)?code|vs\s+code|vscode|"
-    r"chrome|discord|spotify|code)"
+    r"chrome|discord|spotify|vlc(?:\s+media\s+player)?|code)"
+    r"(?:\s+(?:application|app))?[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
+    r"^(?:(?:(?:hello|hi)\s+)?akiha[,.]?\s+)?"
+    r"(?:(?:please|can you|could you|would you)\s+)?"
+    r"(?:close|quit|exit)\s+(?:the\s+)?"
+    r"(?P<application>google\s+chrome|visual\s+studio\s+code|"
+    r"vs\s+code|vscode|chrome|discord|spotify|"
+    r"vlc(?:\s+media\s+player)?|code)"
     r"(?:\s+(?:application|app))?[.!?]?$",
     re.IGNORECASE,
 )
@@ -65,6 +81,8 @@ _APPLICATION_ALIASES = {
     "google chrome": "chrome",
     "discord": "discord",
     "spotify": "spotify",
+    "vlc": "vlc",
+    "vlc media player": "vlc",
     "code": "vscode",
     "vs code": "vscode",
     "vscode": "vscode",
@@ -168,6 +186,25 @@ class AssistantActionRequestParser:
                         "application_id"
                     ).casefold()
                 },
+            )
+
+        close_match = _CLOSE_APPLICATION_PATTERN.fullmatch(normalized)
+        if close_match is not None:
+            return _request(
+                correlation_id=request_id,
+                action_id=CLOSE_APPLICATION_ACTION,
+                parameters={
+                    "application_id": close_match.group("application_id").casefold()
+                },
+            )
+
+        spoken_close_match = _SPOKEN_CLOSE_APPLICATION_PATTERN.fullmatch(normalized)
+        if spoken_close_match is not None:
+            application = spoken_close_match.group("application").casefold()
+            return _request(
+                correlation_id=request_id,
+                action_id=CLOSE_APPLICATION_ACTION,
+                parameters={"application_id": _APPLICATION_ALIASES[application]},
             )
 
         spoken_application_match = _SPOKEN_LAUNCH_APPLICATION_PATTERN.fullmatch(

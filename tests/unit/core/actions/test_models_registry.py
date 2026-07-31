@@ -38,9 +38,11 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
             tuple(item.action_id for item in registry.definitions),
             (
                 "files.search",
+                "directories.search",
                 "files.open_directory",
                 "files.open",
                 "applications.launch",
+                "applications.close",
             ),
         )
 

@@ -74,6 +74,20 @@ class AssistantPermissionServiceTest(unittest.TestCase):
             (),
         )
 
+    def test_close_permission_is_granted_and_revoked_separately(self) -> None:
+        launch = asyncio.run(self.service.grant_application("vlc"))
+        close = asyncio.run(self.service.grant_application("vlc", "applications.close"))
+
+        self.assertEqual(launch.capability, "applications.launch")
+        self.assertEqual(close.capability, "applications.close")
+        self.assertTrue(
+            asyncio.run(self.service.revoke_application("vlc", "applications.close"))
+        )
+        self.assertEqual(
+            asyncio.run(self.service.get_active_permissions("applications.launch")),
+            (launch,),
+        )
+
     def test_resets_all_permission_types(self) -> None:
         asyncio.run(self.service.grant_application("spotify"))
         asyncio.run(self.service.approve_directory(self.safe_root, allow_open=True))

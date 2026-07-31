@@ -42,6 +42,8 @@ from project_akiha.config import (
     VoiceConfig,
 )
 from project_akiha.core.actions import (
+    APPLICATION_CLOSE_CAPABILITY,
+    APPLICATION_LAUNCH_CAPABILITY,
     ApprovedDirectory,
     InstalledApplication,
     PermissionGrant,
@@ -95,6 +97,8 @@ class SettingsWindow(QWidget):
     assistant_directory_remove_requested = Signal(str)
     assistant_application_grant_requested = Signal(str)
     assistant_application_revoke_requested = Signal(str)
+    assistant_application_close_grant_requested = Signal(str)
+    assistant_application_close_revoke_requested = Signal(str)
     assistant_permissions_reset_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
@@ -724,10 +728,14 @@ class SettingsWindow(QWidget):
 
         self._assistant_application_list = QListWidget()
         self._assistant_application_list.setMinimumHeight(150)
-        enable_application_button = QPushButton("Enable selected")
+        enable_application_button = QPushButton("Enable launch")
         enable_application_button.clicked.connect(self._enable_assistant_application)
-        disable_application_button = QPushButton("Disable selected")
+        disable_application_button = QPushButton("Disable launch")
         disable_application_button.clicked.connect(self._disable_assistant_application)
+        enable_close_button = QPushButton("Enable close")
+        enable_close_button.clicked.connect(self._enable_assistant_application_close)
+        disable_close_button = QPushButton("Disable close")
+        disable_close_button.clicked.connect(self._disable_assistant_application_close)
         refresh_applications_button = QPushButton("Refresh")
         refresh_applications_button.clicked.connect(
             self.assistant_permissions_refresh_requested.emit
@@ -735,10 +743,14 @@ class SettingsWindow(QWidget):
         application_buttons = QHBoxLayout()
         application_buttons.addWidget(enable_application_button)
         application_buttons.addWidget(disable_application_button)
-        application_buttons.addWidget(refresh_applications_button)
+        close_buttons = QHBoxLayout()
+        close_buttons.addWidget(enable_close_button)
+        close_buttons.addWidget(disable_close_button)
+        close_buttons.addWidget(refresh_applications_button)
         application_layout = QVBoxLayout()
         application_layout.addWidget(self._assistant_application_list)
         application_layout.addLayout(application_buttons)
+        application_layout.addLayout(close_buttons)
         reset_permissions_button = QPushButton("Reset all assistant permissions")
         reset_permissions_button.clicked.connect(self._reset_assistant_permissions)
         application_layout.addWidget(reset_permissions_button)
@@ -901,18 +913,24 @@ class SettingsWindow(QWidget):
         self._assistant_directory_list.blockSignals(False)
         self._select_directory_row(selected_root)
 
-        granted_ids = {
-            grant.target.casefold() for grant in application_grants if grant.is_active
+        launch_ids = {
+            grant.target.casefold()
+            for grant in application_grants
+            if grant.is_active and grant.capability == APPLICATION_LAUNCH_CAPABILITY
+        }
+        close_ids = {
+            grant.target.casefold()
+            for grant in application_grants
+            if grant.is_active and grant.capability == APPLICATION_CLOSE_CAPABILITY
         }
         self._assistant_application_list.clear()
         for application in applications:
             availability = "discovered" if application.is_available else "not found"
-            enabled = (
-                "enabled" if application.application_id in granted_ids else "disabled"
-            )
+            launch_state = "on" if application.application_id in launch_ids else "off"
+            close_state = "on" if application.application_id in close_ids else "off"
             item = QListWidgetItem(
                 f"{application.display_name} ({application.application_id})"
-                f"  |  {availability}, {enabled}"
+                f"  |  {availability}, launch {launch_state}, close {close_state}"
             )
             item.setData(Qt.ItemDataRole.UserRole, application.application_id)
             self._assistant_application_list.addItem(item)
@@ -1040,6 +1058,26 @@ class SettingsWindow(QWidget):
             )
             return
         self.assistant_application_revoke_requested.emit(application_id)
+
+    def _enable_assistant_application_close(self) -> None:
+        application_id = self._selected_assistant_application_id()
+        if application_id is None:
+            self.set_assistant_permission_status(
+                "Select an application first.",
+                True,
+            )
+            return
+        self.assistant_application_close_grant_requested.emit(application_id)
+
+    def _disable_assistant_application_close(self) -> None:
+        application_id = self._selected_assistant_application_id()
+        if application_id is None:
+            self.set_assistant_permission_status(
+                "Select an application first.",
+                True,
+            )
+            return
+        self.assistant_application_close_revoke_requested.emit(application_id)
 
     def _reset_assistant_permissions(self) -> None:
         answer = QMessageBox.question(

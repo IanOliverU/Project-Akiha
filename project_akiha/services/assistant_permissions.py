@@ -8,6 +8,7 @@ from pathlib import Path
 
 from project_akiha.core.actions import (
     ALLOWLISTED_APPLICATION_IDS,
+    APPLICATION_CLOSE_CAPABILITY,
     APPLICATION_LAUNCH_CAPABILITY,
     FILE_OPEN_CAPABILITY,
     FILE_SEARCH_CAPABILITY,
@@ -18,6 +19,9 @@ from project_akiha.core.actions import (
 )
 
 _FILE_CAPABILITIES = frozenset({FILE_SEARCH_CAPABILITY, FILE_OPEN_CAPABILITY})
+_APPLICATION_CAPABILITIES = frozenset(
+    {APPLICATION_LAUNCH_CAPABILITY, APPLICATION_CLOSE_CAPABILITY}
+)
 
 
 class AssistantPermissionService:
@@ -49,24 +53,34 @@ class AssistantPermissionService:
             str(canonical_root),
         )
 
-    async def grant_application(self, application_id: str) -> PermissionGrant:
-        """Grant launch permission for one application catalog identifier."""
+    async def grant_application(
+        self,
+        application_id: str,
+        capability: str = APPLICATION_LAUNCH_CAPABILITY,
+    ) -> PermissionGrant:
+        """Grant one app capability for an application catalog identifier."""
         normalized = application_id.strip().lower()
         if normalized not in ALLOWLISTED_APPLICATION_IDS:
             raise ValueError("application is not in the Phase 8 allowlist.")
+        if capability not in _APPLICATION_CAPABILITIES:
+            raise ValueError("unsupported application permission capability.")
         return await self._repository.grant_permission(
-            APPLICATION_LAUNCH_CAPABILITY,
+            capability,
             normalized,
         )
 
-    async def revoke_application(self, application_id: str) -> bool:
-        """Revoke the active launch grant for one catalog application."""
+    async def revoke_application(
+        self,
+        application_id: str,
+        capability: str = APPLICATION_LAUNCH_CAPABILITY,
+    ) -> bool:
+        """Revoke one app capability for an application catalog identifier."""
         normalized = application_id.strip().lower()
         if normalized not in ALLOWLISTED_APPLICATION_IDS:
             raise ValueError("application is not in the Phase 8 allowlist.")
-        grants = await self._repository.get_active_permissions(
-            APPLICATION_LAUNCH_CAPABILITY
-        )
+        if capability not in _APPLICATION_CAPABILITIES:
+            raise ValueError("unsupported application permission capability.")
+        grants = await self._repository.get_active_permissions(capability)
         revoked = False
         for grant in grants:
             if grant.target.casefold() == normalized:

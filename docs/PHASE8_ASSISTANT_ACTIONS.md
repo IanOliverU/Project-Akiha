@@ -11,9 +11,13 @@ The first capabilities are:
 
 - search for files by name or metadata inside user-approved directories
 - open an approved directory in the system file browser
+- discover and open ordinary descendant directories beneath an approved
+  search-and-open root without creating a grant for every child
 - open an allowlisted passive file from an approved directory after validation
 - launch an explicitly allowlisted application such as Discord, Chrome,
-  Spotify, or Visual Studio Code
+  Spotify, VLC, or Visual Studio Code
+- gracefully close an explicitly enabled catalog application without forceful
+  process termination
 
 The phase proves the complete action pipeline before any higher-risk
 automation is considered.
@@ -23,6 +27,12 @@ the selected provider may classify an explicit app-launch or local-media
 request, but it receives no local paths, directory listings, search results,
 file metadata, or file contents added by Akiha. As with ordinary hosted chat,
 text the user explicitly types is still sent to the selected provider.
+
+Approved roots are not persistently indexed into a file-tree database.
+Directory names are enumerated on demand so navigation reflects current disk
+state. Temporary navigation context remembers only the last opened directory
+for the current chat and is cleared by New Chat, Clear Chat, permission
+changes, or application restart.
 
 ## Security Position
 
@@ -125,6 +135,7 @@ Examples:
 - `files.search` for `C:\Users\<user>\Documents\Projects`
 - `files.open` for `C:\Users\<user>\Documents`
 - `applications.launch` for the registered app identifier `spotify`
+- `applications.close` for the registered app identifier `vlc`
 
 Grants are revocable in Settings. A directory grant does not grant application
 launching, and an application grant does not grant filesystem access.
@@ -204,13 +215,14 @@ prompt is outside Phase 8.
 No Phase 8 file action creates, edits, renames, moves, copies, downloads, or
 deletes a file.
 
-## Allowlisted Application Launching
+## Allowlisted Application Lifecycle
 
 Application launch uses stable registry identifiers such as:
 
 - `discord`
 - `chrome`
 - `spotify`
+- `vlc`
 - `vscode`
 
 The application catalog owns discovery and the resolved launch target. The AI
@@ -223,8 +235,9 @@ can request only the registered identifier; it cannot provide:
 - environment variables
 - a request for elevation
 
-The user enables each application separately. Settings shows whether the
-application was discovered and allows its permission to be revoked.
+The user enables launch and graceful-close permissions separately for each
+application. Settings shows whether the application was discovered and allows
+either permission to be revoked.
 
 System utilities, shells, script hosts, installers, registry editors, service
 managers, administrative consoles, and security-control applications are not
@@ -389,7 +402,8 @@ Passive-file opening now:
 ### Phase 8C: Allowlisted Applications
 
 - [x] Add the trusted application catalog.
-- [x] Discover Discord, Chrome, Spotify, and Visual Studio Code where installed.
+- [x] Discover Discord, Chrome, Spotify, VLC, and Visual Studio Code where
+  installed.
 - [x] Add service-level per-application permission controls.
 - [x] Implement argument-free application launch.
 - [x] Add missing, moved, denied, and launch-failure diagnostics.
@@ -399,7 +413,8 @@ execution or AI-controlled arguments.
 
 Application launching now:
 
-- uses the stable identifiers `discord`, `chrome`, `spotify`, and `vscode`
+- uses the stable identifiers `discord`, `chrome`, `spotify`, `vlc`, and
+  `vscode`
 - resolves executable paths only from known Windows installation locations
 - refuses unknown identifiers, arbitrary executable paths, URLs, working
   directories, environment overrides, elevation, and command-line arguments
@@ -425,7 +440,7 @@ Phase 8D now:
 
 - exposes approved-directory controls for search and directory/passive-file
   opening in Settings
-- exposes enable, disable, discovery, and reset controls for the four
+- exposes enable, disable, discovery, and reset controls for the five
   allowlisted applications
 - lets the user clear sanitized assistant-action history after confirmation
 - reports missing, unavailable, and failed permission operations without
@@ -458,6 +473,46 @@ proposal is still only an intent such as `launch_application: chrome` or
 `play_media: Elis / Megurine Luka`. Akiha performs discovery locally and turns
 the result into the same typed action request used by direct commands.
 
+### Phase 8F: Allowlisted Graceful Application Closing
+
+- [x] Add the typed `applications.close` action.
+- [x] Add a separate per-application close capability and Settings controls.
+- [x] Add VLC to the trusted application catalog.
+- [x] Resolve the target only through the catalog-owned executable path.
+- [x] Post the normal Windows close message only to matching top-level windows.
+- [x] Prohibit shell commands, `taskkill`, force termination, arbitrary process
+  identifiers, and unknown executables.
+- [x] Support direct voice/chat forms such as `Close VLC`.
+- [x] Accept constrained AI close proposals for allowlisted identifiers.
+- [x] Record close decisions and sanitized outcomes in the existing audit log.
+
+Closing is best-effort and graceful. Applications that minimize to the system
+tray when their window closes may continue running; Akiha does not escalate to
+process termination.
+
+### Phase 8G: Descendant Directory Navigation
+
+- [x] Add the typed `directories.search` action.
+- [x] Reuse the existing approved-root `files.search` capability.
+- [x] Require both search and open grants before conversational navigation uses
+  a root.
+- [x] Search directory names with depth, result, timeout, and cancellation
+  bounds.
+- [x] Skip links, junctions, and reparse points during enumeration.
+- [x] Add direct path-free forms such as `Open Compressed inside Downloads`.
+- [x] Add temporary current-directory context for `Now open Compressed`.
+- [x] Add constrained AI proposals containing names only, never paths.
+- [x] Add local fuzzy matching and bounded broad fallback for transcription
+  errors.
+- [x] Present ambiguous matches as opaque numbered results.
+- [x] Clear result and navigation context with chat lifecycle and permission
+  changes.
+
+An existing root grant covers validated ordinary descendants. Akiha does not
+create a new permission for `Downloads\Compressed`; the action policy proves
+that the resolved directory remains within the already approved `Downloads`
+root immediately before opening it.
+
 ## Required Boundary Tests
 
 - [x] Provider or chat text alone cannot invoke an executor.
@@ -467,6 +522,11 @@ the result into the same typed action request used by direct commands.
 - [x] Traversal, junction, reparse-point, device-path, and protected-path
   escapes are denied.
 - [x] Search limits, cancellation, and timeout behavior are enforced.
+- [x] Descendant directory search inherits only an existing approved-root
+  search grant.
+- [x] Opening a discovered child still requires an approved-root open grant.
+- [x] Directory navigation skips links and cannot escape through traversal,
+  junctions, or reparse points.
 - [x] Approved-directory opening remains scoped, argument-free, and audited.
 - [x] Only allowlisted passive file types can be opened through file actions.
 - [x] Passive file opening requires a scoped grant and visible confirmation.
@@ -476,6 +536,9 @@ the result into the same typed action request used by direct commands.
 - [x] AI-assisted media resolution searches only approved roots and exposes
   only opaque numbered follow-ups to the conversation.
 - [x] Application arguments and elevation requests are denied.
+- [x] Close permission is distinct from launch permission.
+- [x] Graceful closing cannot target unknown executables or force-terminate a
+  process.
 - [x] Revoked permission prevents the next matching action.
 - [x] Denied and failed actions do not fall back to shell execution.
 - [x] Audit records exclude file contents and credentials.
@@ -512,7 +575,9 @@ the result into the same typed action request used by direct commands.
 - Autonomous or silent background actions
 - Plugin execution
 - Network-share access
-- Package installation, update, or process termination
+- Persistent full-tree indexing or sending directory listings to an AI
+  provider
+- Package installation, update, or forceful process termination
 
 ## Exit Criteria
 

@@ -258,6 +258,21 @@ class FileSearchMatch:
 
 
 @dataclass(frozen=True, slots=True)
+class DirectorySearchMatch:
+    """Bounded metadata for one directory found under an approved root."""
+
+    name: str
+    path: str
+    modified_at: str
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("directory search match name cannot be empty.")
+        if not self.path.strip():
+            raise ValueError("directory search match path cannot be empty.")
+
+
+@dataclass(frozen=True, slots=True)
 class ActionExecutionResult:
     """Sanitized executor outcome before the action service records an audit."""
 

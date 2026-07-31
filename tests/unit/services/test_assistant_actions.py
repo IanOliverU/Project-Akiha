@@ -14,6 +14,7 @@ from project_akiha.core.actions import (
     ActionRequest,
     ActionRequestValidator,
     ActionStatus,
+    DirectorySearchExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
     OpenFileExecutor,
@@ -51,6 +52,7 @@ class AssistantActionServiceTest(unittest.TestCase):
             self.repository,
             executors=(
                 FileSearchExecutor(max_depth=2, max_results=10),
+                DirectorySearchExecutor(max_depth=2, max_results=10),
                 OpenDirectoryExecutor(self._open_directory),
                 OpenFileExecutor(self._open_file),
             ),
@@ -183,6 +185,42 @@ class AssistantActionServiceTest(unittest.TestCase):
             audits[0].normalized_target,
             str(self.approved_root.resolve()),
         )
+
+    def test_existing_root_grants_cover_descendant_discovery_and_opening(self) -> None:
+        compressed = self.approved_root / "Compressed"
+        compressed.mkdir()
+        asyncio.run(
+            self.permissions.approve_directory(
+                self.approved_root,
+                allow_search=True,
+                allow_open=True,
+            )
+        )
+
+        search = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "directories.search",
+                    {
+                        "root": str(self.approved_root),
+                        "query": "compressed",
+                    },
+                )
+            )
+        )
+        opened = asyncio.run(
+            self.service.evaluate_request(
+                self._request(
+                    "files.open_directory",
+                    {"path": str(compressed)},
+                )
+            )
+        )
+
+        self.assertEqual(search.status, ActionStatus.SUCCESS)
+        self.assertEqual(search.metadata["matches"][0].path, str(compressed))
+        self.assertEqual(opened.status, ActionStatus.SUCCESS)
+        self.assertEqual(self.opened_directories, [compressed.resolve()])
 
     def test_search_cancellation_is_recorded_without_results(self) -> None:
         (self.approved_root / "report.txt").write_text("report", encoding="utf-8")

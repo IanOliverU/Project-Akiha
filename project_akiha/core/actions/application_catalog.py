@@ -129,10 +129,18 @@ def _vscode_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
     return tuple(candidates)
 
 
+def _vlc_candidates(environment: Mapping[str, str]) -> tuple[Path, ...]:
+    return _application_paths(
+        environment,
+        ("VideoLAN", "VLC", "vlc.exe"),
+    )
+
+
 _APPLICATION_SPECS = (
     ("chrome", "Google Chrome", _chrome_candidates),
     ("discord", "Discord", _discord_candidates),
     ("spotify", "Spotify", _spotify_candidates),
+    ("vlc", "VLC media player", _vlc_candidates),
     ("vscode", "Visual Studio Code", _vscode_candidates),
 )
 

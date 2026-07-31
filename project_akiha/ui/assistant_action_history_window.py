@@ -19,8 +19,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from project_akiha.core.actions import ActionAuditEntry, FileSearchMatch
+from project_akiha.core.actions import (
+    ActionAuditEntry,
+    DirectorySearchMatch,
+    FileSearchMatch,
+)
 from project_akiha.ui.theme import action_history_stylesheet
+
+SearchMatch = FileSearchMatch | DirectorySearchMatch
 
 
 class AssistantActionHistoryWindow(QWidget):
@@ -38,7 +44,7 @@ class AssistantActionHistoryWindow(QWidget):
         self.setStyleSheet(action_history_stylesheet())
 
         self._audits: tuple[ActionAuditEntry, ...] = ()
-        self._search_matches: tuple[FileSearchMatch, ...] = ()
+        self._search_matches: tuple[SearchMatch, ...] = ()
 
         self._status_label = QLabel("No assistant actions recorded.")
         self._status_label.setObjectName("actionHistoryStatus")
@@ -76,7 +82,7 @@ class AssistantActionHistoryWindow(QWidget):
 
     def update_search_results(
         self,
-        matches: tuple[FileSearchMatch, ...],
+        matches: tuple[SearchMatch, ...],
         *,
         summary: str = "",
     ) -> None:
@@ -245,7 +251,7 @@ class AssistantActionHistoryWindow(QWidget):
         value = self._audit_status_filter.currentData()
         return str(value) if value is not None else ""
 
-    def _match_for_item(self, item: QListWidgetItem | None) -> FileSearchMatch | None:
+    def _match_for_item(self, item: QListWidgetItem | None) -> SearchMatch | None:
         if item is None:
             return None
         path = item.data(Qt.ItemDataRole.UserRole)
@@ -267,13 +273,24 @@ class AssistantActionHistoryWindow(QWidget):
         return None
 
 
-def _format_match_summary(match: FileSearchMatch) -> str:
+def _format_match_summary(match: SearchMatch) -> str:
+    if isinstance(match, DirectorySearchMatch):
+        return f"{match.name}  (directory)"
     return f"{match.name}  ({match.size_bytes:,} bytes)"
 
 
-def _format_match_details(match: FileSearchMatch | None) -> str:
+def _format_match_details(match: SearchMatch | None) -> str:
     if match is None:
         return ""
+    if isinstance(match, DirectorySearchMatch):
+        return "\n".join(
+            (
+                f"Name: {match.name}",
+                f"Path: {match.path}",
+                "Type: Directory",
+                f"Modified: {match.modified_at}",
+            )
+        )
     return "\n".join(
         (
             f"Name: {match.name}",

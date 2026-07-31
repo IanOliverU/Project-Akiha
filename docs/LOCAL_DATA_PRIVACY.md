@@ -105,13 +105,18 @@ actions. Its design is documented in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
 
 - Directory access is off by default and limited to roots selected through a
   native directory picker.
+- Ordinary child directories inherit the selected root's scope and are
+  enumerated by name only when the user asks to navigate; Akiha does not retain
+  a persistent copy of the full directory tree.
 - Initial file search reads names and basic metadata only.
 - File actions cannot leave an approved root or access protected Windows
   locations.
 - Opening a file requires visible confirmation and a conservative allowlist of
   passive file types.
 - Applications launch only through separately enabled catalog entries such as
-  Discord, Chrome, Spotify, or Visual Studio Code.
+  Discord, Chrome, Spotify, VLC, or Visual Studio Code.
+- Graceful application closing uses a separate permission, posts a normal
+  Windows close request, and never force-terminates a process.
 - Action audit records contain decisions and sanitized metadata, not file
   contents or credentials.
 - AI-assisted action proposals are off by default. When enabled, the selected
@@ -121,6 +126,8 @@ actions. Its design is documented in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
   results, file metadata, or file contents to that proposal prompt. Text the
   user explicitly enters remains part of the provider request, as it does in
   normal hosted chat.
+- Temporary directory-navigation context stores only the last opened local
+  path in memory and is cleared with chat lifecycle or permission changes.
 - Settings provides local controls to review, enable, disable, and reset
   directory and application permissions.
 - Assistant-action audit history can be cleared from its history window.

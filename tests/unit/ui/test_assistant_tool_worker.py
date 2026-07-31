@@ -9,6 +9,7 @@ from project_akiha.core.actions import (
     ActionRequest,
     ActionResult,
     ActionStatus,
+    DirectorySearchMatch,
     FileSearchMatch,
     PermissionDecision,
 )
@@ -18,7 +19,10 @@ from project_akiha.services.assistant_tool_gateway import (
     AssistantToolProposal,
     MediaKind,
 )
-from project_akiha.ui.assistant_tool_worker import AssistantMediaSearchThread
+from project_akiha.ui.assistant_tool_worker import (
+    AssistantDirectorySearchThread,
+    AssistantMediaSearchThread,
+)
 
 
 class AssistantMediaSearchThreadTest(unittest.TestCase):
@@ -51,6 +55,29 @@ class AssistantMediaSearchThreadTest(unittest.TestCase):
             all(request.parameters["media_only"] for request in bridge.requests)
         )
 
+    def test_directory_worker_uses_bounded_fuzzy_fallback(self) -> None:
+        bridge = _DirectorySearchBridge()
+        proposal = AssistantToolProposal(
+            AssistantToolKind.OPEN_DIRECTORY,
+            directory_name="Compressd",
+            parent_name="Downloads",
+        )
+        thread = AssistantDirectorySearchThread(
+            bridge,  # type: ignore[arg-type]
+            proposal,
+            (r"C:\Users\Akiha\Downloads",),
+        )
+
+        outcome = asyncio.run(thread._search())
+
+        self.assertEqual(
+            tuple(match.name for match in outcome.matches),
+            ("Compressed",),
+        )
+        self.assertEqual(len(bridge.requests), 2)
+        self.assertFalse(bridge.requests[0].parameters["match_all"])
+        self.assertTrue(bridge.requests[1].parameters["match_all"])
+
 
 class _SearchBridge:
     def __init__(self) -> None:
@@ -82,6 +109,41 @@ class _SearchBridge:
             action_id=request.action_id,
             status=ActionStatus.SUCCESS,
             summary=f"Found {len(matches)} matching file(s).",
+            permission_decision=PermissionDecision.GRANTED,
+            metadata={"matches": matches},
+        )
+        return AssistantActionDispatch(request=request, result=result)
+
+
+class _DirectorySearchBridge:
+    def __init__(self) -> None:
+        self.requests: list[ActionRequest] = []
+
+    async def dispatch(
+        self,
+        request: ActionRequest,
+        *,
+        confirmed: bool = False,
+        cancellation_token=None,
+    ) -> AssistantActionDispatch:
+        del confirmed, cancellation_token
+        self.requests.append(request)
+        matches = (
+            (
+                DirectorySearchMatch(
+                    name="Compressed",
+                    path=rf"{request.parameters['root']}\Compressed",
+                    modified_at="2026-07-31T00:00:00+00:00",
+                ),
+            )
+            if request.parameters["match_all"]
+            else ()
+        )
+        result = ActionResult(
+            correlation_id=request.correlation_id,
+            action_id=request.action_id,
+            status=ActionStatus.SUCCESS,
+            summary=f"Found {len(matches)} matching directories.",
             permission_decision=PermissionDecision.GRANTED,
             metadata={"matches": matches},
         )

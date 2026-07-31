@@ -15,7 +15,11 @@ from PySide6.QtWidgets import QApplication, QGroupBox
 
 import project_akiha.ui.settings_window as settings_window_module
 from project_akiha.config import AIConfig, AppConfig, PrivacyConfig
-from project_akiha.core.actions import ApprovedDirectory, InstalledApplication
+from project_akiha.core.actions import (
+    ApprovedDirectory,
+    InstalledApplication,
+    PermissionGrant,
+)
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
@@ -116,6 +120,7 @@ class SettingsWindowTest(unittest.TestCase):
             window = SettingsWindow(AppConfig(), log_dir=Path(directory))
             directory_requests: list[tuple[str, bool, bool]] = []
             application_requests: list[str] = []
+            close_requests: list[str] = []
             window.assistant_directory_approval_requested.connect(
                 lambda root, search, open_files: directory_requests.append(
                     (root, search, open_files)
@@ -123,6 +128,9 @@ class SettingsWindowTest(unittest.TestCase):
             )
             window.assistant_application_grant_requested.connect(
                 application_requests.append
+            )
+            window.assistant_application_close_grant_requested.connect(
+                close_requests.append
             )
             approved = ApprovedDirectory(
                 root=str(Path(directory).resolve()),
@@ -139,7 +147,20 @@ class SettingsWindowTest(unittest.TestCase):
                         Path("chrome.exe"),
                     ),
                 ),
-                (),
+                (
+                    PermissionGrant(
+                        id=2,
+                        capability="applications.launch",
+                        target="chrome",
+                        created_at="2026-07-31T00:00:00+00:00",
+                    ),
+                    PermissionGrant(
+                        id=3,
+                        capability="applications.close",
+                        target="chrome",
+                        created_at="2026-07-31T00:00:00+00:00",
+                    ),
+                ),
             )
 
             window._assistant_directory_list.setCurrentRow(0)
@@ -147,14 +168,20 @@ class SettingsWindowTest(unittest.TestCase):
             window._apply_assistant_directory()
             window._assistant_application_list.setCurrentRow(0)
             window._enable_assistant_application()
+            window._enable_assistant_application_close()
 
         self.assertEqual(
             directory_requests,
             [(str(Path(directory).resolve()), True, True)],
         )
         self.assertEqual(application_requests, ["chrome"])
+        self.assertEqual(close_requests, ["chrome"])
         self.assertIn(
             "Google Chrome", window._assistant_application_list.item(0).text()
+        )
+        self.assertIn(
+            "launch on, close on",
+            window._assistant_application_list.item(0).text(),
         )
 
     def test_saves_ai_assistant_tool_opt_in(self) -> None:

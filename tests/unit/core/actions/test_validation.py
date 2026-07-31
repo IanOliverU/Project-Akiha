@@ -75,6 +75,17 @@ class ActionRequestValidatorTest(unittest.TestCase):
         )
         self._assert_invalid(
             self._request(
+                "directories.search",
+                {
+                    "root": str(self.safe_root),
+                    "query": "compressed",
+                    "match_all": "yes",
+                },
+            ),
+            ActionFailureCategory.INVALID_PARAMETERS,
+        )
+        self._assert_invalid(
+            self._request(
                 "files.search",
                 {
                     "root": str(self.safe_root),

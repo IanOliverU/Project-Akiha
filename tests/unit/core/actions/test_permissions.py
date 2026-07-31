@@ -113,6 +113,27 @@ class ActionPermissionPolicyTest(unittest.TestCase):
             PermissionDecision.MISSING,
         )
 
+    def test_close_permission_is_separate_from_launch_permission(self) -> None:
+        action = self._validate(
+            "applications.close",
+            {"application_id": "vlc"},
+        )
+
+        self.assertEqual(
+            self.policy.evaluate(
+                action,
+                (self._grant("applications.launch", "vlc"),),
+            ),
+            PermissionDecision.MISSING,
+        )
+        self.assertEqual(
+            self.policy.evaluate(
+                action,
+                (self._grant("applications.close", "vlc"),),
+            ),
+            PermissionDecision.GRANTED,
+        )
+
     def _validate(
         self,
         action_id: str,

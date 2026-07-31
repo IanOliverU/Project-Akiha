@@ -9,6 +9,8 @@ from project_akiha.core.actions.executors import (
     ActionCancellationToken,
     AllowlistedApplicationExecutor,
     AssistantActionExecutor,
+    CloseAllowlistedApplicationExecutor,
+    DirectorySearchExecutor,
     FileSearchExecutor,
     OpenDirectoryExecutor,
     OpenFileExecutor,
@@ -25,6 +27,7 @@ from project_akiha.core.actions.models import (
     ActionStatus,
     ApprovedDirectory,
     ConfirmationPolicy,
+    DirectorySearchMatch,
     FileSearchMatch,
     ParameterKind,
     PermissionDecision,
@@ -45,7 +48,10 @@ from project_akiha.core.actions.path_policy import ProtectedPathPolicy
 from project_akiha.core.actions.permissions import ActionPermissionPolicy
 from project_akiha.core.actions.registry import (
     ALLOWLISTED_APPLICATION_IDS,
+    APPLICATION_CLOSE_CAPABILITY,
     APPLICATION_LAUNCH_CAPABILITY,
+    CLOSE_APPLICATION_ACTION,
+    DIRECTORY_SEARCH_ACTION,
     FILE_OPEN_CAPABILITY,
     FILE_SEARCH_CAPABILITY,
     LAUNCH_APPLICATION_ACTION,
@@ -62,6 +68,7 @@ from project_akiha.core.actions.validation import ActionRequestValidator
 
 __all__ = [
     "ALLOWLISTED_APPLICATION_IDS",
+    "APPLICATION_CLOSE_CAPABILITY",
     "APPLICATION_LAUNCH_CAPABILITY",
     "AllowlistedApplicationExecutor",
     "ApplicationCatalog",
@@ -85,6 +92,11 @@ __all__ = [
     "ActionValidationError",
     "AssistantActionExecutor",
     "ConfirmationPolicy",
+    "CLOSE_APPLICATION_ACTION",
+    "CloseAllowlistedApplicationExecutor",
+    "DIRECTORY_SEARCH_ACTION",
+    "DirectorySearchExecutor",
+    "DirectorySearchMatch",
     "FILE_OPEN_CAPABILITY",
     "FILE_SEARCH_CAPABILITY",
     "FileSearchExecutor",
