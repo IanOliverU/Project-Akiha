@@ -16,6 +16,7 @@ from project_akiha.core.actions import (
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
+    SPOTIFY_SEARCH_ARTISTS_ACTION,
     ActionCancellationToken,
     ActionExecutionResult,
     ActionFailureCategory,
@@ -235,6 +236,61 @@ class SpotifyArtistPlaybackExecutor:
         )
 
 
+class SpotifyArtistSearchExecutor:
+    """Return bounded local Spotify artist results without starting playback."""
+
+    action_id = SPOTIFY_SEARCH_ARTISTS_ACTION
+    executor_id = "spotify_search_artists"
+
+    def __init__(self, client: SpotifyClient) -> None:
+        self._client = client
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError(
+                "Spotify artist-search executor received the wrong action."
+            )
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        query = str(action.parameters["artist_query"])
+        try:
+            search_result = await asyncio.to_thread(
+                self._client.search,
+                f"artist:{query}",
+                kinds=(SpotifyItemKind.ARTIST,),
+                limit_per_kind=5,
+            )
+        except SpotifyOAuthError:
+            return _unavailable(
+                "Connect Spotify from Settings before searching for artists."
+            )
+        except SpotifyAPIError as error:
+            return _api_failure(error)
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        candidates = tuple(
+            item for item in search_result.items if _is_valid_artist(item)
+        )[:5]
+        count = len(candidates)
+        noun = "artist" if count == 1 else "artists"
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=(
+                f"Found {count} Spotify {noun} matching {query}."
+                if candidates
+                else f'I could not find a Spotify artist matching "{query}".'
+            ),
+            metadata={"artist_candidates": candidates},
+        )
+
+
 class SpotifyArtistSelectionStore:
     """Retain bounded artist choices locally for an explicit numbered follow-up."""
 
@@ -280,13 +336,19 @@ class SpotifyArtistSelectionStore:
 def build_spotify_playback_executors(
     client: SpotifyClient,
     device_coordinator: SpotifyDeviceCoordinator,
-) -> tuple[SpotifyPlaybackExecutor | SpotifyArtistPlaybackExecutor, ...]:
+) -> tuple[
+    SpotifyPlaybackExecutor
+    | SpotifyArtistPlaybackExecutor
+    | SpotifyArtistSearchExecutor,
+    ...,
+]:
     """Build one executor per registered Spotify action."""
     return (
         *(
             SpotifyPlaybackExecutor(command, client, device_coordinator)
             for command in SpotifyPlaybackCommand
         ),
+        SpotifyArtistSearchExecutor(client),
         SpotifyArtistPlaybackExecutor(client, device_coordinator),
     )
 

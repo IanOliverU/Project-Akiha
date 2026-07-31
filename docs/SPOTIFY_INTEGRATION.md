@@ -67,6 +67,12 @@ played immediately. Ambiguous results are bounded to five local choices and
 require an explicit follow-up such as `play artist result 1`; Akiha never asks
 an AI provider to choose between Spotify artists.
 
+Standalone artist discovery uses the same bounded local result path without
+starting playback. Supported forms include `search Spotify artists for
+Megurine Luka`, `find artist Megurine Luka on Spotify`, and
+`/spotify-search-artists Megurine Luka`. Results are shown in chat and may be
+played with the same numbered artist follow-up.
+
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
@@ -106,6 +112,7 @@ track and artist names rather than the user's data.
   sending the command through an AI provider.
 - [x] Local artist search, guarded artist-context playback, and bounded
   ambiguity follow-ups for typed and voice requests.
+- [x] Standalone artist search and bounded chat result presentation.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
   end-to-end tests.

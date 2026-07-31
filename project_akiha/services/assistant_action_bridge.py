@@ -24,6 +24,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
+    SPOTIFY_SEARCH_ARTISTS_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
@@ -87,6 +88,18 @@ _SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
 )
 _SPOTIFY_CONTROL_SEPARATOR = r"[\s,;:.-]+"
 _SPOTIFY_TARGET = r"(?:spotify|spatify)(?:\s+playback)?|music|playback|song|track"
+_SPOTIFY_ARTIST_SEARCH_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-search-artists\s+(?P<slash>.+?)|"
+    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?artists?"
+    r"(?:\s+(?:for|named))?\s*[:=]?\s*(?P<labeled>.+?)"
+    r"(?:\s+on\s+spotify)?|"
+    r"(?:search|find|look\s+up)\s+spotify\s+for\s+(?:the\s+)?artist\s+"
+    r"(?P<spotify_for>.+?)|"
+    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?P<on_spotify>.+?)"
+    r"\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_ARTIST_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-artist\s+|"
@@ -185,6 +198,23 @@ class AssistantActionRequestParser:
         if not normalized:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
+
+        artist_search_match = _SPOTIFY_ARTIST_SEARCH_PATTERN.fullmatch(normalized)
+        if artist_search_match is not None:
+            artist = next(
+                value
+                for group in ("slash", "labeled", "spotify_for", "on_spotify")
+                if (value := artist_search_match.group(group)) is not None
+            ).strip()
+            if artist:
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "artist_query": artist,
+                    },
+                )
 
         artist_match = _SPOTIFY_ARTIST_PATTERN.fullmatch(normalized)
         if artist_match is not None:

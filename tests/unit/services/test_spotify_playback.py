@@ -32,6 +32,7 @@ from project_akiha.services.spotify_devices import (
 )
 from project_akiha.services.spotify_playback import (
     SpotifyArtistPlaybackExecutor,
+    SpotifyArtistSearchExecutor,
     SpotifyArtistSelectionStore,
     SpotifyPlaybackCommand,
     SpotifyPlaybackExecutor,
@@ -293,6 +294,62 @@ class SpotifyArtistPlaybackExecutorTest(unittest.TestCase):
             ActionRequest(
                 correlation_id="spotify-artist-1",
                 action_id="spotify.play_artist",
+                source="chat",
+                parameters={
+                    "service": "spotify",
+                    "artist_query": artist_query,
+                },
+            )
+        )
+
+
+class SpotifyArtistSearchExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_search_returns_bounded_artists_without_starting_playback(self) -> None:
+        artists = tuple(
+            _artist(f"artist{index}", f"Synthetic Artist {index}")
+            for index in range(1, 6)
+        )
+        client = _ArtistClient(artists)
+        executor = SpotifyArtistSearchExecutor(client)  # type: ignore[arg-type]
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated("Synthetic Artist"),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.metadata["artist_candidates"], artists)
+        self.assertEqual(client.searches, ["artist:Synthetic Artist"])
+        self.assertEqual(client.context_calls, [])
+
+    def test_empty_search_is_a_successful_zero_result(self) -> None:
+        client = _ArtistClient(())
+        executor = SpotifyArtistSearchExecutor(client)  # type: ignore[arg-type]
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated("Missing Artist"),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.metadata["artist_candidates"], ())
+        self.assertIn("could not find", result.summary)
+
+    def _validated(self, artist_query: str):
+        return self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-artist-search-1",
+                action_id="spotify.search_artists",
                 source="chat",
                 parameters={
                     "service": "spotify",

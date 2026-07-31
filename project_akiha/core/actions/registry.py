@@ -26,6 +26,7 @@ SPOTIFY_PAUSE_ACTION = "spotify.pause"
 SPOTIFY_RESUME_ACTION = "spotify.resume"
 SPOTIFY_NEXT_ACTION = "spotify.next"
 SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
+SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
 
 FILE_SEARCH_CAPABILITY = "files.search"
 FILE_OPEN_CAPABILITY = "files.open"
@@ -239,6 +240,30 @@ def build_default_action_registry() -> ActionRegistry:
                         "Return to the previous item on an approved Spotify device.",
                     ),
                 )
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
+                description="Search for artists in the bounded Spotify catalog.",
+                risk=ActionRisk.READ_ONLY,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_search_artists",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="artist_query",
+                        kind=ParameterKind.STRING,
+                        max_length=160,
+                    ),
+                ),
+                timeout_seconds=20,
+                max_results=5,
             ),
             ActionDefinition(
                 action_id=SPOTIFY_PLAY_ARTIST_ACTION,

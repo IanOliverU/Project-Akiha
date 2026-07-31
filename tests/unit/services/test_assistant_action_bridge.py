@@ -157,6 +157,29 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.parameters["service"], "spotify")
                 self.assertEqual(request.parameters["artist_query"], "Megurine Luka")
 
+    def test_parses_standalone_spotify_artist_search_commands(self) -> None:
+        cases = (
+            "/spotify-search-artists Megurine Luka",
+            "Search Spotify artists for Megurine Luka",
+            "Please find artist Megurine Luka on Spotify.",
+            "Akiha, search for Megurine Luka on Spotify",
+            "Look up Spotify for the artist Megurine Luka",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.search_artists")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "artist_query": "Megurine Luka",
+                    },
+                )
+
     def test_start_spotify_remains_an_application_launch(self) -> None:
         request = self.parser.parse("Start Spotify")
 

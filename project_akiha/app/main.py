@@ -60,6 +60,7 @@ from project_akiha.core.actions.registry import (
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_SEARCH_ARTISTS_ACTION,
 )
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -1017,14 +1018,21 @@ def _run_application() -> int:
         refresh_assistant_action_history_window()
 
         artist_candidates = result.metadata.get("artist_candidates")
-        if dispatch.request.action_id == SPOTIFY_PLAY_ARTIST_ACTION and isinstance(
-            artist_candidates, tuple
-        ):
+        if dispatch.request.action_id in {
+            SPOTIFY_PLAY_ARTIST_ACTION,
+            SPOTIFY_SEARCH_ARTISTS_ACTION,
+        } and isinstance(artist_candidates, tuple):
             try:
                 spotify_artist_selection_store.replace(artist_candidates)
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify artists."
+                )
+                return
+            if not artist_candidates:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    result.summary,
                 )
                 return
             lines = [
@@ -1033,7 +1041,11 @@ def _run_application() -> int:
             ]
             chat_window.append_message(
                 config.personality.character_name,
-                "I found several possible Spotify artists:\n"
+                (
+                    "I found these Spotify artists:\n"
+                    if dispatch.request.action_id == SPOTIFY_SEARCH_ARTISTS_ACTION
+                    else "I found several possible Spotify artists:\n"
+                )
                 + "\n".join(lines)
                 + '\nSay "Play artist result 1" with the number you want.',
             )
