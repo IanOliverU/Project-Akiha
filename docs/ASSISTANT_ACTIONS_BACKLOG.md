@@ -1,6 +1,6 @@
 # Assistant Actions Improvement Backlog
 
-**Status:** Planned - post-Phase-8 maintenance and refinement
+**Status:** Active - hearing and transcript stabilization in progress
 
 ## Purpose
 
@@ -23,10 +23,10 @@ typed actions may reach an executor.
 
 ## Hearing And Transcription
 
-- [ ] Measure silence endpoint reliability with fan and room noise.
+- [x] Measure silence endpoint reliability with fan and room noise.
 - [x] Add adaptive noise-floor calibration without continuous background
   recording.
-- [ ] Improve streaming partial transcripts and stable final-text replacement.
+- [x] Improve streaming partial transcripts and stable final-text replacement.
 - [ ] Prevent duplicated wrappers such as `I heard you say` from entering the
   final transcript or intent parser.
 - [ ] Surface microphone level, detected speech, silence countdown, and final
@@ -42,6 +42,16 @@ calibrates a short local noise floor after Talk begins, uses separate adaptive
 speech-start and speech-release thresholds, requires sustained speech before
 resetting the silence timer, and preserves a louder immediate-speech bypass.
 Raw audio remains temporary and is not logged or persisted.
+
+The physical microphone checkpoint passed on 2026-07-31 with the user's fan at
+level 3, so the adaptive thresholds were retained without speculative tuning.
+The next transcription pass reduced cumulative snapshot cadence from 1.0 to
+0.6 seconds and added language-neutral preview stabilization. The first result
+appears immediately; related growth replaces it quickly, while duplicates,
+shorter regressions, and disruptive one-off rewrites are suppressed. The final
+provider transcript remains authoritative. Focused coverage includes English
+and Japanese growth, correction confirmation, duplicate/regression handling,
+recording reset, cancellation, and final-transcript handoff.
 
 ## Intent And Context
 

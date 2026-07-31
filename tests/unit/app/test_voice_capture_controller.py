@@ -24,6 +24,7 @@ class VoiceCaptureControllerTest(unittest.TestCase):
 
         self.assertTrue(capture.is_capturing)
         self.assertEqual(capture.timeout_seconds, 12)
+        self.assertEqual(capture.live_interval_seconds, 0.6)
 
     def test_stop_submits_audio_directly_without_event_payload(self) -> None:
         submitted: list[CapturedAudio] = []

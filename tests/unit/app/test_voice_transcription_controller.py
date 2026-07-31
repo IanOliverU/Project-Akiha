@@ -107,6 +107,106 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
         self.assertEqual(len(threads), 2)
         self.assertEqual(threads[1].audio, latest)
 
+    def test_partial_transcript_suppresses_duplicates_and_regressions(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        controller.submit_partial(_audio(b"\x01\x00"))
+        threads[0].transcript_ready.emit(VoiceTranscript("Open Downloads", "en"))
+        threads[0].finished.emit()
+        controller.submit_partial(_audio(b"\x02\x00"))
+        threads[1].transcript_ready.emit(VoiceTranscript("Open Downloads", "en"))
+        threads[1].finished.emit()
+        controller.submit_partial(_audio(b"\x03\x00"))
+        threads[2].transcript_ready.emit(VoiceTranscript("Open", "en"))
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["Open Downloads"],
+        )
+
+    def test_partial_transcript_accepts_related_growth_immediately(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        controller.submit_partial(_audio(b"\x01\x00"))
+        threads[0].transcript_ready.emit(VoiceTranscript("Open Downlods", "en"))
+        threads[0].finished.emit()
+        controller.submit_partial(_audio(b"\x02\x00"))
+        threads[1].transcript_ready.emit(
+            VoiceTranscript("Open Downloads directory", "en")
+        )
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["Open Downlods", "Open Downloads directory"],
+        )
+
+    def test_partial_transcript_requires_confirmation_for_disruptive_rewrite(
+        self,
+    ) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        candidates = [
+            "Open Chrome",
+            "Launch the browser",
+            "Launch the browser now",
+        ]
+        for index, candidate in enumerate(candidates, start=1):
+            controller.submit_partial(_audio(bytes([index, 0])))
+            threads[index - 1].transcript_ready.emit(VoiceTranscript(candidate, "en"))
+            threads[index - 1].finished.emit()
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["Open Chrome", "Launch the browser now"],
+        )
+
+    def test_partial_stabilization_supports_japanese_without_word_boundaries(
+        self,
+    ) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        controller.submit_partial(_audio(b"\x01\x00"))
+        threads[0].transcript_ready.emit(VoiceTranscript("ダウンロード", "ja"))
+        threads[0].finished.emit()
+        controller.submit_partial(_audio(b"\x02\x00"))
+        threads[1].transcript_ready.emit(VoiceTranscript("ダウンロードを開いて", "ja"))
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["ダウンロード", "ダウンロードを開いて"],
+        )
+
+    def test_new_recording_resets_partial_stabilization(self) -> None:
+        bus, _, controller, threads, _, _ = _build()
+        partials: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_PARTIAL, partials.append)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        controller.submit_partial(_audio(b"\x01\x00"))
+        threads[0].transcript_ready.emit(VoiceTranscript("First command", "en"))
+        threads[0].finished.emit()
+
+        bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        controller.submit_partial(_audio(b"\x02\x00"))
+        threads[1].transcript_ready.emit(VoiceTranscript("Second", "en"))
+
+        self.assertEqual(
+            [event.payload["text"] for event in partials],
+            ["First command", "Second"],
+        )
+
     def test_final_recording_preempts_partial_and_retains_thinking_state(self) -> None:
         bus, voice, controller, threads, transcripts, _ = _build()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)

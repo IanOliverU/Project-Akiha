@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from difflib import SequenceMatcher
 from typing import Protocol
 
 from project_akiha.app.voice_controller import VoiceController
@@ -30,6 +31,55 @@ class _TranscriptionThread(Protocol):
         """Wait for completion."""
 
 
+class _PartialTranscriptStabilizer:
+    """Keep cumulative STT previews responsive without visible regressions."""
+
+    def __init__(self) -> None:
+        self._presented = ""
+        self._pending_revision = ""
+
+    def reset(self) -> None:
+        """Forget preview state at the boundary of one recording."""
+        self._presented = ""
+        self._pending_revision = ""
+
+    def observe(self, text: str) -> str | None:
+        """Return a safe preview update, or suppress an unstable revision."""
+        candidate = " ".join(text.split())
+        if not candidate:
+            return None
+        if not self._presented:
+            return self._accept(candidate)
+
+        presented_key = self._presented.casefold()
+        candidate_key = candidate.casefold()
+        if candidate_key == presented_key:
+            self._pending_revision = ""
+            return None
+        if presented_key.startswith(candidate_key):
+            self._pending_revision = ""
+            return None
+        if _is_related_growth(presented_key, candidate_key):
+            return self._accept(candidate)
+
+        if self._pending_revision and (
+            candidate_key == self._pending_revision.casefold()
+            or _is_related_growth(
+                self._pending_revision.casefold(),
+                candidate_key,
+            )
+        ):
+            return self._accept(candidate)
+
+        self._pending_revision = candidate
+        return None
+
+    def _accept(self, text: str) -> str:
+        self._presented = text
+        self._pending_revision = ""
+        return text
+
+
 class VoiceTranscriptionController:
     """Run at most one STT worker and return editable transcript text."""
 
@@ -53,10 +103,15 @@ class VoiceTranscriptionController:
         self._thread_modes: dict[_TranscriptionThread, str] = {}
         self._pending_partial: CapturedAudio | None = None
         self._pending_final: CapturedAudio | None = None
+        self._partial_stabilizer = _PartialTranscriptStabilizer()
 
         event_bus.subscribe(
             EventType.VOICE_LISTEN_CANCEL_REQUESTED,
             self._handle_cancel_requested,
+        )
+        event_bus.subscribe(
+            EventType.VOICE_LISTEN_REQUESTED,
+            self._handle_listen_requested,
         )
 
     def apply_service(self, service: SpeechInputService) -> None:
@@ -65,6 +120,7 @@ class VoiceTranscriptionController:
 
     def submit(self, audio: CapturedAudio) -> None:
         """Start non-blocking transcription for captured PCM."""
+        self._partial_stabilizer.reset()
         if self._active_threads:
             if all(
                 self._thread_modes.get(thread) == "partial"
@@ -137,6 +193,7 @@ class VoiceTranscriptionController:
 
     def cancel(self, wait_ms: int = 2000) -> None:
         """Cancel active transcription and optionally wait during shutdown."""
+        self._partial_stabilizer.reset()
         self._pending_partial = None
         self._pending_final = None
         unfinished = 0
@@ -155,6 +212,10 @@ class VoiceTranscriptionController:
         del event
         self.cancel(wait_ms=0)
 
+    def _handle_listen_requested(self, event: Event) -> None:
+        del event
+        self._partial_stabilizer.reset()
+
     def _handle_transcript_ready(
         self,
         thread: _TranscriptionThread,
@@ -170,10 +231,13 @@ class VoiceTranscriptionController:
                 )
             return
         if self._thread_modes.get(thread) == "partial":
+            stable_text = self._partial_stabilizer.observe(transcript.text)
+            if stable_text is None:
+                return
             self._event_bus.publish(
                 EventType.VOICE_TRANSCRIPT_PARTIAL,
                 {
-                    "text": transcript.text.strip(),
+                    "text": stable_text,
                     "detected_language": transcript.detected_language,
                 },
             )
@@ -240,3 +304,23 @@ class VoiceTranscriptionController:
             audio = self._pending_partial
             self._pending_partial = None
             self._start_thread(audio, mode="partial")
+
+
+def _is_related_growth(previous: str, candidate: str) -> bool:
+    if len(candidate) <= len(previous):
+        return False
+    if candidate.startswith(previous):
+        return True
+
+    similarity = SequenceMatcher(None, previous, candidate, autojunk=False).ratio()
+    prefix_length = 0
+    for previous_character, candidate_character in zip(
+        previous,
+        candidate,
+        strict=False,
+    ):
+        if previous_character != candidate_character:
+            break
+        prefix_length += 1
+    prefix_ratio = prefix_length / max(1, len(previous))
+    return similarity >= 0.72 or prefix_ratio >= 0.55

@@ -15,6 +15,8 @@ from project_akiha.providers.voice import (
     MicrophoneCaptureError,
 )
 
+_LIVE_TRANSCRIPTION_INTERVAL_SECONDS = 0.6
+
 
 class VoiceCaptureController:
     """Keep raw microphone audio on a direct, non-logging callback path."""
@@ -92,6 +94,7 @@ class VoiceCaptureController:
                     if self._config.auto_stop_on_silence_enabled
                     else None
                 ),
+                live_interval_seconds=_LIVE_TRANSCRIPTION_INTERVAL_SECONDS,
                 silence_timeout_seconds=self._config.silence_timeout_seconds,
                 auto_stop_on_silence=self._config.auto_stop_on_silence_enabled,
             )
