@@ -34,6 +34,7 @@ def _serialize_config(config: AppConfig) -> str:
     privacy = config.privacy
     behavior = config.behavior
     voice = config.voice
+    spotify = config.spotify
     always_on_top = str(pet_window.always_on_top).lower()
     memory_enabled = str(memory.enabled).lower()
     behavior_enabled = str(behavior.enabled).lower()
@@ -62,6 +63,8 @@ def _serialize_config(config: AppConfig) -> str:
     voice_output_voice_id = _escape_toml_string(voice.output_voice_id)
     voice_output_device = _escape_toml_string(voice.output_device)
     voice_output_engine_path = _escape_toml_string(voice.output_engine_path)
+    spotify_client_id = _escape_toml_string(spotify.client_id)
+    spotify_redirect_uri = _escape_toml_string(spotify.redirect_uri)
 
     return (
         "[pet_window]\n"
@@ -146,6 +149,14 @@ def _serialize_config(config: AppConfig) -> str:
         f"speaking_rate = {voice.speaking_rate}\n"
         f"capture_timeout_seconds = {voice.capture_timeout_seconds}\n"
         f"request_timeout_seconds = {voice.request_timeout_seconds}\n"
+        "\n"
+        "[spotify]\n"
+        f"enabled = {str(spotify.enabled).lower()}\n"
+        f'client_id = "{spotify_client_id}"\n'
+        f'redirect_uri = "{spotify_redirect_uri}"\n'
+        "auto_launch_desktop_app = "
+        f"{str(spotify.auto_launch_desktop_app).lower()}\n"
+        f"request_timeout_seconds = {spotify.request_timeout_seconds}\n"
     )
 
 

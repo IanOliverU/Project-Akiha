@@ -68,6 +68,7 @@ try {
         --output-dir=$OutputDir `
         --output-filename=Akiha `
         --include-data-dir=assets=assets `
+        --noinclude-data-files=assets/animations/akiha/Spotify.txt `
         --include-data-dir=project_akiha/config=project_akiha/config `
         --include-data-dir=project_akiha/database/migrations=project_akiha/database/migrations `
         project_akiha/app/main.py

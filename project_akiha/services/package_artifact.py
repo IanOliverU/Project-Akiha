@@ -21,6 +21,8 @@ _REQUIRED_ARTIFACT_PATHS = (
     "faster_whisper/assets/silero_vad_v6.onnx",
 )
 
+_FORBIDDEN_ARTIFACT_PATHS = ("assets/animations/akiha/Spotify.txt",)
+
 
 @dataclass(frozen=True, slots=True)
 class PackageArtifactIssue:
@@ -40,6 +42,16 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
                 PackageArtifactIssue(
                     path=candidate,
                     message="Required packaged artifact path is missing.",
+                )
+            )
+
+    for forbidden_path in _FORBIDDEN_ARTIFACT_PATHS:
+        candidate = artifact_dir / forbidden_path
+        if candidate.exists():
+            issues.append(
+                PackageArtifactIssue(
+                    path=candidate,
+                    message="Private local data must not be included in a package.",
                 )
             )
 

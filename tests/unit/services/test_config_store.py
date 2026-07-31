@@ -14,6 +14,7 @@ from project_akiha.config import (
     PersonalityConfig,
     PetWindowConfig,
     PrivacyConfig,
+    SpotifyConfig,
     VoiceConfig,
     load_config,
 )
@@ -98,6 +99,12 @@ class UserConfigStoreTest(unittest.TestCase):
                         capture_timeout_seconds=12,
                         request_timeout_seconds=10,
                     ),
+                    spotify=SpotifyConfig(
+                        enabled=True,
+                        client_id="a" * 32,
+                        auto_launch_desktop_app=False,
+                        request_timeout_seconds=20,
+                    ),
                 )
             )
 
@@ -166,6 +173,10 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.speaking_rate, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 12)
         self.assertEqual(config.voice.request_timeout_seconds, 10)
+        self.assertTrue(config.spotify.enabled)
+        self.assertEqual(config.spotify.client_id, "a" * 32)
+        self.assertFalse(config.spotify.auto_launch_desktop_app)
+        self.assertEqual(config.spotify.request_timeout_seconds, 20)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

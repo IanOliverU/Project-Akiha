@@ -68,3 +68,10 @@ volume_percent = 100
 speaking_rate = 1.0
 capture_timeout_seconds = 30
 request_timeout_seconds = 30
+
+[spotify]
+enabled = false
+client_id = ""
+redirect_uri = "http://127.0.0.1:43821/callback"
+auto_launch_desktop_app = true
+request_timeout_seconds = 15

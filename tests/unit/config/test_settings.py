@@ -7,10 +7,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from project_akiha.config import (
+    SPOTIFY_REDIRECT_URI,
     AIConfig,
     BehaviorConfig,
     PersonalityConfig,
     PrivacyConfig,
+    SpotifyConfig,
     VoiceConfig,
     load_config,
 )
@@ -257,6 +259,25 @@ class SettingsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             VoiceConfig(output_base_url="http:///voicevox")
+
+    def test_spotify_defaults_are_disabled_and_loopback_only(self) -> None:
+        config = load_config()
+
+        self.assertFalse(config.spotify.enabled)
+        self.assertEqual(config.spotify.client_id, "")
+        self.assertEqual(config.spotify.redirect_uri, SPOTIFY_REDIRECT_URI)
+        self.assertTrue(config.spotify.auto_launch_desktop_app)
+
+    def test_spotify_enabled_requires_valid_client_id(self) -> None:
+        with self.assertRaises(ValueError):
+            SpotifyConfig(enabled=True)
+
+        with self.assertRaises(ValueError):
+            SpotifyConfig(enabled=True, client_id="not-a-client-id")
+
+    def test_spotify_rejects_arbitrary_redirect_uri(self) -> None:
+        with self.assertRaises(ValueError):
+            SpotifyConfig(redirect_uri="https://example.test/callback")
 
     def test_voice_config_rejects_multiline_engine_path(self) -> None:
         with self.assertRaisesRegex(ValueError, "single line"):

@@ -1499,6 +1499,9 @@ def _run_application() -> int:
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:
             logger.warning("AI provider discovery did not stop before shutdown.")
+        spotify_authorization_stopped = settings_window.cancel_spotify_authorization()
+        if not spotify_authorization_stopped:
+            logger.warning("Spotify authorization did not stop before shutdown.")
         translations_stopped = assistant_translation_controller.cancel()
         if not translations_stopped:
             logger.warning("Assistant translation did not stop before shutdown.")
@@ -1526,7 +1529,8 @@ def _run_application() -> int:
             "voice_transcription_stopped=%s, "
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
             "voice_engine_stopped=%s, "
-            "ai_discovery_stopped=%s, translations_stopped=%s.",
+            "ai_discovery_stopped=%s, spotify_authorization_stopped=%s, "
+            "translations_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -1538,6 +1542,7 @@ def _run_application() -> int:
             result.voice_playback_stopped,
             result.voice_engine_stopped,
             ai_discovery_stopped,
+            spotify_authorization_stopped,
             translations_stopped,
         )
 

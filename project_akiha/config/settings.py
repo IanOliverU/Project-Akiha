@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -19,6 +20,9 @@ HOSTED_AI_PROVIDERS = frozenset(
     }
 )
 AI_PROVIDERS = frozenset({"mock", "ollama", *HOSTED_AI_PROVIDERS})
+
+SPOTIFY_REDIRECT_URI = "http://127.0.0.1:43821/callback"
+_SPOTIFY_CLIENT_ID_PATTERN = re.compile(r"[0-9a-fA-F]{32}\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +282,31 @@ class VoiceConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SpotifyConfig:
+    """Settings for the optional local Spotify Web API integration."""
+
+    enabled: bool = False
+    client_id: str = ""
+    redirect_uri: str = SPOTIFY_REDIRECT_URI
+    auto_launch_desktop_app: bool = True
+    request_timeout_seconds: int = 15
+
+    def __post_init__(self) -> None:
+        """Validate public OAuth metadata without accepting arbitrary callbacks."""
+        client_id = self.client_id.strip()
+        if client_id and _SPOTIFY_CLIENT_ID_PATTERN.fullmatch(client_id) is None:
+            raise ValueError("spotify.client_id must be a 32-character hexadecimal ID.")
+        if self.enabled and not client_id:
+            raise ValueError("spotify.client_id is required when Spotify is enabled.")
+        if self.redirect_uri != SPOTIFY_REDIRECT_URI:
+            raise ValueError(f"spotify.redirect_uri must be {SPOTIFY_REDIRECT_URI}.")
+        if self.request_timeout_seconds <= 0:
+            raise ValueError(
+                "spotify.request_timeout_seconds must be greater than zero."
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
@@ -288,6 +317,7 @@ class AppConfig:
     privacy: PrivacyConfig = PrivacyConfig()
     behavior: BehaviorConfig = BehaviorConfig()
     voice: VoiceConfig = VoiceConfig()
+    spotify: SpotifyConfig = SpotifyConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -316,6 +346,10 @@ class AppConfig:
     def with_voice(self, voice: VoiceConfig) -> AppConfig:
         """Return a copy with updated voice settings."""
         return replace(self, voice=voice)
+
+    def with_spotify(self, spotify: SpotifyConfig) -> AppConfig:
+        """Return a copy with updated Spotify integration settings."""
+        return replace(self, spotify=spotify)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -354,6 +388,10 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(voice_data, dict):
         raise ValueError("voice config must be a TOML table.")
 
+    spotify_data = data.get("spotify", {})
+    if not isinstance(spotify_data, dict):
+        raise ValueError("spotify config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
@@ -362,6 +400,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         privacy=PrivacyConfig(**privacy_data),
         behavior=BehaviorConfig(**behavior_data),
         voice=VoiceConfig(**voice_data),
+        spotify=SpotifyConfig(**spotify_data),
     )
 
 

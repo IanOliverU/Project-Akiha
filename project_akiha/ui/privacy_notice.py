@@ -47,6 +47,11 @@ class PrivacyNoticeDialog(QDialog):
             "provider receives the action request. Akiha does not add approved "
             "paths, directory listings, search results, or file contents to "
             "that request.</p>"
+            "<p><b>Spotify:</b> Spotify integration is optional and uses a "
+            "browser sign-in with PKCE. Search, library, device, and playback "
+            "requests are sent directly to Spotify only after you connect. "
+            "The refresh token is encrypted for the current Windows user; "
+            "personal listening exports stay local and are never packaged.</p>"
         )
         summary.setWordWrap(True)
         summary.setTextFormat(Qt.TextFormat.RichText)

@@ -19,7 +19,7 @@ available without subscriptions or API keys.
 | User config | `%LOCALAPPDATA%\Akiha\user_config.toml` | User-editable settings saved from the Settings window. |
 | SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, behavior history, assistant-action grants, and sanitized action history. |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` | Last saved pet position. |
-| Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys scoped to the current Windows user. |
+| Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys and Spotify refresh token scoped to the current Windows user. |
 | Logs | `%LOCALAPPDATA%\Akiha\logs\app.log` | Startup, diagnostics, provider failures, migration failures, and runtime support logs. |
 | Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` | Optional downloaded speech-recognition model files. |
 
@@ -38,6 +38,24 @@ transcript exports. Environment-variable credentials are also supported.
 
 Project Akiha does not silently fail over between local and hosted providers.
 Changing the destination requires an explicit Settings change.
+
+## Spotify
+
+Spotify integration is optional and uses Authorization Code with PKCE through
+the fixed loopback callback `http://127.0.0.1:43821/callback`. Project Akiha
+does not request or store a Spotify Client Secret.
+
+- The public Client ID and non-secret integration settings are stored in
+  `user_config.toml`.
+- The refresh token is encrypted with Windows DPAPI in `credentials.json`.
+- Access tokens remain in memory and are refreshed from the encrypted token.
+- Search terms, library requests, device metadata, and playback commands are
+  sent directly to Spotify only after the user connects the integration.
+- Akiha does not send Spotify library or listening-history metadata to a hosted
+  AI provider. A hosted provider may interpret the user's own action sentence,
+  but local Spotify lookup and execution remain typed and local.
+- Optional listening exports are local ranking seeds. They are ignored by Git,
+  prohibited from packaged artifacts, and are not uploaded by Akiha.
 
 ## Chat Transcripts
 
@@ -171,6 +189,7 @@ The notice explains:
 - additional hosted requests for subtitles, summaries, and memory extraction
 - local conversation, memory, settings, and log storage
 - Windows-user encryption for hosted API credentials
+- optional Spotify cloud requests and encrypted OAuth refresh-token storage
 - approved-directory and allowlisted-application grants
 - optional provider classification of explicit app/media requests without
   local filesystem details

@@ -1,4 +1,4 @@
-"""Windows-user encrypted storage for hosted AI credentials."""
+"""Windows-user encrypted storage for API credentials and OAuth tokens."""
 
 from __future__ import annotations
 
@@ -38,6 +38,28 @@ class CredentialStore(Protocol):
 
     def delete_secret(self, provider: str) -> None:
         """Delete a saved provider secret."""
+
+    def get_named_secret(self, namespace: str, name: str) -> str | None:
+        """Return one decrypted non-AI secret."""
+
+    def set_named_secret(self, namespace: str, name: str, secret: str) -> None:
+        """Encrypt and save one non-AI secret."""
+
+    def delete_named_secret(self, namespace: str, name: str) -> None:
+        """Delete one non-AI secret."""
+
+
+class NamedSecretStore(Protocol):
+    """Persist non-AI secrets in an explicit namespace."""
+
+    def get_named_secret(self, namespace: str, name: str) -> str | None:
+        """Return one decrypted named secret."""
+
+    def set_named_secret(self, namespace: str, name: str, secret: str) -> None:
+        """Encrypt and save one named secret."""
+
+    def delete_named_secret(self, namespace: str, name: str) -> None:
+        """Delete one named secret."""
 
 
 class _DataBlob(ctypes.Structure):
@@ -172,6 +194,39 @@ class EncryptedCredentialStore:
         if removed is not None:
             self._write_entries(entries)
 
+    def get_named_secret(self, namespace: str, name: str) -> str | None:
+        """Return a decrypted secret outside the legacy AI-key namespace."""
+        encoded = self._read_entries().get(_named_secret_name(namespace, name))
+        if encoded is None:
+            return None
+        try:
+            ciphertext = base64.b64decode(encoded, validate=True)
+            plaintext = self._protector.unprotect(ciphertext)
+            return plaintext.decode("utf-8")
+        except (ValueError, UnicodeDecodeError, CredentialStoreError) as error:
+            raise CredentialStoreError(
+                "The saved credential could not be decrypted."
+            ) from error
+
+    def set_named_secret(self, namespace: str, name: str, secret: str) -> None:
+        """Encrypt and atomically save a namespaced secret."""
+        normalized = secret.strip()
+        if not normalized:
+            raise CredentialStoreError("The credential cannot be empty.")
+        ciphertext = self._protector.protect(normalized.encode("utf-8"))
+        entries = self._read_entries()
+        entries[_named_secret_name(namespace, name)] = base64.b64encode(
+            ciphertext
+        ).decode("ascii")
+        self._write_entries(entries)
+
+    def delete_named_secret(self, namespace: str, name: str) -> None:
+        """Delete one namespaced secret without touching other credentials."""
+        entries = self._read_entries()
+        removed = entries.pop(_named_secret_name(namespace, name), None)
+        if removed is not None:
+            self._write_entries(entries)
+
     def _read_entries(self) -> dict[str, str]:
         if not self._path.exists():
             return {}
@@ -210,6 +265,16 @@ def _credential_name(provider: str) -> str:
     if not normalized:
         raise CredentialStoreError("The AI provider name cannot be empty.")
     return f"ai:{normalized}"
+
+
+def _named_secret_name(namespace: str, name: str) -> str:
+    normalized_namespace = namespace.strip().casefold()
+    normalized_name = name.strip().casefold()
+    if not normalized_namespace or not normalized_name:
+        raise CredentialStoreError("The credential namespace and name are required.")
+    if ":" in normalized_namespace or ":" in normalized_name:
+        raise CredentialStoreError("Credential names cannot contain a colon.")
+    return f"{normalized_namespace}:{normalized_name}"
 
 
 def _build_blob(data: bytes) -> tuple[_DataBlob, ctypes.Array[ctypes.c_char]]:

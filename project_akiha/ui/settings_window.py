@@ -39,6 +39,7 @@ from project_akiha.config import (
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
+    SpotifyConfig,
     VoiceConfig,
 )
 from project_akiha.core.actions import (
@@ -56,9 +57,11 @@ from project_akiha.services.credential_store import (
     CredentialStore,
     CredentialStoreError,
 )
+from project_akiha.services.spotify_auth import SpotifyToken
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
+from project_akiha.ui.spotify_auth_worker import SpotifyAuthorizationThread
 from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
 
 _AI_PROVIDER_ORDER = (
@@ -118,6 +121,7 @@ class SettingsWindow(QWidget):
         self._data_dir = data_dir or log_dir.parent
         self._credential_store = credential_store
         self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
+        self._spotify_auth_thread: SpotifyAuthorizationThread | None = None
         self._assistant_directories: tuple[ApprovedDirectory, ...] = ()
         self._assistant_applications: tuple[InstalledApplication, ...] = ()
         self._assistant_application_grants: tuple[PermissionGrant, ...] = ()
@@ -230,6 +234,28 @@ class SettingsWindow(QWidget):
             config.behavior.quiet_hours_start
         )
         self._quiet_hours_end_input = _build_time_input(config.behavior.quiet_hours_end)
+        self._spotify_enabled_input = QCheckBox()
+        self._spotify_enabled_input.setChecked(config.spotify.enabled)
+        self._spotify_client_id_input = QLineEdit(config.spotify.client_id)
+        self._spotify_client_id_input.setPlaceholderText("Spotify Client ID")
+        self._spotify_redirect_uri_input = QLineEdit(config.spotify.redirect_uri)
+        self._spotify_redirect_uri_input.setReadOnly(True)
+        self._spotify_auto_launch_input = QCheckBox()
+        self._spotify_auto_launch_input.setChecked(
+            config.spotify.auto_launch_desktop_app
+        )
+        self._spotify_timeout_input = _build_spinbox(
+            1,
+            60,
+            config.spotify.request_timeout_seconds,
+        )
+        self._spotify_timeout_input.setSuffix(" sec")
+        self._spotify_connect_button = QPushButton("Connect Spotify")
+        self._spotify_connect_button.clicked.connect(self._connect_spotify)
+        self._spotify_disconnect_button = QPushButton("Disconnect")
+        self._spotify_disconnect_button.clicked.connect(self._disconnect_spotify)
+        self._spotify_connection_status = QLabel("Not connected")
+        self._spotify_connection_status.setWordWrap(True)
         self._voice_enabled_input = QCheckBox()
         self._voice_enabled_input.setChecked(config.voice.enabled)
         self._push_to_talk_enabled_input = QCheckBox()
@@ -372,10 +398,12 @@ class SettingsWindow(QWidget):
         tabs.addTab(self._build_memory_tab(), "Memory")
         tabs.addTab(self._build_behavior_tab(), "Behavior")
         tabs.addTab(self._build_assistant_actions_tab(), "Actions")
+        tabs.addTab(self._build_spotify_tab(), "Spotify")
         tabs.addTab(self._build_voice_tab(), "Voice")
         self._tabs = tabs
         self._sync_ai_controls(config.ai.provider)
         self._sync_voice_controls(config.voice.enabled)
+        self._refresh_spotify_connection_status()
 
         save_button = QPushButton("Save")
         save_button.setObjectName("primaryButton")
@@ -474,6 +502,14 @@ class SettingsWindow(QWidget):
         self._quiet_hours_end_input.setTime(
             _parse_qtime(config.behavior.quiet_hours_end)
         )
+        self._spotify_enabled_input.setChecked(config.spotify.enabled)
+        self._spotify_client_id_input.setText(config.spotify.client_id)
+        self._spotify_redirect_uri_input.setText(config.spotify.redirect_uri)
+        self._spotify_auto_launch_input.setChecked(
+            config.spotify.auto_launch_desktop_app
+        )
+        self._spotify_timeout_input.setValue(config.spotify.request_timeout_seconds)
+        self._refresh_spotify_connection_status()
         self._voice_enabled_input.setChecked(config.voice.enabled)
         self._push_to_talk_enabled_input.setChecked(config.voice.push_to_talk_enabled)
         self._voice_input_provider_input.setCurrentText(config.voice.input_provider)
@@ -687,6 +723,33 @@ class SettingsWindow(QWidget):
             _build_section("Awareness", awareness_layout),
             _build_section("Proactive behavior", proactive_layout),
         )
+
+    def _build_spotify_tab(self) -> QWidget:
+        account_layout = _build_form_layout(wrap_long_rows=True)
+        account_layout.addRow("Spotify enabled", self._spotify_enabled_input)
+        account_layout.addRow("Client ID", self._spotify_client_id_input)
+        account_layout.addRow("Redirect URI", self._spotify_redirect_uri_input)
+        account_layout.addRow("Connection", self._build_spotify_connection_row())
+
+        playback_layout = _build_form_layout()
+        playback_layout.addRow("Launch desktop app", self._spotify_auto_launch_input)
+        playback_layout.addRow("Request timeout", self._spotify_timeout_input)
+        return _build_scroll_tab(
+            _build_section("Spotify account", account_layout),
+            _build_section("Playback", playback_layout),
+        )
+
+    def _build_spotify_connection_row(self) -> QWidget:
+        buttons = QHBoxLayout()
+        buttons.addWidget(self._spotify_connect_button)
+        buttons.addWidget(self._spotify_disconnect_button)
+        row = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(buttons)
+        layout.addWidget(self._spotify_connection_status)
+        row.setLayout(layout)
+        return row
 
     def _build_assistant_actions_tab(self) -> QWidget:
         self._assistant_permission_status = QLabel(
@@ -1129,11 +1192,16 @@ class SettingsWindow(QWidget):
         if selected_path:
             self._voice_output_engine_path_input.setText(selected_path)
 
-    def _save(self) -> None:
+    def _save(self) -> bool:
         if not self._validate_ai_inputs():
-            return
+            return False
+        try:
+            spotify_config = self._spotify_config_from_inputs()
+        except ValueError as error:
+            self._set_spotify_connection_status(str(error), is_error=True)
+            return False
         if not self._save_ai_api_key():
-            return
+            return False
         pet_window = PetWindowConfig(
             width=self._width_input.value(),
             height=self._height_input.value(),
@@ -1241,8 +1309,154 @@ class SettingsWindow(QWidget):
                 request_timeout_seconds=(self._voice_request_timeout_input.value()),
             )
         )
+        config = config.with_spotify(spotify_config)
         self.update_config(config)
         self.settings_saved.emit(config)
+        return True
+
+    def _spotify_config_from_inputs(self) -> SpotifyConfig:
+        return SpotifyConfig(
+            enabled=self._spotify_enabled_input.isChecked(),
+            client_id=self._spotify_client_id_input.text().strip(),
+            redirect_uri=self._spotify_redirect_uri_input.text().strip(),
+            auto_launch_desktop_app=self._spotify_auto_launch_input.isChecked(),
+            request_timeout_seconds=self._spotify_timeout_input.value(),
+        )
+
+    def _connect_spotify(self) -> None:
+        if self._spotify_auth_thread is not None:
+            return
+        self._spotify_enabled_input.setChecked(True)
+        if not self._save():
+            return
+        spotify_config = self._config.spotify
+        self._set_spotify_connection_status("Waiting for browser authorization...")
+        self._spotify_connect_button.setEnabled(False)
+        thread = SpotifyAuthorizationThread(spotify_config, self)
+        thread.authorization_url_ready.connect(self._open_spotify_authorization_url)
+        thread.authorization_ready.connect(self._handle_spotify_authorization_ready)
+        thread.authorization_failed.connect(self._handle_spotify_authorization_failed)
+        thread.finished.connect(self._finish_spotify_authorization)
+        self._spotify_auth_thread = thread
+        thread.start()
+
+    def _open_spotify_authorization_url(self, authorization_url: str) -> None:
+        if not QDesktopServices.openUrl(QUrl(authorization_url)):
+            self._set_spotify_connection_status(
+                "Spotify authorization could not open the browser.",
+                is_error=True,
+            )
+            thread = self._spotify_auth_thread
+            if thread is not None:
+                thread.cancel()
+
+    def _handle_spotify_authorization_ready(self, token: object) -> None:
+        if not isinstance(token, SpotifyToken):
+            self._set_spotify_connection_status(
+                "Spotify returned an invalid authorization result.",
+                is_error=True,
+            )
+            return
+        if self._credential_store is None or not hasattr(
+            self._credential_store,
+            "set_named_secret",
+        ):
+            self._set_spotify_connection_status(
+                "Secure Spotify token storage is unavailable.",
+                is_error=True,
+            )
+            return
+        try:
+            self._credential_store.set_named_secret(
+                "spotify",
+                "refresh_token",
+                token.refresh_token,
+            )
+        except CredentialStoreError:
+            self._set_spotify_connection_status(
+                "Spotify authorization could not be saved securely.",
+                is_error=True,
+            )
+            return
+        self._set_spotify_connection_status("Spotify connected securely.")
+
+    def _handle_spotify_authorization_failed(self, message: str) -> None:
+        self._set_spotify_connection_status(message, is_error=True)
+
+    def _finish_spotify_authorization(self) -> None:
+        thread = self._spotify_auth_thread
+        self._spotify_auth_thread = None
+        self._spotify_connect_button.setEnabled(True)
+        if thread is not None:
+            thread.deleteLater()
+
+    def _disconnect_spotify(self) -> None:
+        if self._credential_store is None or not hasattr(
+            self._credential_store,
+            "delete_named_secret",
+        ):
+            self._set_spotify_connection_status(
+                "Secure Spotify token storage is unavailable.",
+                is_error=True,
+            )
+            return
+        try:
+            self._credential_store.delete_named_secret(
+                "spotify",
+                "refresh_token",
+            )
+        except CredentialStoreError:
+            self._set_spotify_connection_status(
+                "Spotify authorization could not be removed.",
+                is_error=True,
+            )
+            return
+        self._set_spotify_connection_status("Spotify disconnected.")
+
+    def _refresh_spotify_connection_status(self) -> None:
+        if self._spotify_auth_thread is not None:
+            return
+        if self._credential_store is None or not hasattr(
+            self._credential_store,
+            "get_named_secret",
+        ):
+            self._set_spotify_connection_status("Not connected")
+            return
+        try:
+            connected = (
+                self._credential_store.get_named_secret(
+                    "spotify",
+                    "refresh_token",
+                )
+                is not None
+            )
+        except CredentialStoreError:
+            self._set_spotify_connection_status(
+                "Saved Spotify authorization could not be read.",
+                is_error=True,
+            )
+            return
+        self._set_spotify_connection_status(
+            "Spotify connected securely." if connected else "Not connected"
+        )
+
+    def _set_spotify_connection_status(
+        self,
+        status: str,
+        *,
+        is_error: bool = False,
+    ) -> None:
+        self._spotify_connection_status.setText(status.strip() or "Not connected")
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
+        self._spotify_connection_status.setStyleSheet(f"color: {color};")
+
+    def cancel_spotify_authorization(self, wait_ms: int = 2_000) -> bool:
+        """Cancel and wait for an active Spotify callback listener."""
+        thread = self._spotify_auth_thread
+        if thread is None:
+            return True
+        thread.cancel()
+        return thread.wait(wait_ms)
 
     def _sync_away_minimum(self, idle_after_minutes: int) -> None:
         self._away_after_input.setMinimum(idle_after_minutes + 1)

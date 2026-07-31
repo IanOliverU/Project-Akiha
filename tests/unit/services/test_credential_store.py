@@ -70,6 +70,33 @@ class EncryptedCredentialStoreTest(unittest.TestCase):
             with self.assertRaises(CredentialStoreError):
                 store.get_secret(" ")
 
+    def test_named_secrets_are_isolated_from_ai_credentials(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "credentials.json"
+            store = EncryptedCredentialStore(path, protector=_TestProtector())
+            store.set_secret("spotify", "hosted-api-key")
+            store.set_named_secret("spotify", "refresh_token", "oauth-refresh")
+
+            self.assertEqual(store.get_secret("spotify"), "hosted-api-key")
+            self.assertEqual(
+                store.get_named_secret("spotify", "refresh_token"),
+                "oauth-refresh",
+            )
+            store.delete_named_secret("spotify", "refresh_token")
+
+            self.assertIsNone(store.get_named_secret("spotify", "refresh_token"))
+            self.assertEqual(store.get_secret("spotify"), "hosted-api-key")
+
+    def test_named_secret_rejects_invalid_names(self) -> None:
+        with TemporaryDirectory() as directory:
+            store = EncryptedCredentialStore(
+                Path(directory) / "credentials.json",
+                protector=_TestProtector(),
+            )
+
+            with self.assertRaises(CredentialStoreError):
+                store.set_named_secret("spotify:unsafe", "token", "secret")
+
 
 if __name__ == "__main__":
     unittest.main()

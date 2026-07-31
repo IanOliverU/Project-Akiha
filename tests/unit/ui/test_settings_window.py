@@ -14,7 +14,7 @@ from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication, QGroupBox
 
 import project_akiha.ui.settings_window as settings_window_module
-from project_akiha.config import AIConfig, AppConfig, PrivacyConfig
+from project_akiha.config import AIConfig, AppConfig, PrivacyConfig, SpotifyConfig
 from project_akiha.core.actions import (
     ApprovedDirectory,
     InstalledApplication,
@@ -23,6 +23,7 @@ from project_akiha.core.actions import (
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
+from project_akiha.services.spotify_auth import SpotifyToken
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.theme import AKIHA_PALETTE
 
@@ -39,6 +40,15 @@ class _CredentialStore:
 
     def delete_secret(self, provider: str) -> None:
         self.secrets.pop(provider, None)
+
+    def get_named_secret(self, namespace: str, name: str) -> str | None:
+        return self.secrets.get(f"{namespace}:{name}")
+
+    def set_named_secret(self, namespace: str, name: str, secret: str) -> None:
+        self.secrets[f"{namespace}:{name}"] = secret
+
+    def delete_named_secret(self, namespace: str, name: str) -> None:
+        self.secrets.pop(f"{namespace}:{name}", None)
 
 
 class SettingsWindowTest(unittest.TestCase):
@@ -92,7 +102,7 @@ class SettingsWindowTest(unittest.TestCase):
             if section.objectName() == "settingsSection"
         }
         self.assertEqual(window.objectName(), "akihaSettingsWindow")
-        self.assertEqual(window._tabs.count(), 6)
+        self.assertEqual(window._tabs.count(), 7)
         self.assertEqual(window._save_button.objectName(), "primaryButton")
         self.assertIn(AKIHA_PALETTE.window, window.styleSheet())
         self.assertIn(AKIHA_PALETTE.primary, window.styleSheet())
@@ -108,6 +118,8 @@ class SettingsWindowTest(unittest.TestCase):
                 "Permission controls",
                 "Approved directories",
                 "Allowlisted applications",
+                "Spotify account",
+                "Playback",
                 "Listening",
                 "Speaking",
                 "Subtitles",
@@ -194,6 +206,70 @@ class SettingsWindowTest(unittest.TestCase):
             window._save()
 
         self.assertTrue(emitted[0].ai.assistant_tools_enabled)
+
+    def test_saves_spotify_public_configuration(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._spotify_enabled_input.setChecked(True)
+            window._spotify_client_id_input.setText("a" * 32)
+            window._spotify_auto_launch_input.setChecked(False)
+            window._spotify_timeout_input.setValue(22)
+
+            saved = window._save()
+
+        self.assertTrue(saved)
+        self.assertTrue(emitted[0].spotify.enabled)
+        self.assertEqual(emitted[0].spotify.client_id, "a" * 32)
+        self.assertFalse(emitted[0].spotify.auto_launch_desktop_app)
+        self.assertEqual(emitted[0].spotify.request_timeout_seconds, 22)
+
+    def test_spotify_refresh_token_is_saved_separately(self) -> None:
+        credentials = _CredentialStore()
+        config = AppConfig().with_spotify(
+            SpotifyConfig(enabled=True, client_id="a" * 32)
+        )
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                config,
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+            window._handle_spotify_authorization_ready(
+                SpotifyToken(
+                    access_token="memory-only-access",
+                    refresh_token="saved-refresh",
+                    expires_at=1000.0,
+                    scopes=("user-library-read",),
+                )
+            )
+
+        self.assertEqual(
+            credentials.secrets["spotify:refresh_token"],
+            "saved-refresh",
+        )
+        self.assertNotIn("memory-only-access", credentials.secrets.values())
+        self.assertEqual(
+            window._spotify_connection_status.text(),
+            "Spotify connected securely.",
+        )
+
+    def test_saved_spotify_authorization_is_shown_on_startup(self) -> None:
+        credentials = _CredentialStore()
+        credentials.secrets["spotify:refresh_token"] = "saved-refresh"
+
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                AppConfig(),
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+
+        self.assertEqual(
+            window._spotify_connection_status.text(),
+            "Spotify connected securely.",
+        )
 
     def test_behavior_away_minimum_stays_after_idle(self) -> None:
         with TemporaryDirectory() as directory:

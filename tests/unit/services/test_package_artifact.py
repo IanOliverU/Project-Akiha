@@ -46,6 +46,19 @@ class PackageArtifactTest(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("SQL files", issues[0].message)
 
+    def test_rejects_personal_spotify_export(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            private_export = artifact_dir / "assets/animations/akiha/Spotify.txt"
+            private_export.parent.mkdir(parents=True)
+            private_export.write_text("private listening history", encoding="utf-8")
+
+            issues = validate_package_artifact(artifact_dir)
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("Private local data", issues[0].message)
+
 
 def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "assets/animations").mkdir(parents=True)

@@ -34,6 +34,20 @@ account and stored separately from TOML configuration. Keys are not included in
 provider logs, application events, chat history, memory records, or exports.
 Environment-variable credentials are supported as an alternative.
 
+## Spotify OAuth Boundary
+
+The optional Spotify integration uses Authorization Code with PKCE for a
+desktop public client. It binds a bounded callback listener only to
+`127.0.0.1:43821`, validates the exact callback path and one-time state value,
+and never accepts or stores a Client Secret. The short-lived access token stays
+in memory; the refresh token is encrypted with Windows DPAPI under a dedicated
+credential namespace.
+
+Spotify account data is not exposed to the AI provider. Providers may propose
+a constrained typed music intent from text the user supplied, but search,
+library ranking, device selection, ambiguity handling, and playback execution
+remain local. Personal preference exports are forbidden from release packages.
+
 ## First-Run Privacy Notice
 
 A versioned application-modal notice now explains the microphone, local

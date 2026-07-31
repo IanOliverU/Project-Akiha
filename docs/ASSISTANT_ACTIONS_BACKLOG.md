@@ -1,6 +1,6 @@
 # Assistant Actions Improvement Backlog
 
-**Status:** Active - hearing and transcript stabilization in progress
+**Status:** Active - Spotify integration foundation in progress
 
 ## Purpose
 
@@ -105,6 +105,22 @@ clear short command and a genuinely uncertain high-no-speech result.
   execution workers.
 - [ ] Add an end-to-end diagnostic view for hearing, intent, permission, and
   execution stages using sanitized data.
+
+## Spotify Integration
+
+- [x] Record the Premium, PKCE, fixed loopback callback, and privacy boundary.
+- [x] Add typed public configuration and a Settings connection surface.
+- [x] Implement PKCE authorization, callback state validation, token exchange,
+  encrypted refresh-token persistence, and disconnect.
+- [x] Exclude personal listening exports from Git and packaged artifacts.
+- [x] Add an authenticated Spotify session with in-memory access-token refresh.
+- [ ] Add local track, artist, album, playlist, and Liked Songs lookup.
+- [ ] Add active-device selection and optional Spotify desktop-app launch.
+- [ ] Add typed play, pause, resume, next, previous, and library-play actions.
+- [ ] Add local preference ranking and explicit ambiguity confirmation.
+- [ ] Connect constrained typed/voice proposals without exposing library data to
+  hosted providers.
+- [ ] Run source QA, rebuild the standalone package, and complete packaged smoke.
 
 ## Hard Safety Rules
 
