@@ -5,6 +5,7 @@ from __future__ import annotations
 from array import array
 from collections.abc import Callable
 from math import sqrt
+from statistics import median
 from sys import byteorder
 from typing import Any
 
@@ -27,7 +28,16 @@ _CHANNELS = 1
 _SAMPLE_WIDTH_BYTES = 2
 _SPEECH_START_RMS_THRESHOLD = 160.0
 _SILENCE_MINIMUM_RMS_THRESHOLD = 120.0
-_SILENCE_PEAK_RATIO = 0.85
+_NOISE_CALIBRATION_SECONDS = 0.2
+_NOISE_FLOOR_DEFAULT_RMS = 80.0
+_NOISE_FLOOR_UPDATE_WEIGHT = 0.08
+_SPEECH_NOISE_RATIO = 1.15
+_SPEECH_NOISE_MARGIN = 30.0
+_SILENCE_NOISE_RATIO = 1.1
+_SILENCE_NOISE_MARGIN = 20.0
+_SILENCE_PEAK_RATIO = 0.35
+_IMMEDIATE_SPEECH_RMS_THRESHOLD = 500.0
+_IMMEDIATE_SPEECH_SECONDS = 0.1
 _MINIMUM_SPEECH_SECONDS = 0.25
 _CONTINUED_SPEECH_SECONDS = 0.1
 _ANALYSIS_FRAME_SECONDS = 0.02
@@ -77,6 +87,9 @@ class QtMicrophoneCapture(QObject):
         self._silence_bytes = 0
         self._continued_speech_bytes = 0
         self._peak_speech_rms = 0.0
+        self._noise_calibration_bytes = 0
+        self._noise_calibration_samples: list[float] = []
+        self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
         self._has_speech = False
         self._auto_stop_on_silence = False
         self._endpoint_requested = False
@@ -164,6 +177,9 @@ class QtMicrophoneCapture(QObject):
         self._silence_bytes = 0
         self._continued_speech_bytes = 0
         self._peak_speech_rms = 0.0
+        self._noise_calibration_bytes = 0
+        self._noise_calibration_samples.clear()
+        self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
         self._has_speech = False
         self._auto_stop_on_silence = auto_stop_on_silence
         self._endpoint_requested = False
@@ -254,28 +270,9 @@ class QtMicrophoneCapture(QObject):
     def _process_audio_frame(self, frame: bytes) -> None:
         frame_size = len(frame)
         rms = _pcm_rms(frame)
-        if self._has_speech:
-            silence_threshold = max(
-                _SILENCE_MINIMUM_RMS_THRESHOLD,
-                self._peak_speech_rms * _SILENCE_PEAK_RATIO,
-            )
-            is_speech = rms >= silence_threshold
-        else:
-            is_speech = rms >= _SPEECH_START_RMS_THRESHOLD
-
-        if not self._has_speech and is_speech:
-            self._peak_speech_rms = max(self._peak_speech_rms, rms)
-            self._speech_bytes += frame_size
-            minimum_speech_bytes = int(
-                _SAMPLE_RATE_HZ
-                * _CHANNELS
-                * _SAMPLE_WIDTH_BYTES
-                * _MINIMUM_SPEECH_SECONDS
-            )
-            self._has_speech = self._speech_bytes >= minimum_speech_bytes
-            if self._has_speech and self._auto_stop_on_silence:
-                self._endpoint_timer.start(self._silence_timeout_ms)
-        elif self._has_speech and is_speech:
+        if not self._has_speech:
+            self._process_pre_speech_frame(rms, frame_size)
+        elif rms >= self._speech_release_threshold():
             self._peak_speech_rms = max(self._peak_speech_rms, rms)
             self._continued_speech_bytes += frame_size
             continued_speech_bytes = int(
@@ -292,8 +289,7 @@ class QtMicrophoneCapture(QObject):
         elif self._has_speech:
             self._continued_speech_bytes = 0
             self._silence_bytes += frame_size
-        else:
-            self._speech_bytes = 0
+            self._update_noise_floor(rms)
 
         if (
             self._auto_stop_on_silence
@@ -302,6 +298,80 @@ class QtMicrophoneCapture(QObject):
             and self._silence_bytes >= self._silence_timeout_bytes
         ):
             self._request_silence_endpoint()
+
+    def _process_pre_speech_frame(self, rms: float, frame_size: int) -> None:
+        calibration_bytes = int(
+            _SAMPLE_RATE_HZ
+            * _CHANNELS
+            * _SAMPLE_WIDTH_BYTES
+            * _NOISE_CALIBRATION_SECONDS
+        )
+        if self._noise_calibration_bytes < calibration_bytes:
+            self._noise_calibration_bytes += frame_size
+            if rms < _IMMEDIATE_SPEECH_RMS_THRESHOLD:
+                self._noise_calibration_samples.append(rms)
+                self._speech_bytes = 0
+            else:
+                self._speech_bytes += frame_size
+
+            if self._noise_calibration_bytes >= calibration_bytes:
+                self._finish_noise_calibration()
+            if self._speech_bytes >= self._duration_bytes(_IMMEDIATE_SPEECH_SECONDS):
+                self._mark_speech_started(rms)
+            return
+
+        if rms >= self._speech_start_threshold():
+            self._peak_speech_rms = max(self._peak_speech_rms, rms)
+            self._speech_bytes += frame_size
+            if self._speech_bytes >= self._duration_bytes(_MINIMUM_SPEECH_SECONDS):
+                self._mark_speech_started(rms)
+            return
+
+        self._speech_bytes = 0
+        self._peak_speech_rms = 0.0
+        self._update_noise_floor(rms)
+
+    def _finish_noise_calibration(self) -> None:
+        if self._noise_calibration_samples:
+            self._noise_floor_rms = max(
+                1.0,
+                float(median(self._noise_calibration_samples)),
+            )
+        else:
+            self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
+
+    def _speech_start_threshold(self) -> float:
+        return max(
+            _SPEECH_START_RMS_THRESHOLD,
+            self._noise_floor_rms * _SPEECH_NOISE_RATIO,
+            self._noise_floor_rms + _SPEECH_NOISE_MARGIN,
+        )
+
+    def _speech_release_threshold(self) -> float:
+        return max(
+            _SILENCE_MINIMUM_RMS_THRESHOLD,
+            self._noise_floor_rms * _SILENCE_NOISE_RATIO,
+            self._noise_floor_rms + _SILENCE_NOISE_MARGIN,
+            self._peak_speech_rms * _SILENCE_PEAK_RATIO,
+        )
+
+    def _mark_speech_started(self, rms: float) -> None:
+        self._has_speech = True
+        self._peak_speech_rms = max(self._peak_speech_rms, rms)
+        self._speech_bytes = 0
+        self._silence_bytes = 0
+        self._continued_speech_bytes = 0
+        if self._auto_stop_on_silence:
+            self._endpoint_timer.start(self._silence_timeout_ms)
+
+    def _update_noise_floor(self, rms: float) -> None:
+        self._noise_floor_rms = (
+            1.0 - _NOISE_FLOOR_UPDATE_WEIGHT
+        ) * self._noise_floor_rms + _NOISE_FLOOR_UPDATE_WEIGHT * rms
+
+    @staticmethod
+    def _duration_bytes(seconds: float) -> int:
+        return int(_SAMPLE_RATE_HZ * _CHANNELS * _SAMPLE_WIDTH_BYTES * seconds)
 
     def _snapshot(self) -> CapturedAudio:
         return CapturedAudio(
@@ -365,6 +435,9 @@ class QtMicrophoneCapture(QObject):
         self._silence_bytes = 0
         self._continued_speech_bytes = 0
         self._peak_speech_rms = 0.0
+        self._noise_calibration_bytes = 0
+        self._noise_calibration_samples.clear()
+        self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
         self._has_speech = False
         self._auto_stop_on_silence = False
         self._endpoint_requested = False

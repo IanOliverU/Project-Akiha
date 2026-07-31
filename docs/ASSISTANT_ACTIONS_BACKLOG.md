@@ -24,7 +24,7 @@ typed actions may reach an executor.
 ## Hearing And Transcription
 
 - [ ] Measure silence endpoint reliability with fan and room noise.
-- [ ] Add adaptive noise-floor calibration without continuous background
+- [x] Add adaptive noise-floor calibration without continuous background
   recording.
 - [ ] Improve streaming partial transcripts and stable final-text replacement.
 - [ ] Prevent duplicated wrappers such as `I heard you say` from entering the
@@ -32,8 +32,16 @@ typed actions may reach an executor.
 - [ ] Surface microphone level, detected speech, silence countdown, and final
   transcript state without logging transcript content by default.
 - [ ] Add confidence-aware finalization and retain the manual Stop fallback.
-- [ ] Add deterministic tests for pauses, corrections, false starts, and noisy
-  silence.
+- [x] Add deterministic endpoint tests for steady fan noise, speech over fan
+  noise, immediate speech, muted silence, and brief noise spikes.
+- [ ] Add broader deterministic tests for pauses, corrections, and false
+  starts as transcript stabilization is implemented.
+
+The first endpoint-hardening pass landed on 2026-07-31. Microphone capture now
+calibrates a short local noise floor after Talk begins, uses separate adaptive
+speech-start and speech-release thresholds, requires sustained speech before
+resetting the silence timer, and preserves a louder immediate-speech bypass.
+Raw audio remains temporary and is not logged or persisted.
 
 ## Intent And Context
 

@@ -172,9 +172,10 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         self.assertTrue(capture.is_capturing)
 
     def test_quiet_speech_then_room_noise_reaches_silence_endpoint(self) -> None:
+        initial_room_noise = _pcm_chunk(125, seconds=0.25)
         speech = _pcm_chunk(220, seconds=0.3)
         room_noise = _pcm_chunk(125, seconds=3.1)
-        fixture = _CaptureFixture(chunks=[speech, room_noise])
+        fixture = _CaptureFixture(chunks=[initial_room_noise, speech, room_noise])
         capture = fixture.build()
         silence_events: list[bool] = []
         capture.start(
@@ -186,8 +187,8 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
             auto_stop_on_silence=True,
         )
 
-        fixture.io_device.readyRead.emit()
-        fixture.io_device.readyRead.emit()
+        for _ in range(3):
+            fixture.io_device.readyRead.emit()
 
         self.assertEqual(silence_events, [True])
 
@@ -286,12 +287,14 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         self.assertEqual(snapshots, [quiet_audio])
 
     def test_brief_noise_spike_does_not_reset_silence_endpoint(self) -> None:
+        initial_room_noise = _pcm_chunk(180, seconds=0.25)
         speech = _pcm_chunk(220, seconds=0.3)
         room_noise_before = _pcm_chunk(180, seconds=1.5)
         brief_noise_spike = _pcm_chunk(250, seconds=0.02)
         room_noise_after = _pcm_chunk(180, seconds=1.6)
         fixture = _CaptureFixture(
             chunks=[
+                initial_room_noise,
                 speech,
                 room_noise_before,
                 brief_noise_spike,
@@ -309,8 +312,70 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
             auto_stop_on_silence=True,
         )
 
-        for _ in range(4):
+        for _ in range(5):
             fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
+    def test_steady_fan_noise_does_not_arm_speech_endpoint(self) -> None:
+        fan_noise = _pcm_chunk(350, seconds=4.0)
+        fixture = _CaptureFixture(chunks=[fan_noise])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        fixture.io_device.readyRead.emit()
+        fixture.endpoint_timer.timeout.emit()
+
+        self.assertEqual(fixture.endpoint_timer.started_ms, 0)
+        self.assertEqual(silence_events, [])
+        self.assertTrue(capture.is_capturing)
+
+    def test_fan_noise_around_speech_reaches_silence_endpoint(self) -> None:
+        fan_noise = _pcm_chunk(350, seconds=0.3)
+        speech = _pcm_chunk(600, seconds=0.3)
+        trailing_fan_noise = _pcm_chunk(350, seconds=3.1)
+        fixture = _CaptureFixture(chunks=[fan_noise, speech, trailing_fan_noise])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=3.0,
+            auto_stop_on_silence=True,
+        )
+
+        for _ in range(3):
+            fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
+    def test_loud_immediate_speech_bypasses_noise_calibration(self) -> None:
+        speech = _pcm_chunk(600, seconds=0.15)
+        silence = _pcm_chunk(0, seconds=1.3)
+        fixture = _CaptureFixture(chunks=[speech, silence])
+        capture = fixture.build()
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+
+        fixture.io_device.readyRead.emit()
+        fixture.io_device.readyRead.emit()
 
         self.assertEqual(silence_events, [True])
 
