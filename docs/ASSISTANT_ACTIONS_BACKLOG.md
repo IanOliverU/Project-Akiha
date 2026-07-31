@@ -114,7 +114,8 @@ clear short command and a genuinely uncertain high-no-speech result.
   encrypted refresh-token persistence, and disconnect.
 - [x] Exclude personal listening exports from Git and packaged artifacts.
 - [x] Add an authenticated Spotify session with in-memory access-token refresh.
-- [ ] Add local track, artist, album, playlist, and Liked Songs lookup.
+- [x] Add bounded local track, artist, album, playlist, Liked Songs, top-item,
+  and recent-track lookup with minimal metadata retention.
 - [ ] Add active-device selection and optional Spotify desktop-app launch.
 - [ ] Add typed play, pause, resume, next, previous, and library-play actions.
 - [ ] Add local preference ranking and explicit ambiguity confirmation.

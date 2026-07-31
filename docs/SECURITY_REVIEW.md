@@ -48,6 +48,12 @@ a constrained typed music intent from text the user supplied, but search,
 library ranking, device selection, ambiguity handling, and playback execution
 remain local. Personal preference exports are forbidden from release packages.
 
+Catalog and library lookup accepts bounded local query lengths and result
+limits, retains only the metadata required for matching and confirmation, and
+never follows pagination URLs supplied by a provider response. One HTTP 401 can
+clear the memory-only access token and retry through the encrypted refresh-token
+session; other failures remain privacy-safe and are not retried automatically.
+
 ## First-Run Privacy Notice
 
 A versioned application-modal notice now explains the microphone, local

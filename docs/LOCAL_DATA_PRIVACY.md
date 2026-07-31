@@ -51,6 +51,11 @@ does not request or store a Spotify Client Secret.
 - Access tokens remain in memory and are refreshed from the encrypted token.
 - Search terms, library requests, device metadata, and playback commands are
   sent directly to Spotify only after the user connects the integration.
+- Catalog and library responses are reduced to minimal identifiers, names,
+  artist/album or playlist-owner labels, duration, URI, and playability. Akiha
+  does not retain artwork, descriptions, or raw provider responses.
+- Library pagination is bounded and reconstructs requests against Spotify's
+  fixed API host instead of following response-provided URLs.
 - Akiha does not send Spotify library or listening-history metadata to a hosted
   AI provider. A hosted provider may interpret the user's own action sentence,
   but local Spotify lookup and execution remain typed and local.

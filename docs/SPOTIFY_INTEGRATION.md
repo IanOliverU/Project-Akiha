@@ -77,7 +77,8 @@ track and artist names rather than the user's data.
 - [x] Access token excluded from persistent storage.
 - [x] Personal export excluded from source control and packages.
 - [x] Authenticated session and automatic access-token refresh.
-- [ ] Spotify catalog/library client.
+- [x] Bounded Spotify catalog/library client for tracks, artists, albums,
+  playlists, Liked Songs, top items, and recent tracks.
 - [ ] Device selection and desktop-app activation.
 - [ ] Typed playback action contracts and executors.
 - [ ] Local preference ranking and ambiguity UI.
