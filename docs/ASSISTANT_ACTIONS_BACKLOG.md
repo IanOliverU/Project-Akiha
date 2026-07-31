@@ -72,6 +72,12 @@ provider behavior. Manual Stop remains available throughout capture. Coverage
 now includes short pauses, resumed speech, false starts, disruptive correction
 recovery, diagnostic privacy, and confidence-gated submission.
 
+Source QA then showed that the initial multiplicative score was too strict for
+a correctly recognized two-word command. The policy was recalibrated to blend
+token probability primarily with a smaller no-speech contribution and to
+reserve mandatory review for clearly weak results. Deterministic cases cover a
+clear short command and a genuinely uncertain high-no-speech result.
+
 ## Intent And Context
 
 - [ ] Keep deterministic local parsing as the fast offline path for explicit

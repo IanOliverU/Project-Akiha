@@ -16,7 +16,9 @@ class VoiceConfidenceTest(unittest.TestCase):
     def test_confidence_bands_are_stable(self) -> None:
         self.assertIsNone(voice_confidence_level(None))
         self.assertEqual(voice_confidence_level(0.2), "low")
+        self.assertEqual(voice_confidence_level(0.3), "medium")
         self.assertEqual(voice_confidence_level(0.6), "medium")
+        self.assertEqual(voice_confidence_level(0.7), "high")
         self.assertEqual(voice_confidence_level(0.9), "high")
 
     def test_only_reported_low_confidence_requires_review(self) -> None:

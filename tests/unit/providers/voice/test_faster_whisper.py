@@ -76,6 +76,38 @@ class FasterWhisperProviderTest(unittest.TestCase):
         self.assertGreater(transcript.confidence, 0.7)
         self.assertLessEqual(transcript.confidence, 1.0)
 
+    def test_clear_short_command_is_not_over_penalized_by_no_speech_score(
+        self,
+    ) -> None:
+        fixture = _ModelFixture(
+            text=" Open Spotify.",
+            avg_logprob=-0.8,
+            no_speech_prob=0.55,
+        )
+        with TemporaryDirectory() as directory:
+            transcript = asyncio.run(
+                _provider(Path(directory), fixture).transcribe(_audio())
+            )
+
+        self.assertIsNotNone(transcript.confidence)
+        assert transcript.confidence is not None
+        self.assertGreaterEqual(transcript.confidence, 0.3)
+
+    def test_weak_tokens_and_high_no_speech_remain_low_confidence(self) -> None:
+        fixture = _ModelFixture(
+            text=" Uncertain words.",
+            avg_logprob=-1.8,
+            no_speech_prob=0.85,
+        )
+        with TemporaryDirectory() as directory:
+            transcript = asyncio.run(
+                _provider(Path(directory), fixture).transcribe(_audio())
+            )
+
+        self.assertIsNotNone(transcript.confidence)
+        assert transcript.confidence is not None
+        self.assertLess(transcript.confidence, 0.3)
+
     def test_configured_language_is_forwarded(self) -> None:
         fixture = _ModelFixture(text=" Hello.", language="en")
         with TemporaryDirectory() as directory:

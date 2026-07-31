@@ -161,7 +161,13 @@ def _aggregate_segment_confidence(segments: tuple[object, ...]) -> float | None:
 
         speech_probability = 1.0 - min(1.0, max(0.0, float(no_speech_prob)))
         token_probability = exp(min(0.0, float(avg_logprob)))
-        confidence = min(1.0, max(0.0, token_probability * speech_probability))
+        confidence = min(
+            1.0,
+            max(
+                0.0,
+                0.8 * token_probability + 0.2 * speech_probability,
+            ),
+        )
         weight = max(1, len(str(getattr(segment, "text", "")).strip()))
         weighted_total += confidence * weight
         total_weight += weight

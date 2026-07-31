@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-_LOW_CONFIDENCE_THRESHOLD = 0.45
-_HIGH_CONFIDENCE_THRESHOLD = 0.72
+_LOW_CONFIDENCE_THRESHOLD = 0.30
+_HIGH_CONFIDENCE_THRESHOLD = 0.70
 
 
 def voice_confidence_level(confidence: float | None) -> str | None:
