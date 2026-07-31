@@ -19,6 +19,10 @@ from project_akiha.providers.voice.base import (
     VoiceTranscript,
 )
 
+_COMMAND_HOTWORDS = (
+    "Akiha Spotify Discord Chrome Visual Studio Code VS Code VLC VOICEVOX"
+)
+
 
 class FasterWhisperProvider:
     """Transcribe in-memory PCM with a lazily loaded CPU Whisper model."""
@@ -70,6 +74,7 @@ class FasterWhisperProvider:
                 language=self._language,
                 beam_size=5,
                 vad_filter=True,
+                hotwords=_COMMAND_HOTWORDS,
             )
             resolved_segments = tuple(segments)
             text = "".join(str(segment.text) for segment in resolved_segments).strip()

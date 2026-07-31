@@ -14,6 +14,7 @@ from project_akiha.core.actions import (
     build_default_action_registry,
 )
 from project_akiha.services.spotify_client import (
+    SpotifyAPIError,
     SpotifyCatalogItem,
     SpotifyDevice,
     SpotifyItemKind,
@@ -74,6 +75,35 @@ class SpotifyTrackSearchExecutorTest(unittest.TestCase):
 
         self.assertEqual(result.status, ActionStatus.SUCCESS)
         self.assertEqual(client.searches, ["track:Usseewa artist:ADO"])
+
+    def test_search_relaxes_filters_after_voice_spelling_returns_no_results(
+        self,
+    ) -> None:
+        match = _track("track1", "Usseewa", "ADO")
+        client = _TrackClient(
+            (),
+            search_results={"USEWA ADO": (match,)},
+        )
+        executor = SpotifyTrackSearchExecutor(client)  # type: ignore[arg-type]
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.search_tracks",
+                    "USEWA",
+                    "ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.metadata["track_candidates"], (match,))
+        self.assertEqual(
+            client.searches,
+            ["track:USEWA artist:ADO", "USEWA ADO"],
+        )
 
 
 class SpotifyTrackPlaybackExecutorTest(unittest.TestCase):
@@ -140,6 +170,36 @@ class SpotifyTrackPlaybackExecutorTest(unittest.TestCase):
         self.assertEqual(client.played, [])
         self.assertEqual(self.coordinator.allow_activation, [])
 
+    def test_voice_spelling_uses_relaxed_search_and_plays_close_match(self) -> None:
+        match = _track("track1", "Usseewa", "ADO")
+        client = _TrackClient(
+            (),
+            search_results={"USEWA ADO": (match,)},
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "USEWA",
+                    "ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(
+            client.searches,
+            ["track:USEWA artist:ADO", "USEWA ADO"],
+        )
+        self.assertEqual(client.played, [("desktop-id", "spotify:track:track1")])
+
     def test_numbered_follow_up_plays_selected_uri_without_search(self) -> None:
         selected = _track("track2", "Usseewa", "ADO", album="Live")
         store = SpotifyTrackSelectionStore()
@@ -186,10 +246,100 @@ class SpotifyTrackPlaybackExecutorTest(unittest.TestCase):
         self.assertEqual(client.searches, [])
         self.assertEqual(self.coordinator.allow_activation, [])
 
+    def test_transient_missing_device_re_resolves_and_retries_once(self) -> None:
+        client = _TrackClient(
+            (_track("track1", "Kagakushu", "ADO"),),
+            play_errors=(SpotifyAPIError("missing", status_code=404),),
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+            retry_delay_seconds=0,
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Kagakushu",
+                    "ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(
+            client.played,
+            [
+                ("desktop-id", "spotify:track:track1"),
+                ("desktop-id", "spotify:track:track1"),
+            ],
+        )
+        self.assertEqual(self.coordinator.allow_activation, [True, False])
+
+    def test_persistent_missing_device_stops_after_one_retry(self) -> None:
+        client = _TrackClient(
+            (_track("track1", "Kagakushu", "ADO"),),
+            play_errors=(
+                SpotifyAPIError("missing", status_code=404),
+                SpotifyAPIError("still missing", status_code=404),
+            ),
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+            retry_delay_seconds=0,
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Kagakushu",
+                    "ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertIn("Make Spotify active", result.summary)
+        self.assertEqual(len(client.played), 2)
+        self.assertEqual(self.coordinator.allow_activation, [True, False])
+
+
+class SpotifyTrackSelectionStoreTest(unittest.TestCase):
+    def test_stale_and_out_of_range_references_return_safe_feedback(self) -> None:
+        store = SpotifyTrackSelectionStore()
+        self.assertIn("no active", store.follow_up_error("Play track result 11"))
+
+        store.replace(
+            (
+                _track("track1", "Usseewa", "ADO"),
+                _track("track2", "Kagakushu", "ADO"),
+            )
+        )
+
+        self.assertEqual(
+            store.follow_up_error("Play track result 11"),
+            "Choose a track result from 1 to 2.",
+        )
+
 
 class _TrackClient:
-    def __init__(self, tracks: tuple[SpotifyCatalogItem, ...]) -> None:
+    def __init__(
+        self,
+        tracks: tuple[SpotifyCatalogItem, ...],
+        *,
+        search_results: dict[str, tuple[SpotifyCatalogItem, ...]] | None = None,
+        play_errors: tuple[SpotifyAPIError, ...] = (),
+    ) -> None:
         self.tracks = tracks
+        self.search_results = search_results or {}
+        self.play_errors = list(play_errors)
         self.searches: list[str] = []
         self.played: list[tuple[str, str]] = []
 
@@ -203,10 +353,15 @@ class _TrackClient:
         if kinds != (SpotifyItemKind.TRACK,) or limit_per_kind != 5:
             raise AssertionError("Track search was not bounded correctly.")
         self.searches.append(query)
-        return SpotifySearchResult(query=query, items=self.tracks)
+        return SpotifySearchResult(
+            query=query,
+            items=self.search_results.get(query, self.tracks),
+        )
 
     def start_track_playback(self, device_id: str, track_uri: str) -> None:
         self.played.append((device_id, track_uri))
+        if self.play_errors:
+            raise self.play_errors.pop(0)
 
 
 class _Coordinator:

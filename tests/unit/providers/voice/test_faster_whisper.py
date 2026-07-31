@@ -63,6 +63,7 @@ class FasterWhisperProviderTest(unittest.TestCase):
         self.assertEqual(fixture.model_args["download_root"], str(model_dir))
         self.assertIsNone(fixture.transcribe_args["language"])
         self.assertTrue(fixture.transcribe_args["vad_filter"])
+        self.assertIn("Spotify", fixture.transcribe_args["hotwords"])
 
     def test_reports_bounded_segment_confidence(self) -> None:
         fixture = _ModelFixture(avg_logprob=-0.2, no_speech_prob=0.1)

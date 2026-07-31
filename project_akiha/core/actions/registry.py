@@ -30,6 +30,9 @@ SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
 SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
 SPOTIFY_SEARCH_TRACKS_ACTION = "spotify.search_tracks"
 SPOTIFY_PLAY_TRACK_ACTION = "spotify.play_track"
+SPOTIFY_SEARCH_ALBUMS_ACTION = "spotify.search_albums"
+SPOTIFY_OPEN_ALBUM_ACTION = "spotify.open_album"
+SPOTIFY_PLAY_ALBUM_ACTION = "spotify.play_album"
 
 FILE_SEARCH_CAPABILITY = "files.search"
 FILE_OPEN_CAPABILITY = "files.open"
@@ -417,6 +420,98 @@ def build_default_action_registry() -> ActionRegistry:
                 ),
                 timeout_seconds=20,
                 max_results=5,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_SEARCH_ALBUMS_ACTION,
+                description="Search for albums in the bounded Spotify catalog.",
+                risk=ActionRisk.READ_ONLY,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_search_albums",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="album_query",
+                        kind=ParameterKind.STRING,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="artist_query",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                ),
+                timeout_seconds=20,
+                max_results=5,
+            ),
+            *(
+                ActionDefinition(
+                    action_id=action_id,
+                    description=description,
+                    risk=ActionRisk.USER_VISIBLE,
+                    permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                    confirmation_policy=ConfirmationPolicy.NEVER,
+                    executor_id=executor_id,
+                    target_parameter="service",
+                    parameters=(
+                        ActionParameterSpec(
+                            name="service",
+                            kind=ParameterKind.STRING,
+                            max_length=16,
+                            allowed_values=("spotify",),
+                        ),
+                        ActionParameterSpec(
+                            name="album_query",
+                            kind=ParameterKind.STRING,
+                            max_length=160,
+                        ),
+                        ActionParameterSpec(
+                            name="artist_query",
+                            kind=ParameterKind.STRING,
+                            required=False,
+                            max_length=160,
+                        ),
+                        ActionParameterSpec(
+                            name="album_name",
+                            kind=ParameterKind.STRING,
+                            required=False,
+                            max_length=160,
+                        ),
+                        ActionParameterSpec(
+                            name="album_artist",
+                            kind=ParameterKind.STRING,
+                            required=False,
+                            max_length=160,
+                        ),
+                        ActionParameterSpec(
+                            name="album_uri",
+                            kind=ParameterKind.STRING,
+                            required=False,
+                            max_length=256,
+                        ),
+                    ),
+                    timeout_seconds=20,
+                    max_results=5,
+                )
+                for action_id, executor_id, description in (
+                    (
+                        SPOTIFY_OPEN_ALBUM_ACTION,
+                        "spotify_open_album",
+                        "Resolve and open an album's official Spotify page.",
+                    ),
+                    (
+                        SPOTIFY_PLAY_ALBUM_ACTION,
+                        "spotify_play_album",
+                        "Resolve and play one Spotify album.",
+                    ),
+                )
             ),
         )
     )

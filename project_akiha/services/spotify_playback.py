@@ -386,8 +386,7 @@ class SpotifyArtistSelectionStore:
         match = _ARTIST_RESULT_PATTERN.fullmatch(text.strip())
         if match is None:
             return None
-        raw_index = match.group("index").casefold()
-        index = int(raw_index) if raw_index.isdigit() else _NUMBER_WORDS[raw_index]
+        index = _result_index(match)
         if index <= 0 or index > len(self._candidates):
             return None
         action_id = {
@@ -408,6 +407,32 @@ class SpotifyArtistSelectionStore:
                 "artist_uri": artist.uri,
             },
         )
+
+    def follow_up_error(self, text: str) -> str | None:
+        """Explain a recognized artist result that cannot be fulfilled."""
+        match = _ARTIST_RESULT_PATTERN.fullmatch(text.strip())
+        if match is None:
+            return None
+        if not self._candidates:
+            return (
+                "There are no active Spotify artist results. "
+                "Search for an artist first."
+            )
+        index = _result_index(match)
+        if index <= 0 or index > len(self._candidates):
+            return f"Choose an artist result from 1 to {len(self._candidates)}."
+        action_id = {
+            "play": SPOTIFY_PLAY_ARTIST_ACTION,
+            "open": SPOTIFY_OPEN_ARTIST_ACTION,
+        }[match.group("verb").casefold()]
+        if action_id not in self._allowed_action_ids:
+            allowed = (
+                "opened"
+                if SPOTIFY_OPEN_ARTIST_ACTION in self._allowed_action_ids
+                else "played"
+            )
+            return f"Those artist results can only be {allowed}."
+        return None
 
 
 def build_spotify_playback_executors(
@@ -462,6 +487,11 @@ def _selected_artist_from_action(
         uri=artist_uri,
         name=artist_name,
     )
+
+
+def _result_index(match: re.Match[str]) -> int:
+    raw_index = match.group("index").casefold()
+    return int(raw_index) if raw_index.isdigit() else _NUMBER_WORDS[raw_index]
 
 
 def _select_artist(

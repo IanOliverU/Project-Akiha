@@ -1,6 +1,6 @@
 # Spotify Integration
 
-**Status:** In progress - generic typed and spoken playback controls implemented
+**Status:** In progress - playback, artist, track, and album flows implemented
 
 ## Purpose
 
@@ -56,8 +56,8 @@ provider. Supported typed or spoken forms include `play Spotify`, `pause the
 music`, `resume Spotify playback`, `next track`, and `previous song`, plus the
 explicit `/spotify-*` command forms. Speech punctuation between a control and
 its target is accepted, along with a small tested alias set for observed
-`pause`/`Spotify` transcription errors. Track, album, playlist, and favorites
-selection remain separate local resolution steps.
+`pause`/`Spotify` transcription errors. Artist, track, and album selection use
+separate local resolution steps; playlist and favorites resolution remain.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -87,9 +87,30 @@ Usseewa by ADO`, `play Usseewa by ADO on Spotify`, and `/spotify-track Usseewa
 | ADO`. Standalone forms such as `search Spotify tracks for Usseewa by ADO`
 show up to five playable results in chat. Duplicate releases or uncertain
 matches require `play track result 1`; no AI provider chooses the track.
+If a strict title-and-artist search returns nothing, Akiha performs one bounded
+relaxed catalog search before local scoring. A transient missing-device response
+causes one fresh device lookup and one retry, never an unbounded loop.
 Unqualified local-media requests such as `play Elis by Megurine Luka` remain
 available to the approved-directory media workflow unless Spotify is named or
 the request explicitly says `Spotify track` or `Spotify song`.
+
+Album discovery, desktop-first opening, and playback use validated
+`spotify:album:<id>` URIs. Supported forms include `search Spotify albums for
+Kyougen by ADO`, `open album Kyougen by ADO on Spotify`, `play Spotify album
+Kyougen by ADO`, and the corresponding `/spotify-search-albums`,
+`/spotify-open-album`, and `/spotify-album` forms. Ambiguous editions are shown
+as at most five local choices and accept only explicit `play album result 1` or
+`open album result 1` follow-ups allowed by the originating request.
+Numbered Spotify results are ephemeral interaction state rather than durable
+companion memory. They refer only to the latest visible list, are cleared after
+successful selection or chat reset, and accept only indexes inside that list.
+Stale or out-of-range references receive a correction and never become a new
+catalog search query. After a successful validated album action, Akiha retains
+only that album's name, artist, and Spotify URI as short-lived interaction
+context. Explicit `play that album` and `open the same album` follow-ups reuse
+that exact URI without another catalog search or AI interpretation. New chat,
+Clear chat, and presentation of a new album result list discard this context;
+it is never written to durable companion memory.
 
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
@@ -135,6 +156,8 @@ track and artist names rather than the user's data.
   follow-ups.
 - [x] Specific-track search, exact title/artist resolution, bounded ambiguity
   presentation, and one-track playback.
+- [x] Album search, local title/artist resolution, bounded result presentation,
+  desktop-first opening, and guarded album-context playback.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
   end-to-end tests.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from difflib import SequenceMatcher
 from uuid import uuid4
 
@@ -98,9 +99,16 @@ class SpotifyTrackPlaybackExecutor:
         self,
         client: SpotifyClient,
         device_coordinator: SpotifyDeviceCoordinator,
+        *,
+        retry_delay_seconds: float = 0.4,
+        sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
+        if not 0 <= retry_delay_seconds <= 5:
+            raise ValueError("Spotify retry delay must be between 0 and 5 seconds.")
         self._client = client
         self._device_coordinator = device_coordinator
+        self._retry_delay_seconds = retry_delay_seconds
+        self._sleeper = sleeper
 
     async def execute(
         self,
@@ -151,22 +159,42 @@ class SpotifyTrackPlaybackExecutor:
         )
         if resolution.status is not SpotifyDeviceStatus.READY:
             return _resolution_failure(resolution)
-        device = resolution.selected_device
-        if device is None:
+        selected_device = resolution.selected_device
+        if selected_device is None:
             return _unavailable("Spotify did not provide a usable playback device.")
         if cancellation_token.is_cancelled:
             return _cancelled()
 
-        try:
-            await asyncio.to_thread(
-                self._client.start_track_playback,
-                device.device_id,
-                selected.uri,
-            )
-        except SpotifyOAuthError:
-            return _unavailable("Connect Spotify from Settings before using playback.")
-        except SpotifyAPIError as error:
-            return _api_failure(error)
+        for attempt in range(2):
+            try:
+                await asyncio.to_thread(
+                    self._client.start_track_playback,
+                    selected_device.device_id,
+                    selected.uri,
+                )
+                break
+            except SpotifyOAuthError:
+                return _unavailable(
+                    "Connect Spotify from Settings before using playback."
+                )
+            except SpotifyAPIError as error:
+                if error.status_code != 404 or attempt > 0:
+                    return _api_failure(error)
+                await self._sleeper(self._retry_delay_seconds)
+                if cancellation_token.is_cancelled:
+                    return _cancelled()
+                refreshed = await self._device_coordinator.resolve(
+                    action.request.correlation_id,
+                    cancellation_token=cancellation_token,
+                    allow_activation=False,
+                )
+                if refreshed.status is not SpotifyDeviceStatus.READY:
+                    return _resolution_failure(refreshed)
+                selected_device = refreshed.selected_device
+                if selected_device is None:
+                    return _unavailable(
+                        "Spotify did not provide a usable playback device."
+                    )
         if cancellation_token.is_cancelled:
             return _cancelled()
         return ActionExecutionResult(
@@ -201,8 +229,7 @@ class SpotifyTrackSelectionStore:
         match = _TRACK_RESULT_PATTERN.fullmatch(text.strip())
         if match is None:
             return None
-        raw_index = match.group("index").casefold()
-        index = int(raw_index) if raw_index.isdigit() else _NUMBER_WORDS[raw_index]
+        index = _result_index(match)
         if index <= 0 or index > len(self._candidates):
             return None
         track = self._candidates[index - 1]
@@ -222,6 +249,20 @@ class SpotifyTrackSelectionStore:
             source="spotify_followup",
             parameters=parameters,
         )
+
+    def follow_up_error(self, text: str) -> str | None:
+        """Explain a recognized track result that is stale or out of range."""
+        match = _TRACK_RESULT_PATTERN.fullmatch(text.strip())
+        if match is None:
+            return None
+        if not self._candidates:
+            return (
+                "There are no active Spotify track results. Search for a track first."
+            )
+        index = _result_index(match)
+        if index <= 0 or index > len(self._candidates):
+            return f"Choose a track result from 1 to {len(self._candidates)}."
+        return None
 
 
 def build_spotify_track_executors(
@@ -248,7 +289,22 @@ async def _search_track_candidates(
         kinds=(SpotifyItemKind.TRACK,),
         limit_per_kind=5,
     )
-    return tuple(item for item in search_result.items if _is_valid_track(item))[:5]
+    candidates = tuple(item for item in search_result.items if _is_valid_track(item))[
+        :5
+    ]
+    if candidates:
+        return candidates
+
+    relaxed_query = " ".join(part for part in (title, artist) if part).strip()
+    if relaxed_query == query:
+        return ()
+    relaxed_result = await asyncio.to_thread(
+        client.search,
+        relaxed_query,
+        kinds=(SpotifyItemKind.TRACK,),
+        limit_per_kind=5,
+    )
+    return tuple(item for item in relaxed_result.items if _is_valid_track(item))[:5]
 
 
 def _selected_track_from_action(action: ValidatedAction) -> SpotifyCatalogItem | None:
@@ -270,6 +326,11 @@ def _selected_track_from_action(action: ValidatedAction) -> SpotifyCatalogItem |
         name=track_name,
         artist_names=(track_artist,) if track_artist else (),
     )
+
+
+def _result_index(match: re.Match[str]) -> int:
+    raw_index = match.group("index").casefold()
+    return int(raw_index) if raw_index.isdigit() else _NUMBER_WORDS[raw_index]
 
 
 def _select_track(
@@ -363,7 +424,10 @@ def _api_failure(error: SpotifyAPIError) -> ActionExecutionResult:
     if error.status_code == 403:
         summary = "Spotify denied the track request. Check account access."
     elif error.status_code == 404:
-        summary = "The requested Spotify track or device is unavailable."
+        summary = (
+            "Spotify found the track, but the playback device could not start it. "
+            "Make Spotify active and try again."
+        )
     elif error.status_code == 429:
         summary = "Spotify temporarily rate-limited track requests."
     else:

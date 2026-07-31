@@ -19,13 +19,16 @@ from project_akiha.core.actions.registry import (
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
     SPOTIFY_NEXT_ACTION,
+    SPOTIFY_OPEN_ALBUM_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_PLAY_ACTION,
+    SPOTIFY_PLAY_ALBUM_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
+    SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
 )
@@ -91,6 +94,31 @@ _SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
 )
 _SPOTIFY_CONTROL_SEPARATOR = r"[\s,;:.-]+"
 _SPOTIFY_TARGET = r"(?:spotify|spatify)(?:\s+playback)?|music|playback|song|track"
+_SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-search-albums\s+(?P<slash>.+?)|"
+    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?albums?"
+    r"(?:\s+(?:for|named))?\s*[:=]?\s*(?P<labeled>.+?)"
+    r"(?:\s+on\s+spotify)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_ALBUM_OPEN_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-open-album\s+(?P<slash>.+?)|"
+    r"(?:open|view|show\s+me|take\s+me\s+to)\s+(?:the\s+)?"
+    r"(?:spotify\s+)?album\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"(?:open|view|show\s+me|take\s+me\s+to|go\s+to)\s+"
+    r"(?P<on_spotify>.+?)\s+album\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_ALBUM_PLAY_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-album\s+(?P<slash>.+?)|"
+    r"(?:play|listen\s+to)\s+(?:the\s+)?(?:spotify\s+)?album\s+"
+    r"(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"play\s+(?P<on_spotify>.+?)\s+album\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_ARTIST_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-artists\s+(?P<slash>.+?)|"
@@ -196,6 +224,14 @@ _VOICE_NAME_PATTERN = re.compile(
     r"^(?:(?:hello|hi)\s+)?(?:akiha|akia|akaya|aka['’]?ya)\s*[,!.:?]?\s*",
     re.IGNORECASE,
 )
+_VOICE_SPOTIFY_ALIAS_PATTERN = re.compile(
+    r"\b(?:spatify|spotefy|spotifi|swatifi)\b",
+    re.IGNORECASE,
+)
+_SPOTIFY_RESULT_REFERENCE_PATTERN = re.compile(
+    r"^result\s+(?:\d+|one|two|three|four|five)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,14 +266,62 @@ class AssistantActionRequestParser:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
 
+        album_search_match = _SPOTIFY_ALBUM_SEARCH_PATTERN.fullmatch(normalized)
+        if album_search_match is not None:
+            query = _matched_query(album_search_match, ("slash", "labeled"))
+            album, artist = _split_spotify_title_artist_query(query)
+            if album and not _is_spotify_result_reference(album):
+                parameters = {"service": "spotify", "album_query": album}
+                if artist:
+                    parameters["artist_query"] = artist
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_SEARCH_ALBUMS_ACTION,
+                    parameters=parameters,
+                )
+
+        album_open_match = _SPOTIFY_ALBUM_OPEN_PATTERN.fullmatch(normalized)
+        if album_open_match is not None:
+            query = _matched_query(
+                album_open_match,
+                ("slash", "labeled", "on_spotify"),
+            )
+            album, artist = _split_spotify_title_artist_query(query)
+            if album and not _is_spotify_result_reference(album):
+                parameters = {"service": "spotify", "album_query": album}
+                if artist:
+                    parameters["artist_query"] = artist
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_OPEN_ALBUM_ACTION,
+                    parameters=parameters,
+                )
+
+        album_play_match = _SPOTIFY_ALBUM_PLAY_PATTERN.fullmatch(normalized)
+        if album_play_match is not None:
+            query = _matched_query(
+                album_play_match,
+                ("slash", "labeled", "on_spotify"),
+            )
+            album, artist = _split_spotify_title_artist_query(query)
+            if album and not _is_spotify_result_reference(album):
+                parameters = {"service": "spotify", "album_query": album}
+                if artist:
+                    parameters["artist_query"] = artist
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_PLAY_ALBUM_ACTION,
+                    parameters=parameters,
+                )
+
         track_search_match = _SPOTIFY_TRACK_SEARCH_PATTERN.fullmatch(normalized)
         if track_search_match is not None:
             query = _matched_query(
                 track_search_match,
                 ("slash", "labeled"),
             )
-            track, artist = _split_spotify_track_query(query)
-            if track:
+            track, artist = _split_spotify_title_artist_query(query)
+            if track and not _is_spotify_result_reference(track):
                 parameters = {
                     "service": "spotify",
                     "track_query": track,
@@ -257,7 +341,7 @@ class AssistantActionRequestParser:
                 for group in ("slash", "labeled", "spotify_for", "on_spotify")
                 if (value := artist_search_match.group(group)) is not None
             ).strip()
-            if artist:
+            if artist and not _is_spotify_result_reference(artist):
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
@@ -273,7 +357,7 @@ class AssistantActionRequestParser:
                 artist_open_match.group("artist")
                 or artist_open_match.group("page_artist")
             ).strip()
-            if artist:
+            if artist and not _is_spotify_result_reference(artist):
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_OPEN_ARTIST_ACTION,
@@ -288,7 +372,7 @@ class AssistantActionRequestParser:
             artist = (
                 artist_match.group("artist") or artist_match.group("possessive_artist")
             ).strip()
-            if artist:
+            if artist and not _is_spotify_result_reference(artist):
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_PLAY_ARTIST_ACTION,
@@ -304,14 +388,19 @@ class AssistantActionRequestParser:
                 track_play_match,
                 ("slash", "labeled", "on_spotify"),
             )
-            track, artist = _split_spotify_track_query(query)
-            if track and track.casefold() not in {
-                "music",
-                "playback",
-                "song",
-                "spotify",
-                "track",
-            }:
+            track, artist = _split_spotify_title_artist_query(query)
+            if (
+                track
+                and not _is_spotify_result_reference(track)
+                and track.casefold()
+                not in {
+                    "music",
+                    "playback",
+                    "song",
+                    "spotify",
+                    "track",
+                }
+            ):
                 parameters = {
                     "service": "spotify",
                     "track_query": track,
@@ -439,7 +528,11 @@ def _matched_query(match: re.Match[str], groups: tuple[str, ...]) -> str:
     ).strip()
 
 
-def _split_spotify_track_query(query: str) -> tuple[str, str]:
+def _is_spotify_result_reference(value: str) -> bool:
+    return _SPOTIFY_RESULT_REFERENCE_PATTERN.fullmatch(value.strip()) is not None
+
+
+def _split_spotify_title_artist_query(query: str) -> tuple[str, str]:
     normalized = query.strip().rstrip(".!?").strip()
     if "|" in normalized:
         title, artist = normalized.split("|", 1)
@@ -520,4 +613,4 @@ def _normalize_voice_wrappers(text: str) -> str:
         if unwrapped == normalized:
             break
         normalized = unwrapped
-    return normalized
+    return _VOICE_SPOTIFY_ALIAS_PATTERN.sub("Spotify", normalized)

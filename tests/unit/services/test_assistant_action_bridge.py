@@ -224,6 +224,59 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                     },
                 )
 
+    def test_parses_spotify_album_search_commands(self) -> None:
+        cases = (
+            "/spotify-search-albums Kyougen | ADO",
+            "Search Spotify albums for Kyougen by ADO",
+            "Please find album Kyougen by ADO on Spotify.",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.search_albums")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "album_query": "Kyougen",
+                        "artist_query": "ADO",
+                    },
+                )
+
+    def test_parses_spotify_album_open_commands(self) -> None:
+        cases = (
+            "/spotify-open-album Kyougen | ADO",
+            "Open Spotify album Kyougen by ADO",
+            "Go to Kyougen album on Spotify",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.open_album")
+                self.assertEqual(request.parameters["album_query"], "Kyougen")
+
+    def test_parses_spotify_album_play_commands_before_generic_track(self) -> None:
+        cases = (
+            "/spotify-album Kyougen | ADO",
+            "Play Spotify album Kyougen by ADO",
+            "Please play album Kyougen by ADO on Spotify.",
+            "Play Kyougen album on Spotify",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.play_album")
+                self.assertEqual(request.parameters["album_query"], "Kyougen")
+
     def test_parses_explicit_spotify_track_playback_commands(self) -> None:
         cases = (
             "/spotify-track Usseewa | ADO",
@@ -247,6 +300,26 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                         "artist_query": "ADO",
                     },
                 )
+
+    def test_normalizes_spoken_spotify_alias_for_track_search(self) -> None:
+        request = self.parser.parse("Find song USEWA BEADO on Swatifi")
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "spotify.search_tracks")
+        self.assertEqual(request.parameters["track_query"], "USEWA BEADO")
+
+    def test_numbered_result_references_never_become_catalog_queries(self) -> None:
+        cases = (
+            "Play album result 11",
+            "Open album result 11",
+            "Play track result 11",
+            "Play artist result 11",
+            "Open artist result 11",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIsNone(self.parser.parse(text))
 
     def test_start_spotify_remains_an_application_launch(self) -> None:
         request = self.parser.parse("Start Spotify")

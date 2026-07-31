@@ -425,6 +425,17 @@ class SpotifyArtistOpenExecutorTest(unittest.TestCase):
         self.assertEqual(open_request.action_id, "spotify.open_artist")
         self.assertIsNone(play_request)
 
+    def test_selection_store_reports_stale_and_out_of_range_results(self) -> None:
+        store = SpotifyArtistSelectionStore()
+        self.assertIn("no active", store.follow_up_error("Play artist result 11"))
+
+        store.replace((_artist("ado123", "ADO"),))
+
+        self.assertEqual(
+            store.follow_up_error("Play artist result 11"),
+            "Choose an artist result from 1 to 1.",
+        )
+
     def test_default_opener_prefers_fixed_spotify_desktop_uri(self) -> None:
         with (
             patch("project_akiha.services.spotify_playback.os.startfile") as startfile,
