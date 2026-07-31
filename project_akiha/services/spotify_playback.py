@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import unicodedata
 import webbrowser
@@ -509,6 +510,13 @@ def _is_valid_artist(item: SpotifyCatalogItem) -> bool:
 def _open_spotify_artist_page(artist_id: str) -> bool:
     if re.fullmatch(r"[A-Za-z0-9]{1,64}", artist_id) is None:
         raise ValueError("Spotify artist ID is invalid.")
+    startfile = getattr(os, "startfile", None)
+    if startfile is not None:
+        try:
+            startfile(f"spotify:artist:{artist_id}")
+            return True
+        except OSError:
+            pass
     return webbrowser.open(
         f"{_ARTIST_PAGE_URL_PREFIX}{artist_id}",
         new=2,

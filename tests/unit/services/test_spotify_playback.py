@@ -425,19 +425,41 @@ class SpotifyArtistOpenExecutorTest(unittest.TestCase):
         self.assertEqual(open_request.action_id, "spotify.open_artist")
         self.assertIsNone(play_request)
 
-    def test_default_opener_builds_only_fixed_spotify_artist_url(self) -> None:
-        with patch(
-            "project_akiha.services.spotify_playback.webbrowser.open",
-            return_value=True,
-        ) as open_url:
+    def test_default_opener_prefers_fixed_spotify_desktop_uri(self) -> None:
+        with (
+            patch("project_akiha.services.spotify_playback.os.startfile") as startfile,
+            patch(
+                "project_akiha.services.spotify_playback.webbrowser.open"
+            ) as open_url,
+        ):
             opened = _open_spotify_artist_page("Artist123")
 
         self.assertTrue(opened)
+        startfile.assert_called_once_with("spotify:artist:Artist123")
+        open_url.assert_not_called()
+
+    def test_default_opener_falls_back_to_fixed_official_web_url(self) -> None:
+        with (
+            patch(
+                "project_akiha.services.spotify_playback.os.startfile",
+                side_effect=OSError("protocol unavailable"),
+            ) as startfile,
+            patch(
+                "project_akiha.services.spotify_playback.webbrowser.open",
+                return_value=True,
+            ) as open_url,
+        ):
+            opened = _open_spotify_artist_page("Artist123")
+
+        self.assertTrue(opened)
+        startfile.assert_called_once_with("spotify:artist:Artist123")
         open_url.assert_called_once_with(
             "https://open.spotify.com/artist/Artist123",
             new=2,
             autoraise=True,
         )
+
+    def test_default_opener_rejects_untrusted_artist_id(self) -> None:
         with self.assertRaises(ValueError):
             _open_spotify_artist_page("../attacker")
 

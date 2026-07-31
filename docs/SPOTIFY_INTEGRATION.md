@@ -73,9 +73,11 @@ Megurine Luka`, `find artist Megurine Luka on Spotify`, and
 `/spotify-search-artists Megurine Luka`. Results are shown in chat and may be
 played or opened with explicit numbered artist follow-ups.
 
-Artist-page opening resolves the artist locally and opens only the fixed
-official `https://open.spotify.com/artist/<validated-id>` target. Supported
-forms include `open artist ADO on Spotify`, `go to ADO's Spotify page`, and
+Artist-page opening resolves the artist locally and prefers the installed
+Spotify desktop client through the fixed `spotify:artist:<validated-id>`
+protocol. If Windows cannot launch that protocol, Akiha falls back to the fixed
+official `https://open.spotify.com/artist/<validated-id>` page. Supported forms
+include `open artist ADO on Spotify`, `go to ADO's Spotify page`, and
 `/spotify-open-artist ADO`. Ambiguous direct-open requests retain their intent
 and accept only an `open artist result 1` follow-up; they never start playback.
 
