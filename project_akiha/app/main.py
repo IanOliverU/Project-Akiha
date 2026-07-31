@@ -59,6 +59,7 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
 )
@@ -1019,11 +1020,22 @@ def _run_application() -> int:
 
         artist_candidates = result.metadata.get("artist_candidates")
         if dispatch.request.action_id in {
+            SPOTIFY_OPEN_ARTIST_ACTION,
             SPOTIFY_PLAY_ARTIST_ACTION,
             SPOTIFY_SEARCH_ARTISTS_ACTION,
         } and isinstance(artist_candidates, tuple):
+            if dispatch.request.action_id == SPOTIFY_SEARCH_ARTISTS_ACTION:
+                allowed_artist_actions = (
+                    SPOTIFY_PLAY_ARTIST_ACTION,
+                    SPOTIFY_OPEN_ARTIST_ACTION,
+                )
+            else:
+                allowed_artist_actions = (dispatch.request.action_id,)
             try:
-                spotify_artist_selection_store.replace(artist_candidates)
+                spotify_artist_selection_store.replace(
+                    artist_candidates,
+                    allowed_action_ids=allowed_artist_actions,
+                )
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify artists."
@@ -1039,6 +1051,15 @@ def _run_application() -> int:
                 f"{index}. {artist.name}"
                 for index, artist in enumerate(artist_candidates, start=1)
             ]
+            if dispatch.request.action_id == SPOTIFY_SEARCH_ARTISTS_ACTION:
+                follow_up = (
+                    'Say "Play artist result 1" or "Open artist result 1" '
+                    "with the number you want."
+                )
+            elif dispatch.request.action_id == SPOTIFY_OPEN_ARTIST_ACTION:
+                follow_up = 'Say "Open artist result 1" with the number you want.'
+            else:
+                follow_up = 'Say "Play artist result 1" with the number you want.'
             chat_window.append_message(
                 config.personality.character_name,
                 (
@@ -1047,12 +1068,16 @@ def _run_application() -> int:
                     else "I found several possible Spotify artists:\n"
                 )
                 + "\n".join(lines)
-                + '\nSay "Play artist result 1" with the number you want.',
+                + "\n"
+                + follow_up,
             )
             return
 
         if result.status.value == "success":
-            if dispatch.request.action_id == SPOTIFY_PLAY_ARTIST_ACTION:
+            if dispatch.request.action_id in {
+                SPOTIFY_OPEN_ARTIST_ACTION,
+                SPOTIFY_PLAY_ARTIST_ACTION,
+            }:
                 spotify_artist_selection_store.clear()
             if dispatch.request.action_id == OPEN_DIRECTORY_ACTION:
                 opened_directory = result.metadata.get("opened_directory")

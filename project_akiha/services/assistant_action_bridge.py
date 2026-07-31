@@ -19,6 +19,7 @@ from project_akiha.core.actions.registry import (
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
     SPOTIFY_NEXT_ACTION,
+    SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
@@ -98,6 +99,18 @@ _SPOTIFY_ARTIST_SEARCH_PATTERN = re.compile(
     r"(?P<spotify_for>.+?)|"
     r"(?:search|find|look\s+up)\s+(?:for\s+)?(?P<on_spotify>.+?)"
     r"\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_ARTIST_OPEN_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-open-artist\s+|"
+    r"(?:open|view|show\s+me|take\s+me\s+to)\s+(?:the\s+)?"
+    r"(?:spotify\s+)?artist\s+)(?P<artist>.+?)(?:\s+on\s+spotify)?"
+    r"\s*[.!?]?$|"
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:open|view|show\s+me|take\s+me\s+to|go\s+to)\s+"
+    r"(?P<page_artist>.+?)(?:'s|\u2019s)\s+spotify(?:\s+artist)?\s+page"
+    r"\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_ARTIST_PATTERN = re.compile(
@@ -210,6 +223,22 @@ class AssistantActionRequestParser:
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "artist_query": artist,
+                    },
+                )
+
+        artist_open_match = _SPOTIFY_ARTIST_OPEN_PATTERN.fullmatch(normalized)
+        if artist_open_match is not None:
+            artist = (
+                artist_open_match.group("artist")
+                or artist_open_match.group("page_artist")
+            ).strip()
+            if artist:
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_OPEN_ARTIST_ACTION,
                     parameters={
                         "service": "spotify",
                         "artist_query": artist,

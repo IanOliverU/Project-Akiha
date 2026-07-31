@@ -180,6 +180,27 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                     },
                 )
 
+    def test_parses_explicit_spotify_artist_page_commands(self) -> None:
+        cases = (
+            "/spotify-open-artist ADO",
+            "Open artist ADO on Spotify",
+            "Please view the Spotify artist ADO.",
+            "Akiha, show me artist ADO on Spotify",
+            "Take me to artist ADO on Spotify",
+            "Go to ADO's Spotify page",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.open_artist")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "artist_query": "ADO"},
+                )
+
     def test_start_spotify_remains_an_application_launch(self) -> None:
         request = self.parser.parse("Start Spotify")
 

@@ -5,12 +5,15 @@ from __future__ import annotations
 import asyncio
 import re
 import unicodedata
+import webbrowser
+from collections.abc import Callable
 from difflib import SequenceMatcher
 from enum import StrEnum
 from uuid import uuid4
 
 from project_akiha.core.actions import (
     SPOTIFY_NEXT_ACTION,
+    SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
@@ -65,12 +68,15 @@ _SUCCESS_SUMMARIES = {
 }
 
 _ARTIST_RESULT_PATTERN = re.compile(
-    r"^(?:(?:please|akiha[,.]?)\s+)*play\s+(?:spotify\s+)?artist\s+result\s+"
+    r"^(?:(?:please|akiha[,.]?)\s+)*(?P<verb>play|open)\s+"
+    r"(?:spotify\s+)?artist\s+result\s+"
     r"(?P<index>\d+|one|two|three|four|five)[.!?]?$",
     re.IGNORECASE,
 )
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
 _ARTIST_URI_PATTERN = re.compile(r"spotify:artist:[A-Za-z0-9]{1,64}\Z")
+_ARTIST_PAGE_URL_PREFIX = "https://open.spotify.com/artist/"
+SpotifyArtistPageOpener = Callable[[str], bool]
 
 
 class SpotifyPlaybackExecutor:
@@ -171,21 +177,13 @@ class SpotifyArtistPlaybackExecutor:
         if selected is None:
             query = str(action.parameters["artist_query"])
             try:
-                search_result = await asyncio.to_thread(
-                    self._client.search,
-                    f"artist:{query}",
-                    kinds=(SpotifyItemKind.ARTIST,),
-                    limit_per_kind=5,
-                )
+                candidates = await _search_artist_candidates(self._client, query)
             except SpotifyOAuthError:
                 return _unavailable(
                     "Connect Spotify from Settings before searching for artists."
                 )
             except SpotifyAPIError as error:
                 return _api_failure(error)
-            candidates = tuple(
-                item for item in search_result.items if _is_valid_artist(item)
-            )
             selected = _select_artist(query, candidates)
             if selected is None:
                 if not candidates:
@@ -236,6 +234,73 @@ class SpotifyArtistPlaybackExecutor:
         )
 
 
+class SpotifyArtistOpenExecutor:
+    """Resolve one artist and open its fixed official Spotify page."""
+
+    action_id = SPOTIFY_OPEN_ARTIST_ACTION
+    executor_id = "spotify_open_artist"
+
+    def __init__(
+        self,
+        client: SpotifyClient,
+        opener: SpotifyArtistPageOpener | None = None,
+    ) -> None:
+        self._client = client
+        self._opener = opener or _open_spotify_artist_page
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError("Spotify artist-page executor received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        selected = _selected_artist_from_action(action)
+        if selected is None:
+            query = str(action.parameters["artist_query"])
+            try:
+                candidates = await _search_artist_candidates(self._client, query)
+            except SpotifyOAuthError:
+                return _unavailable(
+                    "Connect Spotify from Settings before searching for artists."
+                )
+            except SpotifyAPIError as error:
+                return _api_failure(error)
+            selected = _select_artist(query, candidates)
+            if selected is None:
+                if not candidates:
+                    return _unavailable(
+                        f'I could not find a Spotify artist matching "{query}".'
+                    )
+                return ActionExecutionResult(
+                    status=ActionStatus.FAILED,
+                    summary="I found several possible Spotify artists.",
+                    failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                    metadata={"artist_candidates": candidates[:5]},
+                )
+
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+        try:
+            opened = await asyncio.to_thread(self._opener, selected.spotify_id)
+        except OSError:
+            opened = False
+        if not opened:
+            return _unavailable("The Spotify artist page could not be opened.")
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=f"Opened {selected.name}'s Spotify page.",
+            metadata={
+                "artist_name": selected.name,
+                "artist_uri": selected.uri,
+            },
+        )
+
+
 class SpotifyArtistSearchExecutor:
     """Return bounded local Spotify artist results without starting playback."""
 
@@ -260,12 +325,7 @@ class SpotifyArtistSearchExecutor:
 
         query = str(action.parameters["artist_query"])
         try:
-            search_result = await asyncio.to_thread(
-                self._client.search,
-                f"artist:{query}",
-                kinds=(SpotifyItemKind.ARTIST,),
-                limit_per_kind=5,
-            )
+            candidates = await _search_artist_candidates(self._client, query)
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for artists."
@@ -275,9 +335,6 @@ class SpotifyArtistSearchExecutor:
         if cancellation_token.is_cancelled:
             return _cancelled()
 
-        candidates = tuple(
-            item for item in search_result.items if _is_valid_artist(item)
-        )[:5]
         count = len(candidates)
         noun = "artist" if count == 1 else "artists"
         return ActionExecutionResult(
@@ -296,20 +353,33 @@ class SpotifyArtistSelectionStore:
 
     def __init__(self) -> None:
         self._candidates: tuple[SpotifyCatalogItem, ...] = ()
+        self._allowed_action_ids = frozenset((SPOTIFY_PLAY_ARTIST_ACTION,))
 
     @property
     def candidates(self) -> tuple[SpotifyCatalogItem, ...]:
         return self._candidates
 
-    def replace(self, candidates: tuple[SpotifyCatalogItem, ...]) -> None:
+    def replace(
+        self,
+        candidates: tuple[SpotifyCatalogItem, ...],
+        *,
+        allowed_action_ids: tuple[str, ...] = (SPOTIFY_PLAY_ARTIST_ACTION,),
+    ) -> None:
         if len(candidates) > 5 or any(
             not _is_valid_artist(item) for item in candidates
         ):
             raise ValueError("artist selections require at most five artist items.")
+        allowed = frozenset(allowed_action_ids)
+        if not allowed or not allowed.issubset(
+            {SPOTIFY_PLAY_ARTIST_ACTION, SPOTIFY_OPEN_ARTIST_ACTION}
+        ):
+            raise ValueError("artist selections contain an unsupported follow-up.")
         self._candidates = tuple(candidates)
+        self._allowed_action_ids = allowed
 
     def clear(self) -> None:
         self._candidates = ()
+        self._allowed_action_ids = frozenset((SPOTIFY_PLAY_ARTIST_ACTION,))
 
     def parse_follow_up(self, text: str) -> ActionRequest | None:
         match = _ARTIST_RESULT_PATTERN.fullmatch(text.strip())
@@ -319,10 +389,16 @@ class SpotifyArtistSelectionStore:
         index = int(raw_index) if raw_index.isdigit() else _NUMBER_WORDS[raw_index]
         if index <= 0 or index > len(self._candidates):
             return None
+        action_id = {
+            "play": SPOTIFY_PLAY_ARTIST_ACTION,
+            "open": SPOTIFY_OPEN_ARTIST_ACTION,
+        }[match.group("verb").casefold()]
+        if action_id not in self._allowed_action_ids:
+            return None
         artist = self._candidates[index - 1]
         return ActionRequest(
             correlation_id=f"spotify-artist-result-{uuid4().hex}",
-            action_id=SPOTIFY_PLAY_ARTIST_ACTION,
+            action_id=action_id,
             source="spotify_followup",
             parameters={
                 "service": "spotify",
@@ -339,6 +415,7 @@ def build_spotify_playback_executors(
 ) -> tuple[
     SpotifyPlaybackExecutor
     | SpotifyArtistPlaybackExecutor
+    | SpotifyArtistOpenExecutor
     | SpotifyArtistSearchExecutor,
     ...,
 ]:
@@ -349,8 +426,22 @@ def build_spotify_playback_executors(
             for command in SpotifyPlaybackCommand
         ),
         SpotifyArtistSearchExecutor(client),
+        SpotifyArtistOpenExecutor(client),
         SpotifyArtistPlaybackExecutor(client, device_coordinator),
     )
+
+
+async def _search_artist_candidates(
+    client: SpotifyClient,
+    query: str,
+) -> tuple[SpotifyCatalogItem, ...]:
+    search_result = await asyncio.to_thread(
+        client.search,
+        f"artist:{query}",
+        kinds=(SpotifyItemKind.ARTIST,),
+        limit_per_kind=5,
+    )
+    return tuple(item for item in search_result.items if _is_valid_artist(item))[:5]
 
 
 def _selected_artist_from_action(
@@ -412,6 +503,16 @@ def _is_valid_artist(item: SpotifyCatalogItem) -> bool:
         item.kind is SpotifyItemKind.ARTIST
         and bool(item.name.strip())
         and _ARTIST_URI_PATTERN.fullmatch(item.uri) is not None
+    )
+
+
+def _open_spotify_artist_page(artist_id: str) -> bool:
+    if re.fullmatch(r"[A-Za-z0-9]{1,64}", artist_id) is None:
+        raise ValueError("Spotify artist ID is invalid.")
+    return webbrowser.open(
+        f"{_ARTIST_PAGE_URL_PREFIX}{artist_id}",
+        new=2,
+        autoraise=True,
     )
 
 

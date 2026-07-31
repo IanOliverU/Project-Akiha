@@ -6,6 +6,7 @@ import asyncio
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from project_akiha.core.actions import (
     ActionCancellationToken,
@@ -31,11 +32,13 @@ from project_akiha.services.spotify_devices import (
     SpotifyDeviceStatus,
 )
 from project_akiha.services.spotify_playback import (
+    SpotifyArtistOpenExecutor,
     SpotifyArtistPlaybackExecutor,
     SpotifyArtistSearchExecutor,
     SpotifyArtistSelectionStore,
     SpotifyPlaybackCommand,
     SpotifyPlaybackExecutor,
+    _open_spotify_artist_page,
 )
 
 
@@ -350,6 +353,99 @@ class SpotifyArtistSearchExecutorTest(unittest.TestCase):
             ActionRequest(
                 correlation_id="spotify-artist-search-1",
                 action_id="spotify.search_artists",
+                source="chat",
+                parameters={
+                    "service": "spotify",
+                    "artist_query": artist_query,
+                },
+            )
+        )
+
+
+class SpotifyArtistOpenExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_exact_artist_opens_page_without_playback_or_device_selection(self) -> None:
+        client = _ArtistClient((_artist("ado123", "ADO"),))
+        opened_ids: list[str] = []
+        executor = SpotifyArtistOpenExecutor(
+            client,  # type: ignore[arg-type]
+            lambda artist_id: opened_ids.append(artist_id) is None,
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated("ADO"),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(opened_ids, ["ado123"])
+        self.assertEqual(client.context_calls, [])
+
+    def test_ambiguous_open_returns_choices_without_opening(self) -> None:
+        candidates = (
+            _artist("ado123", "ADO Tribute"),
+            _artist("ado456", "ADO Covers"),
+        )
+        client = _ArtistClient(candidates)
+        opened_ids: list[str] = []
+        executor = SpotifyArtistOpenExecutor(
+            client,  # type: ignore[arg-type]
+            lambda artist_id: opened_ids.append(artist_id) is None,
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated("ADO"),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(result.metadata["artist_candidates"], candidates)
+        self.assertEqual(opened_ids, [])
+
+    def test_selection_store_preserves_open_only_intent(self) -> None:
+        store = SpotifyArtistSelectionStore()
+        store.replace(
+            (_artist("ado123", "ADO"),),
+            allowed_action_ids=("spotify.open_artist",),
+        )
+
+        open_request = store.parse_follow_up("Open artist result 1")
+        play_request = store.parse_follow_up("Play artist result 1")
+
+        self.assertIsNotNone(open_request)
+        self.assertEqual(open_request.action_id, "spotify.open_artist")
+        self.assertIsNone(play_request)
+
+    def test_default_opener_builds_only_fixed_spotify_artist_url(self) -> None:
+        with patch(
+            "project_akiha.services.spotify_playback.webbrowser.open",
+            return_value=True,
+        ) as open_url:
+            opened = _open_spotify_artist_page("Artist123")
+
+        self.assertTrue(opened)
+        open_url.assert_called_once_with(
+            "https://open.spotify.com/artist/Artist123",
+            new=2,
+            autoraise=True,
+        )
+        with self.assertRaises(ValueError):
+            _open_spotify_artist_page("../attacker")
+
+    def _validated(self, artist_query: str):
+        return self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-artist-open-1",
+                action_id="spotify.open_artist",
                 source="chat",
                 parameters={
                     "service": "spotify",

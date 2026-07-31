@@ -22,6 +22,7 @@ LAUNCH_APPLICATION_ACTION = "applications.launch"
 CLOSE_APPLICATION_ACTION = "applications.close"
 SPOTIFY_PLAY_ACTION = "spotify.play"
 SPOTIFY_PLAY_ARTIST_ACTION = "spotify.play_artist"
+SPOTIFY_OPEN_ARTIST_ACTION = "spotify.open_artist"
 SPOTIFY_PAUSE_ACTION = "spotify.pause"
 SPOTIFY_RESUME_ACTION = "spotify.resume"
 SPOTIFY_NEXT_ACTION = "spotify.next"
@@ -260,6 +261,42 @@ def build_default_action_registry() -> ActionRegistry:
                         name="artist_query",
                         kind=ParameterKind.STRING,
                         max_length=160,
+                    ),
+                ),
+                timeout_seconds=20,
+                max_results=5,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_OPEN_ARTIST_ACTION,
+                description="Resolve and open an artist's official Spotify page.",
+                risk=ActionRisk.USER_VISIBLE,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_open_artist",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="artist_query",
+                        kind=ParameterKind.STRING,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="artist_name",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="artist_uri",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=256,
                     ),
                 ),
                 timeout_seconds=20,

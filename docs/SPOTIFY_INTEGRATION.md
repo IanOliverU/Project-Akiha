@@ -71,7 +71,13 @@ Standalone artist discovery uses the same bounded local result path without
 starting playback. Supported forms include `search Spotify artists for
 Megurine Luka`, `find artist Megurine Luka on Spotify`, and
 `/spotify-search-artists Megurine Luka`. Results are shown in chat and may be
-played with the same numbered artist follow-up.
+played or opened with explicit numbered artist follow-ups.
+
+Artist-page opening resolves the artist locally and opens only the fixed
+official `https://open.spotify.com/artist/<validated-id>` target. Supported
+forms include `open artist ADO on Spotify`, `go to ADO's Spotify page`, and
+`/spotify-open-artist ADO`. Ambiguous direct-open requests retain their intent
+and accept only an `open artist result 1` follow-up; they never start playback.
 
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
@@ -113,6 +119,8 @@ track and artist names rather than the user's data.
 - [x] Local artist search, guarded artist-context playback, and bounded
   ambiguity follow-ups for typed and voice requests.
 - [x] Standalone artist search and bounded chat result presentation.
+- [x] Safe official artist-page opening with intent-preserving ambiguity
+  follow-ups.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
   end-to-end tests.
