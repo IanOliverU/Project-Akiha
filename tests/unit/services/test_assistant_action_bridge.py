@@ -201,6 +201,53 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                     {"service": "spotify", "artist_query": "ADO"},
                 )
 
+    def test_parses_standalone_spotify_track_search_commands(self) -> None:
+        cases = (
+            "/spotify-search-tracks Usseewa | ADO",
+            "Search Spotify tracks for Usseewa by ADO",
+            "Please find song Usseewa by ADO on Spotify.",
+            "Akiha, search for track Usseewa by ADO on Spotify",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.search_tracks")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "track_query": "Usseewa",
+                        "artist_query": "ADO",
+                    },
+                )
+
+    def test_parses_explicit_spotify_track_playback_commands(self) -> None:
+        cases = (
+            "/spotify-track Usseewa | ADO",
+            "Play Spotify track Usseewa by ADO",
+            "Please play song Usseewa by ADO on Spotify.",
+            "Akiha, play Usseewa by ADO on Spotify",
+            "Listen to the Spotify song Usseewa by ADO",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.play_track")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "track_query": "Usseewa",
+                        "artist_query": "ADO",
+                    },
+                )
+
     def test_start_spotify_remains_an_application_launch(self) -> None:
         request = self.parser.parse("Start Spotify")
 

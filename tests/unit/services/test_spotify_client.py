@@ -308,6 +308,7 @@ class SpotifyClientTest(unittest.TestCase):
             "desktop-id",
             "spotify:artist:artist1",
         )
+        client.start_track_playback("desktop-id", "spotify:track:track1")
         client.pause_playback("desktop-id")
         client.skip_to_next("desktop-id")
         client.skip_to_previous("desktop-id")
@@ -315,6 +316,7 @@ class SpotifyClientTest(unittest.TestCase):
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
             [
+                ("PUT", "/v1/me/player/play"),
                 ("PUT", "/v1/me/player/play"),
                 ("PUT", "/v1/me/player/play"),
                 ("PUT", "/v1/me/player/pause"),
@@ -334,7 +336,11 @@ class SpotifyClientTest(unittest.TestCase):
             mutations.requests[1][3],
             b'{"context_uri":"spotify:artist:artist1"}',
         )
-        self.assertEqual(mutations.requests[2][3], None)
+        self.assertEqual(
+            mutations.requests[2][3],
+            b'{"uris":["spotify:track:track1"]}',
+        )
+        self.assertEqual(mutations.requests[3][3], None)
 
     def test_context_playback_rejects_untrusted_or_unsupported_uri(self) -> None:
         mutations = _MutationTransport()
@@ -353,6 +359,26 @@ class SpotifyClientTest(unittest.TestCase):
             with self.subTest(context_uri=context_uri):
                 with self.assertRaises(ValueError):
                     client.start_context_playback("desktop-id", context_uri)
+
+        self.assertEqual(mutations.requests, [])
+
+    def test_track_playback_rejects_untrusted_or_non_track_uri(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for track_uri in (
+            "",
+            "https://open.spotify.com/track/track1",
+            "spotify:artist:artist1",
+            "spotify:track:bad/value",
+        ):
+            with self.subTest(track_uri=track_uri):
+                with self.assertRaises(ValueError):
+                    client.start_track_playback("desktop-id", track_uri)
 
         self.assertEqual(mutations.requests, [])
 

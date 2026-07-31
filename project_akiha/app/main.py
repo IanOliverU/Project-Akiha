@@ -61,7 +61,9 @@ from project_akiha.core.actions.registry import (
     OPEN_FILE_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
+    SPOTIFY_SEARCH_TRACKS_ACTION,
 )
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -165,6 +167,10 @@ from project_akiha.services.spotify_playback import (
     build_spotify_playback_executors,
 )
 from project_akiha.services.spotify_session import SpotifySession
+from project_akiha.services.spotify_tracks import (
+    SpotifyTrackSelectionStore,
+    build_spotify_track_executors,
+)
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
@@ -298,6 +304,10 @@ def _run_application() -> int:
                 spotify_client,
                 spotify_device_coordinator,
             ),
+            *build_spotify_track_executors(
+                spotify_client,
+                spotify_device_coordinator,
+            ),
         ),
     )
     spotify_activator.apply_service(assistant_action_service)
@@ -319,6 +329,7 @@ def _run_application() -> int:
     )
     assistant_tool_result_store = AssistantToolResultStore()
     spotify_artist_selection_store = SpotifyArtistSelectionStore()
+    spotify_track_selection_store = SpotifyTrackSelectionStore()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -1018,6 +1029,43 @@ def _run_application() -> int:
             )
         refresh_assistant_action_history_window()
 
+        track_candidates = result.metadata.get("track_candidates")
+        if dispatch.request.action_id in {
+            SPOTIFY_PLAY_TRACK_ACTION,
+            SPOTIFY_SEARCH_TRACKS_ACTION,
+        } and isinstance(track_candidates, tuple):
+            try:
+                spotify_track_selection_store.replace(track_candidates)
+            except ValueError:
+                chat_window.append_error(
+                    "Akiha could not safely present those Spotify tracks."
+                )
+                return
+            if not track_candidates:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    result.summary,
+                )
+                return
+            lines = []
+            for index, track in enumerate(track_candidates, start=1):
+                label = track.display_label
+                if track.album_name:
+                    label = f"{label} [{track.album_name}]"
+                lines.append(f"{index}. {label}")
+            intro = (
+                "I found these Spotify tracks:\n"
+                if dispatch.request.action_id == SPOTIFY_SEARCH_TRACKS_ACTION
+                else "I found several possible Spotify tracks:\n"
+            )
+            chat_window.append_message(
+                config.personality.character_name,
+                intro
+                + "\n".join(lines)
+                + '\nSay "Play track result 1" with the number you want.',
+            )
+            return
+
         artist_candidates = result.metadata.get("artist_candidates")
         if dispatch.request.action_id in {
             SPOTIFY_OPEN_ARTIST_ACTION,
@@ -1079,6 +1127,8 @@ def _run_application() -> int:
                 SPOTIFY_PLAY_ARTIST_ACTION,
             }:
                 spotify_artist_selection_store.clear()
+            if dispatch.request.action_id == SPOTIFY_PLAY_TRACK_ACTION:
+                spotify_track_selection_store.clear()
             if dispatch.request.action_id == OPEN_DIRECTORY_ACTION:
                 opened_directory = result.metadata.get("opened_directory")
                 if isinstance(opened_directory, str):
@@ -1468,7 +1518,9 @@ def _run_application() -> int:
 
     def submit_chat_message(message: str) -> None:
         refresh_assistant_action_aliases()
-        action_request = spotify_artist_selection_store.parse_follow_up(message)
+        action_request = spotify_track_selection_store.parse_follow_up(message)
+        if action_request is None:
+            action_request = spotify_artist_selection_store.parse_follow_up(message)
         if action_request is None:
             action_request = assistant_tool_result_store.parse_follow_up(message)
         if action_request is None:
@@ -1516,6 +1568,7 @@ def _run_application() -> int:
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
         spotify_artist_selection_store.clear()
+        spotify_track_selection_store.clear()
         navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
@@ -1534,6 +1587,7 @@ def _run_application() -> int:
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
         spotify_artist_selection_store.clear()
+        spotify_track_selection_store.clear()
         navigation_context = None
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")

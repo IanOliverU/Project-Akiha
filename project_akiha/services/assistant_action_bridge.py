@@ -23,9 +23,11 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
+    SPOTIFY_SEARCH_TRACKS_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
@@ -124,6 +126,22 @@ _SPOTIFY_ARTIST_PATTERN = re.compile(
     r"(?:catalog|music|songs)(?:\s+on\s+spotify)?\s*[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_TRACK_SEARCH_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-search-tracks\s+(?P<slash>.+?)|"
+    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?"
+    r"(?:tracks?|songs?)(?:\s+(?:for|named))?\s*[:=]?\s*"
+    r"(?P<labeled>.+?)(?:\s+on\s+spotify)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_TRACK_PLAY_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-track\s+(?P<slash>.+?)|"
+    r"(?:play|listen\s+to)\s+(?:the\s+)?(?:spotify\s+)?"
+    r"(?:track|song)\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"play\s+(?P<on_spotify>.+?)\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
@@ -212,6 +230,26 @@ class AssistantActionRequestParser:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
 
+        track_search_match = _SPOTIFY_TRACK_SEARCH_PATTERN.fullmatch(normalized)
+        if track_search_match is not None:
+            query = _matched_query(
+                track_search_match,
+                ("slash", "labeled"),
+            )
+            track, artist = _split_spotify_track_query(query)
+            if track:
+                parameters = {
+                    "service": "spotify",
+                    "track_query": track,
+                }
+                if artist:
+                    parameters["artist_query"] = artist
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_SEARCH_TRACKS_ACTION,
+                    parameters=parameters,
+                )
+
         artist_search_match = _SPOTIFY_ARTIST_SEARCH_PATTERN.fullmatch(normalized)
         if artist_search_match is not None:
             artist = next(
@@ -258,6 +296,32 @@ class AssistantActionRequestParser:
                         "service": "spotify",
                         "artist_query": artist,
                     },
+                )
+
+        track_play_match = _SPOTIFY_TRACK_PLAY_PATTERN.fullmatch(normalized)
+        if track_play_match is not None:
+            query = _matched_query(
+                track_play_match,
+                ("slash", "labeled", "on_spotify"),
+            )
+            track, artist = _split_spotify_track_query(query)
+            if track and track.casefold() not in {
+                "music",
+                "playback",
+                "song",
+                "spotify",
+                "track",
+            }:
+                parameters = {
+                    "service": "spotify",
+                    "track_query": track,
+                }
+                if artist:
+                    parameters["artist_query"] = artist
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_PLAY_TRACK_ACTION,
+                    parameters=parameters,
                 )
 
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
@@ -367,6 +431,23 @@ class AssistantActionRequestParser:
                 },
             )
         return None
+
+
+def _matched_query(match: re.Match[str], groups: tuple[str, ...]) -> str:
+    return next(
+        value for group in groups if (value := match.group(group)) is not None
+    ).strip()
+
+
+def _split_spotify_track_query(query: str) -> tuple[str, str]:
+    normalized = query.strip().rstrip(".!?").strip()
+    if "|" in normalized:
+        title, artist = normalized.split("|", 1)
+        return title.strip(), artist.strip()
+    parts = re.split(r"\s+by\s+", normalized, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
+    return normalized, ""
 
 
 class AssistantActionBridge:

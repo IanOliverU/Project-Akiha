@@ -28,6 +28,8 @@ SPOTIFY_RESUME_ACTION = "spotify.resume"
 SPOTIFY_NEXT_ACTION = "spotify.next"
 SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
 SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
+SPOTIFY_SEARCH_TRACKS_ACTION = "spotify.search_tracks"
+SPOTIFY_PLAY_TRACK_ACTION = "spotify.play_track"
 
 FILE_SEARCH_CAPABILITY = "files.search"
 FILE_OPEN_CAPABILITY = "files.open"
@@ -330,6 +332,84 @@ def build_default_action_registry() -> ActionRegistry:
                     ),
                     ActionParameterSpec(
                         name="artist_uri",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=256,
+                    ),
+                ),
+                timeout_seconds=20,
+                max_results=5,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_SEARCH_TRACKS_ACTION,
+                description="Search for tracks in the bounded Spotify catalog.",
+                risk=ActionRisk.READ_ONLY,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_search_tracks",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="track_query",
+                        kind=ParameterKind.STRING,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="artist_query",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                ),
+                timeout_seconds=20,
+                max_results=5,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_PLAY_TRACK_ACTION,
+                description="Resolve and play one specific Spotify track.",
+                risk=ActionRisk.USER_VISIBLE,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_play_track",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="track_query",
+                        kind=ParameterKind.STRING,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="artist_query",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="track_name",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="track_artist",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        max_length=160,
+                    ),
+                    ActionParameterSpec(
+                        name="track_uri",
                         kind=ParameterKind.STRING,
                         required=False,
                         max_length=256,

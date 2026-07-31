@@ -24,6 +24,7 @@ _QUERY_LENGTH_MAX = 256
 _CONTEXT_URI_PATTERN = re.compile(
     r"spotify:(?:album|artist|playlist):[A-Za-z0-9]{1,64}\Z"
 )
+_TRACK_URI_PATTERN = re.compile(r"spotify:track:[A-Za-z0-9]{1,64}\Z")
 _SEARCH_RESPONSE_KEYS = {
     "album": "albums",
     "artist": "artists",
@@ -253,6 +254,21 @@ class SpotifyClient:
             {"device_id": _validate_device_id(device_id)},
             body=json.dumps(
                 {"context_uri": normalized_uri},
+                separators=(",", ":"),
+            ).encode("utf-8"),
+        )
+
+    def start_track_playback(self, device_id: str, track_uri: str) -> None:
+        """Start exactly one validated Spotify track URI."""
+        normalized_uri = track_uri.strip()
+        if _TRACK_URI_PATTERN.fullmatch(normalized_uri) is None:
+            raise ValueError("Spotify track URI is invalid.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/play",
+            {"device_id": _validate_device_id(device_id)},
+            body=json.dumps(
+                {"uris": [normalized_uri]},
                 separators=(",", ":"),
             ).encode("utf-8"),
         )

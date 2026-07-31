@@ -81,6 +81,16 @@ include `open artist ADO on Spotify`, `go to ADO's Spotify page`, and
 `/spotify-open-artist ADO`. Ambiguous direct-open requests retain their intent
 and accept only an `open artist result 1` follow-up; they never start playback.
 
+Specific-track playback uses bounded local Spotify search and starts only one
+validated `spotify:track:<id>` URI. Explicit forms include `play Spotify track
+Usseewa by ADO`, `play Usseewa by ADO on Spotify`, and `/spotify-track Usseewa
+| ADO`. Standalone forms such as `search Spotify tracks for Usseewa by ADO`
+show up to five playable results in chat. Duplicate releases or uncertain
+matches require `play track result 1`; no AI provider chooses the track.
+Unqualified local-media requests such as `play Elis by Megurine Luka` remain
+available to the approved-directory media workflow unless Spotify is named or
+the request explicitly says `Spotify track` or `Spotify song`.
+
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
@@ -123,6 +133,8 @@ track and artist names rather than the user's data.
 - [x] Standalone artist search and bounded chat result presentation.
 - [x] Safe official artist-page opening with intent-preserving ambiguity
   follow-ups.
+- [x] Specific-track search, exact title/artist resolution, bounded ambiguity
+  presentation, and one-track playback.
 - [ ] Local preference ranking and ambiguity UI.
 - [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
   end-to-end tests.
