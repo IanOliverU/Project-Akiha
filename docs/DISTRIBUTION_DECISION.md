@@ -1,8 +1,8 @@
 # Distribution Decision
 
 Phase 6 established the first packaged build as a standalone folder rather
-than an installer. Phase 7 retains that decision for the voice-enabled
-candidate.
+than an installer. Phase 8 retains that decision for the permission-gated
+assistant-action candidate.
 
 ## Decision
 
@@ -12,10 +12,10 @@ Use the Nuitka standalone output as the first release artifact:
 dist\nuitka\main.dist\
 ```
 
-The current Phase 7 candidate package is:
+The current Phase 8 candidate package is:
 
 ```text
-dist\nuitka-phase7-final-voice\main.dist\
+dist\nuitka-phase8-release\main.dist\
 ```
 
 The user launches:

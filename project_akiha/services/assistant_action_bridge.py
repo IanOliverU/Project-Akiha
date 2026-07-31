@@ -33,7 +33,10 @@ _SPOKEN_OPEN_DIRECTORY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _SPOKEN_OPEN_DIRECTORY_ALIAS_PATTERN = re.compile(
-    r"^open\s+(?:the\s+)?(?P<alias>[a-z0-9_-]+)\s+" r"(?:directory|folder)[.!?]?$",
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?|"
+    r"i\s+(?:want|need)\s+you\s+to)\s+)?"
+    r"open\s+(?:the\s+)?(?P<alias>[a-z0-9_-]+)"
+    r"(?:\s+(?:directory|folder))?(?:\s+directly)?[.!?]?$",
     re.IGNORECASE,
 )
 _SEARCH_FILES_PATTERN = re.compile(
@@ -99,6 +102,10 @@ _VOICE_WRAPPER_PATTERN = re.compile(
 )
 _VOICE_FILLER_PATTERN = re.compile(
     r"^(?:okay|ok|alright|all\s+right|hey)" r"(?:\s*,?\s*(?:huh|uh|um))?\s*[,!.?]?\s*",
+    re.IGNORECASE,
+)
+_VOICE_CONTEXT_FILLER_PATTERN = re.compile(
+    r"^(?:(?:so\s+)?for\s+now|so)\s*[,!.?]?\s*",
     re.IGNORECASE,
 )
 _VOICE_NAME_PATTERN = re.compile(
@@ -291,9 +298,15 @@ def _normalize_voice_wrappers(text: str) -> str:
     """Remove common speech-recognition wrappers before strict parsing."""
     normalized = text.strip()
     while normalized:
-        unwrapped = _VOICE_WRAPPER_PATTERN.sub("", normalized, count=1).strip()
+        unwrapped = normalized
+        for pattern in (
+            _VOICE_WRAPPER_PATTERN,
+            _VOICE_FILLER_PATTERN,
+            _VOICE_CONTEXT_FILLER_PATTERN,
+            _VOICE_NAME_PATTERN,
+        ):
+            unwrapped = pattern.sub("", unwrapped, count=1).strip()
         if unwrapped == normalized:
             break
         normalized = unwrapped
-    normalized = _VOICE_FILLER_PATTERN.sub("", normalized, count=1).strip()
-    return _VOICE_NAME_PATTERN.sub("", normalized, count=1).strip()
+    return normalized

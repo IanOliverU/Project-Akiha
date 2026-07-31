@@ -43,13 +43,14 @@ faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX playback,
 automatic reply speech, and a minimal speech identity. Chat can switch between
 mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
 OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
-Windows user and never stored in ordinary TOML configuration. Phase 8
-implementation now provides permission-gated file discovery, approved-directory
-and passive-file opening, allowlisted application launching, revocable grants,
-confirmation surfaces, and sanitized action history. Its source verification
-is complete; a current packaged build and manual packaged smoke pass remain
-before formal closure. Pet simulation research and implementation follow in
-Phase 9.
+Windows user and never stored in ordinary TOML configuration. Phase 8 is
+complete with permission-gated file discovery, approved-root and descendant
+directory navigation, passive-file and local-media opening, allowlisted
+application launch/close, revocable grants, confirmation surfaces, and
+sanitized action history. The Python 3.13 standalone package passed automated
+and manual verification. Pet simulation research and implementation follow in
+Phase 9, while smaller voice-command and action-routing refinements remain in a
+separate improvement backlog.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -60,7 +61,7 @@ Phase 9.
 | Phase 5 | Done | Companion experience polish and interaction depth |
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | Packaging pending | Permission-gated files and allowlisted app lifecycle actions |
+| Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -385,14 +386,14 @@ release-candidate standalone builds:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase8-release
 ```
 
 Automated release readiness for the current standalone package:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase8-release\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
@@ -405,6 +406,8 @@ Security review: `docs/SECURITY_REVIEW.md`
 Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
 
 Phase 8 plan: `docs/PHASE8_ASSISTANT_ACTIONS.md`
+
+Assistant-action improvement backlog: `docs/ASSISTANT_ACTIONS_BACKLOG.md`
 
 Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 

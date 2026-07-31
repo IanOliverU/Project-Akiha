@@ -102,6 +102,5 @@ reparse points, and keeps only temporary current-directory context.
 - Code signing.
 - Dependency auditing.
 - Installer-specific permissions and uninstall behavior.
-- A current packaged build and manual Phase 8 smoke verification.
 - A revised privacy-notice version before sync, plugins, persistent microphone
   capture, or broader assistant-action capabilities are added.

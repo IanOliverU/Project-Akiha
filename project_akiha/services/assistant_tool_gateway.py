@@ -46,7 +46,8 @@ _RESULT_FOLLOW_UP_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _DIRECTORY_IN_PARENT_PATTERN = re.compile(
-    r"^(?:(?:please|akiha[,.]?)\s+)*(?:open|find)\s+(?:the\s+)?"
+    r"^(?:(?:please|akiha[,.]?)\s+)*"
+    r"(?:(?:open|find)\s+(?:the\s+)?|how\s+about\s+(?:the\s+)?)"
     r"(?P<name>.+?)(?:\s+(?:folder|directory))?\s+"
     r"(?:inside|in|under)\s+(?:the\s+)?"
     r"(?P<parent>.+?)(?:\s+(?:folder|directory))?[.!?]?$",
@@ -65,8 +66,16 @@ _NAVIGATION_FILLER_PATTERN = re.compile(
     r"^(?:okay|ok|alright|all\s+right|hey)" r"(?:\s*,?\s*(?:huh|uh|um))?\s*[,!.?]?\s*",
     re.IGNORECASE,
 )
+_NAVIGATION_CONTEXT_FILLER_PATTERN = re.compile(
+    r"^(?:(?:so\s+)?for\s+now|so)\s*[,!.?]?\s*",
+    re.IGNORECASE,
+)
 _NAVIGATION_NAME_PATTERN = re.compile(
     r"^(?:(?:hello|hi)\s+)?(?:akiha|akia|akaya|aka['’]?ya)" r"\s*[,!.:?]?\s*",
+    re.IGNORECASE,
+)
+_NAVIGATION_CORRECTION_TAIL_PATTERN = re.compile(
+    r"\bi\s+mean\b.*?[,;]\s*" r"(?P<command>(?:please\s+)?(?:open|find)\b.+)$",
     re.IGNORECASE,
 )
 _TOOL_LIKELIHOOD_PATTERN = re.compile(
@@ -565,17 +574,22 @@ def _strip_directory_suffix(value: str) -> str:
 
 def _normalize_navigation_text(value: str) -> str:
     normalized = value.strip()
+    correction = _NAVIGATION_CORRECTION_TAIL_PATTERN.search(normalized)
+    if correction is not None:
+        normalized = correction.group("command").strip()
     while normalized:
-        unwrapped = _NAVIGATION_VOICE_WRAPPER_PATTERN.sub(
-            "",
-            normalized,
-            count=1,
-        ).strip()
+        unwrapped = normalized
+        for pattern in (
+            _NAVIGATION_VOICE_WRAPPER_PATTERN,
+            _NAVIGATION_FILLER_PATTERN,
+            _NAVIGATION_CONTEXT_FILLER_PATTERN,
+            _NAVIGATION_NAME_PATTERN,
+        ):
+            unwrapped = pattern.sub("", unwrapped, count=1).strip()
         if unwrapped == normalized:
             break
         normalized = unwrapped
-    normalized = _NAVIGATION_FILLER_PATTERN.sub("", normalized, count=1).strip()
-    return _NAVIGATION_NAME_PATTERN.sub("", normalized, count=1).strip()
+    return normalized
 
 
 def _tokens_are_represented(

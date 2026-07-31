@@ -1,7 +1,7 @@
 # Build And Release Workflow
 
 This document captures the release workflow established in Phase 6 and updated
-for the Phase 7 voice-enabled standalone package.
+for the Phase 8 permission-gated assistant-action standalone package.
 
 ## Supported Python
 
@@ -109,7 +109,7 @@ Run this before the final manual packaged smoke pass:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase8-release\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
@@ -141,13 +141,13 @@ and then force-stop the process.
 
 ## Standalone Package Build
 
-Phase 6 established the standalone-folder artifact. The current Phase 7
-candidate adds packaged voice support while retaining that format. See
+Phase 6 established the standalone-folder artifact. The current Phase 8
+candidate adds permission-gated desktop actions while retaining that format. See
 `docs/DISTRIBUTION_DECISION.md` for the standalone-vs-installer decision.
 
 ```powershell
 pip install -e ".[package,voice]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase8-release
 ```
 
 Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
@@ -167,7 +167,7 @@ Create the current release-candidate environment with:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase7-final-voice
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase8-release
 ```
 
 The build clears Nuitka's compilation caches, then uses standalone mode,
@@ -203,7 +203,7 @@ After a standalone build, run:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka-phase7-final-voice\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase8-release\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 

@@ -189,6 +189,14 @@ class AssistantDirectoryNavigationTest(unittest.TestCase):
             "Open Compressed Directory",
             has_context=True,
         )
+        parent_suggestion = parse_directory_navigation_proposal(
+            "How about the compressed directory inside Downloads?",
+            has_context=False,
+        )
+        corrected_contextual = parse_directory_navigation_proposal(
+            "Compressed down, I mean compressed, open compressed directory.",
+            has_context=True,
+        )
 
         self.assertIsNotNone(parent)
         self.assertEqual(parent.directory_name, "Compressed")
@@ -199,10 +207,22 @@ class AssistantDirectoryNavigationTest(unittest.TestCase):
         self.assertIsNotNone(spoken_contextual)
         self.assertEqual(spoken_contextual.directory_name, "Compressed")
         self.assertEqual(spoken_contextual.parent_name, "")
+        self.assertIsNotNone(parent_suggestion)
+        self.assertEqual(parent_suggestion.directory_name, "compressed")
+        self.assertEqual(parent_suggestion.parent_name, "Downloads")
+        self.assertIsNotNone(corrected_contextual)
+        self.assertEqual(corrected_contextual.directory_name, "compressed")
+        self.assertEqual(corrected_contextual.parent_name, "")
         self.assertIsNone(
             parse_directory_navigation_proposal(
                 "Now open Compressed",
                 has_context=False,
+            )
+        )
+        self.assertIsNone(
+            parse_directory_navigation_proposal(
+                "Do not open Compressed Directory",
+                has_context=True,
             )
         )
 

@@ -120,14 +120,32 @@ class AssistantActionRequestParserTest(unittest.TestCase):
 
     def test_parses_approved_directory_alias(self) -> None:
         parser = AssistantActionRequestParser(
-            {"akiha": r"C:\Users\MY PC\Desktop\AKIHA"}
+            {
+                "akiha": r"C:\Users\MY PC\Desktop\AKIHA",
+                "downloads": r"C:\Users\MY PC\Downloads",
+            }
         )
 
         request = parser.parse("I heard you say: Akiha, open Akiha Directory")
+        natural_request = parser.parse("I want you to open Downloads directly.")
+        filled_request = parser.parse(
+            "Okay, so for now, please open Downloads Directory."
+        )
 
         self.assertIsNotNone(request)
         self.assertEqual(request.action_id, "files.open_directory")
         self.assertEqual(request.parameters["path"], r"C:\Users\MY PC\Desktop\AKIHA")
+        self.assertIsNotNone(natural_request)
+        self.assertEqual(natural_request.action_id, "files.open_directory")
+        self.assertEqual(
+            natural_request.parameters["path"],
+            r"C:\Users\MY PC\Downloads",
+        )
+        self.assertIsNotNone(filled_request)
+        self.assertEqual(
+            filled_request.parameters["path"],
+            r"C:\Users\MY PC\Downloads",
+        )
 
     def test_unapproved_directory_alias_does_not_become_an_action(self) -> None:
         self.assertIsNone(self.parser.parse("Open Akiha Directory"))

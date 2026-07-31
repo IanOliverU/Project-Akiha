@@ -1,7 +1,7 @@
 # Release Notes Draft
 
-These notes describe the Phase 7 Project Akiha standalone Windows preview after
-automated and manual voice validation.
+These notes describe the Phase 8 Project Akiha standalone Windows preview after
+automated and manual assistant-action validation.
 
 ## Project Akiha 0.1.0 Standalone Preview
 
@@ -37,12 +37,21 @@ check-ins, optional local voice, and diagnostics.
   subtitles.
 - Versioned first-run privacy notice for microphone and hosted processing.
 - English and Japanese deterministic memory fallback.
+- Permission-gated file search inside user-approved directories.
+- Approved-root and descendant-directory navigation without unrestricted
+  filesystem access or persistent full-tree indexing.
+- Confirmed passive-file and local-media opening through the system handler.
+- Allowlisted Chrome, Discord, Spotify, VLC, and Visual Studio Code launch and
+  graceful-close actions with separate revocable permissions.
+- Optional constrained AI intent proposals that never receive local paths,
+  directory listings, search results, metadata, or file contents from Akiha.
+- Sanitized assistant-action history, diagnostics, and permission management.
 
 ## Packaging
 
 - First package format: standalone folder.
 - Current candidate package:
-  `dist\nuitka-phase7-final-voice\main.dist\Akiha.exe`
+  `dist\nuitka-phase8-release\main.dist\Akiha.exe`
 - Release-candidate packaging uses Python 3.13.14 with Nuitka 4.1.3.
 - Automated source smoke, packaged smoke, and manual packaged smoke passed on
   the current candidate package.
@@ -52,7 +61,8 @@ check-ins, optional local voice, and diagnostics.
 - Distribution decision: `docs/DISTRIBUTION_DECISION.md`
 - Local data and privacy: `docs/LOCAL_DATA_PRIVACY.md`
 - Security review: `docs/SECURITY_REVIEW.md`
-- Future backlog: `docs/POST_PHASE6_BACKLOG.md`
+- General future backlog: `docs/POST_PHASE6_BACKLOG.md`
+- Assistant-action improvements: `docs/ASSISTANT_ACTIONS_BACKLOG.md`
 - Manual packaged smoke: `docs/MANUAL_PACKAGED_SMOKE.md`
 - Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
 

@@ -1,6 +1,6 @@
 # Phase 8: Permission-Gated Assistant Actions
 
-**Status:** In progress - implementation complete; packaged verification pending
+**Status:** Complete - closed 2026-07-31
 
 ## Phase Goal
 
@@ -434,7 +434,7 @@ Application launching now:
 - [x] Update the versioned privacy notice.
 - [x] Add diagnostics and reset behavior.
 - [x] Run the automated test suite and static checks.
-- [ ] Rebuild the release package and complete packaged smoke verification.
+- [x] Rebuild the release package and complete packaged smoke verification.
 
 Phase 8D now:
 
@@ -590,3 +590,28 @@ Phase 8 is complete only when:
 - permissions can be reviewed and revoked
 - the revised privacy notice is acknowledged
 - automated tests and packaged smoke checks pass
+
+## Phase 8 Closure
+
+Phase 8 closed on 2026-07-31 with the Python 3.13 standalone package at:
+
+```text
+dist\nuitka-phase8-release\main.dist\Akiha.exe
+```
+
+Closure evidence:
+
+- 743 automated tests passed; three environment-dependent tests were skipped.
+- Ruff, Black, compileall, packaged-artifact, and Windows GUI-subsystem checks
+  passed.
+- Fresh-data and existing-data packaged startup, database-schema, log-health,
+  and no-visible-console checks passed.
+- Manual packaged verification confirmed the pet, tray, Settings, Chat, voice,
+  approved-directory navigation, file/media actions, application launch/close,
+  and graceful Quit behavior.
+- Superseded packaged artifacts and disposable compiler/smoke intermediates
+  were removed after manual confirmation.
+
+Further transcription, conversational intent, and action-routing refinements
+are tracked separately in `docs/ASSISTANT_ACTIONS_BACKLOG.md`; they do not
+reopen Phase 8.
