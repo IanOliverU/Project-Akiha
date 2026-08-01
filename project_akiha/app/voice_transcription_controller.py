@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from difflib import SequenceMatcher
 from typing import Protocol
 
 from project_akiha.app.voice_controller import VoiceController
@@ -16,6 +15,9 @@ from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.providers.voice import CapturedAudio, VoiceTranscript
 from project_akiha.services.speech_input import SpeechInputService
+from project_akiha.services.transcript_stabilization import (
+    PartialTranscriptStabilizer,
+)
 from project_akiha.services.voice_confidence import (
     transcript_requires_review,
     voice_confidence_level,
@@ -40,55 +42,6 @@ class _TranscriptionThread(Protocol):
 
     def wait(self, time: int = ...) -> bool:
         """Wait for completion."""
-
-
-class _PartialTranscriptStabilizer:
-    """Keep cumulative STT previews responsive without visible regressions."""
-
-    def __init__(self) -> None:
-        self._presented = ""
-        self._pending_revision = ""
-
-    def reset(self) -> None:
-        """Forget preview state at the boundary of one recording."""
-        self._presented = ""
-        self._pending_revision = ""
-
-    def observe(self, text: str) -> str | None:
-        """Return a safe preview update, or suppress an unstable revision."""
-        candidate = " ".join(text.split())
-        if not candidate:
-            return None
-        if not self._presented:
-            return self._accept(candidate)
-
-        presented_key = self._presented.casefold()
-        candidate_key = candidate.casefold()
-        if candidate_key == presented_key:
-            self._pending_revision = ""
-            return None
-        if presented_key.startswith(candidate_key):
-            self._pending_revision = ""
-            return None
-        if _is_related_growth(presented_key, candidate_key):
-            return self._accept(candidate)
-
-        if self._pending_revision and (
-            candidate_key == self._pending_revision.casefold()
-            or _is_related_growth(
-                self._pending_revision.casefold(),
-                candidate_key,
-            )
-        ):
-            return self._accept(candidate)
-
-        self._pending_revision = candidate
-        return None
-
-    def _accept(self, text: str) -> str:
-        self._presented = text
-        self._pending_revision = ""
-        return text
 
 
 class VoiceTranscriptionController:
@@ -117,7 +70,7 @@ class VoiceTranscriptionController:
         self._thread_turns: dict[_TranscriptionThread, tuple[str, str]] = {}
         self._pending_partial: PendingTranscription | None = None
         self._pending_final: PendingTranscription | None = None
-        self._partial_stabilizer = _PartialTranscriptStabilizer()
+        self._partial_stabilizer = PartialTranscriptStabilizer()
         self._observed_turn_identity = self._current_turn_identity()
 
         event_bus.subscribe(
@@ -438,23 +391,3 @@ class VoiceTranscriptionController:
         if pending is None or pending[1] != current_identity:
             return None
         return pending
-
-
-def _is_related_growth(previous: str, candidate: str) -> bool:
-    if len(candidate) <= len(previous):
-        return False
-    if candidate.startswith(previous):
-        return True
-
-    similarity = SequenceMatcher(None, previous, candidate, autojunk=False).ratio()
-    prefix_length = 0
-    for previous_character, candidate_character in zip(
-        previous,
-        candidate,
-        strict=False,
-    ):
-        if previous_character != candidate_character:
-            break
-        prefix_length += 1
-    prefix_ratio = prefix_length / max(1, len(previous))
-    return similarity >= 0.72 or prefix_ratio >= 0.55

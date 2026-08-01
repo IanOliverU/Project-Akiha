@@ -8,6 +8,8 @@ import unittest
 from project_akiha.core.voice_session import (
     AudioFrame,
     EndpointReason,
+    TranscriptConfidence,
+    TranscriptStatus,
     VoiceCancellationToken,
 )
 from project_akiha.providers.voice import (
@@ -18,6 +20,7 @@ from project_akiha.providers.voice import (
 )
 from project_akiha.services.rolling_speech_input import (
     RollingFasterWhisperAdapter,
+    RollingFasterWhisperRecognizer,
 )
 from project_akiha.services.speech_input import SpeechInputService
 
@@ -104,6 +107,90 @@ class RollingFasterWhisperAdapterTest(unittest.IsolatedAsyncioTestCase):
             await adapter.accept_audio(_frame(1))
 
 
+class RollingFasterWhisperRecognizerTest(unittest.IsolatedAsyncioTestCase):
+    async def test_emits_ordered_partials_and_one_authoritative_final(self) -> None:
+        provider = _Provider(
+            VoiceTranscript("Open", "en", 0.2),
+            VoiceTranscript("Open Spotify", "en", 0.8),
+            VoiceTranscript("Akiha, open Spotify please", "en", 0.5),
+        )
+        revisions = []
+        recognizer = _recognizer(provider, revisions.append)
+
+        for sequence in range(4):
+            await recognizer.accept_audio(_frame(sequence))
+        await recognizer.finalize(EndpointReason.SILENCE)
+
+        self.assertEqual(
+            [revision.text for revision in revisions],
+            ["Open", "Open Spotify", "Akiha, open Spotify please"],
+        )
+        self.assertEqual(
+            [revision.revision_number for revision in revisions],
+            [0, 1, 2],
+        )
+        self.assertEqual(
+            [revision.status for revision in revisions],
+            [
+                TranscriptStatus.PARTIAL,
+                TranscriptStatus.PARTIAL,
+                TranscriptStatus.FINAL,
+            ],
+        )
+        self.assertEqual(
+            [revision.confidence for revision in revisions],
+            [
+                TranscriptConfidence.LOW,
+                TranscriptConfidence.HIGH,
+                TranscriptConfidence.MEDIUM,
+            ],
+        )
+        self.assertEqual(revisions[-1].endpoint_reason, EndpointReason.SILENCE)
+        self.assertFalse(recognizer.is_active)
+        with self.assertRaisesRegex(RuntimeError, "does not own"):
+            await recognizer.finalize(EndpointReason.MANUAL_STOP)
+        self.assertEqual(len(revisions), 3)
+
+    async def test_suppresses_duplicate_regression_and_one_off_rewrite(self) -> None:
+        provider = _Provider(
+            VoiceTranscript("Open Spotify"),
+            VoiceTranscript("Open Spotify"),
+            VoiceTranscript("Open"),
+            VoiceTranscript("Start Discord"),
+            VoiceTranscript("Start Discord now"),
+        )
+        revisions = []
+        recognizer = _recognizer(provider, revisions.append)
+
+        for sequence in range(10):
+            await recognizer.accept_audio(_frame(sequence))
+
+        self.assertEqual(
+            [revision.text for revision in revisions],
+            ["Open Spotify", "Start Discord now"],
+        )
+        self.assertTrue(
+            all(revision.status is TranscriptStatus.PARTIAL for revision in revisions)
+        )
+        recognizer.cancel()
+
+    async def test_final_is_revision_zero_when_no_partial_was_ready(self) -> None:
+        revisions = []
+        recognizer = _recognizer(
+            _Provider(VoiceTranscript("Final only", "en", None)),
+            revisions.append,
+        )
+
+        await recognizer.accept_audio(_frame(0))
+        await recognizer.finalize(EndpointReason.MANUAL_STOP)
+
+        self.assertEqual(len(revisions), 1)
+        self.assertEqual(revisions[0].revision_number, 0)
+        self.assertEqual(revisions[0].status, TranscriptStatus.FINAL)
+        self.assertEqual(revisions[0].confidence, TranscriptConfidence.UNKNOWN)
+        self.assertEqual(revisions[0].endpoint_reason, EndpointReason.MANUAL_STOP)
+
+
 class _Provider:
     def __init__(self, *transcripts: VoiceTranscript) -> None:
         self._transcripts = iter(transcripts)
@@ -164,6 +251,23 @@ def _adapter(
         language="auto",
     )
     return adapter
+
+
+def _recognizer(provider: object, on_revision) -> RollingFasterWhisperRecognizer:
+    adapter = RollingFasterWhisperAdapter(
+        SpeechInputService(provider),  # type: ignore[arg-type]
+        partial_interval_seconds=0.2,
+        partial_window_seconds=0.3,
+        maximum_utterance_seconds=0.5,
+    )
+    recognizer = RollingFasterWhisperRecognizer(adapter, language="auto")
+    recognizer.start_turn(
+        "session-1",
+        "turn-1",
+        on_revision,
+        VoiceCancellationToken(),
+    )
+    return recognizer
 
 
 def _frame(sequence: int, *, turn_id: str = "turn-1") -> AudioFrame:

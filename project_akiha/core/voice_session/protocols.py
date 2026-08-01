@@ -77,10 +77,10 @@ class StreamingSpeechRecognizer(Protocol):
     ) -> None:
         """Start one recognition turn."""
 
-    def accept_audio(self, frame: AudioFrame) -> None:
+    async def accept_audio(self, frame: AudioFrame) -> None:
         """Accept one ordered audio frame."""
 
-    def finalize(self, endpoint_reason: EndpointReason) -> None:
+    async def finalize(self, endpoint_reason: EndpointReason) -> None:
         """Finalize the bounded utterance buffer."""
 
     def cancel(self) -> None:

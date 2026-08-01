@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from project_akiha.core.voice_session import (
     AudioFrame,
     EndpointReason,
     RollingAudioBuffer,
+    TranscriptConfidence,
+    TranscriptRevision,
+    TranscriptStatus,
     VoiceCancellationToken,
 )
 from project_akiha.providers.voice import CapturedAudio, VoiceTranscript
@@ -16,6 +20,10 @@ from project_akiha.services.speech_input import (
     SpeechInputService,
     SpeechInputServiceError,
 )
+from project_akiha.services.transcript_stabilization import (
+    PartialTranscriptStabilizer,
+)
+from project_akiha.services.voice_confidence import voice_confidence_level
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,3 +236,137 @@ class RollingFasterWhisperAdapter:
         self._cancellation_token = None
         self._bytes_since_partial = 0
         self._partial_interval_bytes = 0
+
+
+class RollingFasterWhisperRecognizer:
+    """Emit ordered canonical revisions over the bounded rolling adapter."""
+
+    def __init__(
+        self,
+        adapter: RollingFasterWhisperAdapter,
+        *,
+        provider_name: str = "faster-whisper",
+        language: str | None = None,
+    ) -> None:
+        if not provider_name.strip():
+            raise ValueError("Rolling recognizer provider name cannot be blank.")
+        self._adapter = adapter
+        self._provider_name = provider_name.strip()
+        self._language = language
+        self._session_id: str | None = None
+        self._turn_id: str | None = None
+        self._on_revision: Callable[[TranscriptRevision], None] | None = None
+        self._next_revision_number = 0
+        self._final_emitted = False
+        self._stabilizer = PartialTranscriptStabilizer()
+
+    @property
+    def is_active(self) -> bool:
+        return self._session_id is not None and not self._final_emitted
+
+    def start_turn(
+        self,
+        session_id: str,
+        turn_id: str,
+        on_revision: Callable[[TranscriptRevision], None],
+        cancellation_token: VoiceCancellationToken,
+    ) -> None:
+        """Start one revision stream owned by the supplied session and turn."""
+        if self.is_active:
+            raise RuntimeError("Rolling recognizer already owns an active turn.")
+        self._adapter.start_turn(
+            session_id=session_id,
+            turn_id=turn_id,
+            cancellation_token=cancellation_token,
+            language=self._language,
+        )
+        self._session_id = session_id
+        self._turn_id = turn_id
+        self._on_revision = on_revision
+        self._next_revision_number = 0
+        self._final_emitted = False
+        self._stabilizer.reset()
+
+    async def accept_audio(self, frame: AudioFrame) -> None:
+        """Process one frame and emit a stable replaceable partial when available."""
+        if not self.is_active:
+            raise RuntimeError("Rolling recognizer does not own an active turn.")
+        hypothesis = await self._adapter.accept_audio(frame)
+        if hypothesis is None:
+            return
+        text = self._stabilizer.observe(hypothesis.transcript.text)
+        if text is None:
+            return
+        self._emit(self._revision(hypothesis, text, TranscriptStatus.PARTIAL))
+
+    async def finalize(self, endpoint_reason: EndpointReason) -> None:
+        """Emit exactly one authoritative final revision for this turn."""
+        if not self.is_active:
+            raise RuntimeError("Rolling recognizer does not own an active turn.")
+        hypothesis = await self._adapter.finalize(endpoint_reason)
+        if self._final_emitted:
+            return
+        self._final_emitted = True
+        self._emit(
+            self._revision(
+                hypothesis,
+                " ".join(hypothesis.transcript.text.split()),
+                TranscriptStatus.FINAL,
+            )
+        )
+
+    def cancel(self) -> None:
+        """Cancel recognition and release the revision callback."""
+        self._adapter.cancel()
+        self._release()
+
+    def _revision(
+        self,
+        hypothesis: RollingRecognitionHypothesis,
+        text: str,
+        status: TranscriptStatus,
+    ) -> TranscriptRevision:
+        confidence = _CONFIDENCE_BANDS.get(
+            voice_confidence_level(hypothesis.transcript.confidence),
+            TranscriptConfidence.UNKNOWN,
+        )
+        return TranscriptRevision(
+            session_id=hypothesis.session_id,
+            turn_id=hypothesis.turn_id,
+            revision_number=self._next_revision_number,
+            text=text,
+            status=status,
+            provider_name=self._provider_name,
+            detected_language=hypothesis.transcript.detected_language,
+            confidence=confidence,
+            endpoint_reason=(
+                hypothesis.endpoint_reason if status is TranscriptStatus.FINAL else None
+            ),
+        )
+
+    def _emit(self, revision: TranscriptRevision) -> None:
+        if (revision.session_id, revision.turn_id) != (
+            self._session_id,
+            self._turn_id,
+        ):
+            return
+        callback = self._on_revision
+        if callback is None:
+            return
+        callback(revision)
+        self._next_revision_number += 1
+
+    def _release(self) -> None:
+        self._session_id = None
+        self._turn_id = None
+        self._on_revision = None
+        self._next_revision_number = 0
+        self._final_emitted = False
+        self._stabilizer.reset()
+
+
+_CONFIDENCE_BANDS = {
+    "low": TranscriptConfidence.LOW,
+    "medium": TranscriptConfidence.MEDIUM,
+    "high": TranscriptConfidence.HIGH,
+}

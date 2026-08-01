@@ -1003,7 +1003,7 @@ through the new coordinator before new behavior is enabled.
 
 - [x] Add bounded audio-frame and rolling-buffer ownership.
 - [x] Implement the rolling `faster-whisper` recognizer adapter.
-- [ ] Emit explicit partial revisions and one authoritative final revision.
+- [x] Emit explicit partial revisions and one authoritative final revision.
 - [ ] Preserve confidence gating and endpoint diagnostics.
 - [ ] Benchmark against the current cumulative-snapshot baseline.
 
@@ -1016,6 +1016,10 @@ The production rolling adapter reuses `SpeechInputService`, requests bounded
 overlapping recent windows for partial hypotheses, uses the retained bounded
 utterance for final recognition, and releases PCM on finalization or
 cancellation. It adds no microphone owner, model instance, or permanent worker.
+The streaming recognizer applies the shared partial-stability policy, assigns
+monotonic revision numbers, maps provider confidence into coarse privacy-safe
+bands, and emits exactly one final revision with its endpoint reason. The
+existing batch event bridge remains authoritative until the V2 switchover.
 
 ### Milestone V3: Natural Intent And Context
 
