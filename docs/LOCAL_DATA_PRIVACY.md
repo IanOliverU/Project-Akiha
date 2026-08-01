@@ -79,7 +79,8 @@ does not request or store a Spotify Client Secret.
 ## Planned Pipelined Voice Modes
 
 The approved Post-Phase 8 Voice Intent and Live Conversation architecture is
-not yet implemented. It preserves three explicit processing modes:
+being implemented in staged milestones. It preserves three explicit processing
+modes:
 
 - **Fully Local Modular:** microphone audio, transcription, Ollama/local LLM
   generation, speech rendering, and VOICEVOX playback remain local.
@@ -92,6 +93,10 @@ not yet implemented. It preserves three explicit processing modes:
 No failure silently switches between these modes. Settings must show whether
 the current mode sends no conversation data, text, or microphone audio to a
 hosted provider.
+
+Ollama and custom OpenAI-compatible endpoints are treated as local only when
+their URL is loopback-only (`localhost`, `127.0.0.0/8`, or `::1`). Any other
+endpoint is conservatively disclosed as off-device text processing.
 
 If Gemini Live is enabled later:
 

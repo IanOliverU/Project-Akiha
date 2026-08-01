@@ -111,6 +111,7 @@ class SettingsWindowTest(unittest.TestCase):
                 "Window",
                 "Appearance",
                 "Provider",
+                "Processing boundary",
                 "Identity",
                 "Memory",
                 "Awareness",
@@ -308,6 +309,76 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertFalse(hasattr(emitted[0].ai, "api_key"))
         self.assertEqual(window._ai_api_key_input.text(), "")
         self.assertEqual(window._ai_api_key_status.text(), "API key saved securely")
+
+    def test_ai_processing_boundary_follows_selected_provider(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+
+            self.assertEqual(
+                window._processing_mode_value.text(),
+                "Fully Local Modular",
+            )
+            self.assertEqual(
+                window._text_processing_value.text(),
+                "Local device only",
+            )
+            self.assertEqual(
+                window._audio_processing_value.text(),
+                "Local device only",
+            )
+
+            window._ai_provider_input.setCurrentText("gemini")
+
+        self.assertEqual(
+            window._processing_mode_value.text(),
+            "Hybrid API Modular",
+        )
+        self.assertEqual(
+            window._text_processing_value.text(),
+            "Off-device provider endpoint",
+        )
+        self.assertEqual(
+            window._audio_processing_value.text(),
+            "Local device only",
+        )
+
+    def test_compatible_endpoint_boundary_updates_between_local_and_remote(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            window._ai_provider_input.setCurrentText("openai-compatible")
+
+            self.assertEqual(
+                window._processing_mode_value.text(),
+                "Fully Local Modular",
+            )
+
+            window._hosted_base_url_input.setText("https://example.test/v1")
+
+        self.assertEqual(
+            window._processing_mode_value.text(),
+            "Hybrid API Modular",
+        )
+        self.assertEqual(
+            window._text_processing_value.text(),
+            "Off-device provider endpoint",
+        )
+
+    def test_remote_ollama_endpoint_is_disclosed_as_off_device(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            window._ai_provider_input.setCurrentText("ollama")
+            window._ollama_base_url_input.setText("http://192.168.1.20:11434")
+
+        self.assertEqual(
+            window._processing_mode_value.text(),
+            "Hybrid API Modular",
+        )
+        self.assertEqual(
+            window._text_processing_value.text(),
+            "Off-device provider endpoint",
+        )
 
     def test_clear_hosted_api_key(self) -> None:
         credentials = _CredentialStore()

@@ -41,6 +41,7 @@ from project_akiha.config import (
     PetWindowConfig,
     SpotifyConfig,
     VoiceConfig,
+    ai_text_processing_is_remote,
 )
 from project_akiha.core.actions import (
     APPLICATION_CLOSE_CAPABILITY,
@@ -50,6 +51,7 @@ from project_akiha.core.actions import (
     InstalledApplication,
     PermissionGrant,
 )
+from project_akiha.core.voice_session import VoiceProcessingMode
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryRequest,
     AIProviderDiscoveryResult,
@@ -168,6 +170,15 @@ class SettingsWindow(QWidget):
         self._ai_connection_button.clicked.connect(self._check_ai_provider)
         self._ai_connection_status = QLabel("Not checked")
         self._ai_connection_status.setWordWrap(True)
+        self._processing_mode_value = QLabel()
+        self._text_processing_value = QLabel()
+        self._audio_processing_value = QLabel()
+        for boundary_value in (
+            self._processing_mode_value,
+            self._text_processing_value,
+            self._audio_processing_value,
+        ):
+            boundary_value.setWordWrap(True)
         self._advanced_ai_settings_input = QCheckBox()
         self._advanced_ai_settings_input.toggled.connect(
             lambda _checked: self._sync_ai_controls(
@@ -386,6 +397,16 @@ class SettingsWindow(QWidget):
         self._voice_microphone_activity.setWordWrap(True)
         self._ai_provider_input.currentTextChanged.connect(
             self._handle_ai_provider_changed
+        )
+        self._hosted_base_url_input.textChanged.connect(
+            lambda _url: self._sync_ai_processing_boundary(
+                self._ai_provider_input.currentText()
+            )
+        )
+        self._ollama_base_url_input.textChanged.connect(
+            lambda _url: self._sync_ai_processing_boundary(
+                self._ai_provider_input.currentText()
+            )
         )
         self._voice_enabled_input.toggled.connect(self._sync_voice_controls)
         self._voice_output_provider_input.currentTextChanged.connect(
@@ -663,11 +684,17 @@ class SettingsWindow(QWidget):
         )
         provider_layout.addRow("AI timeout", self._ai_timeout_input)
 
+        processing_layout = _build_form_layout(wrap_long_rows=True)
+        processing_layout.addRow("Processing mode", self._processing_mode_value)
+        processing_layout.addRow("Conversation text", self._text_processing_value)
+        processing_layout.addRow("Voice audio", self._audio_processing_value)
+
         identity_layout = _build_form_layout()
         identity_layout.addRow("Companion name", self._character_name_input)
         identity_layout.addRow("System prompt", self._system_prompt_input)
         return _build_scroll_tab(
             _build_section("Provider", provider_layout),
+            _build_section("Processing boundary", processing_layout),
             _build_section("Identity", identity_layout),
         )
 
@@ -1544,6 +1571,38 @@ class SettingsWindow(QWidget):
             uses_connection and self._ai_discovery_thread is None
         )
         self._refresh_ai_api_key_status(provider)
+        self._sync_ai_processing_boundary(provider)
+
+    def _sync_ai_processing_boundary(self, provider: str) -> None:
+        provider_base_url = (
+            self._ollama_base_url_input.text()
+            if provider == "ollama"
+            else self._hosted_base_url_input.text()
+        )
+        sends_text_off_device = ai_text_processing_is_remote(
+            provider,
+            provider_base_url,
+        )
+        processing_mode = (
+            VoiceProcessingMode.HYBRID_API_MODULAR
+            if sends_text_off_device
+            else VoiceProcessingMode.LOCAL_MODULAR
+        )
+        mode_text = {
+            VoiceProcessingMode.LOCAL_MODULAR: "Fully Local Modular",
+            VoiceProcessingMode.HYBRID_API_MODULAR: "Hybrid API Modular",
+        }[processing_mode]
+        self._processing_mode_value.setText(mode_text)
+        self._text_processing_value.setText(
+            "Off-device provider endpoint"
+            if sends_text_off_device
+            else "Local device only"
+        )
+        self._audio_processing_value.setText("Local device only")
+        mode_color = (
+            AKIHA_PALETTE.highlight if sends_text_off_device else AKIHA_PALETTE.success
+        )
+        self._processing_mode_value.setStyleSheet(f"color: {mode_color};")
 
     @staticmethod
     def _set_row_visible(label: QLabel, field: QWidget, visible: bool) -> None:

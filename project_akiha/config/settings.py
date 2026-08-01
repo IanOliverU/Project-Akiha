@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import tomllib
 from dataclasses import dataclass, replace
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -23,6 +24,27 @@ AI_PROVIDERS = frozenset({"mock", "ollama", *HOSTED_AI_PROVIDERS})
 
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:43821/callback"
 _SPOTIFY_CLIENT_ID_PATTERN = re.compile(r"[0-9a-fA-F]{32}\Z")
+
+
+def ai_text_processing_is_remote(provider: str, provider_base_url: str) -> bool:
+    """Classify whether the selected AI transport sends text off-device."""
+    if provider == "mock":
+        return False
+    if provider in {"ollama", "openai-compatible"}:
+        return not _is_loopback_url(provider_base_url)
+    return provider in HOSTED_AI_PROVIDERS
+
+
+def _is_loopback_url(value: str) -> bool:
+    hostname = urlparse(value).hostname
+    if hostname is None:
+        return False
+    if hostname.casefold() == "localhost":
+        return True
+    try:
+        return ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +112,18 @@ class AIConfig:
     def requires_api_key(self) -> bool:
         """Return whether the selected preset requires a hosted API key."""
         return self.provider in HOSTED_AI_PROVIDERS - {"openai-compatible"}
+
+    @property
+    def sends_text_off_device(self) -> bool:
+        """Return whether chat text may leave the current device."""
+        return ai_text_processing_is_remote(
+            self.provider,
+            (
+                self.ollama_base_url
+                if self.provider == "ollama"
+                else self.hosted_base_url
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)

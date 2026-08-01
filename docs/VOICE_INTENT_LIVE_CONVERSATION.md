@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 complete, V1 modular responses routed
+**Status:** Implementation in progress - V0 complete, V1 privacy boundary visible
 
 **Planning date:** 2026-08-01
 
@@ -986,7 +986,7 @@ recorded. The spike may be discarded and must not mutate production data.
   behavior.
 - [x] Route both Ollama/local LLM and existing hosted text APIs through the
   same modular response events.
-- [ ] Show the selected processing mode and its local-text/cloud-text/
+- [x] Show the selected processing mode and its local-text/cloud-text/
   cloud-audio boundary in Settings.
 - [ ] Prove stale results cannot affect a replacement turn.
 

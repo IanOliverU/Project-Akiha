@@ -291,7 +291,7 @@ def _run_application() -> int:
         session_coordinator=voice_session_coordinator,
         processing_mode_provider=lambda: (
             VoiceProcessingMode.HYBRID_API_MODULAR
-            if config.ai.uses_hosted_api
+            if config.ai.sends_text_off_device
             else VoiceProcessingMode.LOCAL_MODULAR
         ),
         input_provider_name=lambda: config.voice.input_provider,
@@ -1421,7 +1421,7 @@ def _run_application() -> int:
                 response_id=uuid4().hex,
                 processing_mode=(
                     VoiceProcessingMode.HYBRID_API_MODULAR
-                    if config.ai.uses_hosted_api
+                    if config.ai.sends_text_off_device
                     else VoiceProcessingMode.LOCAL_MODULAR
                 ),
             ),

@@ -43,6 +43,11 @@ The `openai-compatible` option keeps its API URL visible because a custom
 endpoint cannot be inferred. Its API key remains optional for local servers
 that do not require authentication.
 
+The Processing boundary section updates with the provider selection. Ollama
+and custom compatible endpoints are shown as Fully Local Modular only when
+they use a loopback URL. Non-loopback endpoints are treated as Hybrid API
+Modular so Settings never understates where conversation text may travel.
+
 The API key field is write-only. Leave it blank to retain the saved key. Use
 `Clear key` to delete the selected provider's saved key.
 

@@ -232,6 +232,45 @@ class SettingsTest(unittest.TestCase):
 
         self.assertTrue(config.uses_hosted_api)
         self.assertFalse(config.requires_api_key)
+        self.assertFalse(config.sends_text_off_device)
+
+    def test_ai_config_classifies_remote_compatible_endpoint_conservatively(
+        self,
+    ) -> None:
+        config = AIConfig(
+            provider="openai-compatible",
+            hosted_base_url="https://example.test/v1",
+            hosted_model="remote-model",
+        )
+
+        self.assertTrue(config.sends_text_off_device)
+
+    def test_ai_config_classifies_local_and_hosted_provider_presets(self) -> None:
+        self.assertFalse(AIConfig(provider="mock").sends_text_off_device)
+        self.assertFalse(AIConfig(provider="ollama").sends_text_off_device)
+        self.assertTrue(AIConfig(provider="gemini").sends_text_off_device)
+
+    def test_ai_config_classifies_non_loopback_ollama_as_off_device(self) -> None:
+        config = AIConfig(
+            provider="ollama",
+            ollama_base_url="http://192.168.1.20:11434",
+        )
+
+        self.assertTrue(config.sends_text_off_device)
+
+    def test_ai_config_accepts_common_loopback_endpoint_forms(self) -> None:
+        for endpoint in (
+            "http://localhost:1234/v1",
+            "http://127.25.0.1:1234/v1",
+            "http://[::1]:1234/v1",
+        ):
+            with self.subTest(endpoint=endpoint):
+                config = AIConfig(
+                    provider="openai-compatible",
+                    hosted_base_url=endpoint,
+                    hosted_model="local-model",
+                )
+                self.assertFalse(config.sends_text_off_device)
 
     def test_ai_config_rejects_invalid_hosted_values(self) -> None:
         with self.assertRaises(ValueError):
