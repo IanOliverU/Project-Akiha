@@ -1,6 +1,6 @@
 # Voice Pipeline V0 Evaluation
 
-**Status:** In progress - framework-neutral and Pipecat core probes complete
+**Status:** In progress - core voice and typed-action boundary probes complete
 
 **Evaluation date:** 2026-08-01
 
@@ -37,6 +37,10 @@ It does not alter the production runtime or read production user data.
   playback order, failure cleanup, and per-turn cancellation.
 - [x] Fed bounded Qt PCM frames through the existing `SpeechInputService` and
   emitted stabilized partial revisions plus one authoritative final revision.
+- [x] Passed final voice text through the constrained LLM proposal gateway and
+  Akiha's real typed action validator, scoped permission policy, executor
+  registry, and sanitized audit path without exposing execution authority to
+  the provider side.
 
 ## Measurements
 
@@ -81,6 +85,11 @@ real packaged-size probe before approval.
    streaming Whisper.
 9. Chat, memory, identity, subtitles, typed actions, permissions, and audit
    history remain Akiha-owned regardless of the framework decision.
+10. Partial transcript revisions can remain speculative at the action boundary.
+    One authoritative final may request one constrained provider proposal;
+    unsupported targets fail before action evaluation, and directory/media
+    proposals still require trusted local resolution before a typed request
+    exists.
 
 ## Current Decision
 
@@ -95,7 +104,7 @@ and Nuitka result remain unresolved.
 - [x] Prototype an ordered VOICEVOX frame processor using fake audio output.
 - [x] Confirm rolling transcript revisions can enter the pipeline without
   relying on Pipecat's segmented Whisper service.
-- [ ] Pass a fake typed action proposal through Akiha's real validator/gateway
+- [x] Pass a fake typed action proposal through Akiha's real validator/gateway
   boundary without exposing an executor to the provider side.
 - [ ] Test cancellation and shutdown through the Pipecat bridge prototypes.
 - [ ] Run a minimal Nuitka build and measure artifact size/startup behavior.
@@ -105,15 +114,16 @@ and Nuitka result remain unresolved.
 
 Current repository verification:
 
-- 16 focused pipeline and local/hosted provider tests passed.
-- Full suite after rolling transcript integration: 948 tests passed, 3 skipped.
+- 26 focused V0 voice-pipeline tests passed.
+- 66 existing assistant proposal, action-service, and action-bridge tests passed.
+- Full suite after typed-action boundary integration: 953 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.
 - The 564 MB temporary Pipecat environment was removed after measurement.
 
 ```powershell
-.\.venv313\Scripts\python.exe -m unittest tests.unit.spikes.test_voice_pipeline_spike
+.\.venv313\Scripts\python.exe -m unittest discover -s tests\unit\spikes -t .
 .\.venv313\Scripts\python.exe -m ruff check spikes tests\unit\spikes
 .\.venv313\Scripts\python.exe -m black --check spikes tests\unit\spikes
 ```

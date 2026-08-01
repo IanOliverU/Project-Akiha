@@ -19,6 +19,9 @@ The framework-neutral harness proves:
   concurrently with a strict bound, play in order, and cancel as one turn
 - bounded PCM frames feed the existing `SpeechInputService`, emit stabilized
   replaceable partial revisions, and produce one authoritative final revision
+- only authoritative final text may request a constrained provider proposal;
+  direct allowlisted proposals then cross the real typed validator, permission,
+  executor, and audit boundary while provider code receives no executor access
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.
