@@ -6,6 +6,14 @@ import asyncio
 import unittest
 from collections.abc import AsyncIterator
 
+from project_akiha.app.chat_controller import ChatController
+from project_akiha.core.voice_session import (
+    ModularResponseContext,
+    ModularResponseEvent,
+    ModularResponseEventKind,
+    VoiceProcessingMode,
+)
+from project_akiha.providers.ai import OllamaProvider, OpenAICompatibleProvider
 from project_akiha.ui.chat_worker import ChatResponseThread
 
 
@@ -74,6 +82,32 @@ class ChatResponseThreadTest(unittest.TestCase):
 
         self.assertEqual(responses, ["onetwo"])
 
+    def test_run_emits_ordered_modular_response_events(self) -> None:
+        thread = ChatResponseThread(
+            StreamingController(("one", "two")),
+            "hello",
+            response_context=ModularResponseContext(
+                response_id="response-1",
+                processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+            ),
+        )
+        events: list[ModularResponseEvent] = []
+        thread.modular_response_event.connect(events.append)
+
+        thread.run()
+
+        self.assertEqual(
+            [event.kind for event in events],
+            [
+                ModularResponseEventKind.STARTED,
+                ModularResponseEventKind.DELTA,
+                ModularResponseEventKind.DELTA,
+                ModularResponseEventKind.COMPLETED,
+            ],
+        )
+        self.assertEqual([event.sequence_number for event in events], [0, 1, 2, 3])
+        self.assertEqual(events[-1].text, "onetwo")
+
     def test_run_does_not_emit_response_after_cancellation(self) -> None:
         thread = ChatResponseThread(StreamingController(("one", "two")), "hello")
         responses: list[str] = []
@@ -91,6 +125,20 @@ class ChatResponseThreadTest(unittest.TestCase):
         self.assertEqual(responses, [])
         self.assertEqual(cancelled, [True])
 
+    def test_cancelled_response_emits_no_completed_event(self) -> None:
+        thread = ChatResponseThread(StreamingController(("one", "two")), "hello")
+        events: list[ModularResponseEvent] = []
+        thread.modular_response_event.connect(events.append)
+        thread.response_delta.connect(lambda _chunk: thread.cancel())
+
+        thread.run()
+
+        self.assertEqual(events[-1].kind, ModularResponseEventKind.CANCELLED)
+        self.assertNotIn(
+            ModularResponseEventKind.COMPLETED,
+            [event.kind for event in events],
+        )
+
     def test_run_emits_failure_when_provider_stream_fails(self) -> None:
         thread = ChatResponseThread(FailingController(), "hello")
         failures: list[str] = []
@@ -107,6 +155,66 @@ class ChatResponseThreadTest(unittest.TestCase):
 
         self.assertEqual(failures, ["provider failed"])
         self.assertEqual(ready_count, 0)
+
+    def test_failure_uses_same_modular_event_path(self) -> None:
+        thread = ChatResponseThread(FailingController(), "hello")
+        events: list[ModularResponseEvent] = []
+        thread.modular_response_event.connect(events.append)
+
+        thread.run()
+
+        self.assertEqual(events[-1].kind, ModularResponseEventKind.FAILED)
+        self.assertEqual(events[-1].error_message, "provider failed")
+        self.assertIsNone(events[-1].text)
+
+    def test_ollama_and_hosted_provider_emit_identical_event_shapes(self) -> None:
+        providers = (
+            (
+                VoiceProcessingMode.LOCAL_MODULAR,
+                OllamaProvider(
+                    base_url="http://localhost:11434",
+                    model="test",
+                    stream_transport=lambda _url, _payload, _timeout: (
+                        {"message": {"content": "local response"}},
+                        {"done": True},
+                    ),
+                ),
+            ),
+            (
+                VoiceProcessingMode.HYBRID_API_MODULAR,
+                OpenAICompatibleProvider(
+                    base_url="https://example.test/v1",
+                    model="test",
+                    stream_transport=lambda _url, _payload, _headers, _timeout: (
+                        {"choices": [{"delta": {"content": "hosted response"}}]},
+                    ),
+                ),
+            ),
+        )
+        event_shapes = []
+
+        for index, (mode, provider) in enumerate(providers):
+            thread = ChatResponseThread(
+                ChatController(provider),
+                "hello",
+                response_context=ModularResponseContext(
+                    response_id=f"response-{index}",
+                    processing_mode=mode,
+                ),
+            )
+            events: list[ModularResponseEvent] = []
+            thread.modular_response_event.connect(events.append)
+
+            thread.run()
+
+            event_shapes.append(
+                tuple((event.kind, event.sequence_number) for event in events)
+            )
+            self.assertTrue(
+                all(event.context.processing_mode is mode for event in events)
+            )
+
+        self.assertEqual(event_shapes[0], event_shapes[1])
 
 
 if __name__ == "__main__":

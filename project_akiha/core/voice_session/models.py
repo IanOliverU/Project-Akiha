@@ -157,6 +157,16 @@ class ProposalState(StrEnum):
     AMBIGUOUS = "ambiguous"
 
 
+class ModularResponseEventKind(StrEnum):
+    """Ordered events shared by local and hosted modular text providers."""
+
+    STARTED = "started"
+    DELTA = "delta"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 class VoiceCancellationToken:
     """Thread-safe cooperative cancellation signal owned by one turn."""
 
@@ -299,6 +309,67 @@ class LiveSessionConfig:
             raise ValueError("live-session sample rate must be positive.")
         if not 1 <= self.max_duration_seconds <= 900:
             raise ValueError("live-session duration must be between 1 and 900 seconds.")
+
+
+@dataclass(frozen=True, slots=True)
+class ModularResponseContext:
+    """Identity and selected provider lane for one modular text response."""
+
+    response_id: str
+    processing_mode: VoiceProcessingMode
+    session_id: str | None = None
+    turn_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_identifier(self.response_id, "response ID")
+        if self.processing_mode is VoiceProcessingMode.HOSTED_LIVE:
+            raise ValueError("hosted-live responses require a LiveSessionAdapter.")
+        if (self.session_id is None) != (self.turn_id is None):
+            raise ValueError("response session and turn IDs must be provided together.")
+        if self.session_id is not None:
+            _require_identifier(self.session_id, "session ID")
+            _require_identifier(self.turn_id or "", "turn ID")
+
+
+@dataclass(frozen=True, slots=True)
+class ModularResponseEvent:
+    """One ordered provider-neutral response event on a direct callback path."""
+
+    context: ModularResponseContext
+    kind: ModularResponseEventKind
+    sequence_number: int
+    text: str | None = field(default=None, repr=False)
+    error_message: str | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.sequence_number < 0:
+            raise ValueError("response event sequence number cannot be negative.")
+        if self.kind is ModularResponseEventKind.STARTED:
+            if self.sequence_number != 0:
+                raise ValueError("a started response event must have sequence zero.")
+            if self.text is not None or self.error_message is not None:
+                raise ValueError("a started response event cannot contain output.")
+            return
+        if self.sequence_number == 0:
+            raise ValueError("response events after start require a positive sequence.")
+        if self.kind in {
+            ModularResponseEventKind.DELTA,
+            ModularResponseEventKind.COMPLETED,
+        }:
+            _require_text(self.text or "", "response event text")
+            if self.error_message is not None:
+                raise ValueError("a successful response event cannot contain an error.")
+            return
+        if self.text is not None:
+            raise ValueError("failed or cancelled response events cannot contain text.")
+        if self.kind is ModularResponseEventKind.FAILED:
+            _require_text(
+                self.error_message or "",
+                "response failure message",
+                max_chars=4_096,
+            )
+        elif self.error_message is not None:
+            raise ValueError("a cancelled response event cannot contain an error.")
 
 
 @dataclass(frozen=True, slots=True)

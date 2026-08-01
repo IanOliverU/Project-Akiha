@@ -97,7 +97,12 @@ from project_akiha.core.memory.extraction import (
     MemoryExtractor,
 )
 from project_akiha.core.state.animation import AnimationStateMachine
-from project_akiha.core.voice_session import VoiceProcessingMode
+from project_akiha.core.voice_session import (
+    ModularResponseContext,
+    ModularResponseEvent,
+    ModularResponseEventKind,
+    VoiceProcessingMode,
+)
 from project_akiha.database import (
     SQLiteActionRepository,
     SQLiteBehaviorRepository,
@@ -1412,23 +1417,39 @@ def _run_application() -> int:
         thread = ChatResponseThread(
             chat_controller=chat_controller,
             message=message,
+            response_context=ModularResponseContext(
+                response_id=uuid4().hex,
+                processing_mode=(
+                    VoiceProcessingMode.HYBRID_API_MODULAR
+                    if config.ai.uses_hosted_api
+                    else VoiceProcessingMode.LOCAL_MODULAR
+                ),
+            ),
         )
         active_chat_threads.append(thread)
         has_response_started = False
 
-        def handle_delta(chunk: str) -> None:
+        def handle_response_event(event: object) -> None:
             nonlocal has_response_started
-            if not has_response_started:
-                chat_window.begin_streaming_message(config.personality.character_name)
-                has_response_started = True
-            chat_window.append_stream_delta(chunk)
-
-        def handle_error(error_message: str) -> None:
-            _handle_chat_failure(error_message, chat_window, logger)
-
-        def handle_cancelled() -> None:
-            logger.info("Chat response cancelled by user.")
-            chat_window.append_notice("Response stopped.")
+            if not isinstance(event, ModularResponseEvent):
+                return
+            if event.kind is ModularResponseEventKind.DELTA:
+                if not has_response_started:
+                    chat_window.begin_streaming_message(
+                        config.personality.character_name
+                    )
+                    has_response_started = True
+                chat_window.append_stream_delta(event.text or "")
+            elif event.kind is ModularResponseEventKind.COMPLETED:
+                assistant_speech_controller.submit_assistant_reply(event.text or "")
+                assistant_translation_controller.translate_assistant_response(
+                    event.text or ""
+                )
+            elif event.kind is ModularResponseEventKind.FAILED:
+                _handle_chat_failure(event.error_message or "", chat_window, logger)
+            elif event.kind is ModularResponseEventKind.CANCELLED:
+                logger.info("Chat response cancelled by user.")
+                chat_window.append_notice("Response stopped.")
 
         def cleanup_thread() -> None:
             if thread in active_chat_threads:
@@ -1436,15 +1457,7 @@ def _run_application() -> int:
             update_chat_busy_state()
             thread.deleteLater()
 
-        thread.response_delta.connect(handle_delta)
-        thread.response_ready.connect(
-            assistant_speech_controller.submit_assistant_reply
-        )
-        thread.response_ready.connect(
-            assistant_translation_controller.translate_assistant_response
-        )
-        thread.response_failed.connect(handle_error)
-        thread.response_cancelled.connect(handle_cancelled)
+        thread.modular_response_event.connect(handle_response_event)
         thread.finished.connect(cleanup_thread)
         thread.start()
 

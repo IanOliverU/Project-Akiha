@@ -8,8 +8,12 @@ from project_akiha.core.voice_session import (
     ActionProposal,
     AudioFrame,
     EndpointReason,
+    ModularResponseContext,
+    ModularResponseEvent,
+    ModularResponseEventKind,
     TranscriptRevision,
     TranscriptStatus,
+    VoiceProcessingMode,
 )
 
 
@@ -88,6 +92,47 @@ class VoiceSessionModelsTest(unittest.TestCase):
                 source="local.intent",
                 action_name="applications.launch",
                 arguments={"nested": {"command": "unrestricted"}},
+            )
+
+    def test_modular_response_context_requires_paired_turn_identity(self) -> None:
+        with self.assertRaisesRegex(ValueError, "provided together"):
+            ModularResponseContext(
+                response_id="response-1",
+                processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+                session_id="session-1",
+            )
+
+    def test_hosted_live_cannot_enter_modular_response_contract(self) -> None:
+        with self.assertRaisesRegex(ValueError, "LiveSessionAdapter"):
+            ModularResponseContext(
+                response_id="response-1",
+                processing_mode=VoiceProcessingMode.HOSTED_LIVE,
+            )
+
+    def test_response_event_hides_canonical_text_from_repr(self) -> None:
+        event = ModularResponseEvent(
+            context=ModularResponseContext(
+                response_id="response-1",
+                processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+            ),
+            kind=ModularResponseEventKind.DELTA,
+            sequence_number=1,
+            text="Private provider response",
+        )
+
+        self.assertNotIn("Private provider response", repr(event))
+
+    def test_started_response_event_requires_sequence_zero(self) -> None:
+        context = ModularResponseContext(
+            response_id="response-1",
+            processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+        )
+
+        with self.assertRaisesRegex(ValueError, "sequence zero"):
+            ModularResponseEvent(
+                context=context,
+                kind=ModularResponseEventKind.STARTED,
+                sequence_number=1,
             )
 
 
