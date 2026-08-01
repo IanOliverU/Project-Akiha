@@ -93,6 +93,20 @@ class RollingAudioBufferTest(unittest.TestCase):
         self.assertIsNotNone(snapshot)
         self.assertNotIn("secret-pcm", repr(snapshot))
 
+    def test_recent_snapshot_is_bounded_and_keeps_latest_pcm(self) -> None:
+        buffer = _buffer()
+        for sequence, marker in enumerate((b"a", b"b", b"c", b"d")):
+            buffer.accept(_frame(sequence, marker * 20))
+
+        snapshot = buffer.snapshot(maximum_duration_seconds=0.25)
+
+        self.assertIsNotNone(snapshot)
+        assert snapshot is not None
+        self.assertEqual(len(snapshot.data), 50)
+        self.assertEqual(snapshot.data, b"b" * 10 + b"c" * 20 + b"d" * 20)
+        self.assertEqual(snapshot.first_sequence_number, 1)
+        self.assertEqual(snapshot.last_sequence_number, 3)
+
 
 def _buffer() -> RollingAudioBuffer:
     buffer = RollingAudioBuffer(maximum_duration_seconds=1.0)

@@ -139,13 +139,42 @@ class RollingAudioBuffer:
             self._next_sequence_number += 1
             self._last_timestamp = frame.captured_at_monotonic
 
-    def snapshot(self) -> AudioBufferSnapshot | None:
-        """Copy the currently retained bounded window without releasing ownership."""
+    def snapshot(
+        self,
+        *,
+        maximum_duration_seconds: float | None = None,
+    ) -> AudioBufferSnapshot | None:
+        """Copy all or a bounded recent portion of the retained PCM window."""
         with self._lock:
             if not self._frames:
                 return None
-            first = self._frames[0]
-            last = self._frames[-1]
+            maximum_bytes = self._retained_bytes
+            if maximum_duration_seconds is not None:
+                if maximum_duration_seconds <= 0:
+                    raise ValueError("Snapshot duration must be positive.")
+                sample_stride = self._channels * self._sample_width_bytes
+                maximum_bytes = int(
+                    self._sample_rate_hz * sample_stride * maximum_duration_seconds
+                )
+                maximum_bytes -= maximum_bytes % sample_stride
+                if maximum_bytes < sample_stride:
+                    raise ValueError("Snapshot duration is shorter than a PCM sample.")
+                maximum_bytes = min(maximum_bytes, self._retained_bytes)
+
+            selected: list[AudioFrame] = []
+            selected_bytes = 0
+            for frame in reversed(self._frames):
+                selected.append(frame)
+                selected_bytes += len(frame.data)
+                if selected_bytes >= maximum_bytes:
+                    break
+            selected.reverse()
+
+            first = selected[0]
+            last = selected[-1]
+            data = b"".join(frame.data for frame in selected)
+            if len(data) > maximum_bytes:
+                data = data[-maximum_bytes:]
             return AudioBufferSnapshot(
                 session_id=first.session_id,
                 turn_id=first.turn_id,
@@ -156,7 +185,7 @@ class RollingAudioBuffer:
                 sample_rate_hz=first.sample_rate_hz,
                 channels=first.channels,
                 sample_width_bytes=first.sample_width_bytes,
-                data=b"".join(frame.data for frame in self._frames),
+                data=data,
             )
 
     def release(self) -> None:
