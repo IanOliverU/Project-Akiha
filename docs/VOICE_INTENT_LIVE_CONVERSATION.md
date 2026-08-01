@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 through V3 complete; V4 underway
+**Status:** Implementation in progress - V0 through V4 complete; V5 is next
 
 **Planning date:** 2026-08-01
 
@@ -901,7 +901,7 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 - [x] Ordered synthesis and playback tests.
 - [x] Backpressure and queue-bound tests.
 - [x] Style-render fallback tests.
-- [ ] Interruption during generation, synthesis, and playback.
+- [x] Interruption during generation, synthesis, and playback.
 - [x] Canonical-text and derived-speech separation tests.
 
 ### Gemini Live
@@ -1087,7 +1087,16 @@ arbitration. Provider-native function calling remains deferred to V7.
 - [x] Render speech identity per stable segment with fallback.
 - [x] Add bounded concurrent synthesis and ordered playback.
 - [x] Preserve final canonical response and derived subtitle behavior.
-- [ ] Add controlled Talk-to-interrupt behavior.
+- [x] Add controlled Talk-to-interrupt behavior.
+
+Talk remains available while provider generation, local synthesis, or playback
+is active. A valid Talk request synchronously stops derived speech, clears the
+bounded segment/audio queue, cancels only unfinished chat, action, or proposal
+workers, marks an interrupted partial assistant response in the current UI,
+and then assigns the microphone to a new push-to-talk turn. Completed desktop
+and Spotify actions are not reversed. If microphone input is unavailable, the
+current output is preserved and the existing input diagnostic is shown; the
+button remains a bounded Stop voice control instead.
 
 ### Milestone V5: Local Conversation Session
 

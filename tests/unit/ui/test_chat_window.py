@@ -135,12 +135,12 @@ class ChatWindowTest(unittest.TestCase):
         self.assertEqual(window._voice_button.text(), "Stop")
         self.assertEqual(requested, [True])
 
-    def test_voice_button_cancels_only_the_active_operation(self) -> None:
+    def test_voice_button_cancels_input_or_interrupts_output(self) -> None:
         window = ChatWindow()
         input_cancels: list[bool] = []
-        output_cancels: list[bool] = []
+        talk_requests: list[bool] = []
         window.voice_listen_cancel_requested.connect(lambda: input_cancels.append(True))
-        window.voice_speak_stop_requested.connect(lambda: output_cancels.append(True))
+        window.voice_listen_requested.connect(lambda: talk_requests.append(True))
         window.set_voice_capabilities(input_enabled=True, output_enabled=True)
 
         window.set_voice_state("thinking", "input")
@@ -149,7 +149,19 @@ class ChatWindowTest(unittest.TestCase):
         window._voice_button.click()
 
         self.assertEqual(input_cancels, [True])
-        self.assertEqual(output_cancels, [True])
+        self.assertEqual(talk_requests, [True])
+
+    def test_voice_button_interrupts_speaking_when_input_is_available(self) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_listen_requested.connect(lambda: requested.append(True))
+        window.set_voice_capabilities(input_enabled=True, output_enabled=True)
+        window.set_voice_state("speaking", "output")
+
+        window._voice_button.click()
+
+        self.assertEqual(window._voice_button.text(), "Talk")
+        self.assertEqual(requested, [True])
 
     def test_voice_button_stops_speaking(self) -> None:
         window = ChatWindow()
@@ -210,14 +222,14 @@ class ChatWindowTest(unittest.TestCase):
 
         self.assertFalse(window._voice_replay_button.isEnabled())
 
-    def test_chat_busy_state_disables_voice_button(self) -> None:
+    def test_chat_busy_state_keeps_talk_available_for_interruption(self) -> None:
         window = ChatWindow()
         window.set_voice_capabilities(input_enabled=True, output_enabled=True)
         window.set_voice_state("idle")
 
         window.set_busy(True)
 
-        self.assertFalse(window._voice_button.isEnabled())
+        self.assertTrue(window._voice_button.isEnabled())
 
     def test_voice_transcript_is_inserted_without_being_sent(self) -> None:
         window = ChatWindow()
@@ -256,6 +268,19 @@ class ChatWindowTest(unittest.TestCase):
         window.submit_voice_transcript("Final recognized speech.")
 
         self.assertEqual(submitted, ["Final recognized speech."])
+        self.assertEqual(window._input.text(), "")
+
+    def test_interruption_transcript_submits_while_previous_worker_is_busy(
+        self,
+    ) -> None:
+        window = ChatWindow()
+        submitted: list[str] = []
+        window.message_submitted.connect(submitted.append)
+        window.set_busy(True)
+
+        window.submit_voice_transcript("New interrupted turn.")
+
+        self.assertEqual(submitted, ["New interrupted turn."])
         self.assertEqual(window._input.text(), "")
 
     def test_voice_input_status_explains_how_to_finish_recording(self) -> None:

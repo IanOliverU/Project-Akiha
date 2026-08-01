@@ -291,8 +291,6 @@ class ChatWindow(QWidget):
 
     def submit_voice_transcript(self, text: str) -> None:
         """Insert and submit a final recognized utterance."""
-        if self._chat_busy:
-            return
         self.insert_voice_transcript(text)
         self._submit_message()
 
@@ -343,8 +341,6 @@ class ChatWindow(QWidget):
         self.cancel_requested.emit()
 
     def _request_voice_action(self) -> None:
-        if self._chat_busy:
-            return
         if self._voice_state == "idle" and self._voice_input_enabled:
             self.voice_listen_requested.emit()
         elif self._voice_state == "listening" and self._voice_operation == "input":
@@ -353,9 +349,15 @@ class ChatWindow(QWidget):
             if self._voice_operation == "input":
                 self.voice_listen_cancel_requested.emit()
             elif self._voice_operation == "output":
-                self.voice_speak_stop_requested.emit()
+                if self._voice_input_enabled:
+                    self.voice_listen_requested.emit()
+                else:
+                    self.voice_speak_stop_requested.emit()
         elif self._voice_state == "speaking" and self._voice_operation == "output":
-            self.voice_speak_stop_requested.emit()
+            if self._voice_input_enabled:
+                self.voice_listen_requested.emit()
+            else:
+                self.voice_speak_stop_requested.emit()
 
     def _refresh_voice_button(self) -> None:
         label = "Talk"
@@ -374,19 +376,29 @@ class ChatWindow(QWidget):
                 tooltip = "Cancel transcription"
                 enabled = self._voice_input_enabled
             elif self._voice_operation == "output":
-                tooltip = "Cancel speech synthesis"
-                enabled = self._voice_output_enabled
+                if self._voice_input_enabled:
+                    label = "Talk"
+                    tooltip = "Interrupt and talk"
+                    enabled = True
+                else:
+                    tooltip = "Cancel speech synthesis"
+                    enabled = self._voice_output_enabled
         elif self._voice_state == "speaking":
-            label = "Stop voice"
-            tooltip = "Stop speech playback"
-            enabled = self._voice_output_enabled
+            if self._voice_input_enabled:
+                label = "Talk"
+                tooltip = "Interrupt and talk"
+                enabled = True
+            else:
+                label = "Stop voice"
+                tooltip = "Stop speech playback"
+                enabled = self._voice_output_enabled
         elif self._voice_state == "error":
             label = "Voice error"
             tooltip = "Voice needs attention"
 
         self._voice_button.setText(label)
         self._voice_button.setToolTip(tooltip)
-        self._voice_button.setEnabled(enabled and not self._chat_busy)
+        self._voice_button.setEnabled(enabled)
 
     def _refresh_voice_replay_button(self) -> None:
         enabled = (

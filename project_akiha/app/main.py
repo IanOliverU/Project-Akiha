@@ -41,6 +41,9 @@ from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.streaming_voice_output_controller import (
     StreamingVoiceOutputController,
 )
+from project_akiha.app.talk_interruption_controller import (
+    TalkInterruptionController,
+)
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
@@ -628,6 +631,7 @@ def _run_application() -> int:
         show_english_subtitles=config.voice.english_subtitles_enabled,
     )
     active_chat_threads: list[ChatResponseThread] = []
+    interrupted_chat_threads: list[ChatResponseThread] = []
     active_action_threads: list[AssistantActionThread] = []
     active_tool_threads: list[
         AssistantToolProposalThread
@@ -1608,12 +1612,18 @@ def _run_application() -> int:
             elif event.kind is ModularResponseEventKind.FAILED:
                 _handle_chat_failure(event.error_message or "", chat_window, logger)
             elif event.kind is ModularResponseEventKind.CANCELLED:
-                logger.info("Chat response cancelled by user.")
-                chat_window.append_notice("Response stopped.")
+                if thread in interrupted_chat_threads:
+                    logger.info("Chat response interrupted by a new Talk request.")
+                    chat_window.append_notice("Response interrupted.")
+                else:
+                    logger.info("Chat response cancelled by user.")
+                    chat_window.append_notice("Response stopped.")
 
         def cleanup_thread() -> None:
             if thread in active_chat_threads:
                 active_chat_threads.remove(thread)
+            if thread in interrupted_chat_threads:
+                interrupted_chat_threads.remove(thread)
             update_chat_busy_state()
             thread.deleteLater()
 
@@ -2044,6 +2054,16 @@ def _run_application() -> int:
             thread.cancel()
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
 
+    def cancel_interruptible_work_for_talk() -> None:
+        for thread in tuple(active_chat_threads):
+            if thread not in interrupted_chat_threads:
+                interrupted_chat_threads.append(thread)
+            thread.cancel()
+        for thread in tuple(active_action_threads):
+            thread.cancel()
+        for thread in tuple(active_tool_threads):
+            thread.cancel()
+
     def has_active_operations() -> bool:
         return bool(active_chat_threads or active_action_threads or active_tool_threads)
 
@@ -2124,8 +2144,14 @@ def _run_application() -> int:
     chat_window.new_chat_requested.connect(start_new_chat)
     chat_window.clear_chat_requested.connect(clear_current_chat)
     chat_window.export_chat_requested.connect(export_current_chat)
+    talk_interruption_controller = TalkInterruptionController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        has_interruptible_work=has_active_operations,
+        cancel_interruptible_work=cancel_interruptible_work_for_talk,
+    )
     chat_window.voice_listen_requested.connect(
-        lambda: event_bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        talk_interruption_controller.request_talk
     )
     chat_window.voice_listen_stop_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
