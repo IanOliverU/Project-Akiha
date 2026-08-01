@@ -213,6 +213,18 @@ class AudioFrame:
             raise ValueError("audio frame data cannot be empty.")
         if len(self.data) > _MAX_AUDIO_FRAME_BYTES:
             raise ValueError("audio frame data exceeds the one MiB limit.")
+        if len(self.data) % self.sample_stride_bytes:
+            raise ValueError("audio frame data must end on a PCM sample boundary.")
+
+    @property
+    def sample_stride_bytes(self) -> int:
+        """Return the byte width of one interleaved PCM sample."""
+        return self.channels * self.sample_width_bytes
+
+    @property
+    def duration_seconds(self) -> float:
+        """Return the duration represented by this frame."""
+        return len(self.data) / self.sample_stride_bytes / self.sample_rate_hz
 
 
 @dataclass(frozen=True, slots=True)

@@ -1001,11 +1001,17 @@ through the new coordinator before new behavior is enabled.
 
 ### Milestone V2: Local Hearing
 
-- [ ] Add bounded audio-frame and rolling-buffer ownership.
+- [x] Add bounded audio-frame and rolling-buffer ownership.
 - [ ] Implement the rolling `faster-whisper` recognizer adapter.
 - [ ] Emit explicit partial revisions and one authoritative final revision.
 - [ ] Preserve confidence gating and endpoint diagnostics.
 - [ ] Benchmark against the current cumulative-snapshot baseline.
+
+Audio-frame ownership uses a production cumulative-snapshot bridge that emits
+only appended PCM in bounded frames and retains only length plus a bounded
+integrity digest between callbacks. `RollingAudioBuffer` then enforces one
+session/turn owner, ordered frames, a fixed PCM format, monotonic timestamps,
+and a strict in-memory duration limit before rolling recognition is enabled.
 
 ### Milestone V3: Natural Intent And Context
 

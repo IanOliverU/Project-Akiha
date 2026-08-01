@@ -1,5 +1,9 @@
 """Provider-neutral voice-session contracts and ownership primitives."""
 
+from project_akiha.core.voice_session.audio_buffer import (
+    AudioBufferSnapshot,
+    RollingAudioBuffer,
+)
 from project_akiha.core.voice_session.ledger import VoiceTurnLedger
 from project_akiha.core.voice_session.models import (
     ActionProposal,
@@ -41,6 +45,7 @@ from project_akiha.core.voice_session.protocols import (
 
 __all__ = [
     "ActionProposal",
+    "AudioBufferSnapshot",
     "AssistantTextRevision",
     "AudioFrame",
     "CaptureStage",
@@ -57,6 +62,7 @@ __all__ = [
     "PlaybackStage",
     "ProposalState",
     "RecognitionStage",
+    "RollingAudioBuffer",
     "ResponseSegment",
     "SanitizedActionResult",
     "SessionLifecycle",
