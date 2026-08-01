@@ -12,6 +12,7 @@ from project_akiha.core.state.voice import (
     VoiceState,
     VoiceStateMachine,
 )
+from project_akiha.core.voice_session import TranscriptRevision
 
 
 class _VoiceOperation(StrEnum):
@@ -116,6 +117,7 @@ class VoiceController:
         confidence_level: str | None = None,
         *,
         requires_review: bool = False,
+        revision: TranscriptRevision | None = None,
     ) -> None:
         """Publish an accepted transcript without sending it to chat."""
         if self._operation != _VoiceOperation.INPUT:
@@ -158,6 +160,8 @@ class VoiceController:
             payload["confidence_level"] = confidence_level
         if requires_review:
             payload["requires_review"] = True
+        if revision is not None:
+            payload["revision"] = revision
         self._event_bus.publish(EventType.VOICE_TRANSCRIPT_READY, payload)
 
     def report_error(self, code: str, message: str) -> None:

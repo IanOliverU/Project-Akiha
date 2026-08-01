@@ -30,6 +30,9 @@ from project_akiha.app.proactive_speech_controller import ProactiveSpeechControl
 from project_akiha.app.push_to_talk_session_controller import (
     PushToTalkSessionController,
 )
+from project_akiha.app.rolling_voice_transcription_controller import (
+    RollingVoiceTranscriptionController,
+)
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
@@ -515,11 +518,18 @@ def _run_application() -> int:
     )
     microphone_capture = QtMicrophoneCapture(device_name=config.voice.input_device)
     speech_input_service = _build_speech_input_service(config.voice, paths.model_dir)
-    voice_transcription_controller = VoiceTranscriptionController(
+    diagnostic_transcription_controller = VoiceTranscriptionController(
         event_bus=event_bus,
         voice_controller=voice_controller,
         service=speech_input_service,
+    )
+    voice_transcription_controller = RollingVoiceTranscriptionController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
         session_coordinator=voice_session_coordinator,
+        service=speech_input_service,
+        config=config.voice,
+        diagnostic_controller=diagnostic_transcription_controller,
     )
     voice_endpoint_controller = VoiceEndpointController(
         event_bus=event_bus,
@@ -649,7 +659,10 @@ def _run_application() -> int:
             paths.model_dir,
         )
         speech_output_service = _build_speech_output_service(updated_config.voice)
-        voice_transcription_controller.apply_service(speech_input_service)
+        voice_transcription_controller.apply_service(
+            speech_input_service,
+            updated_config.voice,
+        )
         voice_synthesis_controller.apply_service(speech_output_service)
         voice_diagnostics_controller.apply_service(
             VoiceDiagnosticsService(

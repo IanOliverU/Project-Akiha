@@ -217,6 +217,16 @@ class PushToTalkSessionController:
         status: TranscriptStatus,
     ) -> TranscriptRevision | None:
         turn = self._active_turn()
+        provided_revision = event.payload.get("revision")
+        if isinstance(provided_revision, TranscriptRevision):
+            if (
+                turn is not None
+                and provided_revision.status is status
+                and (provided_revision.session_id, provided_revision.turn_id)
+                == (turn.session_id, turn.turn_id)
+            ):
+                return provided_revision
+            return None
         text = event.payload.get("text")
         if turn is None or not isinstance(text, str) or not text.strip():
             return None

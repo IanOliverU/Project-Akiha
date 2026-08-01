@@ -1004,7 +1004,7 @@ through the new coordinator before new behavior is enabled.
 - [x] Add bounded audio-frame and rolling-buffer ownership.
 - [x] Implement the rolling `faster-whisper` recognizer adapter.
 - [x] Emit explicit partial revisions and one authoritative final revision.
-- [ ] Preserve confidence gating and endpoint diagnostics.
+- [x] Preserve confidence gating and endpoint diagnostics.
 - [ ] Benchmark against the current cumulative-snapshot baseline.
 
 Audio-frame ownership uses a production cumulative-snapshot bridge that emits
@@ -1020,6 +1020,11 @@ The streaming recognizer applies the shared partial-stability policy, assigns
 monotonic revision numbers, maps provider confidence into coarse privacy-safe
 bands, and emits exactly one final revision with its endpoint reason. The
 existing batch event bridge remains authoritative until the V2 switchover.
+The production Qt controller now queues bounded frame batches through the
+rolling recognizer and attaches each canonical revision to the existing voice
+events. This preserves transcript-progress endpointing, low-confidence manual
+review, privacy-safe microphone activity, auto-send behavior, and the batch
+Settings microphone test without creating a second ledger authority.
 
 ### Milestone V3: Natural Intent And Context
 
