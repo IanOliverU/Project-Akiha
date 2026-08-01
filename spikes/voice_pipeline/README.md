@@ -13,6 +13,8 @@ The framework-neutral harness proves:
   still being generated
 - independently synthesized segments still play in canonical order
 - cancelled and stale turn callbacks are rejected
+- cumulative snapshots from the existing Qt microphone owner become bounded,
+  monotonic PCM frames without opening another capture device
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.

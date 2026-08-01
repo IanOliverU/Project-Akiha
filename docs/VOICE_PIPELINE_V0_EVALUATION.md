@@ -29,6 +29,9 @@ It does not alter the production runtime or read production user data.
   environment without changing Akiha's `.venv313`.
 - [x] Passed text and termination frames through Pipecat's current
   `PipelineWorker` and `WorkerRunner` APIs.
+- [x] Prototyped a non-owning Qt snapshot bridge that emits bounded incremental
+  PCM frames and rejects duplicate, backwards, mutated, or format-changing
+  snapshot streams.
 
 ## Measurements
 
@@ -62,8 +65,11 @@ real packaged-size probe before approval.
 5. Pipecat's standard local Whisper path remains segment-oriented. Akiha still
    needs its rolling recognizer or a proven true-streaming local recognizer for
    partial text during speech.
-6. Akiha still needs custom Qt input/output bridges and a VOICEVOX processor.
-7. Chat, memory, identity, subtitles, typed actions, permissions, and audit
+6. The existing Qt microphone can remain the sole hardware owner. Its current
+   cumulative snapshots can be adapted safely, although a direct bounded-frame
+   callback will avoid repeated prefix comparison in production.
+7. Akiha still needs a custom Qt output bridge and VOICEVOX processor.
+8. Chat, memory, identity, subtitles, typed actions, permissions, and audit
    history remain Akiha-owned regardless of the framework decision.
 
 ## Current Decision
@@ -75,7 +81,7 @@ and Nuitka result remain unresolved.
 
 ## Remaining V0 Checks
 
-- [ ] Prototype a Qt audio-frame bridge without opening a second microphone.
+- [x] Prototype a Qt audio-frame bridge without opening a second microphone.
 - [ ] Prototype an ordered VOICEVOX frame processor using fake audio output.
 - [ ] Confirm rolling transcript revisions can enter the pipeline without
   relying on Pipecat's segmented Whisper service.
@@ -90,7 +96,7 @@ and Nuitka result remain unresolved.
 Current repository verification:
 
 - 16 focused pipeline and local/hosted provider tests passed.
-- Full suite: 933 tests passed, 3 skipped.
+- Full suite after the Qt input bridge: 939 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.

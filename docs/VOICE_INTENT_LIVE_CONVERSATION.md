@@ -957,6 +957,7 @@ V6 begins.
 - [x] Build the smallest possible Pipecat spike using fake audio and provider
   adapters before integrating production UI.
 - [ ] Validate the Qt input/output bridge and single microphone ownership.
+  Input ownership is proven by the V0 snapshot bridge; output remains pending.
 - [ ] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
 - [ ] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
