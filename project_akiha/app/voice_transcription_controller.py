@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from typing import Protocol
 
 from project_akiha.app.voice_controller import VoiceController
+from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
@@ -97,14 +98,17 @@ class VoiceTranscriptionController:
             [SpeechInputService, CapturedAudio],
             _TranscriptionThread,
         ] = VoiceTranscriptionThread,
+        session_coordinator: VoiceSessionCoordinator | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._voice_controller = voice_controller
         self._service = service
         self._thread_factory = thread_factory
+        self._session_coordinator = session_coordinator
         self._active_threads: list[_TranscriptionThread] = []
         self._cancelled_threads: list[_TranscriptionThread] = []
         self._thread_modes: dict[_TranscriptionThread, str] = {}
+        self._thread_turns: dict[_TranscriptionThread, tuple[str, str]] = {}
         self._pending_partial: CapturedAudio | None = None
         self._pending_final: CapturedAudio | None = None
         self._partial_stabilizer = _PartialTranscriptStabilizer()
@@ -193,6 +197,10 @@ class VoiceTranscriptionController:
         thread.finished.connect(lambda worker=thread: self._remove_thread(worker))
         self._active_threads.append(thread)
         self._thread_modes[thread] = mode
+        if mode in {"partial", "final"} and self._session_coordinator is not None:
+            turn = self._session_coordinator.snapshot.active_turn
+            if turn is not None:
+                self._thread_turns[thread] = (turn.session_id, turn.turn_id)
         thread.start()
 
     def cancel(self, wait_ms: int = 2000) -> None:
@@ -226,6 +234,8 @@ class VoiceTranscriptionController:
         transcript: object,
     ) -> None:
         if thread not in self._active_threads or thread in self._cancelled_threads:
+            return
+        if not self._thread_still_owns_turn(thread):
             return
         if not isinstance(transcript, VoiceTranscript):
             if self._thread_modes.get(thread) == "final":
@@ -276,12 +286,16 @@ class VoiceTranscriptionController:
     ) -> None:
         if thread not in self._active_threads or thread in self._cancelled_threads:
             return
+        if not self._thread_still_owns_turn(thread):
+            return
         if self._thread_modes.get(thread) == "partial":
             return
         self._voice_controller.report_error(code, message)
 
     def _handle_cancelled(self, thread: _TranscriptionThread) -> None:
         if thread not in self._active_threads:
+            return
+        if not self._thread_still_owns_turn(thread):
             return
         if (
             self._thread_modes.get(thread) == "partial"
@@ -300,6 +314,7 @@ class VoiceTranscriptionController:
         if thread in self._cancelled_threads:
             self._cancelled_threads.remove(thread)
         self._thread_modes.pop(thread, None)
+        self._thread_turns.pop(thread, None)
         if self._active_threads:
             return
         if self._pending_final is not None:
@@ -315,6 +330,17 @@ class VoiceTranscriptionController:
             audio = self._pending_partial
             self._pending_partial = None
             self._start_thread(audio, mode="partial")
+
+    def _thread_still_owns_turn(self, thread: _TranscriptionThread) -> bool:
+        if self._session_coordinator is None:
+            return True
+        mode = self._thread_modes.get(thread)
+        if mode == "test":
+            return True
+        identity = self._thread_turns.get(thread)
+        return identity is not None and self._session_coordinator.accepts_callback(
+            *identity
+        )
 
 
 def _is_related_growth(previous: str, candidate: str) -> bool:

@@ -27,6 +27,9 @@ from project_akiha.app.pet_controller import PetController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.proactive_speech_controller import ProactiveSpeechController
+from project_akiha.app.push_to_talk_session_controller import (
+    PushToTalkSessionController,
+)
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
@@ -34,6 +37,7 @@ from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
 from project_akiha.app.voice_endpoint_controller import VoiceEndpointController
 from project_akiha.app.voice_playback_controller import VoicePlaybackController
+from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.app.voice_synthesis_controller import VoiceSynthesisController
 from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
@@ -93,6 +97,7 @@ from project_akiha.core.memory.extraction import (
     MemoryExtractor,
 )
 from project_akiha.core.state.animation import AnimationStateMachine
+from project_akiha.core.voice_session import VoiceProcessingMode
 from project_akiha.database import (
     SQLiteActionRepository,
     SQLiteBehaviorRepository,
@@ -274,6 +279,18 @@ def _run_application() -> int:
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
     voice_controller = VoiceController(event_bus, config.voice)
+    voice_session_coordinator = VoiceSessionCoordinator()
+    push_to_talk_session_controller = PushToTalkSessionController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        session_coordinator=voice_session_coordinator,
+        processing_mode_provider=lambda: (
+            VoiceProcessingMode.HYBRID_API_MODULAR
+            if config.ai.uses_hosted_api
+            else VoiceProcessingMode.LOCAL_MODULAR
+        ),
+        input_provider_name=lambda: config.voice.input_provider,
+    )
     mood_controller = MoodController(event_bus, MoodEngine())
     presence_mapper = CompanionPresenceMapper()
     notification_policy = NotificationPolicy(config.behavior)
@@ -497,6 +514,7 @@ def _run_application() -> int:
         event_bus=event_bus,
         voice_controller=voice_controller,
         service=speech_input_service,
+        session_coordinator=voice_session_coordinator,
     )
     voice_endpoint_controller = VoiceEndpointController(
         event_bus=event_bus,
@@ -1901,6 +1919,7 @@ def _run_application() -> int:
 
     def shutdown_app() -> None:
         voice_endpoint_controller.cancel()
+        push_to_talk_session_controller.close()
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:
             logger.warning("AI provider discovery did not stop before shutdown.")

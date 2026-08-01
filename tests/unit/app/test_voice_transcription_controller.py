@@ -6,6 +6,7 @@ import unittest
 from collections.abc import Callable
 
 from project_akiha.app.voice_controller import VoiceController
+from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
 )
@@ -13,6 +14,7 @@ from project_akiha.config import VoiceConfig
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
+from project_akiha.core.voice_session import VoiceInputMode, VoiceProcessingMode
 from project_akiha.providers.voice import CapturedAudio, VoiceTranscript
 
 
@@ -283,6 +285,23 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
         self.assertEqual(completed[-1].payload["confidence_level"], "high")
         self.assertNotIn("text", completed[-1].payload)
 
+    def test_replaced_turn_discards_late_transcript_and_failure(self) -> None:
+        coordinator = VoiceSessionCoordinator(session_id_factory=lambda: "session-1")
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        coordinator.begin_turn(VoiceInputMode.PUSH_TO_TALK)
+        bus, _, controller, threads, transcripts, errors = _build(
+            session_coordinator=coordinator
+        )
+        _begin_transcription(bus, controller)
+
+        coordinator.replace_turn(VoiceInputMode.PUSH_TO_TALK)
+        threads[0].transcript_ready.emit(VoiceTranscript("Private stale words", "en"))
+        threads[0].transcription_failed.emit("late_failure", "Private failure.")
+
+        self.assertEqual(transcripts, [])
+        self.assertEqual(errors, [])
+
 
 class _Signal:
     def __init__(self) -> None:
@@ -322,6 +341,7 @@ class _Thread:
 def _build(
     *,
     thread_finished: bool = True,
+    session_coordinator: VoiceSessionCoordinator | None = None,
 ) -> tuple[
     EventBus,
     VoiceController,
@@ -344,6 +364,7 @@ def _build(
         voice_controller=voice,
         service=object(),
         thread_factory=build_thread,
+        session_coordinator=session_coordinator,
     )
     transcripts: list[Event] = []
     errors: list[Event] = []
