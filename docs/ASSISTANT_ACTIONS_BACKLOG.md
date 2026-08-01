@@ -1,7 +1,10 @@
 # Assistant Actions Improvement Backlog
 
-**Status:** Active - Voice Intent and Live Conversation improvements next;
-Spotify implementation closed
+**Status:** Active - Post-Phase 8 Voice Intent and Live Conversation
+architecture approved; Spotify source implementation closed, packaged
+verification pending
+
+Approved architecture: `docs/VOICE_INTENT_LIVE_CONVERSATION.md`
 
 ## Purpose
 
@@ -10,17 +13,19 @@ document tracks incremental improvements that make spoken and typed actions
 feel more conversational without weakening that boundary or turning them into
 a new implementation phase.
 
-The guiding pipeline is:
+The approved architecture replaces an end-to-end sequential wait with bounded
+concurrent stages:
 
 ```text
-microphone -> speech endpointing -> transcript stabilization
-           -> intent proposal -> context resolution
-           -> typed action request -> validation and permission
-           -> confirmation when needed -> execution -> sanitized audit
+microphone -> capture + partial recognition + speculative intent preparation
+           -> accepted final transcript
+                -> committed intent -> typed action gateway -> sanitized audit
+                -> local LLM or hosted API response stream
+                     -> stable speech segments -> synthesis -> playback
 ```
 
-Every provider response and transcript remains untrusted input. Only registered
-typed actions may reach an executor.
+Partial intent never executes. Every provider response and final transcript
+remains untrusted input. Only registered typed actions may reach an executor.
 
 ## Hearing And Transcription
 
@@ -125,9 +130,8 @@ clear short command and a genuinely uncertain high-no-speech result.
 - [x] Connect constrained typed/voice proposals without exposing library data to
   hosted providers.
 - [x] Run source QA and automated Spotify verification.
-- [ ] After the new voice architecture lands, run the consolidated manual
-  Spotify/voice roundup, rebuild the standalone package, and complete packaged
-  smoke.
+- [ ] Independently run the manual Spotify roundup, rebuild the standalone
+  package, and complete packaged smoke before voice implementation begins.
 
 ## Hard Safety Rules
 

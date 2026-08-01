@@ -51,9 +51,13 @@ sanitized action history. The Python 3.13 standalone package passed automated
 and manual Phase 8 verification. The optional Spotify extension is now
 source-complete with PKCE account connection, permission-gated playback,
 artist/track/album/playlist workflows, Liked Songs and favorite mixes, and
-ephemeral local preference ranking. Its consolidated manual test and new
-standalone package are deferred until the Voice Intent and Live Conversation
-architecture is integrated. Pet simulation remains planned after that work.
+ephemeral local preference ranking. Its source implementation is complete, but
+its independent manual packaged verification and replacement standalone build
+remain pending. Pet simulation remains planned after the Voice Intent and Live
+Conversation work. The approved Post-Phase 8 voice milestone will replace the
+current sequential wait pattern with a provider-neutral pipeline supporting a
+fully local Ollama lane, a hybrid hosted-text-API lane, and an optional hosted
+live-audio lane without changing the Phase 8 permission boundary.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -65,6 +69,7 @@ architecture is integrated. Pet simulation remains planned after that work.
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
+| Post-Phase 8 | Approved | Pipelined voice intent and live conversation with local/API support |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -413,6 +418,9 @@ Phase 8 plan: `docs/PHASE8_ASSISTANT_ACTIONS.md`
 Assistant-action improvement backlog: `docs/ASSISTANT_ACTIONS_BACKLOG.md`
 
 Spotify integration and closure record: `docs/SPOTIFY_INTEGRATION.md`
+
+Approved Post-Phase 8 Voice Intent and Live Conversation architecture:
+`docs/VOICE_INTENT_LIVE_CONVERSATION.md`
 
 Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 

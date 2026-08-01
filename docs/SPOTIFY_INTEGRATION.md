@@ -1,15 +1,16 @@
 # Spotify Integration
 
-**Status:** Implementation complete - closed 2026-08-01
+**Status:** Source implementation complete - packaged verification pending
 
 **Automated baseline:** 927 tests passed, 3 skipped. Spotify-focused service
 coverage passed 120 tests. Ruff, Black, compilation, import, and diff checks
 also passed.
 
-**Integrated release gate:** The consolidated manual Spotify/voice roundup and
-new standalone build are intentionally deferred until the Voice Intent and
-Live Conversation architecture is integrated. The current Phase 8 package
-does not represent this source-complete Spotify implementation.
+**Independent release gate:** Spotify no longer waits for the Voice Intent and
+Live Conversation architecture. The current Phase 8 package predates Spotify,
+so one standalone rebuild and packaged Spotify smoke pass remain required.
+
+Approved Post-Phase 8 architecture: `docs/VOICE_INTENT_LIVE_CONVERSATION.md`
 
 ## Purpose
 
@@ -168,19 +169,19 @@ intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
 preference exports to hosted-provider prompts.
 
-## Personal Preference Export
+## Historical Personal Preference Export
 
-`assets/animations/akiha/Spotify.txt` is a private local export supplied for
-ranking experiments. It is not an application asset:
+The private `assets/animations/akiha/Spotify.txt` ranking export was removed
+after the Spotify API preference path was completed. Its historical path
+remains denylisted as defense in depth:
 
 - ignored by Git
 - explicitly excluded by the Nuitka build
 - rejected by packaged-artifact validation if present
-- never logged or sent to an AI or Spotify endpoint by the current code
+- absent from the current workspace
 
-A later import action will copy parsed rankings into local application data so
-the source export can live outside the repository. Tests must use synthetic
-track and artist names rather than the user's data.
+There is no planned runtime import from that path. Tests use synthetic track
+and artist names rather than the user's data.
 
 ## Implementation Checklist
 
@@ -225,12 +226,12 @@ found. Deterministic parsing, typed requests, permission checks, local
 resolution, and audited execution remain the compatibility boundary for the
 next voice system.
 
-The following integrated verification is deferred rather than marked done:
+The following independent release verification remains open:
 
-- consolidated manual Spotify command roundup through the new voice path
+- manual Spotify command roundup through the current source voice path
 - standalone rebuild containing the complete Spotify implementation
 - packaged Spotify authentication, playback, and failure-mode smoke test
 - removal of the previous package only after the new candidate is confirmed
 
-Deferral avoids validating and packaging the same user-facing voice-to-action
-path twice. It does not weaken the automated baseline recorded above.
+This release gate should run independently before implementation of the new
+voice architecture. Future voice work retains its own Spotify regression tests.

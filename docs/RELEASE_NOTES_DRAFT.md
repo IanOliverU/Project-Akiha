@@ -68,7 +68,7 @@ check-ins, optional local voice, and diagnostics.
 
 ## Source-Complete After Current Candidate
 
-The source tree now also contains the closed Spotify implementation:
+The source tree now also contains the source-complete Spotify implementation:
 
 - Authorization Code with PKCE and DPAPI-encrypted refresh-token storage.
 - Separate revocable Spotify playback permission and sanitized action audit.
@@ -79,8 +79,8 @@ The source tree now also contains the closed Spotify implementation:
 
 These additions passed the 2026-08-01 automated baseline of 927 tests with 3
 skipped. They are not represented by the existing Phase 8 package named above.
-The consolidated Spotify/voice manual test and replacement package are deferred
-until Voice Intent and Live Conversation integration is complete.
+Spotify now has an independent manual roundup and replacement-package release
+gate. It no longer waits for Voice Intent and Live Conversation integration.
 
 ## Known Limitations
 

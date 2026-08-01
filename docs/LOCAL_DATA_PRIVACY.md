@@ -72,8 +72,41 @@ does not request or store a Spotify Client Secret.
 - Akiha does not send Spotify library or listening-history metadata to a hosted
   AI provider. A hosted provider may interpret the user's own action sentence,
   but local Spotify lookup and execution remain typed and local.
-- Optional listening exports are local ranking seeds. They are ignored by Git,
-  prohibited from packaged artifacts, and are not uploaded by Akiha.
+- The historical local listening export was removed. Its former repository
+  path remains ignored and prohibited from packaged artifacts as defense in
+  depth; Akiha has no runtime importer for it.
+
+## Planned Pipelined Voice Modes
+
+The approved Post-Phase 8 Voice Intent and Live Conversation architecture is
+not yet implemented. It preserves three explicit processing modes:
+
+- **Fully Local Modular:** microphone audio, transcription, Ollama/local LLM
+  generation, speech rendering, and VOICEVOX playback remain local.
+- **Hybrid API Modular:** microphone audio and transcription remain local; the
+  accepted transcript and bounded conversation context are sent to the
+  explicitly selected hosted text provider; VOICEVOX playback remains local.
+- **Hosted Live:** microphone audio is streamed to the explicitly selected
+  realtime provider and its native audio may be played locally.
+
+No failure silently switches between these modes. Settings must show whether
+the current mode sends no conversation data, text, or microphone audio to a
+hosted provider.
+
+If Gemini Live is enabled later:
+
+- cloud microphone streaming will require a separate explicit user-started
+  session and versioned privacy acknowledgement
+- the first release will enforce a finite duration and mandatory context-window
+  compression rather than permit unlimited sessions
+- current Google pricing and data-use terms will be revalidated before release
+- the notice will explain that current Gemini Developer API pricing labels
+  free-tier content as eligible to improve Google's products and paid-tier
+  content as not used for that purpose
+- provider-reported token usage may be shown as privacy-safe support data, but
+  Akiha will not promise a fixed per-minute cost
+- local push-to-talk, local Conversation Session, Ollama, faster-whisper, and
+  VOICEVOX will remain available without Gemini Live
 
 ## Chat Transcripts
 
@@ -204,6 +237,8 @@ The notice explains:
 - push-to-talk microphone behavior and temporary raw audio
 - local processing through faster-whisper, VOICEVOX, and Ollama
 - hosted-provider transmission of chat text and relevant context
+- optional hosted-live transmission of microphone audio with a separate
+  versioned acknowledgement and visible active-session state
 - additional hosted requests for subtitles, summaries, and memory extraction
 - local conversation, memory, settings, and log storage
 - Windows-user encryption for hosted API credentials
