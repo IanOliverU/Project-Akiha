@@ -891,8 +891,8 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 - [x] Negation, hypothetical, quoted-command, and metalinguistic rejection.
 - [x] Context follow-up and context-expiry tests.
 - [ ] Ambiguity and confirmation tests.
-- [ ] Deterministic-versus-provider arbitration tests.
-- [ ] At-most-once action execution tests.
+- [x] Deterministic-versus-provider arbitration tests.
+- [x] At-most-once action execution tests.
 - [ ] Hosted-provider local-data isolation tests.
 
 ### Speaking
@@ -1036,7 +1036,7 @@ The benchmark does not claim real-model accuracy or inference latency.
 - [x] Add the tolerant deterministic command-envelope parser.
 - [x] Add negative and metalinguistic guards.
 - [x] Expand ephemeral reference context.
-- [ ] Add intent arbitration and at-most-once turn ledger.
+- [x] Add intent arbitration and at-most-once turn ledger.
 - [ ] Add optional typed provider proposal fallback.
 
 The deterministic envelope parser is framework-free and runs before the
@@ -1060,6 +1060,15 @@ Only bounded metadata, local paths, and opaque service identifiers are held in
 memory; this context is never persisted or sent to companion memory. An
 unnamed child folder remains ambiguous and produces a clarification instead of
 guessing.
+
+Each submitted message now receives an opaque intent-turn ID. Exact and
+contextual local routing closes before a hosted proposal becomes eligible, and
+the bounded `IntentTurnLedger` accepts at most one action category for that
+turn. Later duplicate or conflicting callbacks are recorded as non-executed
+privacy-safe decisions. Ledger records contain only turn ID, proposal ID,
+action category, source, and decision reason; they never contain user text,
+paths, action parameters, or provider output. File-opening confirmation resumes
+the already accepted action rather than creating a second proposal.
 
 ### Milestone V4: Streaming Local Speech
 

@@ -169,6 +169,11 @@ from project_akiha.services.ephemeral_action_context import (
     EphemeralSelectionReference,
 )
 from project_akiha.services.event_logger import EventLogger
+from project_akiha.services.intent_arbitration import (
+    IntentArbiter,
+    IntentProposal,
+    IntentProposalSource,
+)
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
@@ -398,6 +403,7 @@ def _run_application() -> int:
     spotify_album_selection_store = SpotifyAlbumSelectionStore()
     spotify_playlist_selection_store = SpotifyPlaylistSelectionStore()
     ephemeral_action_context = EphemeralActionContext()
+    intent_arbiter = IntentArbiter()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -634,6 +640,7 @@ def _run_application() -> int:
         )
         assistant_tool_result_store.clear()
         ephemeral_action_context.clear()
+        intent_arbiter.clear()
         assistant_translation_controller.apply_service(
             AssistantTranslationService(ai_provider, conversation_repository)
         )
@@ -1098,6 +1105,43 @@ def _run_application() -> int:
             lambda thread=action_thread: cleanup_action_thread(thread)
         )
         action_thread.start()
+
+    def accept_intent(
+        turn_id: str,
+        action_category: str,
+        source: IntentProposalSource,
+    ) -> bool:
+        proposal = IntentProposal(
+            turn_id=turn_id,
+            proposal_id=f"intent-proposal-{uuid4().hex}",
+            action_category=action_category,
+            source=source,
+        )
+        decision = (
+            intent_arbiter.resolve_provider(proposal)
+            if source is IntentProposalSource.PROVIDER
+            else intent_arbiter.resolve_local(proposal)
+        )
+        logger.info(
+            "Intent arbitration turn=%s category=%s source=%s decision=%s",
+            decision.turn_id,
+            decision.action_category,
+            decision.source.name.casefold(),
+            decision.reason.value,
+        )
+        if decision.accepted:
+            return True
+        chat_window.append_notice("A duplicate or conflicting action was ignored.")
+        return False
+
+    def start_intent_action(
+        action_request: ActionRequest,
+        *,
+        turn_id: str,
+        source: IntentProposalSource,
+    ) -> None:
+        if accept_intent(turn_id, action_request.action_id, source):
+            start_action_thread(action_request)
 
     def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
         result = dispatch.result
@@ -1606,7 +1650,15 @@ def _run_application() -> int:
             return (navigation_context,)
         return _collapse_nested_roots(tuple(directory.root for directory in eligible))
 
-    def start_directory_search(proposal: AssistantToolProposal) -> None:
+    def start_directory_search(
+        proposal: AssistantToolProposal,
+        *,
+        turn_id: str,
+        source: IntentProposalSource,
+    ) -> None:
+        if not accept_intent(turn_id, "files.navigate_directory", source):
+            update_chat_busy_state()
+            return
         roots = directory_navigation_roots(proposal)
         if not roots:
             chat_window.append_error(
@@ -1690,7 +1742,15 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
-    def start_media_search(proposal: AssistantToolProposal) -> None:
+    def start_media_search(
+        proposal: AssistantToolProposal,
+        *,
+        turn_id: str,
+        source: IntentProposalSource,
+    ) -> None:
+        if not accept_intent(turn_id, "files.search_media", source):
+            update_chat_busy_state()
+            return
         roots = searchable_assistant_roots()
         if not roots:
             chat_window.append_error(
@@ -1775,7 +1835,7 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
-    def start_tool_proposal(message: str) -> None:
+    def start_tool_proposal(message: str, *, turn_id: str) -> None:
         chat_window.set_busy(True)
         thread = AssistantToolProposalThread(
             assistant_tool_gateway,
@@ -1794,7 +1854,11 @@ def _run_application() -> int:
                     source="llm_proposal",
                     parameters={"application_id": proposal.application_id},
                 )
-                start_action_thread(request)
+                start_intent_action(
+                    request,
+                    turn_id=turn_id,
+                    source=IntentProposalSource.PROVIDER,
+                )
                 return
             if proposal.kind is AssistantToolKind.CLOSE_APPLICATION:
                 request = ActionRequest(
@@ -1803,12 +1867,24 @@ def _run_application() -> int:
                     source="llm_proposal",
                     parameters={"application_id": proposal.application_id},
                 )
-                start_action_thread(request)
+                start_intent_action(
+                    request,
+                    turn_id=turn_id,
+                    source=IntentProposalSource.PROVIDER,
+                )
                 return
             if proposal.kind is AssistantToolKind.OPEN_DIRECTORY:
-                start_directory_search(proposal)
+                start_directory_search(
+                    proposal,
+                    turn_id=turn_id,
+                    source=IntentProposalSource.PROVIDER,
+                )
                 return
-            start_media_search(proposal)
+            start_media_search(
+                proposal,
+                turn_id=turn_id,
+                source=IntentProposalSource.PROVIDER,
+            )
 
         def handle_failure(error_message: str) -> None:
             logger.info(
@@ -1833,9 +1909,11 @@ def _run_application() -> int:
         thread.start()
 
     def submit_chat_message(message: str) -> None:
+        turn_id = f"intent-turn-{uuid4().hex}"
         refresh_assistant_action_aliases()
         selection_error = None
         action_request = None
+        action_source = IntentProposalSource.CONTEXT
         directory_reference = None
         reference = ephemeral_action_context.resolve(message)
         if isinstance(reference, ActionRequest):
@@ -1874,6 +1952,8 @@ def _run_application() -> int:
             selection_error = reference.message
         if action_request is None and selection_error is None:
             action_request = assistant_action_bridge.parse_user_text(message)
+            if action_request is not None:
+                action_source = IntentProposalSource.EXACT
         directory_proposal = None
         if directory_reference is not None:
             directory_proposal = directory_reference
@@ -1884,20 +1964,31 @@ def _run_application() -> int:
             )
         chat_window.append_message("You", message)
         if selection_error is not None:
+            intent_arbiter.complete_local_routing(turn_id)
             chat_window.append_message(
                 config.personality.character_name,
                 selection_error,
             )
             return
         if action_request is not None:
-            start_action_thread(action_request)
+            start_intent_action(
+                action_request,
+                turn_id=turn_id,
+                source=action_source,
+            )
             return
         if directory_proposal is not None:
-            start_directory_search(directory_proposal)
+            start_directory_search(
+                directory_proposal,
+                turn_id=turn_id,
+                source=IntentProposalSource.CONTEXT,
+            )
             return
         if assistant_tool_gateway.enabled and should_request_tool_proposal(message):
-            start_tool_proposal(message)
+            intent_arbiter.complete_local_routing(turn_id)
+            start_tool_proposal(message, turn_id=turn_id)
             return
+        intent_arbiter.complete_local_routing(turn_id)
         start_chat_response(message)
 
     def cancel_active_chat() -> None:
@@ -1928,6 +2019,7 @@ def _run_application() -> int:
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()
         ephemeral_action_context.clear()
+        intent_arbiter.clear()
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
@@ -1948,6 +2040,7 @@ def _run_application() -> int:
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()
         ephemeral_action_context.clear()
+        intent_arbiter.clear()
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")
