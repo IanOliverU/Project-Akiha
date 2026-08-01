@@ -326,6 +326,23 @@ class SpotifyClient:
             },
         )
 
+    def set_volume(self, device_id: str, volume_percent: int) -> None:
+        """Set a bounded volume percentage on one fresh Spotify device ID."""
+        if (
+            not isinstance(volume_percent, int)
+            or isinstance(volume_percent, bool)
+            or not 0 <= volume_percent <= 100
+        ):
+            raise ValueError("Spotify volume must be between 0 and 100 percent.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/volume",
+            {
+                "device_id": _validate_device_id(device_id),
+                "volume_percent": str(volume_percent),
+            },
+        )
+
     def _get_offset_items(
         self,
         path: str,

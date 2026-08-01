@@ -33,6 +33,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
+    SPOTIFY_VOLUME_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
@@ -196,6 +197,16 @@ _SPOTIFY_REPEAT_PATTERN = re.compile(
     r"(?:\s+on\s+spotify)?\s*[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_VOLUME_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-volume\s+(?P<slash>\d{1,3})|"
+    r"(?:(?:set|change|turn)\s+)?(?:the\s+)?spotify\s+volume"
+    r"(?:\s+level)?(?:\s+(?:to|at))?\s+(?P<spotify_value>.+?)|"
+    r"(?:set|change|turn)\s+(?:the\s+)?volume(?:\s+level)?\s+"
+    r"(?:to|at)\s+(?P<on_spotify_value>.+?)\s+on\s+spotify|"
+    r"(?P<mute>mute)\s+spotify(?:\s+playback)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
@@ -218,6 +229,38 @@ _SPOTIFY_ACTIONS = {
     "resume": SPOTIFY_RESUME_ACTION,
     "next": SPOTIFY_NEXT_ACTION,
     "previous": SPOTIFY_PREVIOUS_ACTION,
+}
+_SMALL_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+_TENS_NUMBER_WORDS = {
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
 }
 
 _APPLICATION_ALIASES = {
@@ -479,6 +522,28 @@ class AssistantActionRequestParser:
                 parameters={"service": "spotify", "mode": mode},
             )
 
+        volume_match = _SPOTIFY_VOLUME_PATTERN.fullmatch(normalized)
+        if volume_match is not None:
+            if volume_match.group("mute"):
+                volume_percent = 0
+            else:
+                raw_volume = next(
+                    volume_match.group(name)
+                    for name in ("slash", "spotify_value", "on_spotify_value")
+                    if volume_match.group(name) is not None
+                )
+                volume_percent = _parse_volume_percent(raw_volume)
+                if volume_percent is None:
+                    return None
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_VOLUME_ACTION,
+                parameters={
+                    "service": "spotify",
+                    "volume_percent": volume_percent,
+                },
+            )
+
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
         if spotify_match is not None:
             command = next(
@@ -607,6 +672,26 @@ def _split_spotify_title_artist_query(query: str) -> tuple[str, str]:
     if len(parts) == 2:
         return parts[0].strip(), parts[1].strip()
     return normalized, ""
+
+
+def _parse_volume_percent(value: str) -> int | None:
+    normalized = re.sub(
+        r"\s*(?:%|percent|per\s+cent)\s*$",
+        "",
+        value.strip().casefold(),
+    )
+    if normalized.isdigit():
+        return int(normalized)
+    words = normalized.replace("-", " ").split()
+    if words == ["one", "hundred"]:
+        return 100
+    if len(words) == 1:
+        return _SMALL_NUMBER_WORDS.get(words[0], _TENS_NUMBER_WORDS.get(words[0]))
+    if len(words) == 2 and words[0] in _TENS_NUMBER_WORDS:
+        unit = _SMALL_NUMBER_WORDS.get(words[1])
+        if unit is not None and 1 <= unit <= 9:
+            return _TENS_NUMBER_WORDS[words[0]] + unit
+    return None
 
 
 class AssistantActionBridge:

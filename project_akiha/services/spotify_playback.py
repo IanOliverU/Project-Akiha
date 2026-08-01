@@ -23,6 +23,7 @@ from project_akiha.core.actions import (
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
+    SPOTIFY_VOLUME_ACTION,
     ActionCancellationToken,
     ActionExecutionResult,
     ActionFailureCategory,
@@ -271,6 +272,73 @@ class SpotifyRepeatExecutor:
         return ActionExecutionResult(
             status=ActionStatus.SUCCESS,
             summary=summaries[mode],
+        )
+
+
+class SpotifyVolumeExecutor:
+    """Set bounded volume only when the selected device supports it."""
+
+    action_id = SPOTIFY_VOLUME_ACTION
+    executor_id = "spotify_volume"
+
+    def __init__(
+        self,
+        client: SpotifyClient,
+        device_coordinator: SpotifyDeviceCoordinator,
+    ) -> None:
+        self._client = client
+        self._device_coordinator = device_coordinator
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError("Spotify volume executor received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        volume_percent = action.parameters["volume_percent"]
+        if (
+            not isinstance(volume_percent, int)
+            or isinstance(volume_percent, bool)
+            or not 0 <= volume_percent <= 100
+        ):
+            raise ValueError("Spotify volume was not validated.")
+        resolution = await self._device_coordinator.resolve(
+            action.request.correlation_id,
+            cancellation_token=cancellation_token,
+            allow_activation=False,
+        )
+        if resolution.status is not SpotifyDeviceStatus.READY:
+            return _resolution_failure(resolution)
+        device = resolution.selected_device
+        if device is None:
+            return _unavailable("Spotify did not provide a usable playback device.")
+        if not device.supports_volume:
+            return _unavailable(
+                "The selected Spotify device does not support remote volume control."
+            )
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        try:
+            await asyncio.to_thread(
+                self._client.set_volume,
+                device.device_id,
+                volume_percent,
+            )
+        except SpotifyOAuthError:
+            return _unavailable("Connect Spotify from Settings before using playback.")
+        except SpotifyAPIError as error:
+            return _api_failure(error)
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=f"Spotify volume was set to {volume_percent}%.",
         )
 
 
@@ -568,6 +636,7 @@ def build_spotify_playback_executors(
     SpotifyPlaybackExecutor
     | SpotifyShuffleExecutor
     | SpotifyRepeatExecutor
+    | SpotifyVolumeExecutor
     | SpotifyArtistPlaybackExecutor
     | SpotifyArtistOpenExecutor
     | SpotifyArtistSearchExecutor,
@@ -581,6 +650,7 @@ def build_spotify_playback_executors(
         ),
         SpotifyShuffleExecutor(client, device_coordinator),
         SpotifyRepeatExecutor(client, device_coordinator),
+        SpotifyVolumeExecutor(client, device_coordinator),
         SpotifyArtistSearchExecutor(client),
         SpotifyArtistOpenExecutor(client),
         SpotifyArtistPlaybackExecutor(client, device_coordinator),

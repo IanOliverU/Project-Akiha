@@ -317,6 +317,7 @@ class SpotifyClientTest(unittest.TestCase):
         client.set_repeat("desktop-id", "track")
         client.set_repeat("desktop-id", "context")
         client.set_repeat("desktop-id", "off")
+        client.set_volume("desktop-id", 42)
 
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
@@ -332,6 +333,7 @@ class SpotifyClientTest(unittest.TestCase):
                 ("PUT", "/v1/me/player/repeat"),
                 ("PUT", "/v1/me/player/repeat"),
                 ("PUT", "/v1/me/player/repeat"),
+                ("PUT", "/v1/me/player/volume"),
             ],
         )
         for index, (_method, url, headers, _body, timeout) in enumerate(
@@ -348,6 +350,8 @@ class SpotifyClientTest(unittest.TestCase):
                 expected_query["state"] = ["context"]
             elif index == 10:
                 expected_query["state"] = ["off"]
+            elif index == 11:
+                expected_query["volume_percent"] = ["42"]
             self.assertEqual(
                 parse_qs(urlparse(url).query),
                 expected_query,
@@ -390,6 +394,24 @@ class SpotifyClientTest(unittest.TestCase):
             with self.subTest(mode=mode):
                 with self.assertRaises(ValueError):
                     client.set_repeat("desktop-id", mode)
+
+        self.assertEqual(mutations.requests, [])
+
+    def test_volume_rejects_out_of_range_values_without_request(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for volume_percent in (-1, 101, True):
+            with self.subTest(volume_percent=volume_percent):
+                with self.assertRaises(ValueError):
+                    client.set_volume(
+                        "desktop-id",
+                        volume_percent,  # type: ignore[arg-type]
+                    )
 
         self.assertEqual(mutations.requests, [])
 

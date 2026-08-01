@@ -41,6 +41,7 @@ from project_akiha.services.spotify_playback import (
     SpotifyPlaybackExecutor,
     SpotifyRepeatExecutor,
     SpotifyShuffleExecutor,
+    SpotifyVolumeExecutor,
     _open_spotify_artist_page,
 )
 
@@ -381,6 +382,70 @@ class SpotifyRepeatExecutorTest(unittest.TestCase):
         self.assertEqual(audits[0].normalized_target, "spotify")
 
 
+class SpotifyVolumeExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_volume_uses_only_supported_device_and_bounded_percentage(self) -> None:
+        client = _PlaybackClient()
+        coordinator = _Coordinator(
+            _ready(_desktop_device(supports_volume=True, volume_percent=35))
+        )
+        executor = SpotifyVolumeExecutor(
+            client,  # type: ignore[arg-type]
+            coordinator,  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-volume-65",
+                action_id="spotify.volume",
+                source="voice",
+                parameters={"service": "spotify", "volume_percent": 65},
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.summary, "Spotify volume was set to 65%.")
+        self.assertEqual(client.volume_calls, [("desktop-id", 65)])
+        self.assertEqual(coordinator.allow_activation, [False])
+
+    def test_unsupported_device_fails_without_volume_request(self) -> None:
+        client = _PlaybackClient()
+        executor = SpotifyVolumeExecutor(
+            client,  # type: ignore[arg-type]
+            _Coordinator(_ready(_desktop_device())),  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-volume-unsupported",
+                action_id="spotify.volume",
+                source="chat",
+                parameters={"service": "spotify", "volume_percent": 50},
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertIn("does not support", result.summary)
+        self.assertEqual(client.volume_calls, [])
+
+
 class SpotifyArtistPlaybackExecutorTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = ActionRequestValidator(
@@ -666,6 +731,7 @@ class _PlaybackClient:
         self.calls: list[tuple[str, str]] = []
         self.shuffle_calls: list[tuple[str, bool]] = []
         self.repeat_calls: list[tuple[str, str]] = []
+        self.volume_calls: list[tuple[str, int]] = []
         self.error = error
 
     def _record(self, command: str, device_id: str) -> None:
@@ -694,6 +760,11 @@ class _PlaybackClient:
         if self.error is not None:
             raise self.error
         self.repeat_calls.append((device_id, mode))
+
+    def set_volume(self, device_id: str, volume_percent: int) -> None:
+        if self.error is not None:
+            raise self.error
+        self.volume_calls.append((device_id, volume_percent))
 
 
 class _ArtistClient:
@@ -743,13 +814,19 @@ def _ready(device: SpotifyDevice) -> SpotifyDeviceResolution:
     )
 
 
-def _desktop_device() -> SpotifyDevice:
+def _desktop_device(
+    *,
+    supports_volume: bool = False,
+    volume_percent: int | None = None,
+) -> SpotifyDevice:
     return SpotifyDevice(
         device_id="desktop-id",
         name="Windows PC",
         device_type="computer",
         is_active=True,
         is_restricted=False,
+        volume_percent=volume_percent,
+        supports_volume=supports_volume,
     )
 
 

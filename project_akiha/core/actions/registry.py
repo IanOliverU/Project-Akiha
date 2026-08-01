@@ -29,6 +29,7 @@ SPOTIFY_NEXT_ACTION = "spotify.next"
 SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
 SPOTIFY_SHUFFLE_ACTION = "spotify.shuffle"
 SPOTIFY_REPEAT_ACTION = "spotify.repeat"
+SPOTIFY_VOLUME_ACTION = "spotify.volume"
 SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
 SPOTIFY_SEARCH_TRACKS_ACTION = "spotify.search_tracks"
 SPOTIFY_PLAY_TRACK_ACTION = "spotify.play_track"
@@ -291,6 +292,30 @@ def build_default_action_registry() -> ActionRegistry:
                         kind=ParameterKind.STRING,
                         max_length=16,
                         allowed_values=("track", "context", "off"),
+                    ),
+                ),
+                timeout_seconds=20,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_VOLUME_ACTION,
+                description="Set volume on one supported Spotify device.",
+                risk=ActionRisk.USER_VISIBLE,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_volume",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="volume_percent",
+                        kind=ParameterKind.INTEGER,
+                        minimum_value=0,
+                        maximum_value=100,
                     ),
                 ),
                 timeout_seconds=20,

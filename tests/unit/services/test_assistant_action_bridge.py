@@ -186,6 +186,33 @@ class AssistantActionRequestParserTest(unittest.TestCase):
     def test_ambiguous_repeat_enable_is_not_an_action(self) -> None:
         self.assertIsNone(self.parser.parse("Enable repeat"))
 
+    def test_parses_bounded_spotify_volume_commands(self) -> None:
+        cases = (
+            ("Set Spotify volume to 50 percent", 50),
+            ("Akiha, Spotify volume 25%", 25),
+            ("Please set the volume to seventy five percent on Spotify", 75),
+            ("Change Spotify volume level to one hundred percent", 100),
+            ("Mute Spotify", 0),
+            ("/spotify-volume 42", 42),
+        )
+
+        for text, volume_percent in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.volume")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "volume_percent": volume_percent,
+                    },
+                )
+
+    def test_generic_volume_command_is_not_hijacked(self) -> None:
+        self.assertIsNone(self.parser.parse("Set volume to 50 percent"))
+
     def test_parses_explicit_spotify_artist_catalog_commands(self) -> None:
         cases = (
             "/spotify-artist Megurine Luka",

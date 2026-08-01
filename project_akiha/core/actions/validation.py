@@ -109,6 +109,10 @@ def _validate_parameter(value: object, spec: ActionParameterSpec) -> object:
     if spec.kind is ParameterKind.INTEGER:
         if not isinstance(value, int) or isinstance(value, bool):
             raise _invalid_parameters(f"{spec.name} must be an integer.")
+        if spec.minimum_value is not None and value < spec.minimum_value:
+            raise _invalid_parameters(f"{spec.name} is below its allowed minimum.")
+        if spec.maximum_value is not None and value > spec.maximum_value:
+            raise _invalid_parameters(f"{spec.name} exceeds its allowed maximum.")
         return value
 
     if spec.kind is ParameterKind.BOOLEAN:

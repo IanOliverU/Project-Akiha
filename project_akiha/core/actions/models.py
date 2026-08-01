@@ -79,6 +79,8 @@ class ActionParameterSpec:
     required: bool = True
     max_length: int | None = None
     allowed_values: tuple[str, ...] = ()
+    minimum_value: int | None = None
+    maximum_value: int | None = None
 
     def __post_init__(self) -> None:
         _require_identifier(self.name, "parameter name")
@@ -86,6 +88,18 @@ class ActionParameterSpec:
             raise ValueError("parameter max_length must be greater than zero.")
         if self.allowed_values and self.kind is not ParameterKind.STRING:
             raise ValueError("allowed_values are supported only for string parameters.")
+        if (
+            self.minimum_value is not None or self.maximum_value is not None
+        ) and self.kind is not ParameterKind.INTEGER:
+            raise ValueError(
+                "numeric bounds are supported only for integer parameters."
+            )
+        if (
+            self.minimum_value is not None
+            and self.maximum_value is not None
+            and self.minimum_value > self.maximum_value
+        ):
+            raise ValueError("parameter minimum cannot exceed its maximum.")
         normalized_values = tuple(value.strip() for value in self.allowed_values)
         if any(not value for value in normalized_values):
             raise ValueError("parameter allowed_values cannot contain empty values.")
