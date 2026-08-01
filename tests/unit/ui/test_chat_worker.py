@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.voice_session import (
+    CanonicalResponseSegment,
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
@@ -107,6 +108,42 @@ class ChatResponseThreadTest(unittest.TestCase):
         )
         self.assertEqual([event.sequence_number for event in events], [0, 1, 2, 3])
         self.assertEqual(events[-1].text, "onetwo")
+
+    def test_stream_emits_stable_canonical_segments_before_completion(self) -> None:
+        thread = ChatResponseThread(
+            StreamingController(("First sentence.", " Second sentence begins", ".")),
+            "hello",
+            response_context=ModularResponseContext(
+                response_id="response-segments",
+                processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+            ),
+        )
+        segments: list[CanonicalResponseSegment] = []
+        completed: list[str] = []
+        thread.response_segment_ready.connect(segments.append)
+        thread.response_ready.connect(completed.append)
+
+        thread.run()
+
+        self.assertEqual(
+            [segment.canonical_text for segment in segments],
+            ["First sentence.", "Second sentence begins."],
+        )
+        self.assertEqual([segment.is_final for segment in segments], [False, True])
+        self.assertEqual(completed, ["First sentence. Second sentence begins."])
+
+    def test_cancel_discards_pending_canonical_segment(self) -> None:
+        thread = ChatResponseThread(
+            StreamingController(("Incomplete response", " must not flush.")),
+            "hello",
+        )
+        segments: list[CanonicalResponseSegment] = []
+        thread.response_segment_ready.connect(segments.append)
+        thread.response_delta.connect(lambda _chunk: thread.cancel())
+
+        thread.run()
+
+        self.assertEqual(segments, [])
 
     def test_run_does_not_emit_response_after_cancellation(self) -> None:
         thread = ChatResponseThread(StreamingController(("one", "two")), "hello")

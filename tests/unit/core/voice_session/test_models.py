@@ -7,6 +7,7 @@ import unittest
 from project_akiha.core.voice_session import (
     ActionProposal,
     AudioFrame,
+    CanonicalResponseSegment,
     EndpointReason,
     ModularResponseContext,
     ModularResponseEvent,
@@ -134,6 +135,16 @@ class VoiceSessionModelsTest(unittest.TestCase):
                 kind=ModularResponseEventKind.STARTED,
                 sequence_number=1,
             )
+
+    def test_canonical_response_segment_hides_text_from_repr(self) -> None:
+        segment = CanonicalResponseSegment(
+            response_id="response-1",
+            segment_index=0,
+            canonical_text="Private assistant response.",
+            is_final=True,
+        )
+
+        self.assertNotIn("Private assistant response", repr(segment))
 
 
 if __name__ == "__main__":

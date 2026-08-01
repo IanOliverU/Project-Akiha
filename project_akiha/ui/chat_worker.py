@@ -9,11 +9,13 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.voice_session import (
+    CanonicalResponseSegment,
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
     VoiceProcessingMode,
 )
+from project_akiha.services.response_segmenter import StableResponseSegmenter
 
 
 class ChatResponseThread(QThread):
@@ -24,6 +26,7 @@ class ChatResponseThread(QThread):
     response_failed = Signal(str)
     response_cancelled = Signal()
     modular_response_event = Signal(object)
+    response_segment_ready = Signal(object)
 
     def __init__(
         self,
@@ -43,6 +46,9 @@ class ChatResponseThread(QThread):
         self._is_cancel_requested = False
         self._next_event_sequence = 0
         self._has_emitted_started_event = False
+        self._response_segmenter = StableResponseSegmenter(
+            self._response_context.response_id
+        )
 
     def run(self) -> None:
         """Generate an assistant response in this worker thread."""
@@ -55,6 +61,7 @@ class ChatResponseThread(QThread):
         try:
             response = asyncio.run(self._stream_response())
         except Exception as error:
+            self._response_segmenter.cancel()
             self._emit_response_event(
                 ModularResponseEventKind.FAILED,
                 error_message=_safe_error_message(error),
@@ -63,6 +70,7 @@ class ChatResponseThread(QThread):
             return
 
         if response is None or self._is_cancelled():
+            self._response_segmenter.cancel()
             self._emit_response_event(ModularResponseEventKind.CANCELLED)
             self.response_cancelled.emit()
         else:
@@ -87,6 +95,7 @@ class ChatResponseThread(QThread):
             chunks.append(chunk)
             if chunk:
                 self._emit_response_event(ModularResponseEventKind.DELTA, text=chunk)
+                self._emit_response_segments(self._response_segmenter.push(chunk))
             self.response_delta.emit(chunk)
 
             if self._is_cancelled():
@@ -94,7 +103,15 @@ class ChatResponseThread(QThread):
 
         if self._is_cancelled():
             return None
+        self._emit_response_segments(self._response_segmenter.finish())
         return "".join(chunks)
+
+    def _emit_response_segments(
+        self,
+        segments: tuple[CanonicalResponseSegment, ...],
+    ) -> None:
+        for segment in segments:
+            self.response_segment_ready.emit(segment)
 
     def _is_cancelled(self) -> bool:
         return self._is_cancel_requested or self.isInterruptionRequested()

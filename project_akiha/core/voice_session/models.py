@@ -385,6 +385,22 @@ class ModularResponseEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class CanonicalResponseSegment:
+    """One ordered, stable span derived from a modular provider response."""
+
+    response_id: str
+    segment_index: int
+    canonical_text: str = field(repr=False)
+    is_final: bool = False
+
+    def __post_init__(self) -> None:
+        _require_identifier(self.response_id, "response ID")
+        if self.segment_index < 0:
+            raise ValueError("canonical response segment index cannot be negative.")
+        _require_text(self.canonical_text, "canonical response segment text")
+
+
+@dataclass(frozen=True, slots=True)
 class AssistantTextRevision:
     """Ordered assistant text emitted by a modular or hosted-live provider."""
 

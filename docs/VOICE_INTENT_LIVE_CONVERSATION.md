@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 through V3 complete
+**Status:** Implementation in progress - V0 through V3 complete; V4 underway
 
 **Planning date:** 2026-08-01
 
@@ -897,7 +897,7 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 
 ### Speaking
 
-- [ ] Sentence and conservative clause segmentation tests.
+- [x] Sentence and conservative clause segmentation tests.
 - [ ] Ordered synthesis and playback tests.
 - [ ] Backpressure and queue-bound tests.
 - [ ] Style-render fallback tests.
@@ -1083,7 +1083,7 @@ arbitration. Provider-native function calling remains deferred to V7.
 
 ### Milestone V4: Streaming Local Speech
 
-- [ ] Stream canonical provider text into a stable response segmenter.
+- [x] Stream canonical provider text into a stable response segmenter.
 - [ ] Render speech identity per stable segment with fallback.
 - [ ] Add bounded concurrent synthesis and ordered playback.
 - [ ] Preserve final canonical response and derived subtitle behavior.
