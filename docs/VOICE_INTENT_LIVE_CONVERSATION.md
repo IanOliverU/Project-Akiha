@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 complete, V1 next
+**Status:** Implementation in progress - V0 complete, V1 session contracts complete
 
 **Planning date:** 2026-08-01
 
@@ -871,7 +871,7 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 - [ ] Legal overlap tests for capture/recognition, generation/synthesis, and
   synthesis/playback.
 - [ ] Tests proving speculative partial intent cannot persist or execute.
-- [ ] Turn-ID and stale-callback rejection tests.
+- [x] Turn-ID and stale-callback rejection tests.
 - [ ] Cancellation during every active state.
 - [ ] Shutdown and resource-ownership tests.
 - [ ] Local/hosted adapter conformance tests using fakes.
@@ -979,7 +979,7 @@ recorded. The spike may be discarded and must not mutate production data.
 
 ### Milestone V1: Session Foundation
 
-- [ ] Add provider-neutral turn, transcript-revision, and live-session
+- [x] Add provider-neutral turn, transcript-revision, and live-session
   contracts.
 - [ ] Add `VoiceSessionCoordinator` with explicit state and cancellation.
 - [ ] Route current push-to-talk through the coordinator without changing
