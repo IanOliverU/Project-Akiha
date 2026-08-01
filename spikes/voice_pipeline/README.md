@@ -15,6 +15,8 @@ The framework-neutral harness proves:
 - cancelled and stale turn callbacks are rejected
 - cumulative snapshots from the existing Qt microphone owner become bounded,
   monotonic PCM frames without opening another capture device
+- stable response segments use the existing `SpeechOutputService`, synthesize
+  concurrently with a strict bound, play in order, and cancel as one turn
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.

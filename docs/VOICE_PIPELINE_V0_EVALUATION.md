@@ -32,6 +32,9 @@ It does not alter the production runtime or read production user data.
 - [x] Prototyped a non-owning Qt snapshot bridge that emits bounded incremental
   PCM frames and rejects duplicate, backwards, mutated, or format-changing
   snapshot streams.
+- [x] Prototyped an ordered VOICEVOX segment processor through the existing
+  `SpeechOutputService`, including bounded concurrent synthesis, canonical
+  playback order, failure cleanup, and per-turn cancellation.
 
 ## Measurements
 
@@ -68,7 +71,8 @@ real packaged-size probe before approval.
 6. The existing Qt microphone can remain the sole hardware owner. Its current
    cumulative snapshots can be adapted safely, although a direct bounded-frame
    callback will avoid repeated prefix comparison in production.
-7. Akiha still needs a custom Qt output bridge and VOICEVOX processor.
+7. VOICEVOX segment orchestration fits Akiha's existing service contract. The
+   remaining output work is adapting ordered segments to the Qt playback owner.
 8. Chat, memory, identity, subtitles, typed actions, permissions, and audit
    history remain Akiha-owned regardless of the framework decision.
 
@@ -82,7 +86,7 @@ and Nuitka result remain unresolved.
 ## Remaining V0 Checks
 
 - [x] Prototype a Qt audio-frame bridge without opening a second microphone.
-- [ ] Prototype an ordered VOICEVOX frame processor using fake audio output.
+- [x] Prototype an ordered VOICEVOX frame processor using fake audio output.
 - [ ] Confirm rolling transcript revisions can enter the pipeline without
   relying on Pipecat's segmented Whisper service.
 - [ ] Pass a fake typed action proposal through Akiha's real validator/gateway
@@ -96,7 +100,7 @@ and Nuitka result remain unresolved.
 Current repository verification:
 
 - 16 focused pipeline and local/hosted provider tests passed.
-- Full suite after the Qt input bridge: 939 tests passed, 3 skipped.
+- Full suite after the VOICEVOX processor: 943 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.

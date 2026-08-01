@@ -960,7 +960,7 @@ V6 begins.
   Input ownership is proven by the V0 snapshot bridge; output remains pending.
 - [ ] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
-- [ ] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
+- [x] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
 - [x] Validate Ollama/local and hosted text providers through the same response
   event contract.
 - [ ] Validate typed action isolation with fake allow/deny results.
