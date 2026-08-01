@@ -40,6 +40,9 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_VOLUME_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
+from project_akiha.services.command_envelope import (
+    DeterministicCommandEnvelopeParser,
+)
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _OPEN_DIRECTORY_PATTERN = re.compile(
@@ -264,7 +267,8 @@ _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     rf"(?:the\s+)?(?:{_SPOTIFY_TARGET})|"
     rf"(?P<resume>resume|continue){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
     rf"(?:{_SPOTIFY_TARGET})|"
-    rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?(?:song|track)|"
+    rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
+    r"(?:next\s+)?(?:song|track)|"
     rf"(?P<previous>(?:previous|last){_SPOTIFY_CONTROL_SEPARATOR}"
     r"(?:song|track)|go\s+back\s+to\s+(?:the\s+)?previous\s+(?:song|track)))"
     r"\s*[.!?]?$",
@@ -362,8 +366,15 @@ class AssistantActionDispatch:
 class AssistantActionRequestParser:
     """Parse only explicit, unambiguous action command forms."""
 
-    def __init__(self, directory_aliases: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        directory_aliases: Mapping[str, str] | None = None,
+        command_envelope_parser: DeterministicCommandEnvelopeParser | None = None,
+    ) -> None:
         self._directory_aliases: dict[str, str] = {}
+        self._command_envelope_parser = (
+            command_envelope_parser or DeterministicCommandEnvelopeParser()
+        )
         self.set_directory_aliases(directory_aliases or {})
 
     def set_directory_aliases(self, aliases: Mapping[str, str]) -> None:
@@ -382,6 +393,10 @@ class AssistantActionRequestParser:
         if not normalized:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
+        envelope = self._command_envelope_parser.parse(normalized)
+        if envelope is None:
+            return None
+        normalized = envelope.command_text
 
         album_search_match = _SPOTIFY_ALBUM_SEARCH_PATTERN.fullmatch(normalized)
         if album_search_match is not None:

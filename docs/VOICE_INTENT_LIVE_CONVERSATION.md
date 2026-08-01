@@ -1033,11 +1033,19 @@ The benchmark does not claim real-model accuracy or inference latency.
 
 ### Milestone V3: Natural Intent And Context
 
-- [ ] Add the tolerant deterministic command-envelope parser.
+- [x] Add the tolerant deterministic command-envelope parser.
 - [ ] Add negative and metalinguistic guards.
 - [ ] Expand ephemeral reference context.
 - [ ] Add intent arbitration and at-most-once turn ledger.
 - [ ] Add optional typed provider proposal fallback.
+
+The deterministic envelope parser is framework-free and runs before the
+existing typed action parser. It removes only anchored companion-style modal,
+politeness, filler, and courtesy wrappers, normalizes a narrow allowlist of
+imperative gerunds, and rejects empty or oversized candidates. It does not use
+substring execution, resolve targets, grant permission, or bypass the existing
+action gateway. Explicit negative and metalinguistic classification remains a
+separate V3 guard stage.
 
 ### Milestone V4: Streaming Local Speech
 

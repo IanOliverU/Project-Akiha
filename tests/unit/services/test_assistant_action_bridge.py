@@ -93,6 +93,22 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.action_id, "applications.launch")
                 self.assertEqual(request.parameters["application_id"], application_id)
 
+    def test_parses_app_command_inside_natural_courtesy_envelope(self) -> None:
+        cases = (
+            "Akiha, could you please open Spotify for me?",
+            "Would you mind opening the Spotify application?",
+            "Would it be possible for you to just open Spotify right now?",
+            "I'd like you to open Spotify, please.",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "applications.launch")
+                self.assertEqual(request.parameters["application_id"], "spotify")
+
     def test_parses_graceful_application_close_commands(self) -> None:
         cases = (
             ("close app: vlc", "vlc"),
@@ -134,6 +150,20 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertIsNotNone(request)
                 self.assertEqual(request.action_id, action_id)
                 self.assertEqual(dict(request.parameters), {"service": "spotify"})
+
+    def test_parses_spotify_control_inside_natural_courtesy_envelope(self) -> None:
+        cases = (
+            ("Akiha, could you please pause Spotify for me?", "spotify.pause"),
+            ("Would you mind resuming the music?", "spotify.resume"),
+            ("I'd like you to skip the next track, please.", "spotify.next"),
+        )
+
+        for text, action_id in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, action_id)
 
     def test_song_title_does_not_become_generic_spotify_control(self) -> None:
         self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
