@@ -86,6 +86,27 @@ class VoiceSynthesisController:
         self._last_spoken_rate_multiplier = 1.0
         self._publish_replay_availability()
 
+    def remember_spoken_text(
+        self,
+        text: str,
+        rate_multiplier: float = 1.0,
+    ) -> None:
+        """Remember a completed streamed response for the existing replay control."""
+        cleaned_text = text.strip()
+        if not cleaned_text:
+            return
+        validated_rate = (
+            float(rate_multiplier)
+            if not isinstance(rate_multiplier, bool)
+            and isinstance(rate_multiplier, (int, float))
+            and 0.5 <= rate_multiplier <= 1.5
+            else 1.0
+        )
+        self._remember_spoken_text(
+            cleaned_text,
+            validated_rate,
+        )
+
     def cancel(self, wait_ms: int = 2000) -> None:
         """Cancel active synthesis and optionally wait during shutdown."""
         unfinished = 0

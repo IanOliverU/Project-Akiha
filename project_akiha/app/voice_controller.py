@@ -195,6 +195,21 @@ class VoiceController:
         target = VoiceState.IDLE if self._config.enabled else VoiceState.MUTED
         self._transition_to(target, "recovered", operation=_VoiceOperation.NONE)
 
+    def begin_streaming_output(self) -> bool:
+        """Reserve output ownership without placing private text on the event bus."""
+        if not self._ensure_output_enabled():
+            return False
+        if (
+            self.state is not VoiceState.IDLE
+            or self._operation is not _VoiceOperation.NONE
+        ):
+            return False
+        return self._transition_to(
+            VoiceState.THINKING,
+            "streaming_synthesis_started",
+            operation=_VoiceOperation.OUTPUT,
+        )
+
     def _handle_listen_requested(self, event: Event) -> None:
         del event
         if not self._ensure_input_enabled():

@@ -60,6 +60,16 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         self.assertEqual(threads[1].text, "Remember this line.")
         self.assertAlmostEqual(threads[1].speaking_rate, 1.128)
 
+    def test_streamed_response_can_use_existing_replay_control(self) -> None:
+        bus, voice, controller, threads, _, _ = _build()
+
+        controller.remember_spoken_text("Streamed first. Streamed second.", 0.94)
+        bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+
+        self.assertEqual(voice.state, VoiceState.THINKING)
+        self.assertEqual(threads[0].text, "Streamed first. Streamed second.")
+        self.assertAlmostEqual(threads[0].speaking_rate, 1.128)
+
     def test_identity_rate_multiplier_adjusts_configured_speaking_rate(self) -> None:
         bus, _, _, threads, _, _ = _build()
 

@@ -898,8 +898,8 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 ### Speaking
 
 - [x] Sentence and conservative clause segmentation tests.
-- [ ] Ordered synthesis and playback tests.
-- [ ] Backpressure and queue-bound tests.
+- [x] Ordered synthesis and playback tests.
+- [x] Backpressure and queue-bound tests.
 - [x] Style-render fallback tests.
 - [ ] Interruption during generation, synthesis, and playback.
 - [x] Canonical-text and derived-speech separation tests.
@@ -1085,7 +1085,7 @@ arbitration. Provider-native function calling remains deferred to V7.
 
 - [x] Stream canonical provider text into a stable response segmenter.
 - [x] Render speech identity per stable segment with fallback.
-- [ ] Add bounded concurrent synthesis and ordered playback.
+- [x] Add bounded concurrent synthesis and ordered playback.
 - [ ] Preserve final canonical response and derived subtitle behavior.
 - [ ] Add controlled Talk-to-interrupt behavior.
 

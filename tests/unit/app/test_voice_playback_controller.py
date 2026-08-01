@@ -28,6 +28,23 @@ class VoicePlaybackControllerTest(unittest.TestCase):
         self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(voice.operation, "none")
 
+    def test_streaming_playback_retains_output_until_queue_callback(self) -> None:
+        bus, voice, playback, controller, _ = _build()
+        completed: list[bool] = []
+        self.assertTrue(voice.begin_streaming_output())
+
+        controller.play(
+            _audio(),
+            recover_on_finish=False,
+            on_finished=lambda: completed.append(True),
+        )
+        playback.start()
+        playback.finish()
+
+        self.assertEqual(completed, [True])
+        self.assertEqual(voice.state, VoiceState.SPEAKING)
+        self.assertEqual(voice.operation, "output")
+
     def test_playback_error_reports_voice_error(self) -> None:
         bus, voice, playback, controller, errors = _build()
         _request_speech(bus)
@@ -48,6 +65,23 @@ class VoicePlaybackControllerTest(unittest.TestCase):
 
         self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(errors[-1].payload["code"], "playback_busy")
+
+    def test_streaming_immediate_failure_returns_to_queue_callback(self) -> None:
+        _, voice, _, controller, errors = _build(
+            play_error=AudioPlaybackError("playback_busy", "Already playing.")
+        )
+        failures: list[tuple[str, str]] = []
+        self.assertTrue(voice.begin_streaming_output())
+
+        controller.play(
+            _audio(),
+            recover_on_finish=False,
+            on_error=lambda code, message: failures.append((code, message)),
+        )
+
+        self.assertEqual(failures, [("playback_busy", "Already playing.")])
+        self.assertEqual(errors, [])
+        self.assertEqual(voice.state, VoiceState.THINKING)
 
     def test_stop_request_stops_playback_and_returns_idle(self) -> None:
         bus, voice, playback, controller, _ = _build()

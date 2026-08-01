@@ -35,6 +35,9 @@ from project_akiha.app.rolling_voice_transcription_controller import (
 )
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
+from project_akiha.app.streaming_voice_output_controller import (
+    StreamingVoiceOutputController,
+)
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
@@ -104,6 +107,7 @@ from project_akiha.core.voice_session import (
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
+    ResponseSegment,
     VoiceProcessingMode,
 )
 from project_akiha.database import (
@@ -571,6 +575,13 @@ def _run_application() -> int:
         service=speech_output_service,
         on_audio_synthesized=voice_playback_controller.play,
     )
+    streaming_voice_output_controller = StreamingVoiceOutputController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        playback_controller=voice_playback_controller,
+        service=speech_output_service,
+        on_response_spoken=voice_synthesis_controller.remember_spoken_text,
+    )
     voice_capture_controller = VoiceCaptureController(
         event_bus=event_bus,
         voice_controller=voice_controller,
@@ -687,6 +698,7 @@ def _run_application() -> int:
             updated_config.voice,
         )
         voice_synthesis_controller.apply_service(speech_output_service)
+        streaming_voice_output_controller.apply_service(speech_output_service)
         voice_diagnostics_controller.apply_service(
             VoiceDiagnosticsService(
                 speech_input_service,
@@ -1561,6 +1573,14 @@ def _run_application() -> int:
         )
         active_chat_threads.append(thread)
         has_response_started = False
+        has_streaming_speech = False
+
+        def handle_speech_segment(segment: object) -> None:
+            nonlocal has_streaming_speech
+            if not isinstance(segment, ResponseSegment):
+                return
+            if streaming_voice_output_controller.submit(segment):
+                has_streaming_speech = True
 
         def handle_response_event(event: object) -> None:
             nonlocal has_response_started
@@ -1574,7 +1594,8 @@ def _run_application() -> int:
                     has_response_started = True
                 chat_window.append_stream_delta(event.text or "")
             elif event.kind is ModularResponseEventKind.COMPLETED:
-                assistant_speech_controller.submit_assistant_reply(event.text or "")
+                if not has_streaming_speech:
+                    assistant_speech_controller.submit_assistant_reply(event.text or "")
                 assistant_translation_controller.translate_assistant_response(
                     event.text or ""
                 )
@@ -1590,6 +1611,7 @@ def _run_application() -> int:
             update_chat_busy_state()
             thread.deleteLater()
 
+        thread.speech_segment_ready.connect(handle_speech_segment)
         thread.modular_response_event.connect(handle_response_event)
         thread.finished.connect(cleanup_thread)
         thread.start()
@@ -2014,6 +2036,7 @@ def _run_application() -> int:
             thread.cancel()
         for thread in tuple(active_tool_threads):
             thread.cancel()
+        event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
 
     def has_active_operations() -> bool:
         return bool(active_chat_threads or active_action_threads or active_tool_threads)
@@ -2166,6 +2189,10 @@ def _run_application() -> int:
             *active_action_threads,
             *active_tool_threads,
         ]
+        try:
+            streaming_voice_output_controller.cancel()
+        except Exception:
+            logger.exception("Streaming voice output did not stop before shutdown.")
         result = shutdown_runtime(
             activity_timer=activity_tick_timer,
             active_chat_threads=active_runtime_threads,
