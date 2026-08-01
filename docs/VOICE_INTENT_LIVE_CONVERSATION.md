@@ -1086,7 +1086,7 @@ arbitration. Provider-native function calling remains deferred to V7.
 - [x] Stream canonical provider text into a stable response segmenter.
 - [x] Render speech identity per stable segment with fallback.
 - [x] Add bounded concurrent synthesis and ordered playback.
-- [ ] Preserve final canonical response and derived subtitle behavior.
+- [x] Preserve final canonical response and derived subtitle behavior.
 - [ ] Add controlled Talk-to-interrupt behavior.
 
 ### Milestone V5: Local Conversation Session

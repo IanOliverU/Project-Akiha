@@ -66,6 +66,22 @@ class FailingProvider:
         return False
 
 
+class ChunkedProvider(StaticProvider):
+    """Test provider that exposes canonical response chunks independently."""
+
+    def __init__(self, chunks: tuple[str, ...]) -> None:
+        super().__init__("".join(chunks))
+        self._chunks = chunks
+
+    async def stream_response(
+        self,
+        messages: tuple[ChatMessage, ...],
+    ) -> AsyncIterator[str]:
+        self.stream_messages = messages
+        for chunk in self._chunks:
+            yield chunk
+
+
 class RecordingConversationRepository:
     """Test repository that records saved messages."""
 
@@ -288,6 +304,51 @@ class ChatControllerTest(unittest.TestCase):
 
         self.assertEqual(chunks, ["streamed response"])
         self.assertEqual(controller.messages[-1].content, "streamed response")
+
+    def test_streamed_canonical_response_drives_persistence_and_memory(self) -> None:
+        repository = RecordingConversationRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        first_sentence = "**\u627f\u77e5\u3057\u307e\u3057\u305f\u3002** "
+        second_sentence = "\u3059\u3050\u306b\u78ba\u8a8d\u3057\u307e\u3059\u3002"
+        canonical = first_sentence + second_sentence
+        controller = ChatController(
+            ChunkedProvider((first_sentence, second_sentence)),
+            conversation_repository=repository,
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        chunks = asyncio.run(_collect_stream(controller, "Please check."))
+
+        self.assertEqual("".join(chunks), canonical)
+        self.assertEqual(repository.saved_messages[-1], (7, "assistant", canonical))
+        processed, conversation_id = memory_pipeline.processed_messages[-1]
+        self.assertEqual(conversation_id, 7)
+        self.assertEqual(
+            processed[-1], ChatMessage(role="assistant", content=canonical)
+        )
+        self.assertEqual(controller.messages[-1].content, canonical)
+
+    def test_abandoned_stream_never_persists_or_processes_partial_assistant(
+        self,
+    ) -> None:
+        repository = RecordingConversationRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            ChunkedProvider(("Partial response.", " Must not persist.")),
+            conversation_repository=repository,
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        first_chunk = asyncio.run(_take_one_chunk_and_close(controller, "Hello"))
+
+        self.assertEqual(first_chunk, "Partial response.")
+        self.assertEqual(repository.saved_messages, [(7, "user", "Hello")])
+        self.assertEqual(
+            controller.messages, (ChatMessage(role="user", content="Hello"),)
+        )
+        self.assertEqual(memory_pipeline.processed_messages, [])
 
     def test_system_prompt_is_sent_to_provider_only(self) -> None:
         provider = StaticProvider("hello from Akiha")
@@ -883,6 +944,13 @@ class ChatControllerTest(unittest.TestCase):
 
 async def _collect_stream(controller: ChatController, message: str) -> list[str]:
     return [chunk async for chunk in controller.stream_user_message(message)]
+
+
+async def _take_one_chunk_and_close(controller: ChatController, message: str) -> str:
+    stream = controller.stream_user_message(message)
+    first = await anext(stream)
+    await stream.aclose()
+    return first
 
 
 if __name__ == "__main__":

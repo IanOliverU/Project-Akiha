@@ -30,6 +30,9 @@ from project_akiha.app.proactive_speech_controller import ProactiveSpeechControl
 from project_akiha.app.push_to_talk_session_controller import (
     PushToTalkSessionController,
 )
+from project_akiha.app.response_completion_controller import (
+    ResponseCompletionController,
+)
 from project_akiha.app.rolling_voice_transcription_controller import (
     RollingVoiceTranscriptionController,
 )
@@ -601,6 +604,10 @@ def _run_application() -> int:
     response_segment_renderer = ResponseSegmentRenderer(
         SafeSpeechStyleRenderer(AkihaSpeechStyleService()),
         mood_provider=lambda: mood_controller.snapshot.mood,
+    )
+    response_completion_controller = ResponseCompletionController(
+        assistant_speech_controller,
+        assistant_translation_controller,
     )
     voice_diagnostics_controller = VoiceDiagnosticsController(
         event_bus=event_bus,
@@ -1594,10 +1601,9 @@ def _run_application() -> int:
                     has_response_started = True
                 chat_window.append_stream_delta(event.text or "")
             elif event.kind is ModularResponseEventKind.COMPLETED:
-                if not has_streaming_speech:
-                    assistant_speech_controller.submit_assistant_reply(event.text or "")
-                assistant_translation_controller.translate_assistant_response(
-                    event.text or ""
+                response_completion_controller.complete(
+                    event.text or "",
+                    streaming_speech_started=has_streaming_speech,
                 )
             elif event.kind is ModularResponseEventKind.FAILED:
                 _handle_chat_failure(event.error_message or "", chat_window, logger)
