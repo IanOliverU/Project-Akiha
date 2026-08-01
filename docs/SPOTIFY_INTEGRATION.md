@@ -57,10 +57,13 @@ music`, `resume Spotify playback`, `next track`, `previous song`, `enable
 shuffle`, and `disable shuffle`, plus the explicit `/spotify-*` command forms.
 Shuffle is always assigned an explicit boolean state through the fixed
 `spotify.shuffle` action rather than exposed as an ambiguous toggle. Speech
-punctuation between a control and its target is accepted, along with a small
-tested alias set for observed `pause`/`Spotify` transcription errors. Artist,
-track, and album selection use separate local resolution steps; playlist and
-favorites resolution remain.
+commands also support `repeat this song`, `repeat this album`, and `turn repeat
+off`. Repeat is restricted to Spotify's fixed `track`, `context`, and `off`
+modes; the ambiguous phrase `enable repeat` is intentionally not interpreted.
+Speech punctuation between a control and its target is accepted, along with a
+small tested alias set for observed `pause`/`Spotify` transcription errors.
+Artist, track, and album selection use separate local resolution steps;
+playlist and favorites resolution remain.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -149,8 +152,8 @@ track and artist names rather than the user's data.
 - [x] Fresh active-device selection with restricted-device refusal and bounded
   desktop-app activation through the existing permission/audit boundary.
 - [x] Separate local `spotify.playback` permission and audited typed play,
-  pause, resume, next, previous, and explicit shuffle-state action contracts
-  and executors.
+  pause, resume, next, previous, explicit shuffle-state, and allowlisted repeat
+  mode action contracts and executors.
 - [x] Deterministic typed/voice parsing for generic playback controls without
   sending the command through an AI provider.
 - [x] Local artist search, guarded artist-context playback, and bounded

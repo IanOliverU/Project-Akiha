@@ -314,6 +314,9 @@ class SpotifyClientTest(unittest.TestCase):
         client.skip_to_previous("desktop-id")
         client.set_shuffle("desktop-id", True)
         client.set_shuffle("desktop-id", False)
+        client.set_repeat("desktop-id", "track")
+        client.set_repeat("desktop-id", "context")
+        client.set_repeat("desktop-id", "off")
 
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
@@ -326,6 +329,9 @@ class SpotifyClientTest(unittest.TestCase):
                 ("POST", "/v1/me/player/previous"),
                 ("PUT", "/v1/me/player/shuffle"),
                 ("PUT", "/v1/me/player/shuffle"),
+                ("PUT", "/v1/me/player/repeat"),
+                ("PUT", "/v1/me/player/repeat"),
+                ("PUT", "/v1/me/player/repeat"),
             ],
         )
         for index, (_method, url, headers, _body, timeout) in enumerate(
@@ -336,6 +342,12 @@ class SpotifyClientTest(unittest.TestCase):
                 expected_query["state"] = ["true"]
             elif index == 7:
                 expected_query["state"] = ["false"]
+            elif index == 8:
+                expected_query["state"] = ["track"]
+            elif index == 9:
+                expected_query["state"] = ["context"]
+            elif index == 10:
+                expected_query["state"] = ["off"]
             self.assertEqual(
                 parse_qs(urlparse(url).query),
                 expected_query,
@@ -363,6 +375,21 @@ class SpotifyClientTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             client.set_shuffle("desktop-id", 1)  # type: ignore[arg-type]
+
+        self.assertEqual(mutations.requests, [])
+
+    def test_repeat_rejects_unallowlisted_mode_without_request(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for mode in ("", "all", "forever"):
+            with self.subTest(mode=mode):
+                with self.assertRaises(ValueError):
+                    client.set_repeat("desktop-id", mode)
 
         self.assertEqual(mutations.requests, [])
 

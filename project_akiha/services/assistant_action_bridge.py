@@ -27,6 +27,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
+    SPOTIFY_REPEAT_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
@@ -179,6 +180,19 @@ _SPOTIFY_SHUFFLE_PATTERN = re.compile(
     r"(?:turn|switch)\s+(?:spotify\s+)?shuffle\s+(?P<post_state>on|off)|"
     r"(?:turn|switch)\s+(?P<pre_state>on|off)\s+(?:spotify\s+)?shuffle|"
     r"(?:set\s+)?(?:spotify\s+)?shuffle\s+(?P<state>on|off))"
+    r"(?:\s+on\s+spotify)?\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_REPEAT_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-repeat\s+(?P<slash>track|context|off)|"
+    r"repeat\s+(?:(?:this|current|the(?:\s+current)?)\s+)?(?:spotify\s+)?"
+    r"(?P<target>song|track|album|playlist|context)|"
+    r"(?P<disable>disable|stop)\s+(?:spotify\s+)?repeat|"
+    r"(?P<turn_off>(?:turn|switch)\s+(?:(?:spotify\s+)?repeat\s+off|"
+    r"off\s+(?:spotify\s+)?repeat))|"
+    r"(?:set\s+)?(?:spotify\s+)?repeat\s+"
+    r"(?P<state>track|context|off))"
     r"(?:\s+on\s+spotify)?\s*[.!?]?$",
     re.IGNORECASE,
 )
@@ -442,6 +456,27 @@ class AssistantActionRequestParser:
                 correlation_id=request_id,
                 action_id=SPOTIFY_SHUFFLE_ACTION,
                 parameters={"service": "spotify", "enabled": enabled},
+            )
+
+        repeat_match = _SPOTIFY_REPEAT_PATTERN.fullmatch(normalized)
+        if repeat_match is not None:
+            if repeat_match.group("disable") or repeat_match.group("turn_off"):
+                mode = "off"
+            else:
+                raw_mode = next(
+                    repeat_match.group(name)
+                    for name in ("slash", "target", "state")
+                    if repeat_match.group(name) is not None
+                ).casefold()
+                mode = (
+                    "track"
+                    if raw_mode in {"song", "track"}
+                    else "context" if raw_mode in {"album", "playlist"} else raw_mode
+                )
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_REPEAT_ACTION,
+                parameters={"service": "spotify", "mode": mode},
             )
 
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)

@@ -49,6 +49,7 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
                 "spotify.next",
                 "spotify.previous",
                 "spotify.shuffle",
+                "spotify.repeat",
                 "spotify.search_artists",
                 "spotify.open_artist",
                 "spotify.play_artist",

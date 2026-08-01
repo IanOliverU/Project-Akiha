@@ -28,6 +28,7 @@ SPOTIFY_RESUME_ACTION = "spotify.resume"
 SPOTIFY_NEXT_ACTION = "spotify.next"
 SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
 SPOTIFY_SHUFFLE_ACTION = "spotify.shuffle"
+SPOTIFY_REPEAT_ACTION = "spotify.repeat"
 SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
 SPOTIFY_SEARCH_TRACKS_ACTION = "spotify.search_tracks"
 SPOTIFY_PLAY_TRACK_ACTION = "spotify.play_track"
@@ -266,6 +267,30 @@ def build_default_action_registry() -> ActionRegistry:
                     ActionParameterSpec(
                         name="enabled",
                         kind=ParameterKind.BOOLEAN,
+                    ),
+                ),
+                timeout_seconds=20,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_REPEAT_ACTION,
+                description="Set repeat mode on one approved Spotify device.",
+                risk=ActionRisk.USER_VISIBLE,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_repeat",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="mode",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("track", "context", "off"),
                     ),
                 ),
                 timeout_seconds=20,

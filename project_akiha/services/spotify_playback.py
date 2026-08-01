@@ -19,6 +19,7 @@ from project_akiha.core.actions import (
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
+    SPOTIFY_REPEAT_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
@@ -206,6 +207,70 @@ class SpotifyShuffleExecutor:
         return ActionExecutionResult(
             status=ActionStatus.SUCCESS,
             summary=f"Spotify shuffle was {state}.",
+        )
+
+
+class SpotifyRepeatExecutor:
+    """Set one validated Spotify repeat mode."""
+
+    action_id = SPOTIFY_REPEAT_ACTION
+    executor_id = "spotify_repeat"
+
+    def __init__(
+        self,
+        client: SpotifyClient,
+        device_coordinator: SpotifyDeviceCoordinator,
+    ) -> None:
+        self._client = client
+        self._device_coordinator = device_coordinator
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError("Spotify repeat executor received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        mode = action.parameters["mode"]
+        if not isinstance(mode, str) or mode not in {"track", "context", "off"}:
+            raise ValueError("Spotify repeat mode was not validated.")
+        resolution = await self._device_coordinator.resolve(
+            action.request.correlation_id,
+            cancellation_token=cancellation_token,
+            allow_activation=False,
+        )
+        if resolution.status is not SpotifyDeviceStatus.READY:
+            return _resolution_failure(resolution)
+        device = resolution.selected_device
+        if device is None:
+            return _unavailable("Spotify did not provide a usable playback device.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        try:
+            await asyncio.to_thread(
+                self._client.set_repeat,
+                device.device_id,
+                mode,
+            )
+        except SpotifyOAuthError:
+            return _unavailable("Connect Spotify from Settings before using playback.")
+        except SpotifyAPIError as error:
+            return _api_failure(error)
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+        summaries = {
+            "track": "Spotify will repeat the current track.",
+            "context": "Spotify will repeat the current album or playlist.",
+            "off": "Spotify repeat was disabled.",
+        }
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=summaries[mode],
         )
 
 
@@ -502,6 +567,7 @@ def build_spotify_playback_executors(
 ) -> tuple[
     SpotifyPlaybackExecutor
     | SpotifyShuffleExecutor
+    | SpotifyRepeatExecutor
     | SpotifyArtistPlaybackExecutor
     | SpotifyArtistOpenExecutor
     | SpotifyArtistSearchExecutor,
@@ -514,6 +580,7 @@ def build_spotify_playback_executors(
             for command in SpotifyPlaybackCommand
         ),
         SpotifyShuffleExecutor(client, device_coordinator),
+        SpotifyRepeatExecutor(client, device_coordinator),
         SpotifyArtistSearchExecutor(client),
         SpotifyArtistOpenExecutor(client),
         SpotifyArtistPlaybackExecutor(client, device_coordinator),

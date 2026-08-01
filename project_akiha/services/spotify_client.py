@@ -310,6 +310,22 @@ class SpotifyClient:
             },
         )
 
+    def set_repeat(self, device_id: str, mode: str) -> None:
+        """Set one allowlisted repeat mode on a fresh Spotify device ID."""
+        if not isinstance(mode, str):
+            raise ValueError("Spotify repeat mode is invalid.")
+        normalized_mode = mode.strip().casefold()
+        if normalized_mode not in {"track", "context", "off"}:
+            raise ValueError("Spotify repeat mode is invalid.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/repeat",
+            {
+                "device_id": _validate_device_id(device_id),
+                "state": normalized_mode,
+            },
+        )
+
     def _get_offset_items(
         self,
         path: str,

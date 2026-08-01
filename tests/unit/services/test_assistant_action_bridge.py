@@ -160,6 +160,32 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                     {"service": "spotify", "enabled": enabled},
                 )
 
+    def test_parses_explicit_spotify_repeat_modes(self) -> None:
+        cases = (
+            ("Repeat this song", "track"),
+            ("Akiha, repeat the current track.", "track"),
+            ("Repeat this album", "context"),
+            ("Please repeat the playlist on Spotify", "context"),
+            ("Disable repeat", "off"),
+            ("Turn Spotify repeat off", "off"),
+            ("Please turn off repeat", "off"),
+            ("/spotify-repeat context", "context"),
+        )
+
+        for text, mode in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.repeat")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "mode": mode},
+                )
+
+    def test_ambiguous_repeat_enable_is_not_an_action(self) -> None:
+        self.assertIsNone(self.parser.parse("Enable repeat"))
+
     def test_parses_explicit_spotify_artist_catalog_commands(self) -> None:
         cases = (
             "/spotify-artist Megurine Luka",
