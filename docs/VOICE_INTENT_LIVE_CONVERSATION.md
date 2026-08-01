@@ -956,15 +956,17 @@ V6 begins.
 
 - [x] Build the smallest possible Pipecat spike using fake audio and provider
   adapters before integrating production UI.
-- [ ] Validate the Qt input/output bridge and single microphone ownership.
-  Input ownership is proven by the V0 snapshot bridge; output remains pending.
+- [x] Validate the Qt input/output bridge and single microphone/output
+  ownership.
 - [x] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
 - [x] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
 - [x] Validate Ollama/local and hosted text providers through the same response
   event contract.
-- [ ] Validate typed action isolation with fake allow/deny results.
-- [ ] Measure Python 3.13, Windows, and Nuitka feasibility.
+- [x] Validate typed action isolation with fake allow/deny results.
+- [x] Measure Python 3.13, Windows, and Nuitka feasibility. The minimal Pipecat
+  freeze exceeded 20 minutes and 2.7 GB of partial output without producing a
+  runnable executable.
 - [ ] Record an explicit adopt, partial-adopt, or do-not-adopt decision.
 
 Progress and measured evidence: `docs/VOICE_PIPELINE_V0_EVALUATION.md`

@@ -1,6 +1,6 @@
 # Voice Pipeline V0 Evaluation
 
-**Status:** In progress - core voice and typed-action boundary probes complete
+**Status:** In progress - implementation and packaging feasibility probes complete
 
 **Evaluation date:** 2026-08-01
 
@@ -66,6 +66,33 @@ dependencies overlap Akiha's current voice stack, and Nuitka includes only the
 reachable module graph. It is still large enough that full adoption requires a
 real packaged-size probe before approval.
 
+### Nuitka Packaging Probe
+
+The real Pipecat core probe was frozen in a disposable Python 3.13 environment
+with Nuitka 4.1.3 and Zig. It imported the current `PipelineWorker` and
+`WorkerRunner`, passed two text frames, and did not include Akiha's UI, assets,
+voice models, or production user data.
+
+| Measurement | Result |
+| --- | ---: |
+| Disposable environment | 600,216,850 bytes |
+| Modules selected by Nuitka | 2,938 |
+| Build timeout | more than 20 minutes |
+| Partial standalone output | 2,733,437,981 bytes |
+| Temporary Nuitka cache | 2,063,211,379 bytes |
+| Runnable executable produced | No |
+| Frozen startup measurement | Unavailable |
+
+The source probe succeeded from a neutral working directory in about 10.5
+seconds, but startup attempted an online NLTK `punkt_tab` lookup even though the
+probe did not use sentence tokenization. NLTK 3.10 also blocked its `regex`
+dependency when the disposable environment was below the current working
+directory; running from a neutral directory avoided that separate protection.
+
+The timed-out compiler process tree was stopped, and the disposable
+environment, 2 GB cache, and 2.7 GB partial artifact were deleted. The existing
+Phase 8 standalone package was not rebuilt, replaced, or modified.
+
 ## Findings
 
 1. Pipecat's core pipeline is technically compatible with the current Windows
@@ -103,13 +130,18 @@ real packaged-size probe before approval.
 12. One turn identity can invalidate all V0 bridges. Cancellation permits a
     clean later turn, while permanent shutdown rejects new work and prevents
     late provider results from entering action validation or audit history.
+13. Full Pipecat adoption does not meet the current packaging bar. Even the
+    text-only core selected 2,938 modules, exceeded a 20-minute build window,
+    generated 2.7 GB of incomplete standalone output, and retained an unwanted
+    online NLTK startup lookup.
 
 ## Current Decision
 
 **Do not add Pipecat to production dependencies yet.** Continue the bounded V0
 evaluation. Pipecat is viable enough to test at the bridge level, but the
-dependency footprint, offline import behavior, and Nuitka result remain
-unresolved.
+measured dependency footprint, offline import behavior, and failed Nuitka probe
+make full-framework adoption difficult to justify. Record the formal V0
+decision before production work begins.
 
 ## Remaining V0 Checks
 
@@ -122,7 +154,9 @@ unresolved.
 - [x] Connect ordered segments to the existing Qt playback owner without
   opening a second output resource.
 - [x] Test cancellation and shutdown through the bridge prototypes.
-- [ ] Run a minimal Nuitka build and measure artifact size/startup behavior.
+- [x] Run a minimal Nuitka build and measure artifact size/startup behavior.
+  The build exceeded 20 minutes and 2.7 GB of partial output without producing
+  an executable, so frozen startup timing was not possible.
 - [ ] Record the final adopt, partial-adopt, or do-not-adopt decision.
 
 ## Verification
