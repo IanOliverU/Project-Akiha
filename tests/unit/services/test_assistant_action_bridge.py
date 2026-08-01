@@ -169,6 +169,28 @@ class AssistantActionRequestParserTest(unittest.TestCase):
         self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
         self.assertIsNone(self.parser.parse("Can you pause, the meeting?"))
 
+    def test_guarded_command_discussion_never_becomes_an_action(self) -> None:
+        cases = (
+            "Akiha, do not open Spotify.",
+            "Could you please not pause Spotify?",
+            "Tell me how to open Spotify.",
+            "Why did you open Discord?",
+            "If I asked you to open Chrome, what would happen?",
+            'The phrase "open Spotify" is one of your commands.',
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIsNone(self.parser.parse(text))
+
+    def test_negation_inside_spotify_title_remains_playable(self) -> None:
+        request = self.parser.parse("Play Don't Start Now by Dua Lipa on Spotify.")
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "spotify.play_track")
+        self.assertEqual(request.parameters["track_query"], "Don't Start Now")
+        self.assertEqual(request.parameters["artist_query"], "Dua Lipa")
+
     def test_parses_explicit_spotify_shuffle_states(self) -> None:
         cases = (
             ("Enable shuffle", True),

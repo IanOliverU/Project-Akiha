@@ -887,8 +887,8 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 
 ### Intent
 
-- [ ] Name, politeness, filler, punctuation, and suffix-envelope tests.
-- [ ] Negation, hypothetical, quoted-command, and metalinguistic rejection.
+- [x] Name, politeness, filler, punctuation, and suffix-envelope tests.
+- [x] Negation, hypothetical, quoted-command, and metalinguistic rejection.
 - [ ] Context follow-up and context-expiry tests.
 - [ ] Ambiguity and confirmation tests.
 - [ ] Deterministic-versus-provider arbitration tests.
@@ -1034,7 +1034,7 @@ The benchmark does not claim real-model accuracy or inference latency.
 ### Milestone V3: Natural Intent And Context
 
 - [x] Add the tolerant deterministic command-envelope parser.
-- [ ] Add negative and metalinguistic guards.
+- [x] Add negative and metalinguistic guards.
 - [ ] Expand ephemeral reference context.
 - [ ] Add intent arbitration and at-most-once turn ledger.
 - [ ] Add optional typed provider proposal fallback.
@@ -1044,8 +1044,10 @@ existing typed action parser. It removes only anchored companion-style modal,
 politeness, filler, and courtesy wrappers, normalizes a narrow allowlist of
 imperative gerunds, and rejects empty or oversized candidates. It does not use
 substring execution, resolve targets, grant permission, or bypass the existing
-action gateway. Explicit negative and metalinguistic classification remains a
-separate V3 guard stage.
+action gateway. Its guard stage rejects anchored negated commands and bounded
+metalinguistic, informational, hypothetical, and quoted-command forms before
+wrapper removal. Rejection reasons are privacy-safe categories; command target
+text is not included.
 
 ### Milestone V4: Streaming Local Speech
 
