@@ -7,6 +7,7 @@ import unittest
 from project_akiha.core.actions import DirectorySearchMatch, FileSearchMatch
 from project_akiha.providers.ai import ChatMessage
 from project_akiha.services.assistant_tool_gateway import (
+    AssistantToolClarification,
     AssistantToolKind,
     AssistantToolProposal,
     AssistantToolProposalError,
@@ -19,6 +20,7 @@ from project_akiha.services.assistant_tool_gateway import (
     filter_media_matches,
     parse_assistant_tool_proposal,
     parse_directory_navigation_proposal,
+    render_assistant_tool_clarification,
     should_request_tool_proposal,
 )
 
@@ -49,6 +51,41 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(proposal.kind, AssistantToolKind.NONE)
         self.assertEqual(provider.messages, ())
+
+    async def test_guarded_and_oversized_text_never_reaches_provider(self) -> None:
+        provider = _FakeProvider('{"action":"none"}')
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+
+        cases = (
+            "Akiha, do not open Spotify.",
+            "Tell me how to open Discord.",
+            'The phrase "open Chrome" is a command.',
+            "open " + ("x" * 2_001),
+        )
+        for text in cases:
+            with self.subTest(text=text[:40]):
+                proposal = await gateway.propose(text)
+                self.assertEqual(proposal.kind, AssistantToolKind.NONE)
+
+        self.assertEqual(provider.messages, ())
+
+    async def test_provider_receives_no_local_paths_or_result_metadata(self) -> None:
+        provider = _FakeProvider(
+            '{"action":"play_media","title":"Elis",'
+            '"artist":"Megurine Luka","media_kind":"audio"}'
+        )
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+
+        await gateway.propose("Please put on Elis by Megurine Luka")
+
+        rendered_messages = "\n".join(message.content for message in provider.messages)
+        self.assertNotIn(r"C:\Users\Akiha", rendered_messages)
+        self.assertNotIn("approved_roots", rendered_messages)
+        self.assertNotIn("search_results", rendered_messages)
+        self.assertEqual(
+            provider.messages[-1],
+            ChatMessage(role="user", content="put on Elis by Megurine Luka"),
+        )
 
     def test_rejects_unallowlisted_application_and_extra_path(self) -> None:
         with self.assertRaises(AssistantToolProposalError):
@@ -104,13 +141,39 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
                 '"parent":"C:\\\\Users\\\\Akiha\\\\Downloads"}'
             )
 
+    def test_parses_typed_clarification_and_renders_only_local_text(self) -> None:
+        proposal = parse_assistant_tool_proposal('{"action":"clarify","topic":"media"}')
+
+        self.assertEqual(proposal.kind, AssistantToolKind.CLARIFY)
+        self.assertEqual(proposal.clarification, AssistantToolClarification.MEDIA)
+        self.assertEqual(
+            render_assistant_tool_clarification(proposal),
+            "Which local song or video should I play? Include its title if possible.",
+        )
+        with self.assertRaises(AssistantToolProposalError):
+            parse_assistant_tool_proposal(
+                '{"action":"clarify","topic":"media","question":"Open it?"}'
+            )
+        with self.assertRaises(ValueError):
+            render_assistant_tool_clarification(
+                AssistantToolProposal(AssistantToolKind.NONE)
+            )
+
+    def test_rejects_oversized_provider_response(self) -> None:
+        with self.assertRaisesRegex(AssistantToolProposalError, "size limit"):
+            parse_assistant_tool_proposal("{" + ("x" * 4_096) + "}")
+
     def test_likelihood_gate_limits_extra_provider_requests(self) -> None:
         self.assertTrue(
             should_request_tool_proposal("Akiha, play Elis by Megurine Luka")
         )
         self.assertTrue(should_request_tool_proposal("Akiha, close VLC"))
+        self.assertTrue(should_request_tool_proposal("Please bring up Discord"))
+        self.assertTrue(should_request_tool_proposal("Put on some local music"))
         self.assertTrue(should_request_tool_proposal("Discordを起動してください"))
         self.assertFalse(should_request_tool_proposal("What should we do today?"))
+        self.assertFalse(should_request_tool_proposal("Do not open Discord"))
+        self.assertFalse(should_request_tool_proposal("How do I open Discord?"))
 
 
 class AssistantToolMediaTest(unittest.TestCase):

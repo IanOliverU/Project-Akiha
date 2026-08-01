@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 through V2 complete
+**Status:** Implementation in progress - V0 through V3 complete
 
 **Planning date:** 2026-08-01
 
@@ -890,10 +890,10 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 - [x] Name, politeness, filler, punctuation, and suffix-envelope tests.
 - [x] Negation, hypothetical, quoted-command, and metalinguistic rejection.
 - [x] Context follow-up and context-expiry tests.
-- [ ] Ambiguity and confirmation tests.
+- [x] Ambiguity and confirmation tests.
 - [x] Deterministic-versus-provider arbitration tests.
 - [x] At-most-once action execution tests.
-- [ ] Hosted-provider local-data isolation tests.
+- [x] Hosted-provider local-data isolation tests.
 
 ### Speaking
 
@@ -1037,7 +1037,7 @@ The benchmark does not claim real-model accuracy or inference latency.
 - [x] Add negative and metalinguistic guards.
 - [x] Expand ephemeral reference context.
 - [x] Add intent arbitration and at-most-once turn ledger.
-- [ ] Add optional typed provider proposal fallback.
+- [x] Add optional typed provider proposal fallback.
 
 The deterministic envelope parser is framework-free and runs before the
 existing typed action parser. It removes only anchored companion-style modal,
@@ -1069,6 +1069,17 @@ privacy-safe decisions. Ledger records contain only turn ID, proposal ID,
 action category, source, and decision reason; they never contain user text,
 paths, action parameters, or provider output. File-opening confirmation resumes
 the already accepted action rather than creating a second proposal.
+
+The optional JSON provider fallback now runs only after local parsing and
+context resolution fail. It is disabled by default, rejects negated,
+metalinguistic, quoted, oversized, or non-action input before contacting the
+selected provider, and accepts only exact path-free schemas for allowlisted
+applications, named directory lookup, passive media lookup, `none`, or a typed
+clarification topic. Clarification text is rendered locally. Approved roots,
+search results, paths, action parameters, and durable memory are never added to
+provider proposal messages. Returned proposals still pass through local target
+resolution, permissions, confirmation, execution, audit, and intent
+arbitration. Provider-native function calling remains deferred to V7.
 
 ### Milestone V4: Streaming Local Speech
 

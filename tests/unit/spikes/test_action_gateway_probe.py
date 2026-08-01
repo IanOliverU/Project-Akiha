@@ -118,7 +118,7 @@ class TypedActionGatewayProbeTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(AssistantToolProposalError):
             await self._probe(provider).commit_final(
                 3,
-                TranscriptRevision("Run a system command", 1, is_final=True),
+                TranscriptRevision("Open PowerShell", 1, is_final=True),
             )
 
         self.assertEqual(self.executor.targets, [])
@@ -156,7 +156,8 @@ class TypedActionGatewayProbeTest(unittest.IsolatedAsyncioTestCase):
                 TranscriptRevision("Open Chrome", 3, is_final=True),
             )
 
-        self.assertEqual(provider.request_count, 1)
+        self.assertEqual(provider.request_count, 0)
+        self.assertEqual(provider.messages, ())
         self.assertEqual(await self.repository.get_recent_action_audits(10), ())
 
     def _probe(self, provider: _FakeProvider) -> TypedActionGatewayProbe:

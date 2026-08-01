@@ -146,6 +146,7 @@ from project_akiha.services.assistant_tool_gateway import (
     LLMAssistantToolGateway,
     directory_name_matches,
     parse_directory_navigation_proposal,
+    render_assistant_tool_clarification,
     should_request_tool_proposal,
 )
 from project_akiha.services.assistant_translation import AssistantTranslationService
@@ -1846,6 +1847,12 @@ def _run_application() -> int:
         def handle_proposal(proposal: AssistantToolProposal) -> None:
             if proposal.kind is AssistantToolKind.NONE:
                 start_chat_response(message)
+                return
+            if proposal.kind is AssistantToolKind.CLARIFY:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    render_assistant_tool_clarification(proposal),
+                )
                 return
             if proposal.kind is AssistantToolKind.LAUNCH_APPLICATION:
                 request = ActionRequest(

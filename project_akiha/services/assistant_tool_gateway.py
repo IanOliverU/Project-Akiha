@@ -22,8 +22,14 @@ from project_akiha.core.actions.registry import (
     OPEN_FILE_ACTION,
 )
 from project_akiha.providers.ai import AIProvider, ChatMessage
+from project_akiha.services.command_envelope import (
+    DeterministicCommandEnvelopeParser,
+)
 
 _MAX_QUERY_LENGTH = 160
+_MAX_PROPOSAL_INPUT_LENGTH = 2_000
+_MAX_PROPOSAL_RESPONSE_LENGTH = 4_096
+_COMMAND_ENVELOPE_PARSER = DeterministicCommandEnvelopeParser()
 _MEDIA_EXTENSIONS = frozenset(
     {
         ".avi",
@@ -80,6 +86,7 @@ _NAVIGATION_CORRECTION_TAIL_PATTERN = re.compile(
 )
 _TOOL_LIKELIHOOD_PATTERN = re.compile(
     r"\b(?:close|exit|launch|listen|open|play|quit|start|watch)\b|"
+    r"\b(?:bring\s+up|put\s+on|shut\s+down)\b|"
     r"(?:再生|開いて|起動)",
     re.IGNORECASE,
 )
@@ -95,6 +102,15 @@ class AssistantToolKind(StrEnum):
     CLOSE_APPLICATION = "close_application"
     PLAY_MEDIA = "play_media"
     OPEN_DIRECTORY = "open_directory"
+    CLARIFY = "clarify"
+
+
+class AssistantToolClarification(StrEnum):
+    """Local clarification topics that contain no provider-authored prose."""
+
+    APPLICATION = "application"
+    DIRECTORY = "directory"
+    MEDIA = "media"
 
 
 class MediaKind(StrEnum):
@@ -116,9 +132,28 @@ class AssistantToolProposal:
     media_kind: MediaKind = MediaKind.ANY
     directory_name: str = ""
     parent_name: str = ""
+    clarification: AssistantToolClarification | None = None
 
     def __post_init__(self) -> None:
-        if self.kind in {
+        if (
+            self.kind is not AssistantToolKind.CLARIFY
+            and self.clarification is not None
+        ):
+            raise ValueError("action proposal cannot include clarification metadata.")
+        if self.kind is AssistantToolKind.CLARIFY:
+            if self.clarification is None:
+                raise ValueError("clarification proposal requires one local topic.")
+            if any(
+                (
+                    self.application_id,
+                    self.title,
+                    self.artist,
+                    self.directory_name,
+                    self.parent_name,
+                )
+            ):
+                raise ValueError("clarification proposal cannot include action fields.")
+        elif self.kind in {
             AssistantToolKind.LAUNCH_APPLICATION,
             AssistantToolKind.CLOSE_APPLICATION,
         }:
@@ -193,8 +228,8 @@ class LLMAssistantToolGateway:
         """Return one validated proposal for explicit everyday action requests."""
         if not self._enabled:
             return AssistantToolProposal(AssistantToolKind.NONE)
-        normalized = user_text.strip()
-        if not normalized:
+        normalized = _proposal_candidate(user_text)
+        if not normalized or _TOOL_LIKELIHOOD_PATTERN.search(normalized) is None:
             return AssistantToolProposal(AssistantToolKind.NONE)
 
         response = await self._provider.generate_response(
@@ -341,7 +376,36 @@ def parse_assistant_tool_proposal(response: str) -> AssistantToolProposal:
             )
         except ValueError as error:
             raise AssistantToolProposalError(str(error)) from error
+    if action == AssistantToolKind.CLARIFY.value:
+        _require_exact_keys(payload, {"action", "topic"})
+        topic = payload.get("topic")
+        if not isinstance(topic, str):
+            raise AssistantToolProposalError("clarification topic must be a string.")
+        try:
+            return AssistantToolProposal(
+                AssistantToolKind.CLARIFY,
+                clarification=AssistantToolClarification(topic.strip().casefold()),
+            )
+        except ValueError as error:
+            raise AssistantToolProposalError(str(error)) from error
     raise AssistantToolProposalError("tool proposal action is unsupported.")
+
+
+def render_assistant_tool_clarification(proposal: AssistantToolProposal) -> str:
+    """Render one fixed local question for an ambiguous provider proposal."""
+    if proposal.kind is not AssistantToolKind.CLARIFY or proposal.clarification is None:
+        raise ValueError("clarification rendering requires a clarification proposal.")
+    return {
+        AssistantToolClarification.APPLICATION: (
+            "Which approved application should I open or close?"
+        ),
+        AssistantToolClarification.DIRECTORY: (
+            "Which directory should I open, and what approved location is it inside?"
+        ),
+        AssistantToolClarification.MEDIA: (
+            "Which local song or video should I play? Include its title if possible."
+        ),
+    }[proposal.clarification]
 
 
 def filter_media_matches(
@@ -497,7 +561,8 @@ def directory_name_matches(expected: str, actual: str) -> bool:
 
 def should_request_tool_proposal(user_text: str) -> bool:
     """Return whether explicit action language justifies an extra LLM request."""
-    return _TOOL_LIKELIHOOD_PATTERN.search(user_text.strip()) is not None
+    normalized = _proposal_candidate(user_text)
+    return bool(normalized) and _TOOL_LIKELIHOOD_PATTERN.search(normalized) is not None
 
 
 def _proposal_system_prompt() -> str:
@@ -506,6 +571,7 @@ Return exactly one JSON object and no prose.
 
 Supported outputs:
 {"action":"none"}
+{"action":"clarify","topic":"application|directory|media"}
 {"action":"launch_application","application_id":"chrome|discord|spotify|vlc|vscode"}
 {"action":"close_application","application_id":"chrome|discord|spotify|vlc|vscode"}
 {"action":"open_directory","name":"child directory name",
@@ -517,12 +583,15 @@ Choose an action only when the user explicitly asks to launch an allowed
 application, gracefully close an allowed application, open a named local
 directory, or play/open local audio or video. Separate artist from title.
 Never output paths, commands, URLs, arguments, file contents, or other fields.
-For questions, planning, discussion, uncertain intent, or unsupported actions,
-return {"action":"none"}."""
+Use clarify only when an explicit supported action is missing its application,
+directory, or media target. For questions, planning, quoted commands,
+negation, discussion, or unsupported actions, return {"action":"none"}."""
 
 
 def _parse_json_object(response: str) -> dict[str, object]:
     normalized = response.strip()
+    if len(normalized) > _MAX_PROPOSAL_RESPONSE_LENGTH:
+        raise AssistantToolProposalError("AI tool proposal exceeded its size limit.")
     if normalized.startswith("```") and normalized.endswith("```"):
         lines = normalized.splitlines()
         if len(lines) >= 3:
@@ -553,6 +622,16 @@ def _validate_query_text(value: str, label: str) -> None:
         )
     if any(character in normalized for character in ("\\", "/", ":", "\0", "\r", "\n")):
         raise ValueError(f"{label} cannot contain path or control characters.")
+
+
+def _proposal_candidate(user_text: str) -> str:
+    normalized = _normalize_navigation_text(user_text)
+    if not normalized or len(normalized) > _MAX_PROPOSAL_INPUT_LENGTH:
+        return ""
+    analysis = _COMMAND_ENVELOPE_PARSER.analyze(normalized)
+    if analysis.rejection is not None or analysis.envelope is None:
+        return ""
+    return analysis.envelope.command_text
 
 
 def _query_tokens(value: str) -> frozenset[str]:
