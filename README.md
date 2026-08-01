@@ -422,6 +422,8 @@ Spotify integration and closure record: `docs/SPOTIFY_INTEGRATION.md`
 Approved Post-Phase 8 Voice Intent and Live Conversation architecture:
 `docs/VOICE_INTENT_LIVE_CONVERSATION.md`
 
+Voice Pipeline V0 evaluation: `docs/VOICE_PIPELINE_V0_EVALUATION.md`
+
 Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`

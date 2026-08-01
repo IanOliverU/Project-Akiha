@@ -954,17 +954,19 @@ V6 begins.
 
 ### Milestone V0: Pipeline Framework Spike
 
-- [ ] Build the smallest possible Pipecat spike using fake audio and provider
+- [x] Build the smallest possible Pipecat spike using fake audio and provider
   adapters before integrating production UI.
 - [ ] Validate the Qt input/output bridge and single microphone ownership.
 - [ ] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
 - [ ] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
-- [ ] Validate Ollama and one hosted text provider through the same response
+- [x] Validate Ollama/local and hosted text providers through the same response
   event contract.
 - [ ] Validate typed action isolation with fake allow/deny results.
 - [ ] Measure Python 3.13, Windows, and Nuitka feasibility.
 - [ ] Record an explicit adopt, partial-adopt, or do-not-adopt decision.
+
+Progress and measured evidence: `docs/VOICE_PIPELINE_V0_EVALUATION.md`
 
 **Checkpoint:** V1 does not begin until the orchestration ownership decision is
 recorded. The spike may be discarded and must not mutate production data.
