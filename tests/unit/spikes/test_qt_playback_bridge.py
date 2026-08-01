@@ -55,13 +55,13 @@ class QtSegmentPlaybackBridgeTest(unittest.TestCase):
         bridge = QtSegmentPlaybackBridge(owner)
 
         async def exercise() -> None:
-            task = asyncio.create_task(
-                bridge.play(_segment(0, "Long sentence."), _audio("Long sentence."))
+            processor = OrderedVoiceVoxProcessor(
+                SpeechOutputService(_ImmediateProvider())
             )
+            processor.start_turn(1, bridge)
+            processor.submit(_segment(0, "Long sentence."))
             await asyncio.to_thread(owner.started.wait, 1.0)
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await task
+            self.assertTrue(await processor.cancel_turn(1))
 
         _run_with_qt_events(exercise())
 

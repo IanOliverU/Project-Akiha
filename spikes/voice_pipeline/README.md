@@ -25,6 +25,9 @@ The framework-neutral harness proves:
 - ordered synthesized segments cross a queued Qt thread boundary to the one
   existing playback owner; completion, failure, and cancellation return to the
   originating async turn without publishing encoded audio
+- coordinated turn cancellation discards frame, transcript, provider proposal,
+  synthesis, and playback state; permanent shutdown is idempotent and rejects
+  new work while late callbacks remain inert
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.

@@ -44,6 +44,9 @@ It does not alter the production runtime or read production user data.
 - [x] Connected ordered synthesized segments to the existing Qt playback owner
   through an explicit queued thread handoff, with async completion, failure,
   and cancellation propagation and no second audio-output resource.
+- [x] Proved coordinated turn cancellation and permanent shutdown release frame,
+  recognizer, provider proposal, synthesis, and Qt playback bridges; late
+  provider results cannot dispatch actions and shutdown remains idempotent.
 
 ## Measurements
 
@@ -97,13 +100,16 @@ real packaged-size probe before approval.
 11. The existing Qt playback object can remain the sole audio-output owner.
     Ordered pipeline segments enter its Qt thread one at a time, and terminal
     callbacks return safely to the originating asyncio loop.
+12. One turn identity can invalidate all V0 bridges. Cancellation permits a
+    clean later turn, while permanent shutdown rejects new work and prevents
+    late provider results from entering action validation or audit history.
 
 ## Current Decision
 
 **Do not add Pipecat to production dependencies yet.** Continue the bounded V0
 evaluation. Pipecat is viable enough to test at the bridge level, but the
-dependency footprint, offline import behavior, coordinated shutdown behavior,
-and Nuitka result remain unresolved.
+dependency footprint, offline import behavior, and Nuitka result remain
+unresolved.
 
 ## Remaining V0 Checks
 
@@ -115,7 +121,7 @@ and Nuitka result remain unresolved.
   boundary without exposing an executor to the provider side.
 - [x] Connect ordered segments to the existing Qt playback owner without
   opening a second output resource.
-- [ ] Test cancellation and shutdown through the Pipecat bridge prototypes.
+- [x] Test cancellation and shutdown through the bridge prototypes.
 - [ ] Run a minimal Nuitka build and measure artifact size/startup behavior.
 - [ ] Record the final adopt, partial-adopt, or do-not-adopt decision.
 
@@ -123,11 +129,11 @@ and Nuitka result remain unresolved.
 
 Current repository verification:
 
-- 29 focused V0 voice-pipeline tests passed.
+- 31 focused V0 voice-pipeline tests passed.
 - 66 existing assistant proposal, action-service, and action-bridge tests passed.
 - 33 existing Qt playback, playback-controller, and synthesis-controller tests
   passed.
-- Full suite after Qt playback-owner integration: 956 tests passed, 3 skipped.
+- Full suite after coordinated bridge shutdown: 958 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.
