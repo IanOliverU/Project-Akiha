@@ -126,6 +126,16 @@ that exact URI without another catalog search or AI interpretation. New chat,
 Clear chat, and presentation of a new album result list discard this context;
 it is never written to durable companion memory.
 
+Playlist discovery combines a bounded local snapshot of the authenticated
+user's playlists with Spotify catalog search results. Personal matches are
+ranked first, duplicate URIs are removed, and at most five validated
+`spotify:playlist:<id>` choices are retained. Supported forms include `search
+Spotify playlists for Night Drive`, `play my playlist called Night Drive on
+Spotify`, `/spotify-search-playlists Night Drive`, and `/spotify-playlist Night
+Drive`. Ambiguous names require `play playlist result 1`; successful playback
+also permits the short-lived `play that playlist` follow-up. Playlist metadata
+never becomes durable companion memory or hosted-provider prompt context.
+
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
@@ -174,7 +184,8 @@ track and artist names rather than the user's data.
   presentation, and one-track playback.
 - [x] Album search, local title/artist resolution, bounded result presentation,
   desktop-first opening, and guarded album-context playback.
+- [x] Personal-plus-catalog playlist search, local ranking, bounded ambiguity
+  presentation, validated playback, and contextual follow-ups.
 - [ ] Local preference ranking and ambiguity UI.
-- [ ] Track, artist, album, playlist, and favorites voice/chat resolution with
-  end-to-end tests.
+- [ ] Favorites-based voice/chat resolution with end-to-end tests.
 - [ ] Packaged build and manual Spotify smoke test.

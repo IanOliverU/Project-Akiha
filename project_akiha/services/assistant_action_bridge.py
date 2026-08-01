@@ -25,12 +25,14 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ALBUM_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_PLAY_PLAYLIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_REPEAT_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
+    SPOTIFY_SEARCH_PLAYLISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
     SPOTIFY_SEEK_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
@@ -104,6 +106,24 @@ _SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
     r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?albums?"
     r"(?:\s+(?:for|named))?\s*[:=]?\s*(?P<labeled>.+?)"
     r"(?:\s+on\s+spotify)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_PLAYLIST_SEARCH_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-search-playlists\s+(?P<slash>.+?)|"
+    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?playlists?"
+    r"(?:\s+(?:for|named|called))?\s*[:=]?\s*(?P<labeled>.+?)"
+    r"(?:\s+on\s+spotify)?|"
+    r"(?:search|find|look\s+up)\s+spotify\s+for\s+(?:the\s+)?playlist\s+"
+    r"(?P<spotify_for>.+?))\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_PLAYLIST_PLAY_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-playlist\s+(?P<slash>.+?)|"
+    r"(?:play|listen\s+to)\s+(?:(?:my|the)\s+)?(?:spotify\s+)?playlist"
+    r"(?:\s+(?:named|called))?\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"play\s+(?P<on_spotify>.+?)\s+playlist\s+on\s+spotify)\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_ALBUM_OPEN_PATTERN = re.compile(
@@ -363,6 +383,38 @@ class AssistantActionRequestParser:
                     correlation_id=request_id,
                     action_id=SPOTIFY_SEARCH_ALBUMS_ACTION,
                     parameters=parameters,
+                )
+
+        playlist_search_match = _SPOTIFY_PLAYLIST_SEARCH_PATTERN.fullmatch(normalized)
+        if playlist_search_match is not None:
+            playlist = _matched_query(
+                playlist_search_match,
+                ("slash", "labeled", "spotify_for"),
+            )
+            if playlist and not _is_spotify_result_reference(playlist):
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_SEARCH_PLAYLISTS_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "playlist_query": playlist,
+                    },
+                )
+
+        playlist_play_match = _SPOTIFY_PLAYLIST_PLAY_PATTERN.fullmatch(normalized)
+        if playlist_play_match is not None:
+            playlist = _matched_query(
+                playlist_play_match,
+                ("slash", "labeled", "on_spotify"),
+            )
+            if playlist and not _is_spotify_result_reference(playlist):
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_PLAY_PLAYLIST_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "playlist_query": playlist,
+                    },
                 )
 
         album_open_match = _SPOTIFY_ALBUM_OPEN_PATTERN.fullmatch(normalized)

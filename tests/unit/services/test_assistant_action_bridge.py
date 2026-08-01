@@ -350,6 +350,47 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                     },
                 )
 
+    def test_parses_spotify_playlist_search_commands(self) -> None:
+        cases = (
+            "/spotify-search-playlists Night Drive",
+            "Search Spotify playlists for Night Drive",
+            "Please find playlist named Night Drive on Spotify.",
+            "Look up Spotify for the playlist Night Drive",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.search_playlists")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "playlist_query": "Night Drive"},
+                )
+
+    def test_parses_spotify_playlist_playback_commands(self) -> None:
+        cases = (
+            "/spotify-playlist Night Drive",
+            "Play Spotify playlist Night Drive",
+            "Please play my playlist called Night Drive on Spotify.",
+            "Play Night Drive playlist on Spotify",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.play_playlist")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "playlist_query": "Night Drive"},
+                )
+
+    def test_playlist_result_reference_does_not_become_catalog_query(self) -> None:
+        self.assertIsNone(self.parser.parse("Play playlist result 1"))
+
     def test_parses_spotify_album_open_commands(self) -> None:
         cases = (
             "/spotify-open-album Kyougen | ADO",

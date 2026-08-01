@@ -63,9 +63,11 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PLAY_ALBUM_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_PLAY_PLAYLIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
+    SPOTIFY_SEARCH_PLAYLISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
 )
 from project_akiha.core.behavior import (
@@ -172,6 +174,10 @@ from project_akiha.services.spotify_devices import (
 from project_akiha.services.spotify_playback import (
     SpotifyArtistSelectionStore,
     build_spotify_playback_executors,
+)
+from project_akiha.services.spotify_playlists import (
+    SpotifyPlaylistSelectionStore,
+    build_spotify_playlist_executors,
 )
 from project_akiha.services.spotify_session import SpotifySession
 from project_akiha.services.spotify_tracks import (
@@ -319,6 +325,10 @@ def _run_application() -> int:
                 spotify_client,
                 spotify_device_coordinator,
             ),
+            *build_spotify_playlist_executors(
+                spotify_client,
+                spotify_device_coordinator,
+            ),
         ),
     )
     spotify_activator.apply_service(assistant_action_service)
@@ -342,6 +352,7 @@ def _run_application() -> int:
     spotify_artist_selection_store = SpotifyArtistSelectionStore()
     spotify_track_selection_store = SpotifyTrackSelectionStore()
     spotify_album_selection_store = SpotifyAlbumSelectionStore()
+    spotify_playlist_selection_store = SpotifyPlaylistSelectionStore()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -1041,6 +1052,40 @@ def _run_application() -> int:
             )
         refresh_assistant_action_history_window()
 
+        playlist_candidates = result.metadata.get("playlist_candidates")
+        if dispatch.request.action_id in {
+            SPOTIFY_PLAY_PLAYLIST_ACTION,
+            SPOTIFY_SEARCH_PLAYLISTS_ACTION,
+        } and isinstance(playlist_candidates, tuple):
+            try:
+                spotify_playlist_selection_store.replace(playlist_candidates)
+            except ValueError:
+                chat_window.append_error(
+                    "Akiha could not safely present those Spotify playlists."
+                )
+                return
+            if not playlist_candidates:
+                chat_window.append_message(
+                    config.personality.character_name,
+                    result.summary,
+                )
+                return
+            lines = [
+                f"{index}. {playlist.display_label}"
+                for index, playlist in enumerate(playlist_candidates, start=1)
+            ]
+            chat_window.append_message(
+                config.personality.character_name,
+                (
+                    "I found these Spotify playlists:\n"
+                    if dispatch.request.action_id == SPOTIFY_SEARCH_PLAYLISTS_ACTION
+                    else "I found several possible Spotify playlists:\n"
+                )
+                + "\n".join(lines)
+                + '\nSay "Play playlist result 1" with the number you want.',
+            )
+            return
+
         album_candidates = result.metadata.get("album_candidates")
         if dispatch.request.action_id in {
             SPOTIFY_OPEN_ALBUM_ACTION,
@@ -1196,6 +1241,30 @@ def _run_application() -> int:
                 spotify_artist_selection_store.clear()
             if dispatch.request.action_id == SPOTIFY_PLAY_TRACK_ACTION:
                 spotify_track_selection_store.clear()
+            if dispatch.request.action_id == SPOTIFY_PLAY_PLAYLIST_ACTION:
+                playlist_name = result.metadata.get("playlist_name")
+                playlist_uri = result.metadata.get("playlist_uri")
+                playlist_owner = result.metadata.get("playlist_owner", "")
+                if (
+                    isinstance(playlist_name, str)
+                    and isinstance(playlist_uri, str)
+                    and isinstance(playlist_owner, str)
+                ):
+                    try:
+                        spotify_playlist_selection_store.remember_selected(
+                            playlist_name,
+                            playlist_uri,
+                            playlist_owner,
+                        )
+                    except ValueError:
+                        logger.warning(
+                            "Spotify returned invalid selected-playlist metadata."
+                        )
+                        spotify_playlist_selection_store.clear()
+                    else:
+                        spotify_playlist_selection_store.clear_candidates()
+                else:
+                    spotify_playlist_selection_store.clear()
             if dispatch.request.action_id in {
                 SPOTIFY_OPEN_ALBUM_ACTION,
                 SPOTIFY_PLAY_ALBUM_ACTION,
@@ -1613,8 +1682,12 @@ def _run_application() -> int:
     def submit_chat_message(message: str) -> None:
         refresh_assistant_action_aliases()
         selection_error = None
-        action_request = spotify_album_selection_store.parse_follow_up(message)
+        action_request = spotify_playlist_selection_store.parse_follow_up(message)
         if action_request is None:
+            selection_error = spotify_playlist_selection_store.follow_up_error(message)
+        if action_request is None and selection_error is None:
+            action_request = spotify_album_selection_store.parse_follow_up(message)
+        if action_request is None and selection_error is None:
             selection_error = spotify_album_selection_store.follow_up_error(message)
         if action_request is None and selection_error is None:
             action_request = spotify_track_selection_store.parse_follow_up(message)
@@ -1676,6 +1749,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        spotify_playlist_selection_store.clear()
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()
@@ -1696,6 +1770,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        spotify_playlist_selection_store.clear()
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()

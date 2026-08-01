@@ -60,6 +60,8 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
                 "spotify.search_albums",
                 "spotify.open_album",
                 "spotify.play_album",
+                "spotify.search_playlists",
+                "spotify.play_playlist",
             ),
         )
 
