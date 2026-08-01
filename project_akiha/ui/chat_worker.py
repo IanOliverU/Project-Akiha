@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from typing import Protocol
 from uuid import uuid4
 
 from PySide6.QtCore import QObject, QThread, Signal
@@ -13,9 +15,18 @@ from project_akiha.core.voice_session import (
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
+    ResponseSegment,
     VoiceProcessingMode,
 )
+from project_akiha.services.response_segment_renderer import canonical_speech_fallback
 from project_akiha.services.response_segmenter import StableResponseSegmenter
+
+
+class SegmentRenderer(Protocol):
+    """Render one canonical segment without changing provider text."""
+
+    def render(self, segment: CanonicalResponseSegment) -> ResponseSegment:
+        """Return a synthesis-ready speech derivative."""
 
 
 class ChatResponseThread(QThread):
@@ -27,6 +38,7 @@ class ChatResponseThread(QThread):
     response_cancelled = Signal()
     modular_response_event = Signal(object)
     response_segment_ready = Signal(object)
+    speech_segment_ready = Signal(object)
 
     def __init__(
         self,
@@ -35,6 +47,7 @@ class ChatResponseThread(QThread):
         parent: QObject | None = None,
         *,
         response_context: ModularResponseContext | None = None,
+        segment_renderer: SegmentRenderer | None = None,
     ) -> None:
         super().__init__(parent)
         self._chat_controller = chat_controller
@@ -43,6 +56,7 @@ class ChatResponseThread(QThread):
             response_id=uuid4().hex,
             processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
         )
+        self._segment_renderer = segment_renderer
         self._is_cancel_requested = False
         self._next_event_sequence = 0
         self._has_emitted_started_event = False
@@ -112,6 +126,17 @@ class ChatResponseThread(QThread):
     ) -> None:
         for segment in segments:
             self.response_segment_ready.emit(segment)
+            if self._segment_renderer is None:
+                continue
+            try:
+                rendered = self._segment_renderer.render(segment)
+            except Exception as error:
+                logging.getLogger("project_akiha.voice.identity").warning(
+                    "Segment identity rendering used canonical fallback (%s).",
+                    type(error).__name__,
+                )
+                rendered = canonical_speech_fallback(segment)
+            self.speech_segment_ready.emit(rendered)
 
     def _is_cancelled(self) -> bool:
         return self._is_cancel_requested or self.isInterruptionRequested()

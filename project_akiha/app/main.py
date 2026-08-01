@@ -182,6 +182,10 @@ from project_akiha.services.privacy_notice import (
     acknowledge_current_privacy_notice,
     privacy_notice_required,
 )
+from project_akiha.services.response_segment_renderer import (
+    ResponseSegmentRenderer,
+    SafeSpeechStyleRenderer,
+)
 from project_akiha.services.speech_identity import (
     AkihaSpeechStyleService,
     build_akiha_identity_system_prompt,
@@ -581,6 +585,10 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         config=config.voice,
         style_service=AkihaSpeechStyleService(),
+        mood_provider=lambda: mood_controller.snapshot.mood,
+    )
+    response_segment_renderer = ResponseSegmentRenderer(
+        SafeSpeechStyleRenderer(AkihaSpeechStyleService()),
         mood_provider=lambda: mood_controller.snapshot.mood,
     )
     voice_diagnostics_controller = VoiceDiagnosticsController(
@@ -1549,6 +1557,7 @@ def _run_application() -> int:
                     else VoiceProcessingMode.LOCAL_MODULAR
                 ),
             ),
+            segment_renderer=response_segment_renderer,
         )
         active_chat_threads.append(thread)
         has_response_started = False

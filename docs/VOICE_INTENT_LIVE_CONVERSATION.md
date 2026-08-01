@@ -900,9 +900,9 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 - [x] Sentence and conservative clause segmentation tests.
 - [ ] Ordered synthesis and playback tests.
 - [ ] Backpressure and queue-bound tests.
-- [ ] Style-render fallback tests.
+- [x] Style-render fallback tests.
 - [ ] Interruption during generation, synthesis, and playback.
-- [ ] Canonical-text and derived-speech separation tests.
+- [x] Canonical-text and derived-speech separation tests.
 
 ### Gemini Live
 
@@ -1084,7 +1084,7 @@ arbitration. Provider-native function calling remains deferred to V7.
 ### Milestone V4: Streaming Local Speech
 
 - [x] Stream canonical provider text into a stable response segmenter.
-- [ ] Render speech identity per stable segment with fallback.
+- [x] Render speech identity per stable segment with fallback.
 - [ ] Add bounded concurrent synthesis and ordered playback.
 - [ ] Preserve final canonical response and derived subtitle behavior.
 - [ ] Add controlled Talk-to-interrupt behavior.

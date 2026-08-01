@@ -422,20 +422,34 @@ class AssistantTextRevision:
 class ResponseSegment:
     """One ordered stable text span ready for speech synthesis."""
 
-    session_id: str
-    turn_id: str
+    response_id: str
     segment_index: int
-    canonical_text: str
-    speech_text: str
+    canonical_text: str = field(repr=False)
+    speech_text: str = field(repr=False)
+    speaking_rate_multiplier: float = 1.0
     is_final: bool = False
+    session_id: str | None = None
+    turn_id: str | None = None
 
     def __post_init__(self) -> None:
-        _require_identifier(self.session_id, "session ID")
-        _require_identifier(self.turn_id, "turn ID")
+        _require_identifier(self.response_id, "response ID")
         if self.segment_index < 0:
             raise ValueError("response segment index cannot be negative.")
         _require_text(self.canonical_text, "canonical response text")
         _require_text(self.speech_text, "speech-rendered response text")
+        if (
+            isinstance(self.speaking_rate_multiplier, bool)
+            or not isinstance(self.speaking_rate_multiplier, (int, float))
+            or not 0.5 <= self.speaking_rate_multiplier <= 1.5
+        ):
+            raise ValueError(
+                "response segment speaking-rate multiplier must be between 0.5 and 1.5."
+            )
+        if (self.session_id is None) != (self.turn_id is None):
+            raise ValueError("response session and turn IDs must be provided together.")
+        if self.session_id is not None:
+            _require_identifier(self.session_id, "session ID")
+            _require_identifier(self.turn_id or "", "turn ID")
 
 
 @dataclass(frozen=True, slots=True)

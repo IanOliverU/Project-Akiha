@@ -12,6 +12,7 @@ from project_akiha.core.voice_session import (
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
+    ResponseSegment,
     VoiceProcessingMode,
 )
 from project_akiha.providers.ai import OllamaProvider, OpenAICompatibleProvider
@@ -144,6 +145,54 @@ class ChatResponseThreadTest(unittest.TestCase):
         thread.run()
 
         self.assertEqual(segments, [])
+
+    def test_stream_renders_each_stable_segment_for_speech(self) -> None:
+        class Renderer:
+            def render(self, segment: CanonicalResponseSegment) -> ResponseSegment:
+                return ResponseSegment(
+                    response_id=segment.response_id,
+                    segment_index=segment.segment_index,
+                    canonical_text=segment.canonical_text,
+                    speech_text=f"spoken:{segment.canonical_text}",
+                    is_final=segment.is_final,
+                )
+
+        thread = ChatResponseThread(
+            StreamingController(("First.", " Second.")),
+            "hello",
+            segment_renderer=Renderer(),
+        )
+        rendered: list[ResponseSegment] = []
+        thread.speech_segment_ready.connect(rendered.append)
+
+        thread.run()
+
+        self.assertEqual(
+            [segment.speech_text for segment in rendered],
+            ["spoken:First.", "spoken:Second."],
+        )
+        self.assertEqual([segment.is_final for segment in rendered], [False, True])
+
+    def test_renderer_failure_uses_canonical_speech_fallback(self) -> None:
+        class FailingRenderer:
+            def render(self, segment: CanonicalResponseSegment) -> ResponseSegment:
+                del segment
+                raise RuntimeError("private rendering detail")
+
+        thread = ChatResponseThread(
+            StreamingController(("Canonical reply.",)),
+            "hello",
+            segment_renderer=FailingRenderer(),
+        )
+        rendered: list[ResponseSegment] = []
+        thread.speech_segment_ready.connect(rendered.append)
+
+        with self.assertLogs("project_akiha.voice.identity", "WARNING") as logs:
+            thread.run()
+
+        self.assertEqual(rendered[0].speech_text, "Canonical reply.")
+        self.assertNotIn("Canonical reply", " ".join(logs.output))
+        self.assertNotIn("private rendering detail", " ".join(logs.output))
 
     def test_run_does_not_emit_response_after_cancellation(self) -> None:
         thread = ChatResponseThread(StreamingController(("one", "two")), "hello")

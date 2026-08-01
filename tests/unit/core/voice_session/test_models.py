@@ -12,6 +12,7 @@ from project_akiha.core.voice_session import (
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
+    ResponseSegment,
     TranscriptRevision,
     TranscriptStatus,
     VoiceProcessingMode,
@@ -145,6 +146,20 @@ class VoiceSessionModelsTest(unittest.TestCase):
         )
 
         self.assertNotIn("Private assistant response", repr(segment))
+
+    def test_response_segment_preserves_canonical_and_hides_both_texts(self) -> None:
+        segment = ResponseSegment(
+            response_id="response-1",
+            segment_index=0,
+            canonical_text="**Canonical response.**",
+            speech_text="Canonical response.",
+            speaking_rate_multiplier=0.94,
+            is_final=True,
+        )
+
+        self.assertEqual(segment.canonical_text, "**Canonical response.**")
+        self.assertEqual(segment.speech_text, "Canonical response.")
+        self.assertNotIn("Canonical response", repr(segment))
 
 
 if __name__ == "__main__":
