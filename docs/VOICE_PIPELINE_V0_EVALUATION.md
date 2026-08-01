@@ -41,6 +41,9 @@ It does not alter the production runtime or read production user data.
   Akiha's real typed action validator, scoped permission policy, executor
   registry, and sanitized audit path without exposing execution authority to
   the provider side.
+- [x] Connected ordered synthesized segments to the existing Qt playback owner
+  through an explicit queued thread handoff, with async completion, failure,
+  and cancellation propagation and no second audio-output resource.
 
 ## Measurements
 
@@ -77,8 +80,9 @@ real packaged-size probe before approval.
 6. The existing Qt microphone can remain the sole hardware owner. Its current
    cumulative snapshots can be adapted safely, although a direct bounded-frame
    callback will avoid repeated prefix comparison in production.
-7. VOICEVOX segment orchestration fits Akiha's existing service contract. The
-   remaining output work is adapting ordered segments to the Qt playback owner.
+7. VOICEVOX segment orchestration fits Akiha's existing service contract, and
+   ordered segments can safely reuse the existing Qt playback owner through a
+   queued cross-thread bridge.
 8. Rolling transcript contracts fit the existing `SpeechInputService`. The V0
    adapter intentionally uses bounded cumulative snapshots; repeated-work and
    recognizer benchmarks remain V2 work rather than a false claim of native
@@ -90,12 +94,15 @@ real packaged-size probe before approval.
     unsupported targets fail before action evaluation, and directory/media
     proposals still require trusted local resolution before a typed request
     exists.
+11. The existing Qt playback object can remain the sole audio-output owner.
+    Ordered pipeline segments enter its Qt thread one at a time, and terminal
+    callbacks return safely to the originating asyncio loop.
 
 ## Current Decision
 
 **Do not add Pipecat to production dependencies yet.** Continue the bounded V0
 evaluation. Pipecat is viable enough to test at the bridge level, but the
-dependency footprint, offline import behavior, Qt ownership, VOICEVOX adapter,
+dependency footprint, offline import behavior, coordinated shutdown behavior,
 and Nuitka result remain unresolved.
 
 ## Remaining V0 Checks
@@ -106,6 +113,8 @@ and Nuitka result remain unresolved.
   relying on Pipecat's segmented Whisper service.
 - [x] Pass a fake typed action proposal through Akiha's real validator/gateway
   boundary without exposing an executor to the provider side.
+- [x] Connect ordered segments to the existing Qt playback owner without
+  opening a second output resource.
 - [ ] Test cancellation and shutdown through the Pipecat bridge prototypes.
 - [ ] Run a minimal Nuitka build and measure artifact size/startup behavior.
 - [ ] Record the final adopt, partial-adopt, or do-not-adopt decision.
@@ -114,9 +123,11 @@ and Nuitka result remain unresolved.
 
 Current repository verification:
 
-- 26 focused V0 voice-pipeline tests passed.
+- 29 focused V0 voice-pipeline tests passed.
 - 66 existing assistant proposal, action-service, and action-bridge tests passed.
-- Full suite after typed-action boundary integration: 953 tests passed, 3 skipped.
+- 33 existing Qt playback, playback-controller, and synthesis-controller tests
+  passed.
+- Full suite after Qt playback-owner integration: 956 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.

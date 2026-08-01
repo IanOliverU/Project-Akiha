@@ -22,6 +22,9 @@ The framework-neutral harness proves:
 - only authoritative final text may request a constrained provider proposal;
   direct allowlisted proposals then cross the real typed validator, permission,
   executor, and audit boundary while provider code receives no executor access
+- ordered synthesized segments cross a queued Qt thread boundary to the one
+  existing playback owner; completion, failure, and cancellation return to the
+  originating async turn without publishing encoded audio
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.
