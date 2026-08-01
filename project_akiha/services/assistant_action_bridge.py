@@ -32,6 +32,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
+    SPOTIFY_SEEK_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
     SPOTIFY_VOLUME_ACTION,
 )
@@ -205,6 +206,21 @@ _SPOTIFY_VOLUME_PATTERN = re.compile(
     r"(?:set|change|turn)\s+(?:the\s+)?volume(?:\s+level)?\s+"
     r"(?:to|at)\s+(?P<on_spotify_value>.+?)\s+on\s+spotify|"
     r"(?P<mute>mute)\s+spotify(?:\s+playback)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_SEEK_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-seek\s+(?P<slash>\d{1,5})|"
+    r"(?:seek|jump)\s+(?:spotify\s+)(?:playback\s+)?(?:to|at)\s+"
+    r"(?P<spotify_value>.+?)|"
+    r"spotify\s+(?:seek|jump)(?:\s+playback)?\s+(?:to|at)\s+"
+    r"(?P<prefixed_value>.+?)|"
+    r"(?:seek|jump|go)\s+(?:playback\s+)?(?:to|at)\s+"
+    r"(?P<on_spotify_value>.+?)\s+on\s+spotify|"
+    r"(?P<restart>restart)\s+(?:(?:(?:the\s+)?current\s+)?spotify"
+    r"(?:\s+(?:song|track|playback))?|"
+    r"(?:(?:the\s+)?current\s+)?(?:song|track)\s+on\s+spotify))"
+    r"\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
@@ -544,6 +560,33 @@ class AssistantActionRequestParser:
                 },
             )
 
+        seek_match = _SPOTIFY_SEEK_PATTERN.fullmatch(normalized)
+        if seek_match is not None:
+            if seek_match.group("restart"):
+                position_seconds = 0
+            else:
+                raw_position = next(
+                    seek_match.group(name)
+                    for name in (
+                        "slash",
+                        "spotify_value",
+                        "prefixed_value",
+                        "on_spotify_value",
+                    )
+                    if seek_match.group(name) is not None
+                )
+                position_seconds = _parse_seek_seconds(raw_position)
+                if position_seconds is None:
+                    return None
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_SEEK_ACTION,
+                parameters={
+                    "service": "spotify",
+                    "position_seconds": position_seconds,
+                },
+            )
+
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
         if spotify_match is not None:
             command = next(
@@ -680,6 +723,53 @@ def _parse_volume_percent(value: str) -> int | None:
         "",
         value.strip().casefold(),
     )
+    return _parse_english_number(normalized)
+
+
+def _parse_seek_seconds(value: str) -> int | None:
+    normalized = value.strip().casefold().rstrip(".!?").strip()
+    if normalized.isdigit():
+        return int(normalized)
+
+    colon_parts = normalized.split(":")
+    if len(colon_parts) in {2, 3} and all(part.isdigit() for part in colon_parts):
+        numbers = tuple(int(part) for part in colon_parts)
+        if len(numbers) == 2:
+            minutes, seconds = numbers
+            return minutes * 60 + seconds if seconds < 60 else None
+        hours, minutes, seconds = numbers
+        if minutes < 60 and seconds < 60:
+            return hours * 3600 + minutes * 60 + seconds
+        return None
+
+    cleaned = re.sub(r"\band\b", " ", normalized).replace(",", " ")
+    part_pattern = re.compile(
+        r"(?P<value>\d+|[a-z]+(?:[\s-]+[a-z]+)?)\s+"
+        r"(?P<unit>hours?|minutes?|seconds?)",
+        re.IGNORECASE,
+    )
+    units: dict[str, int] = {}
+    cursor = 0
+    for match in part_pattern.finditer(cleaned):
+        if cleaned[cursor : match.start()].strip():
+            return None
+        amount = _parse_english_number(match.group("value"))
+        unit = match.group("unit").casefold().rstrip("s")
+        if amount is None or unit in units:
+            return None
+        units[unit] = amount
+        cursor = match.end()
+    if cleaned[cursor:].strip() or not units:
+        return None
+    return (
+        units.get("hour", 0) * 3600
+        + units.get("minute", 0) * 60
+        + units.get("second", 0)
+    )
+
+
+def _parse_english_number(value: str) -> int | None:
+    normalized = value.strip().casefold()
     if normalized.isdigit():
         return int(normalized)
     words = normalized.replace("-", " ").split()

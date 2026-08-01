@@ -22,6 +22,7 @@ from project_akiha.core.actions import (
     SPOTIFY_REPEAT_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
+    SPOTIFY_SEEK_ACTION,
     SPOTIFY_SHUFFLE_ACTION,
     SPOTIFY_VOLUME_ACTION,
     ActionCancellationToken,
@@ -342,6 +343,69 @@ class SpotifyVolumeExecutor:
         )
 
 
+class SpotifySeekExecutor:
+    """Seek to one validated absolute Spotify playback position."""
+
+    action_id = SPOTIFY_SEEK_ACTION
+    executor_id = "spotify_seek"
+
+    def __init__(
+        self,
+        client: SpotifyClient,
+        device_coordinator: SpotifyDeviceCoordinator,
+    ) -> None:
+        self._client = client
+        self._device_coordinator = device_coordinator
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError("Spotify seek executor received the wrong action.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        position_seconds = action.parameters["position_seconds"]
+        if (
+            not isinstance(position_seconds, int)
+            or isinstance(position_seconds, bool)
+            or not 0 <= position_seconds <= 86400
+        ):
+            raise ValueError("Spotify seek position was not validated.")
+        resolution = await self._device_coordinator.resolve(
+            action.request.correlation_id,
+            cancellation_token=cancellation_token,
+            allow_activation=False,
+        )
+        if resolution.status is not SpotifyDeviceStatus.READY:
+            return _resolution_failure(resolution)
+        device = resolution.selected_device
+        if device is None:
+            return _unavailable("Spotify did not provide a usable playback device.")
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        try:
+            await asyncio.to_thread(
+                self._client.seek_playback,
+                device.device_id,
+                position_seconds * 1000,
+            )
+        except SpotifyOAuthError:
+            return _unavailable("Connect Spotify from Settings before using playback.")
+        except SpotifyAPIError as error:
+            return _api_failure(error)
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=f"Spotify moved to {_format_seek_position(position_seconds)}.",
+        )
+
+
 class SpotifyArtistPlaybackExecutor:
     """Resolve one artist locally, then start that Spotify artist context."""
 
@@ -637,6 +701,7 @@ def build_spotify_playback_executors(
     | SpotifyShuffleExecutor
     | SpotifyRepeatExecutor
     | SpotifyVolumeExecutor
+    | SpotifySeekExecutor
     | SpotifyArtistPlaybackExecutor
     | SpotifyArtistOpenExecutor
     | SpotifyArtistSearchExecutor,
@@ -651,6 +716,7 @@ def build_spotify_playback_executors(
         SpotifyShuffleExecutor(client, device_coordinator),
         SpotifyRepeatExecutor(client, device_coordinator),
         SpotifyVolumeExecutor(client, device_coordinator),
+        SpotifySeekExecutor(client, device_coordinator),
         SpotifyArtistSearchExecutor(client),
         SpotifyArtistOpenExecutor(client),
         SpotifyArtistPlaybackExecutor(client, device_coordinator),
@@ -752,6 +818,16 @@ def _open_spotify_artist_page(artist_id: str) -> bool:
         new=2,
         autoraise=True,
     )
+
+
+def _format_seek_position(position_seconds: int) -> str:
+    if position_seconds == 0:
+        return "the beginning of the current track"
+    hours, remainder = divmod(position_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
 
 
 def _resolution_failure(

@@ -343,6 +343,23 @@ class SpotifyClient:
             },
         )
 
+    def seek_playback(self, device_id: str, position_ms: int) -> None:
+        """Seek to one bounded absolute playback position."""
+        if (
+            not isinstance(position_ms, int)
+            or isinstance(position_ms, bool)
+            or not 0 <= position_ms <= 86_400_000
+        ):
+            raise ValueError("Spotify seek position is invalid.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/seek",
+            {
+                "device_id": _validate_device_id(device_id),
+                "position_ms": str(position_ms),
+            },
+        )
+
     def _get_offset_items(
         self,
         path: str,

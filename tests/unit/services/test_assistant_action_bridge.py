@@ -213,6 +213,36 @@ class AssistantActionRequestParserTest(unittest.TestCase):
     def test_generic_volume_command_is_not_hijacked(self) -> None:
         self.assertIsNone(self.parser.parse("Set volume to 50 percent"))
 
+    def test_parses_absolute_spotify_seek_commands(self) -> None:
+        cases = (
+            ("Seek Spotify to 1 minute 30 seconds", 90),
+            ("Akiha, Spotify seek to 2:15", 135),
+            ("Please go to 1:02:03 on Spotify", 3723),
+            ("Jump to thirty seconds on Spotify", 30),
+            ("Restart current Spotify track", 0),
+            ("Restart the current song on Spotify", 0),
+            ("/spotify-seek 90", 90),
+        )
+
+        for text, position_seconds in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.seek")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "position_seconds": position_seconds,
+                    },
+                )
+
+    def test_invalid_or_generic_seek_is_not_dispatched(self) -> None:
+        self.assertIsNone(self.parser.parse("Go to 1:75 on Spotify"))
+        self.assertIsNone(self.parser.parse("Go to 2:15"))
+        self.assertIsNone(self.parser.parse("Skip ahead 30 seconds"))
+
     def test_parses_explicit_spotify_artist_catalog_commands(self) -> None:
         cases = (
             "/spotify-artist Megurine Luka",

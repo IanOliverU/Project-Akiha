@@ -63,10 +63,15 @@ modes; the ambiguous phrase `enable repeat` is intentionally not interpreted.
 Explicit Spotify volume commands accept only percentages from 0 through 100,
 including spoken forms such as `set Spotify volume to seventy five percent`.
 The selected device must report remote-volume support; generic system-volume
-phrases are not intercepted. Speech punctuation between a control and its
-target is accepted, along with a small tested alias set for observed
-`pause`/`Spotify` transcription errors. Artist, track, and album selection use
-separate local resolution steps; playlist and favorites resolution remain.
+phrases are not intercepted. Absolute seeking accepts bounded clock positions
+and spoken durations through commands such as `seek Spotify to 1 minute 30
+seconds`, `go to 2:15 on Spotify`, and `restart current Spotify track`.
+Positions are converted to milliseconds only after validation; relative seek
+commands remain out of scope until current playback-state retrieval is added.
+Speech punctuation between a control and its target is accepted, along with a
+small tested alias set for observed `pause`/`Spotify` transcription errors.
+Artist, track, and album selection use separate local resolution steps;
+playlist and favorites resolution remain.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -156,7 +161,8 @@ track and artist names rather than the user's data.
   desktop-app activation through the existing permission/audit boundary.
 - [x] Separate local `spotify.playback` permission and audited typed play,
   pause, resume, next, previous, explicit shuffle-state, and allowlisted repeat
-  mode action contracts and executors, plus bounded device-aware volume.
+  mode action contracts and executors, plus bounded device-aware volume and
+  absolute seek controls.
 - [x] Deterministic typed/voice parsing for generic playback controls without
   sending the command through an AI provider.
 - [x] Local artist search, guarded artist-context playback, and bounded

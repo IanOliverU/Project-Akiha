@@ -40,6 +40,7 @@ from project_akiha.services.spotify_playback import (
     SpotifyPlaybackCommand,
     SpotifyPlaybackExecutor,
     SpotifyRepeatExecutor,
+    SpotifySeekExecutor,
     SpotifyShuffleExecutor,
     SpotifyVolumeExecutor,
     _open_spotify_artist_page,
@@ -446,6 +447,68 @@ class SpotifyVolumeExecutorTest(unittest.TestCase):
         self.assertEqual(client.volume_calls, [])
 
 
+class SpotifySeekExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_seek_converts_validated_seconds_to_milliseconds(self) -> None:
+        client = _PlaybackClient()
+        coordinator = _Coordinator(_ready(_desktop_device()))
+        executor = SpotifySeekExecutor(
+            client,  # type: ignore[arg-type]
+            coordinator,  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-seek-90",
+                action_id="spotify.seek",
+                source="voice",
+                parameters={"service": "spotify", "position_seconds": 90},
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.summary, "Spotify moved to 1:30.")
+        self.assertEqual(client.seek_calls, [("desktop-id", 90_000)])
+        self.assertEqual(coordinator.allow_activation, [False])
+
+    def test_zero_position_reports_track_restart(self) -> None:
+        client = _PlaybackClient()
+        executor = SpotifySeekExecutor(
+            client,  # type: ignore[arg-type]
+            _Coordinator(_ready(_desktop_device())),  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-seek-restart",
+                action_id="spotify.seek",
+                source="chat",
+                parameters={"service": "spotify", "position_seconds": 0},
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertIn("beginning", result.summary)
+        self.assertEqual(client.seek_calls, [("desktop-id", 0)])
+
+
 class SpotifyArtistPlaybackExecutorTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = ActionRequestValidator(
@@ -732,6 +795,7 @@ class _PlaybackClient:
         self.shuffle_calls: list[tuple[str, bool]] = []
         self.repeat_calls: list[tuple[str, str]] = []
         self.volume_calls: list[tuple[str, int]] = []
+        self.seek_calls: list[tuple[str, int]] = []
         self.error = error
 
     def _record(self, command: str, device_id: str) -> None:
@@ -765,6 +829,11 @@ class _PlaybackClient:
         if self.error is not None:
             raise self.error
         self.volume_calls.append((device_id, volume_percent))
+
+    def seek_playback(self, device_id: str, position_ms: int) -> None:
+        if self.error is not None:
+            raise self.error
+        self.seek_calls.append((device_id, position_ms))
 
 
 class _ArtistClient:

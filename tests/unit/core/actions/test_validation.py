@@ -84,6 +84,17 @@ class ActionRequestValidatorTest(unittest.TestCase):
                     ),
                     ActionFailureCategory.INVALID_PARAMETERS,
                 )
+
+    def test_rejects_spotify_seek_outside_registered_bounds(self) -> None:
+        for value in (-1, 86401, False):
+            with self.subTest(value=value):
+                self._assert_invalid(
+                    self._request(
+                        "spotify.seek",
+                        {"service": "spotify", "position_seconds": value},
+                    ),
+                    ActionFailureCategory.INVALID_PARAMETERS,
+                )
         self._assert_invalid(
             self._request(
                 "directories.search",

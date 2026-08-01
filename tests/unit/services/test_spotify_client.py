@@ -318,6 +318,7 @@ class SpotifyClientTest(unittest.TestCase):
         client.set_repeat("desktop-id", "context")
         client.set_repeat("desktop-id", "off")
         client.set_volume("desktop-id", 42)
+        client.seek_playback("desktop-id", 90_000)
 
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
@@ -334,6 +335,7 @@ class SpotifyClientTest(unittest.TestCase):
                 ("PUT", "/v1/me/player/repeat"),
                 ("PUT", "/v1/me/player/repeat"),
                 ("PUT", "/v1/me/player/volume"),
+                ("PUT", "/v1/me/player/seek"),
             ],
         )
         for index, (_method, url, headers, _body, timeout) in enumerate(
@@ -352,6 +354,8 @@ class SpotifyClientTest(unittest.TestCase):
                 expected_query["state"] = ["off"]
             elif index == 11:
                 expected_query["volume_percent"] = ["42"]
+            elif index == 12:
+                expected_query["position_ms"] = ["90000"]
             self.assertEqual(
                 parse_qs(urlparse(url).query),
                 expected_query,
@@ -411,6 +415,24 @@ class SpotifyClientTest(unittest.TestCase):
                     client.set_volume(
                         "desktop-id",
                         volume_percent,  # type: ignore[arg-type]
+                    )
+
+        self.assertEqual(mutations.requests, [])
+
+    def test_seek_rejects_out_of_range_values_without_request(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        for position_ms in (-1, 86_400_001, False):
+            with self.subTest(position_ms=position_ms):
+                with self.assertRaises(ValueError):
+                    client.seek_playback(
+                        "desktop-id",
+                        position_ms,  # type: ignore[arg-type]
                     )
 
         self.assertEqual(mutations.requests, [])
