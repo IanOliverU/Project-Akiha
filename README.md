@@ -424,6 +424,8 @@ Approved Post-Phase 8 Voice Intent and Live Conversation architecture:
 
 Voice Pipeline V0 evaluation: `docs/VOICE_PIPELINE_V0_EVALUATION.md`
 
+Voice Pipeline V0 decision: `docs/VOICE_PIPELINE_V0_DECISION.md`
+
 Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 
 Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`

@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Approved Post-Phase 8 architecture - implementation pending
+**Status:** Implementation in progress - V0 complete, V1 next
 
 **Planning date:** 2026-08-01
 
@@ -967,7 +967,8 @@ V6 begins.
 - [x] Measure Python 3.13, Windows, and Nuitka feasibility. The minimal Pipecat
   freeze exceeded 20 minutes and 2.7 GB of partial output without producing a
   runnable executable.
-- [ ] Record an explicit adopt, partial-adopt, or do-not-adopt decision.
+- [x] Retain Akiha-owned orchestration and do not add Pipecat as a dependency.
+  See `docs/VOICE_PIPELINE_V0_DECISION.md`.
 
 Progress and measured evidence: `docs/VOICE_PIPELINE_V0_EVALUATION.md`
 
@@ -1106,8 +1107,9 @@ remain proposals and receive no additional authority. See
     coordinator, canonical conversation pipeline, and typed action gateway.
 15. Transcription remains present and becomes progressive; an accepted final
     transcript is still required for persistence and action commitment.
-16. Pipecat receives a bounded V0 evaluation and is adopted only if it proves
-    Qt, VOICEVOX, local/hosted provider, interruption, and packaging fit.
+16. V0 rejected Pipecat as a production dependency. Akiha retains ownership of
+    orchestration and carries the validated concurrency, bridge, and
+    cancellation patterns into V1.
 
 ## Remaining Open Questions For Reviewers
 
@@ -1133,8 +1135,6 @@ remain proposals and receive no additional authority. See
     the current machine?
 11. Does the architecture remain sufficiently provider-neutral for a future
     OpenAI Realtime, local speech-to-speech, or custom voice adapter?
-12. Does the V0 result justify full Pipecat adoption, selected-component use,
-    or Akiha-owned orchestration?
 
 ## Exit Criteria
 

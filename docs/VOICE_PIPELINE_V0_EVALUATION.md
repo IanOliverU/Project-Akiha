@@ -1,6 +1,6 @@
 # Voice Pipeline V0 Evaluation
 
-**Status:** In progress - implementation and packaging feasibility probes complete
+**Status:** Complete - retain Akiha-owned orchestration
 
 **Evaluation date:** 2026-08-01
 
@@ -137,11 +137,12 @@ Phase 8 standalone package was not rebuilt, replaced, or modified.
 
 ## Current Decision
 
-**Do not add Pipecat to production dependencies yet.** Continue the bounded V0
-evaluation. Pipecat is viable enough to test at the bridge level, but the
-measured dependency footprint, offline import behavior, and failed Nuitka probe
-make full-framework adoption difficult to justify. Record the formal V0
-decision before production work begins.
+**Retain Akiha-owned orchestration. Do not add Pipecat to production,
+development, or packaging dependencies.** Pipecat's useful concurrency and
+interruption patterns have been reproduced through Akiha's existing services
+without accepting its runtime footprint or provider types.
+
+Decision record: `docs/VOICE_PIPELINE_V0_DECISION.md`
 
 ## Remaining V0 Checks
 
@@ -157,7 +158,7 @@ decision before production work begins.
 - [x] Run a minimal Nuitka build and measure artifact size/startup behavior.
   The build exceeded 20 minutes and 2.7 GB of partial output without producing
   an executable, so frozen startup timing was not possible.
-- [ ] Record the final adopt, partial-adopt, or do-not-adopt decision.
+- [x] Record the final decision to retain Akiha-owned orchestration.
 
 ## Verification
 
@@ -171,7 +172,8 @@ Current repository verification:
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.
-- The 564 MB temporary Pipecat environment was removed after measurement.
+- Both temporary Pipecat environments, the Nuitka cache, and the 2.7 GB partial
+  artifact were removed after measurement.
 
 ```powershell
 .\.venv313\Scripts\python.exe -m unittest discover -s tests\unit\spikes -t .
