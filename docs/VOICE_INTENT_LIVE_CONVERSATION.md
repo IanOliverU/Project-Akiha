@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 complete, V1 privacy boundary visible
+**Status:** Implementation in progress - V0 and V1 complete
 
 **Planning date:** 2026-08-01
 
@@ -988,7 +988,13 @@ recorded. The spike may be discarded and must not mutate production data.
   same modular response events.
 - [x] Show the selected processing mode and its local-text/cloud-text/
   cloud-audio boundary in Settings.
-- [ ] Prove stale results cannot affect a replacement turn.
+- [x] Prove stale results cannot affect a replacement turn.
+
+Replacement-turn proof includes active-worker cancellation, immutable turn
+ownership for queued partial and final recognition audio, rejection of late
+transcripts and failures, and acceptance of a valid result from the replacement
+turn. Normal final-transcript delivery remains covered in production subscriber
+order.
 
 **Checkpoint:** Existing push-to-talk, STT, TTS, actions, and shutdown work
 through the new coordinator before new behavior is enabled.

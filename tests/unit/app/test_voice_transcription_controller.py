@@ -5,6 +5,9 @@ from __future__ import annotations
 import unittest
 from collections.abc import Callable
 
+from project_akiha.app.push_to_talk_session_controller import (
+    PushToTalkSessionController,
+)
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.app.voice_transcription_controller import (
@@ -14,7 +17,11 @@ from project_akiha.config import VoiceConfig
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
-from project_akiha.core.voice_session import VoiceInputMode, VoiceProcessingMode
+from project_akiha.core.voice_session import (
+    SessionLifecycle,
+    VoiceInputMode,
+    VoiceProcessingMode,
+)
 from project_akiha.providers.voice import CapturedAudio, VoiceTranscript
 
 
@@ -296,11 +303,96 @@ class VoiceTranscriptionControllerTest(unittest.TestCase):
         _begin_transcription(bus, controller)
 
         coordinator.replace_turn(VoiceInputMode.PUSH_TO_TALK)
+        self.assertTrue(threads[0].cancelled)
         threads[0].transcript_ready.emit(VoiceTranscript("Private stale words", "en"))
         threads[0].transcription_failed.emit("late_failure", "Private failure.")
 
+        controller.submit(_audio(b"\x02\x00"))
+        self.assertEqual(len(threads), 1)
+        threads[0].finished.emit()
+        threads[1].transcript_ready.emit(VoiceTranscript("Current words", "en"))
+
+        self.assertEqual(
+            [event.payload["text"] for event in transcripts],
+            ["Current words"],
+        )
+        self.assertEqual(errors, [])
+
+    def test_replacement_discards_pending_final_from_previous_turn(self) -> None:
+        coordinator = VoiceSessionCoordinator(session_id_factory=lambda: "session-1")
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        coordinator.begin_turn(VoiceInputMode.PUSH_TO_TALK)
+        bus, _, controller, threads, transcripts, errors = _build(
+            session_coordinator=coordinator
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        controller.submit_partial(_audio(b"\x01\x00"))
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        controller.submit(_audio(b"\x02\x00"))
+
+        coordinator.replace_turn(VoiceInputMode.PUSH_TO_TALK)
+        threads[0].finished.emit()
+
+        self.assertEqual(len(threads), 1)
         self.assertEqual(transcripts, [])
         self.assertEqual(errors, [])
+
+    def test_replacement_discards_queued_partial_from_previous_turn(self) -> None:
+        coordinator = VoiceSessionCoordinator(session_id_factory=lambda: "session-1")
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        coordinator.begin_turn(VoiceInputMode.PUSH_TO_TALK)
+        bus, _, controller, threads, transcripts, errors = _build(
+            session_coordinator=coordinator
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        controller.submit_partial(_audio(b"\x01\x00"))
+        controller.submit_partial(_audio(b"\x02\x00"))
+
+        coordinator.replace_turn(VoiceInputMode.PUSH_TO_TALK)
+        threads[0].finished.emit()
+
+        self.assertEqual(len(threads), 1)
+        self.assertEqual(transcripts, [])
+        self.assertEqual(errors, [])
+
+    def test_valid_final_reaches_chat_before_session_cleanup_finishes(self) -> None:
+        bus = EventBus()
+        voice = VoiceController(bus, VoiceConfig(enabled=True))
+        coordinator = VoiceSessionCoordinator(session_id_factory=lambda: "session-1")
+        PushToTalkSessionController(
+            event_bus=bus,
+            voice_controller=voice,
+            session_coordinator=coordinator,
+            processing_mode_provider=lambda: VoiceProcessingMode.LOCAL_MODULAR,
+            input_provider_name=lambda: "faster-whisper",
+        )
+        threads: list[_Thread] = []
+
+        def build_thread(_service: object, audio_value: CapturedAudio) -> _Thread:
+            thread = _Thread(audio_value, finished=True)
+            threads.append(thread)
+            return thread
+
+        controller = VoiceTranscriptionController(
+            event_bus=bus,
+            voice_controller=voice,
+            service=object(),
+            thread_factory=build_thread,
+            session_coordinator=coordinator,
+        )
+        transcripts: list[Event] = []
+        bus.subscribe(EventType.VOICE_TRANSCRIPT_READY, transcripts.append)
+
+        _begin_transcription(bus, controller)
+        threads[0].transcript_ready.emit(VoiceTranscript("Current words", "en"))
+
+        self.assertEqual(
+            [event.payload["text"] for event in transcripts],
+            ["Current words"],
+        )
+        self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
 
 
 class _Signal:
