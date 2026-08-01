@@ -958,7 +958,7 @@ V6 begins.
   adapters before integrating production UI.
 - [ ] Validate the Qt input/output bridge and single microphone ownership.
   Input ownership is proven by the V0 snapshot bridge; output remains pending.
-- [ ] Validate rolling local transcript revisions rather than relying only on
+- [x] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
 - [x] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
 - [x] Validate Ollama/local and hosted text providers through the same response

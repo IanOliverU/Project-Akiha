@@ -17,6 +17,8 @@ The framework-neutral harness proves:
   monotonic PCM frames without opening another capture device
 - stable response segments use the existing `SpeechOutputService`, synthesize
   concurrently with a strict bound, play in order, and cancel as one turn
+- bounded PCM frames feed the existing `SpeechInputService`, emit stabilized
+  replaceable partial revisions, and produce one authoritative final revision
 
 The harness is not a production coordinator. It provides a stable behavior
 target for comparing Pipecat with an Akiha-owned implementation.

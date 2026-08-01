@@ -30,12 +30,18 @@ class TranscriptRevision:
     text: str
     revision: int
     is_final: bool = False
+    detected_language: str | None = None
+    confidence: float | None = None
 
     def __post_init__(self) -> None:
         if self.revision < 1:
             raise ValueError("Transcript revision must be positive.")
         if not self.text.strip():
             raise ValueError("Transcript revision text cannot be empty.")
+        if self.confidence is not None and (
+            isinstance(self.confidence, bool) or not 0.0 <= self.confidence <= 1.0
+        ):
+            raise ValueError("Transcript confidence must be between zero and one.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +74,7 @@ class PipelineEvent:
 class StreamingRecognizer(Protocol):
     """Accept frames during speech and emit one authoritative final."""
 
-    async def accept(self, frame: bytes) -> TranscriptRevision | None:
+    async def accept(self, frame: object) -> TranscriptRevision | None:
         """Consume one bounded frame and optionally return a partial revision."""
 
     async def finalize(self) -> TranscriptRevision:
@@ -219,7 +225,7 @@ class PipelineSpike:
 
     async def run_turn(
         self,
-        frames: AsyncIterable[bytes],
+        frames: AsyncIterable[object],
         recognizer: StreamingRecognizer,
         intent: IntentProbe,
         responder: StreamingResponder,

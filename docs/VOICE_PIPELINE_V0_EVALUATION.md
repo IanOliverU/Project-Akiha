@@ -35,6 +35,8 @@ It does not alter the production runtime or read production user data.
 - [x] Prototyped an ordered VOICEVOX segment processor through the existing
   `SpeechOutputService`, including bounded concurrent synthesis, canonical
   playback order, failure cleanup, and per-turn cancellation.
+- [x] Fed bounded Qt PCM frames through the existing `SpeechInputService` and
+  emitted stabilized partial revisions plus one authoritative final revision.
 
 ## Measurements
 
@@ -73,7 +75,11 @@ real packaged-size probe before approval.
    callback will avoid repeated prefix comparison in production.
 7. VOICEVOX segment orchestration fits Akiha's existing service contract. The
    remaining output work is adapting ordered segments to the Qt playback owner.
-8. Chat, memory, identity, subtitles, typed actions, permissions, and audit
+8. Rolling transcript contracts fit the existing `SpeechInputService`. The V0
+   adapter intentionally uses bounded cumulative snapshots; repeated-work and
+   recognizer benchmarks remain V2 work rather than a false claim of native
+   streaming Whisper.
+9. Chat, memory, identity, subtitles, typed actions, permissions, and audit
    history remain Akiha-owned regardless of the framework decision.
 
 ## Current Decision
@@ -87,7 +93,7 @@ and Nuitka result remain unresolved.
 
 - [x] Prototype a Qt audio-frame bridge without opening a second microphone.
 - [x] Prototype an ordered VOICEVOX frame processor using fake audio output.
-- [ ] Confirm rolling transcript revisions can enter the pipeline without
+- [x] Confirm rolling transcript revisions can enter the pipeline without
   relying on Pipecat's segmented Whisper service.
 - [ ] Pass a fake typed action proposal through Akiha's real validator/gateway
   boundary without exposing an executor to the provider side.
@@ -100,7 +106,7 @@ and Nuitka result remain unresolved.
 Current repository verification:
 
 - 16 focused pipeline and local/hosted provider tests passed.
-- Full suite after the VOICEVOX processor: 943 tests passed, 3 skipped.
+- Full suite after rolling transcript integration: 948 tests passed, 3 skipped.
 - Ruff, Black, and `git diff --check` passed.
 - Setuptools package discovery returned 17 `project_akiha*` packages and
   excluded `spikes`.
