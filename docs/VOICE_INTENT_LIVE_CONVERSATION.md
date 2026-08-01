@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 and V1 complete
+**Status:** Implementation in progress - V0 through V2 complete
 
 **Planning date:** 2026-08-01
 
@@ -1005,7 +1005,7 @@ through the new coordinator before new behavior is enabled.
 - [x] Implement the rolling `faster-whisper` recognizer adapter.
 - [x] Emit explicit partial revisions and one authoritative final revision.
 - [x] Preserve confidence gating and endpoint diagnostics.
-- [ ] Benchmark against the current cumulative-snapshot baseline.
+- [x] Benchmark against the current cumulative-snapshot baseline.
 
 Audio-frame ownership uses a production cumulative-snapshot bridge that emits
 only appended PCM in bounded frames and retains only length plus a bounded
@@ -1025,6 +1025,11 @@ rolling recognizer and attaches each canonical revision to the existing voice
 events. This preserves transcript-progress endpointing, low-confidence manual
 review, privacy-safe microphone activity, auto-send behavior, and the batch
 Settings microphone test without creating a second ledger authority.
+
+V2 benchmark evidence: `docs/VOICE_RECOGNITION_V2_BENCHMARK.md`. The production
+workload keeps the same 0.6-second first-partial cadence and final utterance,
+while reducing repeated STT audio work by 52.1 percent at the 30-second limit.
+The benchmark does not claim real-model accuracy or inference latency.
 
 ### Milestone V3: Natural Intent And Context
 
