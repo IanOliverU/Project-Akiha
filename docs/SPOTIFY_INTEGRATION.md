@@ -53,11 +53,14 @@ typed/voice request -> constrained intent proposal
 
 Generic playback commands use the deterministic local parser before any AI
 provider. Supported typed or spoken forms include `play Spotify`, `pause the
-music`, `resume Spotify playback`, `next track`, and `previous song`, plus the
-explicit `/spotify-*` command forms. Speech punctuation between a control and
-its target is accepted, along with a small tested alias set for observed
-`pause`/`Spotify` transcription errors. Artist, track, and album selection use
-separate local resolution steps; playlist and favorites resolution remain.
+music`, `resume Spotify playback`, `next track`, `previous song`, `enable
+shuffle`, and `disable shuffle`, plus the explicit `/spotify-*` command forms.
+Shuffle is always assigned an explicit boolean state through the fixed
+`spotify.shuffle` action rather than exposed as an ambiguous toggle. Speech
+punctuation between a control and its target is accepted, along with a small
+tested alias set for observed `pause`/`Spotify` transcription errors. Artist,
+track, and album selection use separate local resolution steps; playlist and
+favorites resolution remain.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -146,7 +149,8 @@ track and artist names rather than the user's data.
 - [x] Fresh active-device selection with restricted-device refusal and bounded
   desktop-app activation through the existing permission/audit boundary.
 - [x] Separate local `spotify.playback` permission and audited typed play,
-  pause, resume, next, and previous action contracts and executors.
+  pause, resume, next, previous, and explicit shuffle-state action contracts
+  and executors.
 - [x] Deterministic typed/voice parsing for generic playback controls without
   sending the command through an AI provider.
 - [x] Local artist search, guarded artist-context playback, and bounded

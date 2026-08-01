@@ -312,6 +312,8 @@ class SpotifyClientTest(unittest.TestCase):
         client.pause_playback("desktop-id")
         client.skip_to_next("desktop-id")
         client.skip_to_previous("desktop-id")
+        client.set_shuffle("desktop-id", True)
+        client.set_shuffle("desktop-id", False)
 
         self.assertEqual(
             [(method, urlparse(url).path) for method, url, *_ in mutations.requests],
@@ -322,12 +324,21 @@ class SpotifyClientTest(unittest.TestCase):
                 ("PUT", "/v1/me/player/pause"),
                 ("POST", "/v1/me/player/next"),
                 ("POST", "/v1/me/player/previous"),
+                ("PUT", "/v1/me/player/shuffle"),
+                ("PUT", "/v1/me/player/shuffle"),
             ],
         )
-        for _method, url, headers, _body, timeout in mutations.requests:
+        for index, (_method, url, headers, _body, timeout) in enumerate(
+            mutations.requests
+        ):
+            expected_query = {"device_id": ["desktop-id"]}
+            if index == 6:
+                expected_query["state"] = ["true"]
+            elif index == 7:
+                expected_query["state"] = ["false"]
             self.assertEqual(
                 parse_qs(urlparse(url).query),
-                {"device_id": ["desktop-id"]},
+                expected_query,
             )
             self.assertEqual(headers["Authorization"], "Bearer access-1")
             self.assertEqual(timeout, 15.0)
@@ -341,6 +352,19 @@ class SpotifyClientTest(unittest.TestCase):
             b'{"uris":["spotify:track:track1"]}',
         )
         self.assertEqual(mutations.requests[3][3], None)
+
+    def test_shuffle_rejects_non_boolean_state_without_request(self) -> None:
+        mutations = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            mutation_transport=mutations,
+        )
+
+        with self.assertRaises(ValueError):
+            client.set_shuffle("desktop-id", 1)  # type: ignore[arg-type]
+
+        self.assertEqual(mutations.requests, [])
 
     def test_context_playback_rejects_untrusted_or_unsupported_uri(self) -> None:
         mutations = _MutationTransport()

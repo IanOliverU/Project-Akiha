@@ -14,6 +14,7 @@ from project_akiha.core.actions import (
     ActionRequest,
     ActionRequestValidator,
     ActionStatus,
+    ActionValidationError,
     ProtectedPathPolicy,
     build_default_action_registry,
 )
@@ -38,6 +39,7 @@ from project_akiha.services.spotify_playback import (
     SpotifyArtistSelectionStore,
     SpotifyPlaybackCommand,
     SpotifyPlaybackExecutor,
+    SpotifyShuffleExecutor,
     _open_spotify_artist_page,
 )
 
@@ -206,6 +208,88 @@ class SpotifyPlaybackActionIntegrationTest(unittest.TestCase):
         self.assertEqual(client.calls, [("pause", "desktop-id")])
         self.assertEqual(len(audits), 2)
         self.assertTrue(all(audit.normalized_target == "spotify" for audit in audits))
+
+
+class SpotifyShuffleExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_shuffle_sets_only_the_validated_boolean_state(self) -> None:
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                client = _PlaybackClient()
+                coordinator = _Coordinator(_ready(_desktop_device()))
+                executor = SpotifyShuffleExecutor(
+                    client,  # type: ignore[arg-type]
+                    coordinator,  # type: ignore[arg-type]
+                )
+                action = self.validator.validate(
+                    ActionRequest(
+                        correlation_id=f"spotify-shuffle-{enabled}",
+                        action_id="spotify.shuffle",
+                        source="chat",
+                        parameters={"service": "spotify", "enabled": enabled},
+                    )
+                )
+
+                result = asyncio.run(
+                    executor.execute(
+                        action,
+                        cancellation_token=ActionCancellationToken(),
+                    )
+                )
+
+                self.assertEqual(result.status, ActionStatus.SUCCESS)
+                self.assertEqual(client.shuffle_calls, [("desktop-id", enabled)])
+                self.assertEqual(coordinator.allow_activation, [False])
+
+    def test_shuffle_requires_a_boolean_state(self) -> None:
+        with self.assertRaises(ActionValidationError):
+            self.validator.validate(
+                ActionRequest(
+                    correlation_id="spotify-shuffle-invalid",
+                    action_id="spotify.shuffle",
+                    source="chat",
+                    parameters={"service": "spotify", "enabled": "yes"},
+                )
+            )
+
+    def test_shuffle_uses_existing_permission_and_is_audited(self) -> None:
+        with TemporaryDirectory() as directory:
+            repository = SQLiteActionRepository(Path(directory) / "akiha.sqlite3")
+            path_policy = ProtectedPathPolicy()
+            client = _PlaybackClient()
+            executor = SpotifyShuffleExecutor(
+                client,  # type: ignore[arg-type]
+                _Coordinator(_ready(_desktop_device())),  # type: ignore[arg-type]
+            )
+            service = AssistantActionService(
+                ActionRequestValidator(build_default_action_registry(), path_policy),
+                ActionPermissionPolicy(path_policy),
+                repository,
+                repository,
+                executors=(executor,),
+            )
+            permissions = AssistantPermissionService(repository, path_policy)
+            asyncio.run(permissions.grant_spotify_playback())
+            request = ActionRequest(
+                correlation_id="spotify-shuffle-audit",
+                action_id="spotify.shuffle",
+                source="voice",
+                parameters={"service": "spotify", "enabled": True},
+            )
+
+            result = asyncio.run(service.evaluate_request(request))
+            audits = asyncio.run(repository.get_recent_action_audits(limit=10))
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(client.shuffle_calls, [("desktop-id", True)])
+        self.assertEqual(len(audits), 1)
+        self.assertEqual(audits[0].action_id, "spotify.shuffle")
+        self.assertEqual(audits[0].normalized_target, "spotify")
 
 
 class SpotifyArtistPlaybackExecutorTest(unittest.TestCase):
@@ -491,6 +575,7 @@ class SpotifyArtistOpenExecutorTest(unittest.TestCase):
 class _PlaybackClient:
     def __init__(self, error: SpotifyAPIError | None = None) -> None:
         self.calls: list[tuple[str, str]] = []
+        self.shuffle_calls: list[tuple[str, bool]] = []
         self.error = error
 
     def _record(self, command: str, device_id: str) -> None:
@@ -509,6 +594,11 @@ class _PlaybackClient:
 
     def skip_to_previous(self, device_id: str) -> None:
         self._record("previous", device_id)
+
+    def set_shuffle(self, device_id: str, enabled: bool) -> None:
+        if self.error is not None:
+            raise self.error
+        self.shuffle_calls.append((device_id, enabled))
 
 
 class _ArtistClient:

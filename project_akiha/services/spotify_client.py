@@ -297,6 +297,19 @@ class SpotifyClient:
             {"device_id": _validate_device_id(device_id)},
         )
 
+    def set_shuffle(self, device_id: str, enabled: bool) -> None:
+        """Set shuffle explicitly on one fresh Spotify device ID."""
+        if not isinstance(enabled, bool):
+            raise ValueError("Spotify shuffle state must be a boolean.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/shuffle",
+            {
+                "device_id": _validate_device_id(device_id),
+                "state": "true" if enabled else "false",
+            },
+        )
+
     def _get_offset_items(
         self,
         path: str,

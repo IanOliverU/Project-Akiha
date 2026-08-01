@@ -31,6 +31,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
+    SPOTIFY_SHUFFLE_ACTION,
 )
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
@@ -168,6 +169,17 @@ _SPOTIFY_TRACK_PLAY_PATTERN = re.compile(
     r"(?:play|listen\s+to)\s+(?:the\s+)?(?:spotify\s+)?"
     r"(?:track|song)\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
     r"play\s+(?P<on_spotify>.+?)\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_SHUFFLE_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-shuffle\s+(?P<slash>on|off)|"
+    r"(?P<enable>enable|start)\s+(?:spotify\s+)?shuffle|"
+    r"(?P<disable>disable|stop)\s+(?:spotify\s+)?shuffle|"
+    r"(?:turn|switch)\s+(?:spotify\s+)?shuffle\s+(?P<post_state>on|off)|"
+    r"(?:turn|switch)\s+(?P<pre_state>on|off)\s+(?:spotify\s+)?shuffle|"
+    r"(?:set\s+)?(?:spotify\s+)?shuffle\s+(?P<state>on|off))"
+    r"(?:\s+on\s+spotify)?\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
@@ -412,6 +424,25 @@ class AssistantActionRequestParser:
                     action_id=SPOTIFY_PLAY_TRACK_ACTION,
                     parameters=parameters,
                 )
+
+        shuffle_match = _SPOTIFY_SHUFFLE_PATTERN.fullmatch(normalized)
+        if shuffle_match is not None:
+            if shuffle_match.group("enable"):
+                enabled = True
+            elif shuffle_match.group("disable"):
+                enabled = False
+            else:
+                raw_state = next(
+                    shuffle_match.group(name)
+                    for name in ("slash", "post_state", "pre_state", "state")
+                    if shuffle_match.group(name) is not None
+                )
+                enabled = raw_state.casefold() == "on"
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_SHUFFLE_ACTION,
+                parameters={"service": "spotify", "enabled": enabled},
+            )
 
         spotify_match = _SPOTIFY_PLAYBACK_PATTERN.fullmatch(normalized)
         if spotify_match is not None:

@@ -139,6 +139,27 @@ class AssistantActionRequestParserTest(unittest.TestCase):
         self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
         self.assertIsNone(self.parser.parse("Can you pause, the meeting?"))
 
+    def test_parses_explicit_spotify_shuffle_states(self) -> None:
+        cases = (
+            ("Enable shuffle", True),
+            ("Disable Shuffle", False),
+            ("Akiha, turn Spotify shuffle on.", True),
+            ("Please turn off shuffle", False),
+            ("Switch shuffle off on Spotify", False),
+            ("/spotify-shuffle on", True),
+        )
+
+        for text, enabled in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.shuffle")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "enabled": enabled},
+                )
+
     def test_parses_explicit_spotify_artist_catalog_commands(self) -> None:
         cases = (
             "/spotify-artist Megurine Luka",
