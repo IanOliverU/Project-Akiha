@@ -60,6 +60,13 @@ does not request or store a Spotify Client Secret.
 - Catalog and library responses are reduced to minimal identifiers, names,
   artist/album or playlist-owner labels, duration, URI, and playability. Akiha
   does not retain artwork, descriptions, or raw provider responses.
+- Liked Songs, top tracks, recent listening, and personal playlist metadata may
+  form a bounded preference profile kept in memory for ten minutes. It is
+  discarded when the Spotify session changes or Akiha exits and is never added
+  to chat, memory, diagnostics, logs, or hosted-provider prompts.
+- Favorite-music playback sends Spotify at most 50 validated track URIs. The
+  local ranking inputs and unused library results are not included in the
+  playback mutation.
 - Library pagination is bounded and reconstructs requests against Spotify's
   fixed API host instead of following response-provided URLs.
 - Akiha does not send Spotify library or listening-history metadata to a hosted
@@ -201,6 +208,7 @@ The notice explains:
 - local conversation, memory, settings, and log storage
 - Windows-user encryption for hosted API credentials
 - optional Spotify cloud requests and encrypted OAuth refresh-token storage
+- ephemeral local Spotify preference ranking and bounded favorite queues
 - approved-directory and allowlisted-application grants
 - optional provider classification of explicit app/media requests without
   local filesystem details

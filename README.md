@@ -48,9 +48,12 @@ complete with permission-gated file discovery, approved-root and descendant
 directory navigation, passive-file and local-media opening, allowlisted
 application launch/close, revocable grants, confirmation surfaces, and
 sanitized action history. The Python 3.13 standalone package passed automated
-and manual verification. Pet simulation research and implementation follow in
-Phase 9, while smaller voice-command and action-routing refinements remain in a
-separate improvement backlog.
+and manual Phase 8 verification. The optional Spotify extension is now
+source-complete with PKCE account connection, permission-gated playback,
+artist/track/album/playlist workflows, Liked Songs and favorite mixes, and
+ephemeral local preference ranking. Its consolidated manual test and new
+standalone package are deferred until the Voice Intent and Live Conversation
+architecture is integrated. Pet simulation remains planned after that work.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -408,6 +411,8 @@ Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
 Phase 8 plan: `docs/PHASE8_ASSISTANT_ACTIONS.md`
 
 Assistant-action improvement backlog: `docs/ASSISTANT_ACTIONS_BACKLOG.md`
+
+Spotify integration and closure record: `docs/SPOTIFY_INTEGRATION.md`
 
 Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
 

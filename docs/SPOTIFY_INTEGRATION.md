@@ -1,6 +1,15 @@
 # Spotify Integration
 
-**Status:** In progress - playback, artist, track, and album flows implemented
+**Status:** Implementation complete - closed 2026-08-01
+
+**Automated baseline:** 927 tests passed, 3 skipped. Spotify-focused service
+coverage passed 120 tests. Ruff, Black, compilation, import, and diff checks
+also passed.
+
+**Integrated release gate:** The consolidated manual Spotify/voice roundup and
+new standalone build are intentionally deferred until the Voice Intent and
+Live Conversation architecture is integrated. The current Phase 8 package
+does not represent this source-complete Spotify implementation.
 
 ## Purpose
 
@@ -70,8 +79,8 @@ Positions are converted to milliseconds only after validation; relative seek
 commands remain out of scope until current playback-state retrieval is added.
 Speech punctuation between a control and its target is accepted, along with a
 small tested alias set for observed `pause`/`Spotify` transcription errors.
-Artist, track, and album selection use separate local resolution steps;
-playlist and favorites resolution remain.
+Artist, track, album, playlist, and favorites selection use separate local
+resolution steps.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -136,6 +145,24 @@ Drive`. Ambiguous names require `play playlist result 1`; successful playback
 also permits the short-lived `play that playlist` follow-up. Playlist metadata
 never becomes durable companion memory or hosted-provider prompt context.
 
+Liked and favorite-music playback use the typed `spotify.play_favorites`
+action. `Play my liked songs` builds a queue from at most 50 validated saved
+track URIs. `Play my favorite music`, `Play something I like on Spotify`, and
+`/spotify-favorites` build a bounded local mix from Liked Songs, short-,
+medium-, and long-term top tracks, and recent listening. Duplicate or
+unplayable tracks are removed before playback. The queue uses the same fresh
+device, permission, cancellation, audit, and one-retry boundaries as other
+Spotify playback actions.
+
+Spotify preference metadata is cached in memory for ten minutes and discarded
+when the Spotify session changes or Akiha exits. Named track, artist, album,
+and playlist searches may use this profile as a small tie-break boost when
+ordering otherwise close results. Visible favored results are labeled `local
+favorite`. Preference scoring never replaces textual relevance checks, never
+turns an ambiguous result into an automatic selection, and never allows an
+unvalidated Spotify URI to reach playback. If optional top or recent endpoints
+are unavailable, ranking degrades to the account data that remains available.
+
 The AI provider receives only text the user explicitly supplied for constrained
 intent interpretation. Akiha does not append Spotify library contents,
 listening history, search results, device identifiers, OAuth data, or local
@@ -186,6 +213,24 @@ track and artist names rather than the user's data.
   desktop-first opening, and guarded album-context playback.
 - [x] Personal-plus-catalog playlist search, local ranking, bounded ambiguity
   presentation, validated playback, and contextual follow-ups.
-- [ ] Local preference ranking and ambiguity UI.
-- [ ] Favorites-based voice/chat resolution with end-to-end tests.
-- [ ] Packaged build and manual Spotify smoke test.
+- [x] Local ephemeral preference ranking and favored-result ambiguity labels.
+- [x] Liked Songs and favorites-mix voice/chat playback with bounded queues.
+
+## Closure Decision
+
+The Spotify feature scope is closed at the source and automated-verification
+level. New Spotify capabilities should not be added while the voice
+architecture is being designed unless a regression or security defect is
+found. Deterministic parsing, typed requests, permission checks, local
+resolution, and audited execution remain the compatibility boundary for the
+next voice system.
+
+The following integrated verification is deferred rather than marked done:
+
+- consolidated manual Spotify command roundup through the new voice path
+- standalone rebuild containing the complete Spotify implementation
+- packaged Spotify authentication, playback, and failure-mode smoke test
+- removal of the previous package only after the new candidate is confirmed
+
+Deferral avoids validating and packaging the same user-facing voice-to-action
+path twice. It does not weaken the automated baseline recorded above.

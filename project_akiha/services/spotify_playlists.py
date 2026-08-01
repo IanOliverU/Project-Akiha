@@ -31,6 +31,7 @@ from project_akiha.services.spotify_devices import (
     SpotifyDeviceResolution,
     SpotifyDeviceStatus,
 )
+from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
 
 _PLAYLIST_URI_PATTERN = re.compile(r"spotify:playlist:[A-Za-z0-9]{1,64}\Z")
 _PLAYLIST_RESULT_PATTERN = re.compile(
@@ -54,8 +55,13 @@ class SpotifyPlaylistSearchExecutor:
     action_id = SPOTIFY_SEARCH_PLAYLISTS_ACTION
     executor_id = "spotify_search_playlists"
 
-    def __init__(self, client: SpotifyClient) -> None:
+    def __init__(
+        self,
+        client: SpotifyClient,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
+    ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
 
     async def execute(
         self,
@@ -72,7 +78,11 @@ class SpotifyPlaylistSearchExecutor:
 
         query = str(action.parameters["playlist_query"])
         try:
-            candidates = await _search_playlist_candidates(self._client, query)
+            candidates = await _search_playlist_candidates(
+                self._client,
+                query,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for playlists."
@@ -105,6 +115,7 @@ class SpotifyPlaylistPlaybackExecutor:
         self,
         client: SpotifyClient,
         device_coordinator: SpotifyDeviceCoordinator,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
         *,
         retry_delay_seconds: float = 0.4,
         sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -113,6 +124,7 @@ class SpotifyPlaylistPlaybackExecutor:
             raise ValueError("Spotify retry delay must be between 0 and 5 seconds.")
         self._client = client
         self._device_coordinator = device_coordinator
+        self._preference_ranker = preference_ranker
         self._retry_delay_seconds = retry_delay_seconds
         self._sleeper = sleeper
 
@@ -131,7 +143,11 @@ class SpotifyPlaylistPlaybackExecutor:
         if selected is None:
             query = str(action.parameters["playlist_query"])
             try:
-                candidates = await _search_playlist_candidates(self._client, query)
+                candidates = await _search_playlist_candidates(
+                    self._client,
+                    query,
+                    self._preference_ranker,
+                )
             except SpotifyOAuthError:
                 return _unavailable(
                     "Connect Spotify from Settings before searching for playlists."
@@ -299,16 +315,22 @@ class SpotifyPlaylistSelectionStore:
 def build_spotify_playlist_executors(
     client: SpotifyClient,
     device_coordinator: SpotifyDeviceCoordinator,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyPlaylistSearchExecutor | SpotifyPlaylistPlaybackExecutor, ...]:
     return (
-        SpotifyPlaylistSearchExecutor(client),
-        SpotifyPlaylistPlaybackExecutor(client, device_coordinator),
+        SpotifyPlaylistSearchExecutor(client, preference_ranker),
+        SpotifyPlaylistPlaybackExecutor(
+            client,
+            device_coordinator,
+            preference_ranker,
+        ),
     )
 
 
 async def _search_playlist_candidates(
     client: SpotifyClient,
     query: str,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyCatalogItem, ...]:
     library, catalog = await asyncio.gather(
         asyncio.to_thread(client.get_playlists, max_items=200),
@@ -331,7 +353,10 @@ async def _search_playlist_candidates(
     )
     combined = [item for _score, item in library_matches]
     combined.extend(item for item in catalog.items if _is_valid_playlist(item))
-    return _deduplicate_playlists(combined)[:5]
+    candidates = _deduplicate_playlists(combined)[:5]
+    if preference_ranker is None:
+        return candidates
+    return await preference_ranker.rank(candidates)
 
 
 def _selected_playlist_from_action(

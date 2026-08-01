@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from collections.abc import Mapping
 from urllib.parse import parse_qs, urlparse
@@ -237,6 +238,39 @@ class SpotifyClientTest(unittest.TestCase):
         self.assertEqual(top_url.path, "/v1/me/top/artists")
         self.assertEqual(parse_qs(top_url.query)["time_range"], ["short_term"])
         self.assertEqual(recent_url.path, "/v1/me/player/recently-played")
+
+    def test_multi_track_playback_accepts_only_a_bounded_unique_uri_queue(
+        self,
+    ) -> None:
+        mutation = _MutationTransport()
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            transport=_Transport([]),
+            mutation_transport=mutation,
+        )
+
+        client.start_tracks_playback(
+            "desktop-id",
+            ("spotify:track:one", "spotify:track:two"),
+        )
+
+        method, url, _headers, body, _timeout = mutation.requests[0]
+        self.assertEqual(method, "PUT")
+        self.assertEqual(urlparse(url).path, "/v1/me/player/play")
+        self.assertEqual(
+            json.loads((body or b"").decode("utf-8")),
+            {"uris": ["spotify:track:one", "spotify:track:two"]},
+        )
+        for invalid in (
+            (),
+            ("not-a-track",),
+            ("spotify:track:one", "spotify:track:one"),
+            tuple(f"spotify:track:{index}" for index in range(51)),
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    client.start_tracks_playback("desktop-id", invalid)
 
     def test_available_devices_keep_only_minimal_valid_metadata(self) -> None:
         transport = _Transport(

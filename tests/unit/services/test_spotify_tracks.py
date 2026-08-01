@@ -76,6 +76,27 @@ class SpotifyTrackSearchExecutorTest(unittest.TestCase):
         self.assertEqual(result.status, ActionStatus.SUCCESS)
         self.assertEqual(client.searches, ["track:Usseewa artist:ADO"])
 
+    def test_search_applies_the_shared_local_preference_order(self) -> None:
+        first = _track("track1", "Song", "Artist One")
+        preferred = _track("track2", "Song", "Artist Two")
+        client = _TrackClient((first, preferred))
+        executor = SpotifyTrackSearchExecutor(
+            client,  # type: ignore[arg-type]
+            _ReverseRanker(),  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(self.validator, "spotify.search_tracks", "Song"),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(
+            result.metadata["track_candidates"],
+            (preferred, first),
+        )
+
     def test_search_relaxes_filters_after_voice_spelling_returns_no_results(
         self,
     ) -> None:
@@ -423,6 +444,14 @@ def _track(
         album_name=album,
         is_playable=playable,
     )
+
+
+class _ReverseRanker:
+    async def rank(
+        self,
+        items: tuple[SpotifyCatalogItem, ...],
+    ) -> tuple[SpotifyCatalogItem, ...]:
+        return tuple(reversed(items))
 
 
 def _ready(device: SpotifyDevice) -> SpotifyDeviceResolution:

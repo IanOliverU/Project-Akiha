@@ -33,6 +33,7 @@ SPOTIFY_VOLUME_ACTION = "spotify.volume"
 SPOTIFY_SEEK_ACTION = "spotify.seek"
 SPOTIFY_SEARCH_PLAYLISTS_ACTION = "spotify.search_playlists"
 SPOTIFY_PLAY_PLAYLIST_ACTION = "spotify.play_playlist"
+SPOTIFY_PLAY_FAVORITES_ACTION = "spotify.play_favorites"
 SPOTIFY_SEARCH_ARTISTS_ACTION = "spotify.search_artists"
 SPOTIFY_SEARCH_TRACKS_ACTION = "spotify.search_tracks"
 SPOTIFY_PLAY_TRACK_ACTION = "spotify.play_track"
@@ -678,6 +679,31 @@ def build_default_action_registry() -> ActionRegistry:
                 ),
                 timeout_seconds=20,
                 max_results=5,
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_PLAY_FAVORITES_ACTION,
+                description="Play a bounded local queue from Spotify preferences.",
+                risk=ActionRisk.USER_VISIBLE,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_play_favorites",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                    ActionParameterSpec(
+                        name="favorite_mode",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("liked", "mix"),
+                    ),
+                ),
+                timeout_seconds=30,
+                max_results=50,
             ),
         )
     )

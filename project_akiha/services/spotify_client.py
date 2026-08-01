@@ -273,6 +273,29 @@ class SpotifyClient:
             ).encode("utf-8"),
         )
 
+    def start_tracks_playback(
+        self,
+        device_id: str,
+        track_uris: Iterable[str],
+    ) -> None:
+        """Start a bounded queue containing only validated Spotify track URIs."""
+        normalized_uris = tuple(uri.strip() for uri in track_uris)
+        if not 1 <= len(normalized_uris) <= 50:
+            raise ValueError("Spotify playback queues require 1 to 50 tracks.")
+        if any(_TRACK_URI_PATTERN.fullmatch(uri) is None for uri in normalized_uris):
+            raise ValueError("Spotify playback queue contains an invalid track URI.")
+        if len(set(normalized_uris)) != len(normalized_uris):
+            raise ValueError("Spotify playback queue contains duplicate track URIs.")
+        self._request_no_content(
+            "PUT",
+            "/me/player/play",
+            {"device_id": _validate_device_id(device_id)},
+            body=json.dumps(
+                {"uris": normalized_uris},
+                separators=(",", ":"),
+            ).encode("utf-8"),
+        )
+
     def pause_playback(self, device_id: str) -> None:
         """Pause playback on one fresh device ID."""
         self._request_no_content(

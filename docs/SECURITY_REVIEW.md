@@ -47,6 +47,10 @@ Spotify account data is not exposed to the AI provider. Providers may propose
 a constrained typed music intent from text the user supplied, but search,
 library ranking, device selection, ambiguity handling, and playback execution
 remain local. Personal preference exports are forbidden from release packages.
+The runtime preference profile is bounded, memory-only, expires after ten
+minutes, and is invalidated when the Spotify session changes. It can reorder
+close visible candidates but cannot bypass textual confidence margins or
+ambiguity confirmation.
 
 Catalog and library lookup accepts bounded local query lengths and result
 limits, retains only the metadata required for matching and confirmation, and
@@ -60,9 +64,10 @@ are not guessed, and optional Spotify desktop activation can occur only through
 the existing typed `applications.launch` permission, executor, and audit path.
 Playback control has its own exact-target `spotify.playback` grant, separate
 from account connection and desktop launch permission. Generic control phrases
-are recognized by a strict local parser and can reach only the registered play,
-pause, resume, next, or previous executor; arbitrary provider text and Spotify
-URIs cannot enter those contracts.
+are recognized by a strict local parser and can reach only registered Spotify
+executors. Multi-track favorites playback accepts 1 to 50 unique validated
+`spotify:track` URIs derived locally; arbitrary provider text and provider-
+supplied URIs cannot enter that contract.
 
 ## First-Run Privacy Notice
 

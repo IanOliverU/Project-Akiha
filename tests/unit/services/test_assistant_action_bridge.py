@@ -391,6 +391,29 @@ class AssistantActionRequestParserTest(unittest.TestCase):
     def test_playlist_result_reference_does_not_become_catalog_query(self) -> None:
         self.assertIsNone(self.parser.parse("Play playlist result 1"))
 
+    def test_parses_spotify_liked_and_favorite_music_commands(self) -> None:
+        cases = (
+            ("Play my liked songs", "liked"),
+            ("Please play my Spotify liked music.", "liked"),
+            ("/spotify-liked", "liked"),
+            ("Play my favorite music", "mix"),
+            ("Play something I like on Spotify", "mix"),
+            ("Play me something I like", "mix"),
+            ("Akiha, can you play my Spotify favorites?", "mix"),
+            ("/spotify-favorites", "mix"),
+        )
+
+        for text, mode in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.play_favorites")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {"service": "spotify", "favorite_mode": mode},
+                )
+
     def test_parses_spotify_album_open_commands(self) -> None:
         cases = (
             "/spotify-open-album Kyougen | ADO",

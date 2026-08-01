@@ -66,6 +66,22 @@ check-ins, optional local voice, and diagnostics.
 - Manual packaged smoke: `docs/MANUAL_PACKAGED_SMOKE.md`
 - Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
 
+## Source-Complete After Current Candidate
+
+The source tree now also contains the closed Spotify implementation:
+
+- Authorization Code with PKCE and DPAPI-encrypted refresh-token storage.
+- Separate revocable Spotify playback permission and sanitized action audit.
+- Play, pause, resume, next, previous, shuffle, repeat, volume, and seek.
+- Artist, track, album, and playlist search, selection, opening, and playback.
+- Liked Songs and bounded favorites-mix playback.
+- Memory-only local preference ranking with explicit ambiguity choices.
+
+These additions passed the 2026-08-01 automated baseline of 927 tests with 3
+skipped. They are not represented by the existing Phase 8 package named above.
+The consolidated Spotify/voice manual test and replacement package are deferred
+until Voice Intent and Live Conversation integration is complete.
+
 ## Known Limitations
 
 - The non-interactive smoke script may force-stop the app after requesting
@@ -84,6 +100,9 @@ check-ins, optional local voice, and diagnostics.
   refinement.
 - No installer, shortcuts, auto-start, updater, or code signing are included in
   the first standalone preview.
+- The current packaged candidate predates the source-complete Spotify
+  integration; use the source application for Spotify testing until the next
+  integrated rebuild.
 
 ## Manual Smoke Checklist Before Finalizing
 

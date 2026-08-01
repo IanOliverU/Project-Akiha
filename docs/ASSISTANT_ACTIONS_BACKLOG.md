@@ -1,6 +1,7 @@
 # Assistant Actions Improvement Backlog
 
-**Status:** Active - Spotify integration foundation in progress
+**Status:** Active - Voice Intent and Live Conversation improvements next;
+Spotify implementation closed
 
 ## Purpose
 
@@ -80,7 +81,7 @@ clear short command and a genuinely uncertain high-no-speech result.
 
 ## Intent And Context
 
-- [ ] Keep deterministic local parsing as the fast offline path for explicit
+- [x] Keep deterministic local parsing as the fast offline path for explicit
   commands.
 - [ ] Let an optional LLM produce only strict structured proposals for freer
   conversational phrasing.
@@ -119,11 +120,14 @@ clear short command and a genuinely uncertain high-no-speech result.
 - [x] Add active-device selection and optional Spotify desktop-app launch.
 - [x] Add typed and locally parsed voice play, pause, resume, next, and previous
   actions behind a separate Spotify playback permission.
-- [ ] Add track, artist, album, playlist, and library-play actions.
-- [ ] Add local preference ranking and explicit ambiguity confirmation.
-- [ ] Connect constrained typed/voice proposals without exposing library data to
+- [x] Add track, artist, album, playlist, and library-play actions.
+- [x] Add local preference ranking and explicit ambiguity confirmation.
+- [x] Connect constrained typed/voice proposals without exposing library data to
   hosted providers.
-- [ ] Run source QA, rebuild the standalone package, and complete packaged smoke.
+- [x] Run source QA and automated Spotify verification.
+- [ ] After the new voice architecture lands, run the consolidated manual
+  Spotify/voice roundup, rebuild the standalone package, and complete packaged
+  smoke.
 
 ## Hard Safety Rules
 

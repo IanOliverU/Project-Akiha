@@ -25,6 +25,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ALBUM_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
+    SPOTIFY_PLAY_FAVORITES_ACTION,
     SPOTIFY_PLAY_PLAYLIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
     SPOTIFY_PREVIOUS_ACTION,
@@ -192,6 +193,17 @@ _SPOTIFY_TRACK_PLAY_PATTERN = re.compile(
     r"(?:play|listen\s+to)\s+(?:the\s+)?(?:spotify\s+)?"
     r"(?:track|song)\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
     r"play\s+(?P<on_spotify>.+?)\s+on\s+spotify)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_FAVORITES_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:/spotify-(?P<slash>liked|favorites)|"
+    r"(?:play|listen\s+to)\s+(?:(?:some|something|me\s+something)\s+)?"
+    r"(?:(?P<liked>(?:my\s+)?(?:spotify\s+)?(?:liked\s+(?:songs|music)|"
+    r"saved\s+tracks))|"
+    r"(?P<mix>(?:my\s+)?(?:spotify\s+)?(?:favorites?|favourites?)"
+    r"(?:\s+(?:songs|music))?|(?:music|(?:me\s+)?something)\s+i\s+like))"
+    r"(?:\s+on\s+spotify)?)\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_SHUFFLE_PATTERN = re.compile(
@@ -518,6 +530,24 @@ class AssistantActionRequestParser:
                         "artist_query": artist,
                     },
                 )
+
+        favorites_match = _SPOTIFY_FAVORITES_PATTERN.fullmatch(normalized)
+        if favorites_match is not None:
+            slash_mode = favorites_match.group("slash")
+            favorite_mode = (
+                "liked"
+                if favorites_match.group("liked")
+                or (slash_mode is not None and slash_mode.casefold() == "liked")
+                else "mix"
+            )
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_PLAY_FAVORITES_ACTION,
+                parameters={
+                    "service": "spotify",
+                    "favorite_mode": favorite_mode,
+                },
+            )
 
         track_play_match = _SPOTIFY_TRACK_PLAY_PATTERN.fullmatch(normalized)
         if track_play_match is not None:

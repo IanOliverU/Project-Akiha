@@ -44,6 +44,7 @@ from project_akiha.services.spotify_devices import (
     SpotifyDeviceResolution,
     SpotifyDeviceStatus,
 )
+from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
 
 
 class SpotifyPlaybackCommand(StrEnum):
@@ -416,9 +417,11 @@ class SpotifyArtistPlaybackExecutor:
         self,
         client: SpotifyClient,
         device_coordinator: SpotifyDeviceCoordinator,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
     ) -> None:
         self._client = client
         self._device_coordinator = device_coordinator
+        self._preference_ranker = preference_ranker
 
     async def execute(
         self,
@@ -436,7 +439,11 @@ class SpotifyArtistPlaybackExecutor:
         if selected is None:
             query = str(action.parameters["artist_query"])
             try:
-                candidates = await _search_artist_candidates(self._client, query)
+                candidates = await _search_artist_candidates(
+                    self._client,
+                    query,
+                    self._preference_ranker,
+                )
             except SpotifyOAuthError:
                 return _unavailable(
                     "Connect Spotify from Settings before searching for artists."
@@ -503,8 +510,11 @@ class SpotifyArtistOpenExecutor:
         self,
         client: SpotifyClient,
         opener: SpotifyArtistPageOpener | None = None,
+        *,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
     ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
         self._opener = opener or _open_spotify_artist_page
 
     async def execute(
@@ -522,7 +532,11 @@ class SpotifyArtistOpenExecutor:
         if selected is None:
             query = str(action.parameters["artist_query"])
             try:
-                candidates = await _search_artist_candidates(self._client, query)
+                candidates = await _search_artist_candidates(
+                    self._client,
+                    query,
+                    self._preference_ranker,
+                )
             except SpotifyOAuthError:
                 return _unavailable(
                     "Connect Spotify from Settings before searching for artists."
@@ -566,8 +580,13 @@ class SpotifyArtistSearchExecutor:
     action_id = SPOTIFY_SEARCH_ARTISTS_ACTION
     executor_id = "spotify_search_artists"
 
-    def __init__(self, client: SpotifyClient) -> None:
+    def __init__(
+        self,
+        client: SpotifyClient,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
+    ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
 
     async def execute(
         self,
@@ -584,7 +603,11 @@ class SpotifyArtistSearchExecutor:
 
         query = str(action.parameters["artist_query"])
         try:
-            candidates = await _search_artist_candidates(self._client, query)
+            candidates = await _search_artist_candidates(
+                self._client,
+                query,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for artists."
@@ -696,6 +719,7 @@ class SpotifyArtistSelectionStore:
 def build_spotify_playback_executors(
     client: SpotifyClient,
     device_coordinator: SpotifyDeviceCoordinator,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[
     SpotifyPlaybackExecutor
     | SpotifyShuffleExecutor
@@ -717,15 +741,20 @@ def build_spotify_playback_executors(
         SpotifyRepeatExecutor(client, device_coordinator),
         SpotifyVolumeExecutor(client, device_coordinator),
         SpotifySeekExecutor(client, device_coordinator),
-        SpotifyArtistSearchExecutor(client),
-        SpotifyArtistOpenExecutor(client),
-        SpotifyArtistPlaybackExecutor(client, device_coordinator),
+        SpotifyArtistSearchExecutor(client, preference_ranker),
+        SpotifyArtistOpenExecutor(client, preference_ranker=preference_ranker),
+        SpotifyArtistPlaybackExecutor(
+            client,
+            device_coordinator,
+            preference_ranker,
+        ),
     )
 
 
 async def _search_artist_candidates(
     client: SpotifyClient,
     query: str,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyCatalogItem, ...]:
     search_result = await asyncio.to_thread(
         client.search,
@@ -733,7 +762,12 @@ async def _search_artist_candidates(
         kinds=(SpotifyItemKind.ARTIST,),
         limit_per_kind=5,
     )
-    return tuple(item for item in search_result.items if _is_valid_artist(item))[:5]
+    candidates = tuple(item for item in search_result.items if _is_valid_artist(item))[
+        :5
+    ]
+    if preference_ranker is None:
+        return candidates
+    return await preference_ranker.rank(candidates)
 
 
 def _selected_artist_from_action(

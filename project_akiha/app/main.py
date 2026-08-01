@@ -171,6 +171,7 @@ from project_akiha.services.spotify_devices import (
     PermissionGatedSpotifyActivator,
     SpotifyDeviceCoordinator,
 )
+from project_akiha.services.spotify_favorites import build_spotify_favorites_executors
 from project_akiha.services.spotify_playback import (
     SpotifyArtistSelectionStore,
     build_spotify_playback_executors,
@@ -179,6 +180,7 @@ from project_akiha.services.spotify_playlists import (
     SpotifyPlaylistSelectionStore,
     build_spotify_playlist_executors,
 )
+from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
 from project_akiha.services.spotify_session import SpotifySession
 from project_akiha.services.spotify_tracks import (
     SpotifyTrackSelectionStore,
@@ -295,6 +297,7 @@ def _run_application() -> int:
     application_catalog = ApplicationCatalog()
     spotify_session = SpotifySession(config.spotify, credential_store)
     spotify_client = SpotifyClient(config.spotify, spotify_session)
+    spotify_preference_ranker = SpotifyPreferenceRanker(spotify_client)
     spotify_activator = PermissionGatedSpotifyActivator()
     spotify_device_coordinator = SpotifyDeviceCoordinator(
         spotify_client,
@@ -316,18 +319,27 @@ def _run_application() -> int:
             *build_spotify_playback_executors(
                 spotify_client,
                 spotify_device_coordinator,
+                spotify_preference_ranker,
             ),
             *build_spotify_track_executors(
                 spotify_client,
                 spotify_device_coordinator,
+                spotify_preference_ranker,
             ),
             *build_spotify_album_executors(
                 spotify_client,
                 spotify_device_coordinator,
+                spotify_preference_ranker,
             ),
             *build_spotify_playlist_executors(
                 spotify_client,
                 spotify_device_coordinator,
+                spotify_preference_ranker,
+            ),
+            *build_spotify_favorites_executors(
+                spotify_client,
+                spotify_device_coordinator,
+                spotify_preference_ranker,
             ),
         ),
     )
@@ -1009,6 +1021,9 @@ def _run_application() -> int:
     settings_window.spotify_playback_grant_requested.connect(grant_spotify_playback)
     settings_window.spotify_playback_revoke_requested.connect(revoke_spotify_playback)
     settings_window.spotify_session_changed.connect(spotify_session.clear_access_token)
+    settings_window.spotify_session_changed.connect(
+        spotify_preference_ranker.invalidate
+    )
     settings_window.assistant_permissions_reset_requested.connect(
         reset_assistant_permissions
     )
@@ -1072,6 +1087,11 @@ def _run_application() -> int:
                 return
             lines = [
                 f"{index}. {playlist.display_label}"
+                + (
+                    " (local favorite)"
+                    if spotify_preference_ranker.is_preferred_cached(playlist)
+                    else ""
+                )
                 for index, playlist in enumerate(playlist_candidates, start=1)
             ]
             chat_window.append_message(
@@ -1117,6 +1137,11 @@ def _run_application() -> int:
                 return
             lines = [
                 f"{index}. {album.display_label}"
+                + (
+                    " (local favorite)"
+                    if spotify_preference_ranker.is_preferred_cached(album)
+                    else ""
+                )
                 for index, album in enumerate(album_candidates, start=1)
             ]
             if dispatch.request.action_id == SPOTIFY_SEARCH_ALBUMS_ACTION:
@@ -1164,6 +1189,8 @@ def _run_application() -> int:
                 label = track.display_label
                 if track.album_name:
                     label = f"{label} [{track.album_name}]"
+                if spotify_preference_ranker.is_preferred_cached(track):
+                    label = f"{label} (local favorite)"
                 lines.append(f"{index}. {label}")
             intro = (
                 "I found these Spotify tracks:\n"
@@ -1209,6 +1236,11 @@ def _run_application() -> int:
                 return
             lines = [
                 f"{index}. {artist.name}"
+                + (
+                    " (local favorite)"
+                    if spotify_preference_ranker.is_preferred_cached(artist)
+                    else ""
+                )
                 for index, artist in enumerate(artist_candidates, start=1)
             ]
             if dispatch.request.action_id == SPOTIFY_SEARCH_ARTISTS_ACTION:

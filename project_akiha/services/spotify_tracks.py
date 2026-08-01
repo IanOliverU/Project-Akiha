@@ -31,6 +31,7 @@ from project_akiha.services.spotify_devices import (
     SpotifyDeviceResolution,
     SpotifyDeviceStatus,
 )
+from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
 
 _TRACK_URI_PATTERN = re.compile(r"spotify:track:[A-Za-z0-9]{1,64}\Z")
 _TRACK_RESULT_PATTERN = re.compile(
@@ -48,8 +49,13 @@ class SpotifyTrackSearchExecutor:
     action_id = SPOTIFY_SEARCH_TRACKS_ACTION
     executor_id = "spotify_search_tracks"
 
-    def __init__(self, client: SpotifyClient) -> None:
+    def __init__(
+        self,
+        client: SpotifyClient,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
+    ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
 
     async def execute(
         self,
@@ -65,7 +71,12 @@ class SpotifyTrackSearchExecutor:
         title = str(action.parameters["track_query"])
         artist = str(action.parameters.get("artist_query", ""))
         try:
-            candidates = await _search_track_candidates(self._client, title, artist)
+            candidates = await _search_track_candidates(
+                self._client,
+                title,
+                artist,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for tracks."
@@ -99,6 +110,7 @@ class SpotifyTrackPlaybackExecutor:
         self,
         client: SpotifyClient,
         device_coordinator: SpotifyDeviceCoordinator,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
         *,
         retry_delay_seconds: float = 0.4,
         sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -107,6 +119,7 @@ class SpotifyTrackPlaybackExecutor:
             raise ValueError("Spotify retry delay must be between 0 and 5 seconds.")
         self._client = client
         self._device_coordinator = device_coordinator
+        self._preference_ranker = preference_ranker
         self._retry_delay_seconds = retry_delay_seconds
         self._sleeper = sleeper
 
@@ -130,6 +143,7 @@ class SpotifyTrackPlaybackExecutor:
                     self._client,
                     title,
                     artist,
+                    self._preference_ranker,
                 )
             except SpotifyOAuthError:
                 return _unavailable(
@@ -268,10 +282,15 @@ class SpotifyTrackSelectionStore:
 def build_spotify_track_executors(
     client: SpotifyClient,
     device_coordinator: SpotifyDeviceCoordinator,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyTrackSearchExecutor | SpotifyTrackPlaybackExecutor, ...]:
     return (
-        SpotifyTrackSearchExecutor(client),
-        SpotifyTrackPlaybackExecutor(client, device_coordinator),
+        SpotifyTrackSearchExecutor(client, preference_ranker),
+        SpotifyTrackPlaybackExecutor(
+            client,
+            device_coordinator,
+            preference_ranker,
+        ),
     )
 
 
@@ -279,6 +298,7 @@ async def _search_track_candidates(
     client: SpotifyClient,
     title: str,
     artist: str,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyCatalogItem, ...]:
     query = f"track:{title}"
     if artist:
@@ -293,7 +313,7 @@ async def _search_track_candidates(
         :5
     ]
     if candidates:
-        return candidates
+        return await _rank_candidates(preference_ranker, candidates)
 
     relaxed_query = " ".join(part for part in (title, artist) if part).strip()
     if relaxed_query == query:
@@ -304,7 +324,19 @@ async def _search_track_candidates(
         kinds=(SpotifyItemKind.TRACK,),
         limit_per_kind=5,
     )
-    return tuple(item for item in relaxed_result.items if _is_valid_track(item))[:5]
+    candidates = tuple(item for item in relaxed_result.items if _is_valid_track(item))[
+        :5
+    ]
+    return await _rank_candidates(preference_ranker, candidates)
+
+
+async def _rank_candidates(
+    preference_ranker: SpotifyPreferenceRanker | None,
+    candidates: tuple[SpotifyCatalogItem, ...],
+) -> tuple[SpotifyCatalogItem, ...]:
+    if preference_ranker is None:
+        return candidates
+    return await preference_ranker.rank(candidates)
 
 
 def _selected_track_from_action(action: ValidatedAction) -> SpotifyCatalogItem | None:

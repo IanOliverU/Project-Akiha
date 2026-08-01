@@ -34,6 +34,7 @@ from project_akiha.services.spotify_devices import (
     SpotifyDeviceResolution,
     SpotifyDeviceStatus,
 )
+from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
 
 _ALBUM_URI_PATTERN = re.compile(r"spotify:album:[A-Za-z0-9]{1,64}\Z")
 _ALBUM_RESULT_PATTERN = re.compile(
@@ -59,8 +60,13 @@ class SpotifyAlbumSearchExecutor:
     action_id = SPOTIFY_SEARCH_ALBUMS_ACTION
     executor_id = "spotify_search_albums"
 
-    def __init__(self, client: SpotifyClient) -> None:
+    def __init__(
+        self,
+        client: SpotifyClient,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
+    ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
 
     async def execute(
         self,
@@ -75,7 +81,12 @@ class SpotifyAlbumSearchExecutor:
 
         title, artist = _album_query(action)
         try:
-            candidates = await _search_album_candidates(self._client, title, artist)
+            candidates = await _search_album_candidates(
+                self._client,
+                title,
+                artist,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for albums."
@@ -109,8 +120,11 @@ class SpotifyAlbumOpenExecutor:
         self,
         client: SpotifyClient,
         opener: SpotifyAlbumPageOpener | None = None,
+        *,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
     ) -> None:
         self._client = client
+        self._preference_ranker = preference_ranker
         self._opener = opener or _open_spotify_album_page
 
     async def execute(
@@ -125,7 +139,11 @@ class SpotifyAlbumOpenExecutor:
             return _cancelled()
 
         try:
-            selected, candidates = await _resolve_album(self._client, action)
+            selected, candidates = await _resolve_album(
+                self._client,
+                action,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for albums."
@@ -166,6 +184,7 @@ class SpotifyAlbumPlaybackExecutor:
         self,
         client: SpotifyClient,
         device_coordinator: SpotifyDeviceCoordinator,
+        preference_ranker: SpotifyPreferenceRanker | None = None,
         *,
         retry_delay_seconds: float = 0.4,
         sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -174,6 +193,7 @@ class SpotifyAlbumPlaybackExecutor:
             raise ValueError("Spotify retry delay must be between 0 and 5 seconds.")
         self._client = client
         self._device_coordinator = device_coordinator
+        self._preference_ranker = preference_ranker
         self._retry_delay_seconds = retry_delay_seconds
         self._sleeper = sleeper
 
@@ -189,7 +209,11 @@ class SpotifyAlbumPlaybackExecutor:
             return _cancelled()
 
         try:
-            selected, candidates = await _resolve_album(self._client, action)
+            selected, candidates = await _resolve_album(
+                self._client,
+                action,
+                self._preference_ranker,
+            )
         except SpotifyOAuthError:
             return _unavailable(
                 "Connect Spotify from Settings before searching for albums."
@@ -385,6 +409,7 @@ class SpotifyAlbumSelectionStore:
 def build_spotify_album_executors(
     client: SpotifyClient,
     device_coordinator: SpotifyDeviceCoordinator,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[
     SpotifyAlbumSearchExecutor
     | SpotifyAlbumOpenExecutor
@@ -392,21 +417,31 @@ def build_spotify_album_executors(
     ...,
 ]:
     return (
-        SpotifyAlbumSearchExecutor(client),
-        SpotifyAlbumOpenExecutor(client),
-        SpotifyAlbumPlaybackExecutor(client, device_coordinator),
+        SpotifyAlbumSearchExecutor(client, preference_ranker),
+        SpotifyAlbumOpenExecutor(client, preference_ranker=preference_ranker),
+        SpotifyAlbumPlaybackExecutor(
+            client,
+            device_coordinator,
+            preference_ranker,
+        ),
     )
 
 
 async def _resolve_album(
     client: SpotifyClient,
     action: ValidatedAction,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyCatalogItem | None, tuple[SpotifyCatalogItem, ...]]:
     selected = _selected_album_from_action(action)
     if selected is not None:
         return selected, ()
     title, artist = _album_query(action)
-    candidates = await _search_album_candidates(client, title, artist)
+    candidates = await _search_album_candidates(
+        client,
+        title,
+        artist,
+        preference_ranker,
+    )
     return _select_album(title, artist, candidates), candidates
 
 
@@ -414,6 +449,7 @@ async def _search_album_candidates(
     client: SpotifyClient,
     title: str,
     artist: str,
+    preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[SpotifyCatalogItem, ...]:
     query = f"album:{title}"
     if artist:
@@ -426,7 +462,7 @@ async def _search_album_candidates(
     )
     candidates = tuple(item for item in result.items if _is_valid_album(item))[:5]
     if candidates:
-        return candidates
+        return await _rank_candidates(preference_ranker, candidates)
 
     relaxed_query = " ".join(part for part in (title, artist) if part)
     result = await asyncio.to_thread(
@@ -435,7 +471,17 @@ async def _search_album_candidates(
         kinds=(SpotifyItemKind.ALBUM,),
         limit_per_kind=5,
     )
-    return tuple(item for item in result.items if _is_valid_album(item))[:5]
+    candidates = tuple(item for item in result.items if _is_valid_album(item))[:5]
+    return await _rank_candidates(preference_ranker, candidates)
+
+
+async def _rank_candidates(
+    preference_ranker: SpotifyPreferenceRanker | None,
+    candidates: tuple[SpotifyCatalogItem, ...],
+) -> tuple[SpotifyCatalogItem, ...]:
+    if preference_ranker is None:
+        return candidates
+    return await preference_ranker.rank(candidates)
 
 
 def _album_query(action: ValidatedAction) -> tuple[str, str]:
