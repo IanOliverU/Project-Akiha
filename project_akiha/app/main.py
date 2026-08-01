@@ -161,6 +161,13 @@ from project_akiha.services.diagnostics import (
     build_diagnostics_snapshot,
     render_diagnostics_summary,
 )
+from project_akiha.services.ephemeral_action_context import (
+    EphemeralActionContext,
+    EphemeralDirectoryReference,
+    EphemeralReferenceError,
+    EphemeralSelectionKind,
+    EphemeralSelectionReference,
+)
 from project_akiha.services.event_logger import EventLogger
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
@@ -390,6 +397,7 @@ def _run_application() -> int:
     spotify_track_selection_store = SpotifyTrackSelectionStore()
     spotify_album_selection_store = SpotifyAlbumSelectionStore()
     spotify_playlist_selection_store = SpotifyPlaylistSelectionStore()
+    ephemeral_action_context = EphemeralActionContext()
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -593,7 +601,6 @@ def _run_application() -> int:
         | AssistantMediaSearchThread
         | AssistantDirectorySearchThread
     ] = []
-    navigation_context: str | None = None
 
     def update_chat_busy_state() -> None:
         chat_window.set_busy(
@@ -605,7 +612,7 @@ def _run_application() -> int:
         window_state_store.save_position(WindowPosition(x=window.x(), y=window.y()))
 
     def apply_settings(updated_config: AppConfig) -> None:
-        nonlocal config, navigation_context, speech_input_service, speech_output_service
+        nonlocal config, speech_input_service, speech_output_service
         config = updated_config
         user_config_store.save_config(updated_config)
         window.apply_config(updated_config.pet_window)
@@ -626,7 +633,7 @@ def _run_application() -> int:
             updated_config.spotify.auto_launch_desktop_app
         )
         assistant_tool_result_store.clear()
-        navigation_context = None
+        ephemeral_action_context.clear()
         assistant_translation_controller.apply_service(
             AssistantTranslationService(ai_provider, conversation_repository)
         )
@@ -1093,7 +1100,6 @@ def _run_application() -> int:
         action_thread.start()
 
     def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
-        nonlocal navigation_context
         result = dispatch.result
         matches = result.metadata.get("matches")
         if isinstance(matches, tuple):
@@ -1110,6 +1116,11 @@ def _run_application() -> int:
         } and isinstance(playlist_candidates, tuple):
             try:
                 spotify_playlist_selection_store.replace(playlist_candidates)
+                ephemeral_action_context.record_selection(
+                    EphemeralSelectionKind.SPOTIFY_PLAYLIST,
+                    len(playlist_candidates),
+                    allowed_verbs=frozenset(("play",)),
+                )
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify playlists."
@@ -1160,6 +1171,14 @@ def _run_application() -> int:
                     album_candidates,
                     allowed_action_ids=allowed_album_actions,
                 )
+                ephemeral_action_context.record_selection(
+                    EphemeralSelectionKind.SPOTIFY_ALBUM,
+                    len(album_candidates),
+                    allowed_verbs=frozenset(
+                        "open" if action_id == SPOTIFY_OPEN_ALBUM_ACTION else "play"
+                        for action_id in allowed_album_actions
+                    ),
+                )
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify albums."
@@ -1209,6 +1228,11 @@ def _run_application() -> int:
         } and isinstance(track_candidates, tuple):
             try:
                 spotify_track_selection_store.replace(track_candidates)
+                ephemeral_action_context.record_selection(
+                    EphemeralSelectionKind.SPOTIFY_TRACK,
+                    len(track_candidates),
+                    allowed_verbs=frozenset(("play",)),
+                )
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify tracks."
@@ -1259,6 +1283,14 @@ def _run_application() -> int:
                     artist_candidates,
                     allowed_action_ids=allowed_artist_actions,
                 )
+                ephemeral_action_context.record_selection(
+                    EphemeralSelectionKind.SPOTIFY_ARTIST,
+                    len(artist_candidates),
+                    allowed_verbs=frozenset(
+                        "open" if action_id == SPOTIFY_OPEN_ARTIST_ACTION else "play"
+                        for action_id in allowed_artist_actions
+                    ),
+                )
             except ValueError:
                 chat_window.append_error(
                     "Akiha could not safely present those Spotify artists."
@@ -1302,13 +1334,34 @@ def _run_application() -> int:
             return
 
         if result.status.value == "success":
+            action_id = dispatch.request.action_id
+            if action_id == LAUNCH_APPLICATION_ACTION:
+                application_id = dispatch.request.parameters.get("application_id")
+                if isinstance(application_id, str):
+                    ephemeral_action_context.record_application(application_id)
+            elif action_id == CLOSE_APPLICATION_ACTION:
+                application_id = dispatch.request.parameters.get("application_id")
+                ephemeral_action_context.clear_application(
+                    application_id if isinstance(application_id, str) else None
+                )
+            if action_id.startswith("spotify.") and action_id not in {
+                SPOTIFY_OPEN_ALBUM_ACTION,
+                SPOTIFY_OPEN_ARTIST_ACTION,
+                SPOTIFY_SEARCH_ALBUMS_ACTION,
+                SPOTIFY_SEARCH_ARTISTS_ACTION,
+                SPOTIFY_SEARCH_PLAYLISTS_ACTION,
+                SPOTIFY_SEARCH_TRACKS_ACTION,
+            }:
+                ephemeral_action_context.record_spotify_activity()
             if dispatch.request.action_id in {
                 SPOTIFY_OPEN_ARTIST_ACTION,
                 SPOTIFY_PLAY_ARTIST_ACTION,
             }:
                 spotify_artist_selection_store.clear()
+                ephemeral_action_context.clear_selection()
             if dispatch.request.action_id == SPOTIFY_PLAY_TRACK_ACTION:
                 spotify_track_selection_store.clear()
+                ephemeral_action_context.clear_selection()
             if dispatch.request.action_id == SPOTIFY_PLAY_PLAYLIST_ACTION:
                 playlist_name = result.metadata.get("playlist_name")
                 playlist_uri = result.metadata.get("playlist_uri")
@@ -1331,8 +1384,13 @@ def _run_application() -> int:
                         spotify_playlist_selection_store.clear()
                     else:
                         spotify_playlist_selection_store.clear_candidates()
+                        ephemeral_action_context.record_selected(
+                            EphemeralSelectionKind.SPOTIFY_PLAYLIST,
+                            allowed_verbs=frozenset(("play",)),
+                        )
                 else:
                     spotify_playlist_selection_store.clear()
+                    ephemeral_action_context.clear_selection()
             if dispatch.request.action_id in {
                 SPOTIFY_OPEN_ALBUM_ACTION,
                 SPOTIFY_PLAY_ALBUM_ACTION,
@@ -1358,12 +1416,20 @@ def _run_application() -> int:
                         spotify_album_selection_store.clear()
                     else:
                         spotify_album_selection_store.clear_candidates()
+                        ephemeral_action_context.record_selected(
+                            EphemeralSelectionKind.SPOTIFY_ALBUM,
+                            allowed_verbs=frozenset(("open", "play")),
+                        )
                 else:
                     spotify_album_selection_store.clear()
+                    ephemeral_action_context.clear_selection()
             if dispatch.request.action_id == OPEN_DIRECTORY_ACTION:
                 opened_directory = result.metadata.get("opened_directory")
                 if isinstance(opened_directory, str):
-                    navigation_context = opened_directory
+                    ephemeral_action_context.record_directory(opened_directory)
+                ephemeral_action_context.clear_selection()
+            if dispatch.request.action_id == OPEN_FILE_ACTION:
+                ephemeral_action_context.clear_selection()
             chat_window.append_message(
                 config.personality.character_name, result.summary
             )
@@ -1504,6 +1570,7 @@ def _run_application() -> int:
             for directory in directories
             if directory.can_search and directory.can_open and directory.is_available
         )
+        navigation_context = ephemeral_action_context.current_directory
         if proposal.parent_name:
             roots = tuple(
                 directory.root
@@ -1560,6 +1627,11 @@ def _run_application() -> int:
         def handle_result(outcome: DirectorySearchOutcome) -> None:
             matches = outcome.matches[:10]
             assistant_tool_result_store.replace_directories(matches)
+            ephemeral_action_context.record_selection(
+                EphemeralSelectionKind.DIRECTORY,
+                len(matches),
+                allowed_verbs=frozenset(("open",)),
+            )
             noun = "directory" if len(matches) == 1 else "directories"
             assistant_action_history_window.update_search_results(
                 matches,
@@ -1636,8 +1708,13 @@ def _run_application() -> int:
         active_tool_threads.append(thread)
 
         def handle_result(outcome: MediaSearchOutcome) -> None:
-            matches = outcome.matches
+            matches = outcome.matches[:10]
             assistant_tool_result_store.replace(matches)
+            ephemeral_action_context.record_selection(
+                EphemeralSelectionKind.FILE,
+                len(matches),
+                allowed_verbs=frozenset(("open", "play")),
+            )
             assistant_action_history_window.update_search_results(
                 matches,
                 summary=f"Found {len(matches)} matching media file(s).",
@@ -1758,30 +1835,52 @@ def _run_application() -> int:
     def submit_chat_message(message: str) -> None:
         refresh_assistant_action_aliases()
         selection_error = None
-        action_request = spotify_playlist_selection_store.parse_follow_up(message)
-        if action_request is None:
-            selection_error = spotify_playlist_selection_store.follow_up_error(message)
-        if action_request is None and selection_error is None:
-            action_request = spotify_album_selection_store.parse_follow_up(message)
-        if action_request is None and selection_error is None:
-            selection_error = spotify_album_selection_store.follow_up_error(message)
-        if action_request is None and selection_error is None:
-            action_request = spotify_track_selection_store.parse_follow_up(message)
-        if action_request is None and selection_error is None:
-            selection_error = spotify_track_selection_store.follow_up_error(message)
-        if action_request is None and selection_error is None:
-            action_request = spotify_artist_selection_store.parse_follow_up(message)
-        if action_request is None and selection_error is None:
-            selection_error = spotify_artist_selection_store.follow_up_error(message)
-        if action_request is None and selection_error is None:
-            action_request = assistant_tool_result_store.parse_follow_up(message)
+        action_request = None
+        directory_reference = None
+        reference = ephemeral_action_context.resolve(message)
+        if isinstance(reference, ActionRequest):
+            action_request = reference
+        elif isinstance(reference, EphemeralSelectionReference):
+            noun = reference.kind.value.removeprefix("spotify_")
+            if reference.selected:
+                follow_up = f"{reference.verb} that {noun}"
+            else:
+                if reference.kind in {
+                    EphemeralSelectionKind.FILE,
+                    EphemeralSelectionKind.DIRECTORY,
+                }:
+                    follow_up = f"{reference.verb} result {reference.index}"
+                else:
+                    follow_up = f"{reference.verb} {noun} result {reference.index}"
+            selection_store = {
+                EphemeralSelectionKind.SPOTIFY_PLAYLIST: (
+                    spotify_playlist_selection_store
+                ),
+                EphemeralSelectionKind.SPOTIFY_ALBUM: spotify_album_selection_store,
+                EphemeralSelectionKind.SPOTIFY_TRACK: spotify_track_selection_store,
+                EphemeralSelectionKind.SPOTIFY_ARTIST: spotify_artist_selection_store,
+                EphemeralSelectionKind.FILE: assistant_tool_result_store,
+                EphemeralSelectionKind.DIRECTORY: assistant_tool_result_store,
+            }[reference.kind]
+            action_request = selection_store.parse_follow_up(follow_up)
+            if action_request is None:
+                selection_error = "That recent result is no longer available."
+        elif isinstance(reference, EphemeralDirectoryReference):
+            directory_reference = AssistantToolProposal(
+                kind=AssistantToolKind.OPEN_DIRECTORY,
+                directory_name=reference.directory_name,
+            )
+        elif isinstance(reference, EphemeralReferenceError):
+            selection_error = reference.message
         if action_request is None and selection_error is None:
             action_request = assistant_action_bridge.parse_user_text(message)
         directory_proposal = None
-        if action_request is None and selection_error is None:
+        if directory_reference is not None:
+            directory_proposal = directory_reference
+        elif action_request is None and selection_error is None:
             directory_proposal = parse_directory_navigation_proposal(
                 message,
-                has_context=navigation_context is not None,
+                has_context=ephemeral_action_context.current_directory is not None,
             )
         chat_window.append_message("You", message)
         if selection_error is not None:
@@ -1813,7 +1912,6 @@ def _run_application() -> int:
         return bool(active_chat_threads or active_action_threads or active_tool_threads)
 
     def start_new_chat() -> None:
-        nonlocal navigation_context
         if has_active_operations():
             chat_window.append_notice(
                 "Stop the current response before starting a new chat."
@@ -1829,14 +1927,13 @@ def _run_application() -> int:
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()
-        navigation_context = None
+        ephemeral_action_context.clear()
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
         logger.info("Started a new chat conversation.")
 
     def clear_current_chat() -> None:
-        nonlocal navigation_context
         if has_active_operations():
             chat_window.append_notice("Stop the current response before clearing chat.")
             return
@@ -1850,7 +1947,7 @@ def _run_application() -> int:
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
         spotify_track_selection_store.clear()
-        navigation_context = None
+        ephemeral_action_context.clear()
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")

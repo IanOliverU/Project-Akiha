@@ -889,7 +889,7 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 
 - [x] Name, politeness, filler, punctuation, and suffix-envelope tests.
 - [x] Negation, hypothetical, quoted-command, and metalinguistic rejection.
-- [ ] Context follow-up and context-expiry tests.
+- [x] Context follow-up and context-expiry tests.
 - [ ] Ambiguity and confirmation tests.
 - [ ] Deterministic-versus-provider arbitration tests.
 - [ ] At-most-once action execution tests.
@@ -1035,7 +1035,7 @@ The benchmark does not claim real-model accuracy or inference latency.
 
 - [x] Add the tolerant deterministic command-envelope parser.
 - [x] Add negative and metalinguistic guards.
-- [ ] Expand ephemeral reference context.
+- [x] Expand ephemeral reference context.
 - [ ] Add intent arbitration and at-most-once turn ledger.
 - [ ] Add optional typed provider proposal fallback.
 
@@ -1048,6 +1048,18 @@ action gateway. Its guard stage rejects anchored negated commands and bounded
 metalinguistic, informational, hypothetical, and quoted-command forms before
 wrapper removal. Rejection reasons are privacy-safe categories; command target
 text is not included.
+
+The local ephemeral resolver now gives exactly one latest validated result set
+ownership of numbered or ordinal references, preventing stale result stores
+from competing for phrases such as `open the second one`. It also supports a
+recent validated album or playlist, Spotify playback pronouns, the last
+successfully launched allowlisted application, and named child-directory
+navigation beneath the recent approved directory. Entries expire after five
+minutes and are cleared on New Chat, Clear Chat, or settings reconfiguration.
+Only bounded metadata, local paths, and opaque service identifiers are held in
+memory; this context is never persisted or sent to companion memory. An
+unnamed child folder remains ambiguous and produces a clarification instead of
+guessing.
 
 ### Milestone V4: Streaming Local Speech
 
