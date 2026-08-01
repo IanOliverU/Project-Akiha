@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 complete, V1 session contracts complete
+**Status:** Implementation in progress - V0 complete, V1 coordinator complete
 
 **Planning date:** 2026-08-01
 
@@ -867,8 +867,8 @@ managed-provider ownership, but it is not introduced implicitly by this work.
 
 ### Session Foundation
 
-- [ ] Session-lifecycle and concurrent-stage transition tests.
-- [ ] Legal overlap tests for capture/recognition, generation/synthesis, and
+- [x] Session-lifecycle and concurrent-stage transition tests.
+- [x] Legal overlap tests for capture/recognition, generation/synthesis, and
   synthesis/playback.
 - [ ] Tests proving speculative partial intent cannot persist or execute.
 - [x] Turn-ID and stale-callback rejection tests.
@@ -981,7 +981,7 @@ recorded. The spike may be discarded and must not mutate production data.
 
 - [x] Add provider-neutral turn, transcript-revision, and live-session
   contracts.
-- [ ] Add `VoiceSessionCoordinator` with explicit state and cancellation.
+- [x] Add `VoiceSessionCoordinator` with explicit state and cancellation.
 - [ ] Route current push-to-talk through the coordinator without changing
   behavior.
 - [ ] Route both Ollama/local LLM and existing hosted text APIs through the

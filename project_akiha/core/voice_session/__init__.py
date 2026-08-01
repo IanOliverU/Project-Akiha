@@ -26,6 +26,8 @@ from project_akiha.core.voice_session.models import (
     VoiceCancellationToken,
     VoiceInputMode,
     VoiceProcessingMode,
+    VoiceSessionCue,
+    VoiceStage,
 )
 from project_akiha.core.voice_session.protocols import (
     LiveSessionAdapter,
@@ -63,5 +65,7 @@ __all__ = [
     "VoiceCancellationToken",
     "VoiceInputMode",
     "VoiceProcessingMode",
+    "VoiceSessionCue",
+    "VoiceStage",
     "VoiceTurnLedger",
 ]

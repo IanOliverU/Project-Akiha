@@ -6,8 +6,12 @@ import threading
 from dataclasses import replace
 
 from project_akiha.core.voice_session.models import (
+    CaptureStage,
     ConversationTurn,
+    GenerationStage,
+    PlaybackStage,
     RecognitionStage,
+    SynthesisStage,
     TranscriptRevision,
     TranscriptStatus,
     TurnInterruptionState,
@@ -114,6 +118,20 @@ class VoiceTurnLedger:
             self._turns[revision.turn_id] = updated_turn
             return True
 
+    def replace_active_stages(
+        self,
+        session_id: str,
+        turn_id: str,
+        stages,
+    ) -> bool:
+        """Replace stages only while the referenced turn owns callbacks."""
+        with self._lock:
+            if not self.accepts_callback(session_id, turn_id):
+                return False
+            turn = self._turns[turn_id]
+            self._turns[turn_id] = replace(turn, stages=stages)
+            return True
+
     def cancel_active(self) -> ConversationTurn | None:
         """Cancel the active turn without treating it as barge-in."""
         with self._lock:
@@ -164,6 +182,7 @@ class VoiceTurnLedger:
         turn.cancellation_token.cancel()
         updated_turn = replace(
             turn,
+            stages=_cancel_active_stages(turn),
             interruption=(
                 TurnInterruptionState.INTERRUPTED
                 if interrupted
@@ -173,3 +192,40 @@ class VoiceTurnLedger:
         self._turns[turn.turn_id] = updated_turn
         self._active_turn_id = None
         return updated_turn
+
+
+def _cancel_active_stages(turn: ConversationTurn):
+    stages = turn.stages
+    capture = (
+        CaptureStage.CANCELLED
+        if stages.capture in {CaptureStage.CAPTURING, CaptureStage.ENDPOINTING}
+        else stages.capture
+    )
+    recognition = (
+        RecognitionStage.CANCELLED
+        if stages.recognition in {RecognitionStage.PARTIAL, RecognitionStage.FINALIZING}
+        else stages.recognition
+    )
+    generation = (
+        GenerationStage.CANCELLED
+        if stages.generation is GenerationStage.STREAMING
+        else stages.generation
+    )
+    synthesis = (
+        SynthesisStage.CANCELLED
+        if stages.synthesis in {SynthesisStage.QUEUED, SynthesisStage.ACTIVE}
+        else stages.synthesis
+    )
+    playback = (
+        PlaybackStage.CANCELLED
+        if stages.playback in {PlaybackStage.BUFFERING, PlaybackStage.PLAYING}
+        else stages.playback
+    )
+    return replace(
+        stages,
+        capture=capture,
+        recognition=recognition,
+        generation=generation,
+        synthesis=synthesis,
+        playback=playback,
+    )

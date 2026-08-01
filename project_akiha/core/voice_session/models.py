@@ -67,6 +67,28 @@ class SessionLifecycle(StrEnum):
     ERROR = "error"
 
 
+class VoiceStage(StrEnum):
+    """Named concurrent stage that may advance independently."""
+
+    CAPTURE = "capture"
+    RECOGNITION = "recognition"
+    INTENT = "intent"
+    GENERATION = "generation"
+    SYNTHESIS = "synthesis"
+    PLAYBACK = "playback"
+
+
+class VoiceSessionCue(StrEnum):
+    """Dominant user-visible cue derived from concurrent stage state."""
+
+    IDLE = "idle"
+    LISTENING = "listening"
+    CONFIRMING = "confirming"
+    SPEAKING = "speaking"
+    THINKING = "thinking"
+    ERROR = "error"
+
+
 class CaptureStage(StrEnum):
     OFF = "off"
     CAPTURING = "capturing"
