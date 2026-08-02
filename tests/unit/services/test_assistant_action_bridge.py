@@ -99,15 +99,27 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             "Would you mind opening the Spotify application?",
             "Would it be possible for you to just open Spotify right now?",
             "I'd like you to open Spotify, please.",
+            "Can you open VLC for me, Akiha?",
+            "Please open Discord, Akiha.",
+            "Akiha, would you be able to open Visual Studio Code for me?",
         )
 
-        for text in cases:
+        expected_applications = (
+            "spotify",
+            "spotify",
+            "spotify",
+            "spotify",
+            "vlc",
+            "discord",
+            "vscode",
+        )
+        for text, application_id in zip(cases, expected_applications, strict=True):
             with self.subTest(text=text):
                 request = self.parser.parse(text)
 
                 self.assertIsNotNone(request)
                 self.assertEqual(request.action_id, "applications.launch")
-                self.assertEqual(request.parameters["application_id"], "spotify")
+                self.assertEqual(request.parameters["application_id"], application_id)
 
     def test_parses_graceful_application_close_commands(self) -> None:
         cases = (
@@ -245,6 +257,10 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             ("Please set the volume to seventy five percent on Spotify", 75),
             ("Change Spotify volume level to one hundred percent", 100),
             ("Mute Spotify", 0),
+            ("Increase Spotify volume to 50%", 50),
+            ("Please raise music volume to sixty percent, Akiha.", 60),
+            ("Could you lower playback volume to 35 percent for me?", 35),
+            ("Turn Spotify volume up to eighty percent", 80),
             ("/spotify-volume 42", 42),
         )
 
@@ -264,6 +280,74 @@ class AssistantActionRequestParserTest(unittest.TestCase):
 
     def test_generic_volume_command_is_not_hijacked(self) -> None:
         self.assertIsNone(self.parser.parse("Set volume to 50 percent"))
+
+    def test_natural_envelopes_cover_every_spotify_action_family(self) -> None:
+        cases = (
+            ("Could you play Spotify music for me, Akiha?", "spotify.play"),
+            ("Please pause my Spotify music, Akiha.", "spotify.pause"),
+            ("Would you resume my Spotify playback for me?", "spotify.resume"),
+            ("Could you skip the next track for me, Akiha?", "spotify.next"),
+            ("Please go back to the previous song, Akiha.", "spotify.previous"),
+            ("Could you enable Spotify shuffle for me?", "spotify.shuffle"),
+            ("Please repeat the current track, Akiha.", "spotify.repeat"),
+            ("Could you set Spotify volume to 45% for me?", "spotify.volume"),
+            ("Please seek Spotify to 1:15, Akiha.", "spotify.seek"),
+            (
+                "Could you search Spotify artists for ADO for me?",
+                "spotify.search_artists",
+            ),
+            ("Please open artist ADO on Spotify, Akiha.", "spotify.open_artist"),
+            ("Could you play songs by ADO for me, Akiha?", "spotify.play_artist"),
+            (
+                "Please find song Usseewa by ADO on Spotify, Akiha.",
+                "spotify.search_tracks",
+            ),
+            ("Could you play Usseewa by ADO on Spotify for me?", "spotify.play_track"),
+            (
+                "Please find album Kyougen by ADO on Spotify, Akiha.",
+                "spotify.search_albums",
+            ),
+            (
+                "Could you open album Kyougen by ADO on Spotify for me?",
+                "spotify.open_album",
+            ),
+            (
+                "Please play album Kyougen by ADO on Spotify, Akiha.",
+                "spotify.play_album",
+            ),
+            (
+                "Could you find playlist Night Drive on Spotify for me?",
+                "spotify.search_playlists",
+            ),
+            (
+                "Please play playlist Night Drive on Spotify, Akiha.",
+                "spotify.play_playlist",
+            ),
+            (
+                "Could you play my Spotify favorites for me, Akiha?",
+                "spotify.play_favorites",
+            ),
+        )
+
+        for text, action_id in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, action_id)
+
+    def test_natural_wrappers_never_bypass_command_guards(self) -> None:
+        cases = (
+            "Please do not open Discord for me, Akiha.",
+            "Could you please not pause Spotify, Akiha?",
+            "Akiha, tell me how to enable shuffle on Spotify.",
+            "Please remind me to open VLC later, Akiha.",
+            'Could you repeat the phrase "open Spotify" for me, Akiha?',
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIsNone(self.parser.parse(text))
 
     def test_parses_absolute_spotify_seek_commands(self) -> None:
         cases = (

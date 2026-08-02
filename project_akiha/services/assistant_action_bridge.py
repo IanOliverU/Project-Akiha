@@ -103,7 +103,9 @@ _SPOKEN_CLOSE_APPLICATION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _SPOTIFY_CONTROL_SEPARATOR = r"[\s,;:.-]+"
-_SPOTIFY_TARGET = r"(?:spotify|spatify)(?:\s+playback)?|music|playback|song|track"
+_SPOTIFY_TARGET = (
+    r"(?:spotify|spatify)(?:\s+(?:music|playback))?|music|playback|song|track"
+)
 _SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-albums\s+(?P<slash>.+?)|"
@@ -236,8 +238,9 @@ _SPOTIFY_REPEAT_PATTERN = re.compile(
 _SPOTIFY_VOLUME_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-volume\s+(?P<slash>\d{1,3})|"
-    r"(?:(?:set|change|turn)\s+)?(?:the\s+)?spotify\s+volume"
-    r"(?:\s+level)?(?:\s+(?:to|at))?\s+(?P<spotify_value>.+?)|"
+    r"(?:(?:set|change|turn|raise|lower|increase|decrease)\s+)?(?:the\s+)?"
+    r"(?:spotify|music|playback)\s+volume(?:\s+level)?"
+    r"(?:\s+(?:up|down))?(?:\s+(?:to|at))?\s+(?P<spotify_value>.+?)|"
     r"(?:set|change|turn)\s+(?:the\s+)?volume(?:\s+level)?\s+"
     r"(?:to|at)\s+(?P<on_spotify_value>.+?)\s+on\s+spotify|"
     r"(?P<mute>mute)\s+spotify(?:\s+playback)?)\s*[.!?]?$",
@@ -261,11 +264,12 @@ _SPOTIFY_SEEK_PATTERN = re.compile(
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
-    rf"(?P<play>play){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
+    rf"(?P<play>play){_SPOTIFY_CONTROL_SEPARATOR}(?:(?:the|my)\s+)?"
     rf"(?:{_SPOTIFY_TARGET})|"
     rf"(?P<pause>pause|paws|pos|puzz|stop){_SPOTIFY_CONTROL_SEPARATOR}"
-    rf"(?:the\s+)?(?:{_SPOTIFY_TARGET})|"
-    rf"(?P<resume>resume|continue){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
+    rf"(?:(?:the|my)\s+)?(?:{_SPOTIFY_TARGET})|"
+    rf"(?P<resume>resume|continue){_SPOTIFY_CONTROL_SEPARATOR}"
+    rf"(?:(?:the|my)\s+)?"
     rf"(?:{_SPOTIFY_TARGET})|"
     rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
     r"(?:next\s+)?(?:song|track)|"
@@ -343,6 +347,10 @@ _VOICE_CONTEXT_FILLER_PATTERN = re.compile(
 )
 _VOICE_NAME_PATTERN = re.compile(
     r"^(?:(?:hello|hi)\s+)?(?:akiha|akia|akaya|aka['’]?ya)\s*[,!.:?]?\s*",
+    re.IGNORECASE,
+)
+_VOICE_TRAILING_NAME_PATTERN = re.compile(
+    r"(?:\s*[,;:.!?]?\s*)" r"(?:akiha|akia|akaya|aka['â€™]?ya)" r"(?:\s*[,;:.!?]?\s*)$",
     re.IGNORECASE,
 )
 _VOICE_SPOTIFY_ALIAS_PATTERN = re.compile(
@@ -948,6 +956,7 @@ def _normalize_voice_wrappers(text: str) -> str:
             _VOICE_NAME_PATTERN,
         ):
             unwrapped = pattern.sub("", unwrapped, count=1).strip()
+        unwrapped = _VOICE_TRAILING_NAME_PATTERN.sub("", unwrapped, count=1).strip()
         if unwrapped == normalized:
             break
         normalized = unwrapped

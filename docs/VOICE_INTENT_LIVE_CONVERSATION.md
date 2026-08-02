@@ -1058,6 +1058,15 @@ metalinguistic, informational, hypothetical, and quoted-command forms before
 wrapper removal. Rejection reasons are privacy-safe categories; command target
 text is not included.
 
+Natural command envelopes now apply consistently across allowlisted application
+launch/close actions and every Spotify action family. Bounded leading requests,
+polite suffixes, and trailing Akiha vocatives are removed before strict typed
+parsing, so forms such as `Can you open VLC for me, Akiha?` retain the same
+action contract as `Open VLC`. Spotify volume also accepts explicit absolute
+forms such as `increase music volume to 50%`. This remains anchored envelope
+normalization, not arbitrary substring execution; negative and metalinguistic
+guards continue to run before any typed action can be created.
+
 The local ephemeral resolver now gives exactly one latest validated result set
 ownership of numbered or ordinal references, preventing stale result stores
 from competing for phrases such as `open the second one`. It also supports a

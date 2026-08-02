@@ -10,7 +10,8 @@ _MAX_ENVELOPE_LENGTH = 2_000
 
 _ACTION_VERB = (
     r"(?:open|launch|start|close|quit|exit|play|pause|resume|continue|search|"
-    r"find|show|take|turn|switch|set|mute|seek|skip|restart|listen|look|go)"
+    r"find|show|take|turn|switch|set|raise|lower|increase|decrease|mute|seek|"
+    r"skip|restart|listen|look|go)"
 )
 _ACTION_GERUND = (
     r"(?:opening|launching|starting|closing|quitting|exiting|playing|pausing|"
@@ -86,7 +87,11 @@ _METALINGUISTIC_COMMAND_PATTERNS = (
 _DIRECT_PREFIX_PATTERNS = (
     re.compile(r"^please\s*[,;:]?\s*", re.IGNORECASE),
     re.compile(
-        r"^(?:can|could|would|will)\s+you(?:\s+please)?\s+",
+        r"^(?:can|could|would|will)\s+you\s+be\s+able\s+to\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:can|could|would|will)\s+you(?:\s+(?:please|kindly))?\s+",
         re.IGNORECASE,
     ),
     re.compile(
@@ -97,6 +102,7 @@ _DIRECT_PREFIX_PATTERNS = (
         r"^(?:i(?:'d|\s+would)\s+like|i\s+(?:want|need))\s+you\s+to\s+",
         re.IGNORECASE,
     ),
+    re.compile(r"^do\s+me\s+a\s+favor\s+and\s+", re.IGNORECASE),
     re.compile(r"^just\s+", re.IGNORECASE),
 )
 _MIND_PREFIX_PATTERN = re.compile(
@@ -135,7 +141,8 @@ _TRAILING_PUNCTUATION_PATTERN = re.compile(r"[.!?]+$")
 _TRAILING_COURTESY_PATTERN = re.compile(
     r"(?:\s*[,;]?\s*)"
     r"(?:please|for\s+me|if\s+you\s+(?:can|could)|"
-    r"when\s+you\s+(?:can|have\s+a\s+moment)|right\s+now)\s*$",
+    r"when\s+you\s+(?:can|have\s+a\s+moment)|right\s+now)"
+    r"(?:\s*[,;]?\s*)$",
     re.IGNORECASE,
 )
 
