@@ -375,6 +375,20 @@ class SettingsWindow(QWidget):
             config.voice.request_timeout_seconds,
         )
         self._voice_request_timeout_input.setSuffix(" sec")
+        self._voice_conversation_idle_timeout_input = _build_spinbox(
+            15,
+            1800,
+            config.voice.local_conversation_idle_timeout_seconds,
+        )
+        self._voice_conversation_idle_timeout_input.setSuffix(" sec")
+        self._voice_conversation_duration_input = QDoubleSpinBox()
+        self._voice_conversation_duration_input.setRange(1.0, 240.0)
+        self._voice_conversation_duration_input.setSingleStep(1.0)
+        self._voice_conversation_duration_input.setDecimals(1)
+        self._voice_conversation_duration_input.setValue(
+            config.voice.local_conversation_max_duration_seconds / 60
+        )
+        self._voice_conversation_duration_input.setSuffix(" min")
         self._voice_health_check_button = QPushButton("Check setup")
         self._voice_health_check_button.clicked.connect(
             self.voice_health_check_requested.emit
@@ -584,6 +598,12 @@ class SettingsWindow(QWidget):
         self._voice_speaking_rate_input.setValue(config.voice.speaking_rate)
         self._voice_capture_timeout_input.setValue(config.voice.capture_timeout_seconds)
         self._voice_request_timeout_input.setValue(config.voice.request_timeout_seconds)
+        self._voice_conversation_idle_timeout_input.setValue(
+            config.voice.local_conversation_idle_timeout_seconds
+        )
+        self._voice_conversation_duration_input.setValue(
+            config.voice.local_conversation_max_duration_seconds / 60
+        )
         self._sync_voice_controls(config.voice.enabled)
 
     def set_voice_health(
@@ -931,6 +951,16 @@ class SettingsWindow(QWidget):
             self._voice_capture_timeout_input,
         )
 
+        conversation_layout = _build_form_layout(wrap_long_rows=True)
+        conversation_layout.addRow(
+            "Idle timeout",
+            self._voice_conversation_idle_timeout_input,
+        )
+        conversation_layout.addRow(
+            "Session limit",
+            self._voice_conversation_duration_input,
+        )
+
         speaking_layout = _build_form_layout(wrap_long_rows=True)
         speaking_layout.addRow(
             "Output provider",
@@ -1005,6 +1035,7 @@ class SettingsWindow(QWidget):
         diagnostics_layout.addRow("Diagnostic status", self._voice_diagnostic_status)
         return _build_scroll_tab(
             _build_section("Listening", listening_layout),
+            _build_section("Local conversation", conversation_layout),
             _build_section("Speaking", speaking_layout),
             _build_section("Subtitles", subtitle_layout),
             _build_section("Diagnostics", diagnostics_layout),
@@ -1370,6 +1401,12 @@ class SettingsWindow(QWidget):
                 speaking_rate=self._voice_speaking_rate_input.value(),
                 capture_timeout_seconds=(self._voice_capture_timeout_input.value()),
                 request_timeout_seconds=(self._voice_request_timeout_input.value()),
+                local_conversation_idle_timeout_seconds=(
+                    self._voice_conversation_idle_timeout_input.value()
+                ),
+                local_conversation_max_duration_seconds=round(
+                    self._voice_conversation_duration_input.value() * 60
+                ),
             )
         )
         config = config.with_spotify(spotify_config)
@@ -1804,6 +1841,8 @@ class SettingsWindow(QWidget):
             self._voice_speaking_rate_input,
             self._voice_capture_timeout_input,
             self._voice_request_timeout_input,
+            self._voice_conversation_idle_timeout_input,
+            self._voice_conversation_duration_input,
             self._voice_health_check_button,
             self._voice_microphone_test_button,
             self._voice_output_test_button,

@@ -154,6 +154,33 @@ class ChatWindowTest(unittest.TestCase):
         self.assertTrue(window._conversation_button.isEnabled())
         self.assertEqual(window._conversation_button.text(), "End conversation")
 
+    def test_conversation_elapsed_state_is_visible_without_layout_shift(self) -> None:
+        window = ChatWindow()
+
+        window.set_voice_conversation_state(active=True, elapsed_seconds=65)
+
+        self.assertEqual(window._conversation_elapsed_label.text(), "Local 01:05")
+        self.assertEqual(window._conversation_elapsed_label.width(), 104)
+
+        window.set_voice_conversation_state(
+            active=False,
+            elapsed_seconds=65,
+            reason="idle_timeout",
+        )
+
+        self.assertEqual(window._conversation_elapsed_label.text(), "Local --:--")
+        self.assertEqual(
+            window._voice_input_status.text(),
+            "Conversation ended after inactivity.",
+        )
+
+    def test_long_conversation_elapsed_state_uses_hour_format(self) -> None:
+        window = ChatWindow()
+
+        window.set_voice_conversation_state(active=True, elapsed_seconds=14_400)
+
+        self.assertEqual(window._conversation_elapsed_label.text(), "Local 4:00:00")
+
     def test_voice_button_requests_listening_from_idle(self) -> None:
         window = ChatWindow()
         requested: list[bool] = []

@@ -266,6 +266,8 @@ class VoiceConfig:
     speaking_rate: float = 1.0
     capture_timeout_seconds: int = 30
     request_timeout_seconds: int = 30
+    local_conversation_idle_timeout_seconds: int = 120
+    local_conversation_max_duration_seconds: int = 1800
 
     def __post_init__(self) -> None:
         """Validate provider-neutral voice settings."""
@@ -303,6 +305,16 @@ class VoiceConfig:
             raise ValueError("voice.capture_timeout_seconds must be greater than zero.")
         if self.request_timeout_seconds <= 0:
             raise ValueError("voice.request_timeout_seconds must be greater than zero.")
+        if not 15 <= self.local_conversation_idle_timeout_seconds <= 1800:
+            raise ValueError(
+                "voice.local_conversation_idle_timeout_seconds must be between "
+                "15 and 1800."
+            )
+        if not 60 <= self.local_conversation_max_duration_seconds <= 14400:
+            raise ValueError(
+                "voice.local_conversation_max_duration_seconds must be between "
+                "60 and 14400."
+            )
 
     @property
     def input_enabled(self) -> bool:

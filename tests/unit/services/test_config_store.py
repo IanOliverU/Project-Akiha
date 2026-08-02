@@ -98,6 +98,8 @@ class UserConfigStoreTest(unittest.TestCase):
                         speaking_rate=1.2,
                         capture_timeout_seconds=12,
                         request_timeout_seconds=10,
+                        local_conversation_idle_timeout_seconds=90,
+                        local_conversation_max_duration_seconds=900,
                     ),
                     spotify=SpotifyConfig(
                         enabled=True,
@@ -173,6 +175,8 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.speaking_rate, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 12)
         self.assertEqual(config.voice.request_timeout_seconds, 10)
+        self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 90)
+        self.assertEqual(config.voice.local_conversation_max_duration_seconds, 900)
         self.assertTrue(config.spotify.enabled)
         self.assertEqual(config.spotify.client_id, "a" * 32)
         self.assertFalse(config.spotify.auto_launch_desktop_app)

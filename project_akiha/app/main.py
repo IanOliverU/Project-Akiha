@@ -2165,12 +2165,28 @@ def _run_application() -> int:
         has_interruptible_work=has_active_operations,
         cancel_interruptible_work=cancel_interruptible_work,
     )
+
+    def present_local_conversation_state(event: Event) -> None:
+        elapsed = event.payload.get("elapsed_seconds")
+        reason = event.payload.get("reason")
+        chat_window.set_voice_conversation_state(
+            active=event.payload.get("active") is True,
+            elapsed_seconds=(
+                elapsed if isinstance(elapsed, int) and elapsed >= 0 else 0
+            ),
+            reason=reason if isinstance(reason, str) else "",
+        )
+
     event_bus.subscribe(
         EventType.VOICE_CONVERSATION_STATE_CHANGED,
-        lambda event: chat_window.set_voice_conversation_active(
-            event.payload.get("active") is True
-        ),
+        present_local_conversation_state,
     )
+    local_conversation_tick_timer = QTimer()
+    local_conversation_tick_timer.setInterval(1_000)
+    local_conversation_tick_timer.timeout.connect(
+        local_conversation_session_controller.tick
+    )
+    local_conversation_tick_timer.start()
     chat_window.voice_listen_requested.connect(
         talk_interruption_controller.request_talk
     )
@@ -2232,6 +2248,7 @@ def _run_application() -> int:
     activity_tick_timer.start(30_000)
 
     def shutdown_app() -> None:
+        local_conversation_tick_timer.stop()
         voice_endpoint_controller.cancel()
         local_conversation_session_controller.close()
         push_to_talk_session_controller.close()

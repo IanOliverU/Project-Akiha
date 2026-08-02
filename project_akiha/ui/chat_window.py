@@ -109,6 +109,10 @@ class ChatWindow(QWidget):
         self._voice_replay_available = False
         self._chat_busy = False
         self._voice_conversation_active = False
+        self._conversation_elapsed_label = QLabel("Local --:--")
+        self._conversation_elapsed_label.setObjectName("voiceInputStatus")
+        self._conversation_elapsed_label.setFixedWidth(104)
+        self._conversation_elapsed_label.setToolTip("Local conversation elapsed time")
         self._conversation_button = QPushButton("Start conversation")
         self._conversation_button.setFixedWidth(144)
         self._conversation_button.setToolTip("Start local voice conversation")
@@ -181,6 +185,7 @@ class ChatWindow(QWidget):
         conversation_layout.setContentsMargins(0, 0, 0, 0)
         conversation_layout.setSpacing(8)
         conversation_layout.addWidget(self._voice_input_status, stretch=1)
+        conversation_layout.addWidget(self._conversation_elapsed_label)
         conversation_layout.addWidget(self._conversation_button)
         composer_layout.addLayout(conversation_layout)
         composer_layout.addLayout(input_layout)
@@ -279,7 +284,26 @@ class ChatWindow(QWidget):
 
     def set_voice_conversation_active(self, active: bool) -> None:
         """Present the explicit local conversation-session lifecycle."""
+        self.set_voice_conversation_state(active=active)
+
+    def set_voice_conversation_state(
+        self,
+        *,
+        active: bool,
+        elapsed_seconds: int = 0,
+        reason: str = "",
+    ) -> None:
+        """Present bounded local-session state without exposing voice content."""
         self._voice_conversation_active = active
+        self._conversation_elapsed_label.setText(
+            f"Local {_format_elapsed(elapsed_seconds)}" if active else "Local --:--"
+        )
+        timeout_status = {
+            "idle_timeout": "Conversation ended after inactivity.",
+            "session_timeout": "Conversation session limit reached.",
+        }.get(reason)
+        if timeout_status is not None:
+            self.set_voice_input_status(timeout_status)
         self._refresh_conversation_button()
 
     def set_voice_replay_available(self, available: bool) -> None:
@@ -484,3 +508,12 @@ def _proactive_title(kind: str) -> str:
         "scheduled_check_in": "Akiha scheduled check-in",
     }
     return labels.get(kind, "Akiha suggestion")
+
+
+def _format_elapsed(seconds: int) -> str:
+    bounded_seconds = max(0, seconds)
+    hours, remainder = divmod(bounded_seconds, 3600)
+    minutes, remaining_seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{remaining_seconds:02d}"
+    return f"{minutes:02d}:{remaining_seconds:02d}"

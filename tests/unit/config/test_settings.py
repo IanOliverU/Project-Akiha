@@ -59,6 +59,8 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse(config.voice.auto_send_transcript_enabled)
         self.assertEqual(config.voice.silence_timeout_seconds, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 30)
+        self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 120)
+        self.assertEqual(config.voice.local_conversation_max_duration_seconds, 1800)
         self.assertFalse(config.voice.input_enabled)
         self.assertFalse(config.voice.output_enabled)
 
@@ -121,7 +123,9 @@ class SettingsTest(unittest.TestCase):
                 "volume_percent = 75\n"
                 "speaking_rate = 1.2\n"
                 "capture_timeout_seconds = 12\n"
-                "request_timeout_seconds = 10\n",
+                "request_timeout_seconds = 10\n"
+                "local_conversation_idle_timeout_seconds = 90\n"
+                "local_conversation_max_duration_seconds = 900\n",
                 encoding="utf-8",
             )
 
@@ -173,6 +177,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.speaking_rate, 1.2)
         self.assertEqual(config.voice.capture_timeout_seconds, 12)
         self.assertEqual(config.voice.request_timeout_seconds, 10)
+        self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 90)
+        self.assertEqual(config.voice.local_conversation_max_duration_seconds, 900)
         self.assertFalse(config.voice.input_enabled)
         self.assertTrue(config.voice.output_enabled)
 
@@ -337,6 +343,12 @@ class SettingsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             VoiceConfig(request_timeout_seconds=0)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(local_conversation_idle_timeout_seconds=14)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(local_conversation_max_duration_seconds=14_401)
 
 
 if __name__ == "__main__":

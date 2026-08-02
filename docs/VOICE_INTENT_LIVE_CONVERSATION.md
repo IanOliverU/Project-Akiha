@@ -1103,7 +1103,7 @@ button remains a bounded Stop voice control instead.
 - [x] Add explicit Start conversation and End conversation controls.
 - [x] Reopen the microphone after completed local playback.
 - [x] Keep local turn taking half-duplex.
-- [ ] Add idle/session timeout and visible elapsed state.
+- [x] Add idle/session timeout and visible elapsed state.
 - [x] Verify that the session never starts on application launch.
 
 The Chat composer now exposes a fixed-width Start conversation / End
@@ -1134,6 +1134,16 @@ valid microphone session. Automatic session reopen also requires that no chat,
 action, or tool-proposal worker remains unfinished. Controlled Talk remains
 the explicit exception: it stops output, cancels unfinished work, and only then
 requests microphone ownership.
+
+Local sessions now use monotonic elapsed and user-idle clocks. The default
+idle limit is 120 seconds and the default total limit is 30 minutes; both are
+bounded and configurable under Voice > Local conversation. Only a non-empty
+final user transcript resets idle time, so timer ticks and automatic
+microphone reopening cannot keep an abandoned session alive. Reaching either
+limit cancels active voice or generation work, closes the coordinator, and
+shows a bounded reason in Chat. A fixed-width `Local MM:SS` indicator exposes
+elapsed time without shifting the composer controls. Session-state events
+contain timing and lifecycle metadata only, never transcript or audio content.
 
 ### Modular Track Release Gate
 

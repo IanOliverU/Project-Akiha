@@ -489,6 +489,8 @@ class SettingsWindowTest(unittest.TestCase):
             window._voice_speaking_rate_input.setValue(1.2)
             window._voice_capture_timeout_input.setValue(12)
             window._voice_request_timeout_input.setValue(10)
+            window._voice_conversation_idle_timeout_input.setValue(90)
+            window._voice_conversation_duration_input.setValue(15)
 
             window._save()
 
@@ -520,6 +522,8 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(voice.speaking_rate, 1.2)
         self.assertEqual(voice.capture_timeout_seconds, 12)
         self.assertEqual(voice.request_timeout_seconds, 10)
+        self.assertEqual(voice.local_conversation_idle_timeout_seconds, 90)
+        self.assertEqual(voice.local_conversation_max_duration_seconds, 900)
         self.assertEqual(emitted[0].privacy.notice_version_acknowledged, 1)
 
     def test_voice_controls_follow_master_switch(self) -> None:

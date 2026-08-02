@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from collections.abc import Callable
+from time import monotonic
 
 from project_akiha.app.local_conversation_session_controller import (
     LocalConversationSessionController,
@@ -165,6 +166,80 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
             "conversation_session_busy",
         )
 
+    def test_tick_publishes_monotonic_elapsed_state(self) -> None:
+        clock = _FakeClock()
+        context = _build(clock=clock)
+        context.controller.start()
+
+        clock.advance(65.9)
+        context.controller.tick()
+
+        state = context.state_events[-1]
+        self.assertTrue(state.payload["active"])
+        self.assertEqual(state.payload["mode"], "local")
+        self.assertEqual(state.payload["elapsed_seconds"], 65)
+        self.assertEqual(state.payload["idle_seconds"], 65)
+        self.assertEqual(state.payload["reason"], "")
+
+    def test_idle_timeout_ends_and_releases_active_capture(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=15,
+            ),
+        )
+        context.controller.start()
+
+        clock.advance(15)
+        context.controller.tick()
+
+        self.assertFalse(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+        self.assertEqual(context.state_events[-1].payload["reason"], "idle_timeout")
+
+    def test_session_limit_ends_even_when_idle_time_was_reset(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=120,
+                local_conversation_max_duration_seconds=60,
+            ),
+        )
+        context.controller.start()
+        clock.advance(50)
+        context.voice.publish_transcript("Still here", "en", "high")
+
+        clock.advance(10)
+        context.controller.tick()
+
+        self.assertFalse(context.controller.active)
+        self.assertEqual(context.state_events[-1].payload["reason"], "session_timeout")
+
+    def test_final_transcript_resets_idle_time_without_resetting_elapsed(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=15,
+            ),
+        )
+        context.controller.start()
+        clock.advance(10)
+
+        context.voice.publish_transcript("Hello", "en", "high")
+        clock.advance(10)
+        context.controller.tick()
+
+        self.assertTrue(context.controller.active)
+        self.assertEqual(context.state_events[-1].payload["elapsed_seconds"], 20)
+        self.assertEqual(context.state_events[-1].payload["idle_seconds"], 10)
+
 
 class _Context:
     def __init__(
@@ -175,6 +250,7 @@ class _Context:
         coordinator: VoiceSessionCoordinator,
         controller: LocalConversationSessionController,
         states: list[bool],
+        state_events: list[Event],
         errors: list[Event],
         cancelled_work: list[bool],
     ) -> None:
@@ -183,6 +259,7 @@ class _Context:
         self.coordinator = coordinator
         self.controller = controller
         self.states = states
+        self.state_events = state_events
         self.errors = errors
         self.cancelled_work = cancelled_work
 
@@ -191,6 +268,7 @@ def _build(
     *,
     voice_config: VoiceConfig | None = None,
     has_work: Callable[[], bool] = lambda: False,
+    clock: Callable[[], float] | None = None,
 ) -> _Context:
     bus = EventBus()
     voice = VoiceController(bus, voice_config or VoiceConfig(enabled=True))
@@ -203,12 +281,15 @@ def _build(
         input_provider_name=lambda: "faster-whisper",
     )
     states: list[bool] = []
+    state_events: list[Event] = []
     errors: list[Event] = []
     cancelled_work: list[bool] = []
-    bus.subscribe(
-        EventType.VOICE_CONVERSATION_STATE_CHANGED,
-        lambda event: states.append(event.payload.get("active") is True),
-    )
+
+    def observe_state(event: Event) -> None:
+        states.append(event.payload.get("active") is True)
+        state_events.append(event)
+
+    bus.subscribe(EventType.VOICE_CONVERSATION_STATE_CHANGED, observe_state)
     bus.subscribe(EventType.VOICE_ERROR_OCCURRED, errors.append)
     controller = LocalConversationSessionController(
         event_bus=bus,
@@ -217,6 +298,7 @@ def _build(
         processing_mode_provider=lambda: VoiceProcessingMode.LOCAL_MODULAR,
         has_interruptible_work=has_work,
         cancel_interruptible_work=lambda: cancelled_work.append(True),
+        monotonic_clock=clock or monotonic,
     )
     return _Context(
         bus=bus,
@@ -224,6 +306,18 @@ def _build(
         coordinator=coordinator,
         controller=controller,
         states=states,
+        state_events=state_events,
         errors=errors,
         cancelled_work=cancelled_work,
     )
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self._now = 100.0
+
+    def __call__(self) -> float:
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
