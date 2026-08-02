@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from collections.abc import Callable
 
 from project_akiha.app.local_conversation_session_controller import (
     LocalConversationSessionController,
@@ -137,6 +138,33 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
         self.assertEqual(context.voice.state, VoiceState.IDLE)
 
+    def test_unfinished_work_blocks_automatic_microphone_reopen(self) -> None:
+        work_active = [False]
+        context = _build(has_work=lambda: work_active[0])
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        context.voice.publish_transcript("Hello Akiha", "en", "high")
+        work_active[0] = True
+
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        self.assertIsNone(context.coordinator.snapshot.active_turn)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+
+    def test_unfinished_work_blocks_explicit_session_start(self) -> None:
+        context = _build(has_work=lambda: True)
+
+        self.assertFalse(context.controller.start())
+
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+        self.assertEqual(
+            context.errors[-1].payload["code"],
+            "conversation_session_busy",
+        )
+
 
 class _Context:
     def __init__(
@@ -159,7 +187,11 @@ class _Context:
         self.cancelled_work = cancelled_work
 
 
-def _build(*, voice_config: VoiceConfig | None = None) -> _Context:
+def _build(
+    *,
+    voice_config: VoiceConfig | None = None,
+    has_work: Callable[[], bool] = lambda: False,
+) -> _Context:
     bus = EventBus()
     voice = VoiceController(bus, voice_config or VoiceConfig(enabled=True))
     coordinator = VoiceSessionCoordinator(session_id_factory=lambda: "session-1")
@@ -183,6 +215,7 @@ def _build(*, voice_config: VoiceConfig | None = None) -> _Context:
         voice_controller=voice,
         session_coordinator=coordinator,
         processing_mode_provider=lambda: VoiceProcessingMode.LOCAL_MODULAR,
+        has_interruptible_work=has_work,
         cancel_interruptible_work=lambda: cancelled_work.append(True),
     )
     return _Context(

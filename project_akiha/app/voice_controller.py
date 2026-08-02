@@ -220,6 +220,12 @@ class VoiceController:
                 message="Push-to-talk is disabled.",
             )
             return
+        if self._operation == _VoiceOperation.OUTPUT:
+            self._publish_error(
+                code="half_duplex_output_active",
+                message="Stop current speech before starting the microphone.",
+            )
+            return
         self._transition_to(
             VoiceState.LISTENING,
             "listen_requested",
@@ -248,6 +254,12 @@ class VoiceController:
 
     def _handle_speak_requested(self, event: Event) -> None:
         if not self._ensure_output_enabled():
+            return
+        if self._operation == _VoiceOperation.INPUT:
+            self._publish_error(
+                code="half_duplex_input_active",
+                message="Speech output cannot start while the microphone is active.",
+            )
             return
 
         text = event.payload.get("text")

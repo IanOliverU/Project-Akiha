@@ -29,6 +29,10 @@ _DIAGNOSTIC_SOURCE = "settings_microphone_test"
 _CONFIDENCE_VALUES = {
     confidence.value: confidence for confidence in TranscriptConfidence
 }
+_NON_FATAL_SESSION_ERRORS = {
+    "half_duplex_input_active",
+    "half_duplex_output_active",
+}
 
 
 class PushToTalkSessionController:
@@ -215,6 +219,8 @@ class PushToTalkSessionController:
             return
         code = event.payload.get("code")
         safe_code = code if isinstance(code, str) else "voice_session_error"
+        if safe_code in _NON_FATAL_SESSION_ERRORS:
+            return
         if self._coordinator.snapshot.lifecycle in {
             SessionLifecycle.STARTING,
             SessionLifecycle.ACTIVE,

@@ -2162,6 +2162,7 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         session_coordinator=voice_session_coordinator,
         processing_mode_provider=current_voice_processing_mode,
+        has_interruptible_work=has_active_operations,
         cancel_interruptible_work=cancel_interruptible_work,
     )
     event_bus.subscribe(

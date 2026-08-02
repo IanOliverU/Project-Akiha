@@ -27,12 +27,14 @@ class LocalConversationSessionController:
         voice_controller: VoiceController,
         session_coordinator: VoiceSessionCoordinator,
         processing_mode_provider: Callable[[], VoiceProcessingMode],
+        has_interruptible_work: Callable[[], bool],
         cancel_interruptible_work: Callable[[], None],
     ) -> None:
         self._event_bus = event_bus
         self._voice_controller = voice_controller
         self._coordinator = session_coordinator
         self._processing_mode_provider = processing_mode_provider
+        self._has_interruptible_work = has_interruptible_work
         self._cancel_interruptible_work = cancel_interruptible_work
         self._active = False
         session_coordinator.subscribe(self._handle_session_snapshot)
@@ -61,6 +63,7 @@ class LocalConversationSessionController:
             self._voice_controller.state is not VoiceState.IDLE
             or self._voice_controller.operation != "none"
             or self._coordinator.snapshot.lifecycle is not SessionLifecycle.IDLE
+            or self._has_interruptible_work()
         ):
             self._voice_controller.notify_error(
                 "conversation_session_busy",
@@ -132,6 +135,7 @@ class LocalConversationSessionController:
             or snapshot.active_turn is not None
             or self._voice_controller.state is not VoiceState.IDLE
             or self._voice_controller.operation != "none"
+            or self._has_interruptible_work()
         ):
             return
         config = self._voice_controller.config

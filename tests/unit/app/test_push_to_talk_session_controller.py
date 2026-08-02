@@ -12,6 +12,7 @@ from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.config import VoiceConfig
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.voice_session import (
     CaptureStage,
     EndpointReason,
@@ -186,6 +187,19 @@ class PushToTalkSessionControllerTest(unittest.TestCase):
         voice.report_error("capture_failed", "Capture failed.")
 
         self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+
+    def test_half_duplex_rejection_keeps_valid_microphone_turn_active(self) -> None:
+        bus, voice, coordinator, _ = _build()
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Do not overlap."})
+
+        self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.ACTIVE)
+        self.assertIsNotNone(coordinator.snapshot.active_turn)
+        self.assertEqual(voice.state, VoiceState.LISTENING)
+        self.assertEqual(voice.operation, "input")
 
     def test_rejected_listen_request_does_not_create_session(self) -> None:
         bus, _, coordinator, _ = _build(config=VoiceConfig())

@@ -1102,7 +1102,7 @@ button remains a bounded Stop voice control instead.
 
 - [x] Add explicit Start conversation and End conversation controls.
 - [x] Reopen the microphone after completed local playback.
-- [ ] Keep local turn taking half-duplex.
+- [x] Keep local turn taking half-duplex.
 - [ ] Add idle/session timeout and visible elapsed state.
 - [x] Verify that the session never starts on application launch.
 
@@ -1125,6 +1125,15 @@ microphone as a new `local_conversation` turn. Replay, proactive speech,
 cancelled output, late callbacks, duplicate completion events, and playback
 outside an active session cannot trigger reopening. The event contains only a
 bounded source and delivery category; it carries no response text or audio.
+
+Voice operation ownership now enforces local half-duplex independently of UI
+timing. An input-owned listening or transcript-finalization operation rejects
+TTS acquisition, and an output-owned synthesis or playback operation rejects
+direct microphone acquisition. These bounded rejections do not terminate a
+valid microphone session. Automatic session reopen also requires that no chat,
+action, or tool-proposal worker remains unfinished. Controlled Talk remains
+the explicit exception: it stops output, cancels unfinished work, and only then
+requests microphone ownership.
 
 ### Modular Track Release Gate
 

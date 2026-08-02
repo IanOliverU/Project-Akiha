@@ -155,6 +155,56 @@ class VoiceControllerTest(unittest.TestCase):
 
         self.assertEqual(controller.state, VoiceState.THINKING)
 
+    def test_speech_request_cannot_take_ownership_from_microphone(self) -> None:
+        bus = EventBus()
+        errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Do not overlap."})
+
+        self.assertEqual(controller.state, VoiceState.LISTENING)
+        self.assertEqual(controller.operation, "input")
+        self.assertEqual(errors[-1].payload["code"], "half_duplex_input_active")
+
+    def test_speech_request_cannot_overlap_transcript_finalization(self) -> None:
+        bus = EventBus()
+        errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Do not overlap."})
+
+        self.assertEqual(controller.state, VoiceState.THINKING)
+        self.assertEqual(controller.operation, "input")
+        self.assertEqual(errors[-1].payload["code"], "half_duplex_input_active")
+
+    def test_listen_request_cannot_take_ownership_from_speech(self) -> None:
+        bus = EventBus()
+        errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Speaking."})
+        controller.mark_speaking()
+
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        self.assertEqual(controller.state, VoiceState.SPEAKING)
+        self.assertEqual(controller.operation, "output")
+        self.assertEqual(errors[-1].payload["code"], "half_duplex_output_active")
+
+    def test_listen_request_cannot_overlap_synthesis(self) -> None:
+        bus = EventBus()
+        errors = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Synthesizing."})
+
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        self.assertEqual(controller.state, VoiceState.THINKING)
+        self.assertEqual(controller.operation, "output")
+        self.assertEqual(errors[-1].payload["code"], "half_duplex_output_active")
+
     def test_listen_cancel_does_not_cancel_active_synthesis(self) -> None:
         bus = EventBus()
         controller = VoiceController(bus, VoiceConfig(enabled=True))
