@@ -164,7 +164,7 @@ class LocalConversationSessionController:
                 if snapshot.lifecycle is SessionLifecycle.ERROR
                 else "session_closed"
             )
-            self._set_active(False, reason=reason)
+            self.end(reason)
 
     def _handle_transcript_ready(self, event: Event) -> None:
         text = event.payload.get("text")

@@ -1145,9 +1145,18 @@ shows a bounded reason in Chat. A fixed-width `Local MM:SS` indicator exposes
 elapsed time without shifting the composer controls. Session-state events
 contain timing and lifecycle metadata only, never transcript or audio content.
 
+V5 lifecycle regression coverage now exercises the complete local sequence:
+explicit start, accepted final transcript, assistant output, natural completion,
+microphone reopen under the same session with a fresh turn ID, and explicit
+end. It also covers input and output timeout cleanup, coordinator-error cleanup,
+busy-start rejection without interruption, duplicate and late playback events,
+idempotent shutdown, and privacy-safe state payloads. A coordinator failure now
+uses the same bounded cleanup path as End, preventing microphone ownership from
+surviving after the visible session has closed.
+
 ### Modular Track Release Gate
 
-- [ ] Run the full automated suite and local voice regression checks.
+- [x] Run the full automated suite and local voice regression checks.
 - [ ] Complete local push-to-talk, natural intent, streaming speech,
   interruption, and Conversation Session manual checks.
 - [ ] Build and validate a Local Voice Intelligence standalone candidate.

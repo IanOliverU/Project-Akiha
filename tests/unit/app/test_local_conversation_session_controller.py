@@ -91,7 +91,10 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         context.coordinator.report_error("capture_failed")
 
         self.assertFalse(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
         self.assertEqual(context.states, [True, False])
+        self.assertEqual(context.state_events[-1].payload["reason"], "session_error")
 
     def test_completed_assistant_playback_reopens_microphone_once(self) -> None:
         context = _build()
@@ -239,6 +242,124 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         self.assertTrue(context.controller.active)
         self.assertEqual(context.state_events[-1].payload["elapsed_seconds"], 20)
         self.assertEqual(context.state_events[-1].payload["idle_seconds"], 10)
+
+    def test_complete_conversation_turn_reuses_session_and_gets_new_turn(self) -> None:
+        context = _build()
+        context.controller.start()
+        first_snapshot = context.coordinator.snapshot
+        first_turn = first_snapshot.active_turn
+        assert first_turn is not None
+
+        context.voice.publish_transcript("Hello Akiha", "en", "high")
+        context.bus.publish(
+            EventType.VOICE_SPEAK_REQUESTED,
+            {"text": "Good afternoon."},
+        )
+        context.voice.mark_speaking()
+        context.bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        reopened_snapshot = context.coordinator.snapshot
+        reopened_turn = reopened_snapshot.active_turn
+        assert reopened_turn is not None
+        self.assertEqual(reopened_snapshot.session_id, first_snapshot.session_id)
+        self.assertNotEqual(reopened_turn.turn_id, first_turn.turn_id)
+        self.assertEqual(reopened_turn.input_mode, VoiceInputMode.LOCAL_CONVERSATION)
+        self.assertEqual(context.voice.state, VoiceState.LISTENING)
+
+        self.assertTrue(context.controller.end())
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+
+    def test_explicit_end_stops_owned_output_and_rejects_late_completion(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
+        context.bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Speaking."})
+        context.voice.mark_speaking()
+
+        context.controller.end()
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        self.assertFalse(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(context.voice.operation, "none")
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+
+    def test_session_timeout_stops_owned_output(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=120,
+                local_conversation_max_duration_seconds=60,
+            ),
+        )
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
+        context.bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Speaking."})
+        context.voice.mark_speaking()
+
+        clock.advance(60)
+        context.controller.tick()
+
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(context.voice.operation, "none")
+        self.assertEqual(context.state_events[-1].payload["reason"], "session_timeout")
+
+    def test_busy_output_rejects_start_without_interrupting_speech(self) -> None:
+        context = _build()
+        context.bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Speaking."})
+        context.voice.mark_speaking()
+
+        self.assertFalse(context.controller.start())
+
+        self.assertEqual(context.voice.state, VoiceState.SPEAKING)
+        self.assertEqual(context.voice.operation, "output")
+        self.assertEqual(
+            context.errors[-1].payload["code"],
+            "conversation_session_busy",
+        )
+
+    def test_state_events_never_include_transcript_or_audio_content(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.voice.publish_transcript("Private conversation", "en", "high")
+        context.controller.tick()
+        context.controller.end()
+
+        allowed_keys = {
+            "active",
+            "mode",
+            "elapsed_seconds",
+            "idle_seconds",
+            "reason",
+        }
+        self.assertTrue(context.state_events)
+        for event in context.state_events:
+            self.assertEqual(set(event.payload), allowed_keys)
+            self.assertNotIn("Private conversation", str(event.payload))
+
+    def test_close_is_idempotent_and_ignores_late_playback(self) -> None:
+        context = _build()
+        context.controller.start()
+
+        context.controller.close()
+        context.controller.close()
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        self.assertFalse(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
 
 
 class _Context:
