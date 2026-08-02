@@ -68,6 +68,17 @@ class RollingFasterWhisperAdapterTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(final.last_frame_sequence, 5)
         self.assertFalse(adapter.is_active)
 
+    async def test_buffered_final_audio_skips_partial_inference(self) -> None:
+        provider = _Provider(VoiceTranscript("Final command", "en", 0.9))
+        adapter = _adapter(provider)
+
+        for sequence in range(4):
+            adapter.buffer_audio(_frame(sequence))
+        final = await adapter.finalize(EndpointReason.SILENCE)
+
+        self.assertEqual(final.transcript.text, "Final command")
+        self.assertEqual(provider.audio_lengths, [80])
+
     async def test_empty_partial_is_suppressed_then_recovers(self) -> None:
         provider = _ProviderErrorThenTranscript(VoiceTranscript("Recovered", "en"))
         adapter = _adapter(provider)

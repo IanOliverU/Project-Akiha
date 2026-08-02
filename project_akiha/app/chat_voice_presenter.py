@@ -57,6 +57,7 @@ class ChatVoicePresenter:
     ) -> None:
         self._surface = surface
         self._config = config
+        self._local_conversation_active = False
 
         event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
@@ -69,6 +70,10 @@ class ChatVoicePresenter:
         event_bus.subscribe(
             EventType.VOICE_TRANSCRIPT_READY,
             self._handle_transcript_ready,
+        )
+        event_bus.subscribe(
+            EventType.VOICE_CONVERSATION_STATE_CHANGED,
+            self._handle_conversation_state_changed,
         )
         event_bus.subscribe(
             EventType.VOICE_ERROR_OCCURRED,
@@ -102,7 +107,10 @@ class ChatVoicePresenter:
         if not isinstance(text, str) or not text.strip():
             return
         requires_review = event.payload.get("requires_review") is True
-        if self._config.auto_send_transcript_enabled and not requires_review:
+        auto_submit = (
+            self._config.auto_send_transcript_enabled or self._local_conversation_active
+        )
+        if auto_submit and not requires_review:
             self._surface.set_voice_input_status(
                 f'Heard: "{text.strip()}" - sent automatically.'
             )
@@ -114,6 +122,13 @@ class ChatVoicePresenter:
                 self._surface.set_voice_input_status(
                     "Recognition confidence is low. Review the message, then Send."
                 )
+
+    def _handle_conversation_state_changed(self, event: Event) -> None:
+        active = event.payload.get("active")
+        mode = event.payload.get("mode")
+        if not isinstance(active, bool) or mode != "local":
+            return
+        self._local_conversation_active = active
 
     def _handle_transcript_partial(self, event: Event) -> None:
         if not self._config.live_transcription_enabled:

@@ -115,12 +115,7 @@ class RollingFasterWhisperAdapter:
         frame: AudioFrame,
     ) -> RollingRecognitionHypothesis | None:
         """Accept one frame and occasionally transcribe the recent rolling window."""
-        self._require_active()
-        self._raise_if_cancelled()
-        if not self._buffer.is_active:
-            self._start_buffer(frame)
-        self._buffer.accept(frame)
-        self._bytes_since_partial += len(frame.data)
+        self.buffer_audio(frame)
         if self._bytes_since_partial < self._partial_interval_bytes:
             return None
         self._bytes_since_partial %= self._partial_interval_bytes
@@ -145,6 +140,15 @@ class RollingFasterWhisperAdapter:
             last_frame_sequence=snapshot.last_sequence_number,
             transcript=transcript,
         )
+
+    def buffer_audio(self, frame: AudioFrame) -> None:
+        """Retain one frame without spending inference on a partial result."""
+        self._require_active()
+        self._raise_if_cancelled()
+        if not self._buffer.is_active:
+            self._start_buffer(frame)
+        self._buffer.accept(frame)
+        self._bytes_since_partial += len(frame.data)
 
     async def finalize(
         self,
@@ -298,6 +302,12 @@ class RollingFasterWhisperRecognizer:
         if text is None:
             return
         self._emit(self._revision(hypothesis, text, TranscriptStatus.PARTIAL))
+
+    def buffer_audio(self, frame: AudioFrame) -> None:
+        """Retain final queued audio without producing another partial."""
+        if not self.is_active:
+            raise RuntimeError("Rolling recognizer does not own an active turn.")
+        self._adapter.buffer_audio(frame)
 
     async def finalize(self, endpoint_reason: EndpointReason) -> None:
         """Emit exactly one authoritative final revision for this turn."""

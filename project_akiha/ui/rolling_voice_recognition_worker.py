@@ -66,18 +66,27 @@ class RollingVoiceRecognitionThread(QThread):
                 )
 
     async def _run_recognition(self) -> None:
-        partial_error: SpeechInputServiceError | None = None
+        if self._endpoint_reason is None:
+            await self._run_latest_partial()
+            return
+
         for frame in self._frames:
             if self._is_cancelled():
                 raise asyncio.CancelledError
-            try:
-                await self._recognizer.accept_audio(frame)
-            except SpeechInputServiceError as error:
-                partial_error = error
-        if self._endpoint_reason is not None:
-            await self._recognizer.finalize(self._endpoint_reason)
-        elif partial_error is not None:
-            raise partial_error
+            self._recognizer.buffer_audio(frame)
+        await self._recognizer.finalize(self._endpoint_reason)
+
+    async def _run_latest_partial(self) -> None:
+        """Retain a queued batch but infer only its newest cumulative state."""
+        if not self._frames:
+            return
+        for frame in self._frames[:-1]:
+            if self._is_cancelled():
+                raise asyncio.CancelledError
+            self._recognizer.buffer_audio(frame)
+        if self._is_cancelled():
+            raise asyncio.CancelledError
+        await self._recognizer.accept_audio(self._frames[-1])
 
     def cancel(self) -> None:
         """Invalidate the turn and discard any eventual provider result."""

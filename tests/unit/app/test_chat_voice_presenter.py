@@ -149,6 +149,59 @@ class ChatVoicePresenterTest(unittest.TestCase):
         self.assertEqual(surface.transcript_previews, [])
         self.assertIn("sent automatically", surface.voice_input_statuses[-1])
 
+    def test_active_local_conversation_auto_sends_without_global_setting(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(bus, surface, VoiceConfig(), "idle")
+        bus.publish(
+            EventType.VOICE_CONVERSATION_STATE_CHANGED,
+            {"active": True, "mode": "local"},
+        )
+
+        bus.publish(EventType.VOICE_TRANSCRIPT_READY, {"text": "Continue talking"})
+
+        self.assertEqual(surface.submitted_transcripts, ["Continue talking"])
+        self.assertEqual(surface.transcripts, [])
+
+    def test_ended_local_conversation_restores_single_turn_send_setting(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(bus, surface, VoiceConfig(), "idle")
+        bus.publish(
+            EventType.VOICE_CONVERSATION_STATE_CHANGED,
+            {"active": True, "mode": "local"},
+        )
+        bus.publish(
+            EventType.VOICE_CONVERSATION_STATE_CHANGED,
+            {"active": False, "mode": "local"},
+        )
+
+        bus.publish(EventType.VOICE_TRANSCRIPT_READY, {"text": "Review this"})
+
+        self.assertEqual(surface.submitted_transcripts, [])
+        self.assertEqual(surface.transcripts, ["Review this"])
+
+    def test_local_conversation_still_requires_low_confidence_review(self) -> None:
+        bus = EventBus()
+        surface = _ChatVoiceSurface()
+        ChatVoicePresenter(bus, surface, VoiceConfig(), "idle")
+        bus.publish(
+            EventType.VOICE_CONVERSATION_STATE_CHANGED,
+            {"active": True, "mode": "local"},
+        )
+
+        bus.publish(
+            EventType.VOICE_TRANSCRIPT_READY,
+            {
+                "text": "Uncertain command",
+                "requires_review": True,
+            },
+        )
+
+        self.assertEqual(surface.submitted_transcripts, [])
+        self.assertEqual(surface.transcripts, ["Uncertain command"])
+        self.assertIn("confidence is low", surface.voice_input_statuses[-1])
+
     def test_low_confidence_transcript_requires_review_before_send(self) -> None:
         bus = EventBus()
         surface = _ChatVoiceSurface()

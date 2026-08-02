@@ -131,7 +131,10 @@ class LocalConversationSessionController:
         if elapsed_seconds >= config.local_conversation_max_duration_seconds:
             self.end("session_timeout")
             return
-        if idle_seconds >= config.local_conversation_idle_timeout_seconds:
+        if (
+            idle_seconds >= config.local_conversation_idle_timeout_seconds
+            and not self._idle_timeout_deferred()
+        ):
             self.end("idle_timeout")
             return
         self._publish_state(
@@ -187,9 +190,20 @@ class LocalConversationSessionController:
         if not config.input_enabled or not config.push_to_talk_enabled:
             self.end()
             return
+        self._last_user_activity_at = self._monotonic_clock()
         self._event_bus.publish(
             EventType.VOICE_LISTEN_REQUESTED,
             {"source": "local_conversation_resume"},
+        )
+
+    def _idle_timeout_deferred(self) -> bool:
+        if self._has_interruptible_work():
+            return True
+        if self._voice_controller.operation == "output":
+            return True
+        return (
+            self._voice_controller.operation == "input"
+            and self._voice_controller.state is VoiceState.THINKING
         )
 
     def _set_active(self, active: bool, *, reason: str = "") -> None:

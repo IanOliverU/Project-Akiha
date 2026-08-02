@@ -1029,6 +1029,15 @@ Settings microphone test without creating a second ledger authority.
 V2 benchmark evidence: `docs/VOICE_RECOGNITION_V2_BENCHMARK.md`. The production
 workload keeps the same 0.6-second first-partial cadence and final utterance,
 while reducing repeated STT audio work by 52.1 percent at the 30-second limit.
+Endpointed workers now buffer any frames queued behind the last live partial
+without running more partial inference, then perform exactly one authoritative
+final transcription. This removes redundant post-silence Whisper passes while
+preserving progressive preview behavior during active listening.
+Queued live-preview batches are also coalesced: every PCM frame is retained,
+but only the newest cumulative state triggers inference. Local interactive
+recognition uses greedy decoding (`beam_size=1`) to bound CPU latency; the
+canonical final transcript, confidence review gate, and provider boundary are
+unchanged.
 The benchmark does not claim real-model accuracy or inference latency.
 
 ### Milestone V3: Natural Intent And Context
@@ -1126,6 +1135,13 @@ cancelled output, late callbacks, duplicate completion events, and playback
 outside an active session cannot trigger reopening. The event contains only a
 bounded source and delivery category; it carries no response text or audio.
 
+While local conversation mode is explicitly active, each accepted final
+transcript is submitted to the canonical chat pipeline automatically even when
+single-turn Talk is configured to leave transcripts editable. This temporary
+session behavior ends with the conversation and does not change the saved
+single-turn setting. Low-confidence finals still require manual review and can
+never be auto-submitted merely because conversation mode is active.
+
 Voice operation ownership now enforces local half-duplex independently of UI
 timing. An input-owned listening or transcript-finalization operation rejects
 TTS acquisition, and an output-owned synthesis or playback operation rejects
@@ -1139,9 +1155,13 @@ Local sessions now use monotonic elapsed and user-idle clocks. The default
 idle limit is 120 seconds and the default total limit is 30 minutes; both are
 bounded and configurable under Voice > Local conversation. Only a non-empty
 final user transcript resets idle time, so timer ticks and automatic
-microphone reopening cannot keep an abandoned session alive. Reaching either
-limit cancels active voice or generation work, closes the coordinator, and
-shows a bounded reason in Chat. A fixed-width `Local MM:SS` indicator exposes
+microphone events cannot keep an abandoned session alive. Idle expiry is
+deferred while final recognition, provider generation, synthesis, or playback
+owns legitimate work. Natural assistant playback completion starts one fresh
+user-response window when it reopens the microphone; duplicate completion
+events cannot extend it. Reaching either limit cancels active voice or
+generation work, closes the coordinator, and shows a bounded reason in Chat. A
+fixed-width `Local MM:SS` indicator exposes
 elapsed time without shifting the composer controls. Session-state events
 contain timing and lifecycle metadata only, never transcript or audio content.
 
@@ -1153,6 +1173,12 @@ busy-start rejection without interruption, duplicate and late playback events,
 idempotent shutdown, and privacy-safe state payloads. A coordinator failure now
 uses the same bounded cleanup path as End, preventing microphone ownership from
 surviving after the visible session has closed.
+
+Manual V5 latency investigation found that queued 0.6-second preview frames
+could each trigger obsolete Whisper work when inference fell behind capture.
+The production worker now retains that backlog without replaying every partial
+pass and recognizes only its latest cumulative state before finalization. Real
+latency remains a release-gate measurement rather than a documentation claim.
 
 ### Modular Track Release Gate
 

@@ -313,6 +313,89 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         self.assertEqual(context.voice.operation, "none")
         self.assertEqual(context.state_events[-1].payload["reason"], "session_timeout")
 
+    def test_idle_timeout_waits_for_transcript_finalization(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=15,
+            ),
+        )
+        context.controller.start()
+        context.bus.publish(
+            EventType.VOICE_LISTEN_STOP_REQUESTED,
+            {"reason": "silence_detected"},
+        )
+
+        clock.advance(20)
+        context.controller.tick()
+
+        self.assertTrue(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.THINKING)
+        self.assertEqual(context.voice.operation, "input")
+
+        context.voice.publish_transcript("Final result", "en", "high")
+        context.controller.tick()
+
+        self.assertTrue(context.controller.active)
+        self.assertEqual(context.state_events[-1].payload["idle_seconds"], 0)
+
+    def test_idle_timeout_waits_for_generation_work(self) -> None:
+        clock = _FakeClock()
+        work_active = [False]
+        context = _build(
+            clock=clock,
+            has_work=lambda: work_active[0],
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=15,
+            ),
+        )
+        context.controller.start()
+        context.voice.publish_transcript("Ask Akiha", "en", "high")
+        work_active[0] = True
+
+        clock.advance(20)
+        context.controller.tick()
+
+        self.assertTrue(context.controller.active)
+
+        work_active[0] = False
+        context.controller.tick()
+
+        self.assertFalse(context.controller.active)
+        self.assertEqual(context.state_events[-1].payload["reason"], "idle_timeout")
+
+    def test_natural_playback_completion_starts_fresh_idle_window(self) -> None:
+        clock = _FakeClock()
+        context = _build(
+            clock=clock,
+            voice_config=VoiceConfig(
+                enabled=True,
+                local_conversation_idle_timeout_seconds=15,
+            ),
+        )
+        context.controller.start()
+        context.voice.publish_transcript("Ask Akiha", "en", "high")
+        context.bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Reply."})
+        context.voice.mark_speaking()
+
+        clock.advance(20)
+        context.controller.tick()
+        self.assertTrue(context.controller.active)
+
+        context.bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+        context.controller.tick()
+
+        self.assertTrue(context.controller.active)
+        self.assertEqual(context.voice.state, VoiceState.LISTENING)
+        self.assertEqual(context.state_events[-1].payload["idle_seconds"], 0)
+
     def test_busy_output_rejects_start_without_interrupting_speech(self) -> None:
         context = _build()
         context.bus.publish(EventType.VOICE_SPEAK_REQUESTED, {"text": "Speaking."})

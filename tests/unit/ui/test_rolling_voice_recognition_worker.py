@@ -23,10 +23,23 @@ class RollingVoiceRecognitionThreadTest(unittest.TestCase):
         worker.run()
 
         self.assertEqual(recognizer.sequences, [0, 1])
+        self.assertEqual(recognizer.partial_sequences, [])
         self.assertEqual(recognizer.endpoint_reasons, [EndpointReason.SILENCE])
 
-    def test_transient_partial_failure_does_not_skip_later_frames(self) -> None:
-        recognizer = _Recognizer(fail_sequence=0)
+    def test_partial_batch_buffers_backlog_and_recognizes_only_latest(self) -> None:
+        recognizer = _Recognizer()
+        worker = RollingVoiceRecognitionThread(
+            recognizer,  # type: ignore[arg-type]
+            tuple(_frame(sequence) for sequence in range(6)),
+        )
+
+        worker.run()
+
+        self.assertEqual(recognizer.sequences, list(range(6)))
+        self.assertEqual(recognizer.partial_sequences, [5])
+
+    def test_latest_partial_failure_is_reported_after_buffering_backlog(self) -> None:
+        recognizer = _Recognizer(fail_sequence=1)
         worker = RollingVoiceRecognitionThread(
             recognizer,  # type: ignore[arg-type]
             (_frame(0), _frame(1)),
@@ -39,6 +52,7 @@ class RollingVoiceRecognitionThreadTest(unittest.TestCase):
         worker.run()
 
         self.assertEqual(recognizer.sequences, [0, 1])
+        self.assertEqual(recognizer.partial_sequences, [1])
         self.assertEqual(failures[0][0], "temporary_failure")
 
     def test_cancel_before_run_does_not_process_audio(self) -> None:
@@ -62,16 +76,21 @@ class _Recognizer:
     def __init__(self, *, fail_sequence: int | None = None) -> None:
         self.fail_sequence = fail_sequence
         self.sequences: list[int] = []
+        self.partial_sequences: list[int] = []
         self.endpoint_reasons: list[EndpointReason] = []
         self.cancelled = False
 
     async def accept_audio(self, frame: AudioFrame) -> None:
         self.sequences.append(frame.sequence_number)
+        self.partial_sequences.append(frame.sequence_number)
         if frame.sequence_number == self.fail_sequence:
             raise SpeechInputServiceError(
                 "temporary_failure",
                 "Temporary recognition failure.",
             )
+
+    def buffer_audio(self, frame: AudioFrame) -> None:
+        self.sequences.append(frame.sequence_number)
 
     async def finalize(self, endpoint_reason: EndpointReason) -> None:
         self.endpoint_reasons.append(endpoint_reason)

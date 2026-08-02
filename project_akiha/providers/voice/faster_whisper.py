@@ -72,7 +72,7 @@ class FasterWhisperProvider:
             segments, info = model.transcribe(
                 wav_stream,
                 language=self._language,
-                beam_size=5,
+                beam_size=1,
                 vad_filter=True,
                 hotwords=_COMMAND_HOTWORDS,
             )

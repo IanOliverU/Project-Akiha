@@ -62,6 +62,7 @@ class FasterWhisperProviderTest(unittest.TestCase):
         self.assertEqual(fixture.model_args["compute_type"], "int8")
         self.assertEqual(fixture.model_args["download_root"], str(model_dir))
         self.assertIsNone(fixture.transcribe_args["language"])
+        self.assertEqual(fixture.transcribe_args["beam_size"], 1)
         self.assertTrue(fixture.transcribe_args["vad_filter"])
         self.assertIn("Spotify", fixture.transcribe_args["hotwords"])
 
