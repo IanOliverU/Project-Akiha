@@ -131,6 +131,37 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         self.assertIsNone(context.coordinator.snapshot.active_turn)
         self.assertEqual(context.voice.state, VoiceState.IDLE)
 
+    def test_completed_assistant_action_reopens_microphone(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        context.voice.publish_transcript("Akiha, open Spotify", "en", "high")
+
+        context.bus.publish(
+            EventType.VOICE_CONVERSATION_TURN_COMPLETED,
+            {"source": "assistant_action"},
+        )
+
+        snapshot = context.coordinator.snapshot
+        turn = snapshot.active_turn
+        assert turn is not None
+        self.assertEqual(turn.input_mode, VoiceInputMode.LOCAL_CONVERSATION)
+        self.assertEqual(context.voice.state, VoiceState.LISTENING)
+
+    def test_unknown_non_voice_completion_never_reopens_microphone(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        context.voice.publish_transcript("Akiha, open Spotify", "en", "high")
+
+        context.bus.publish(
+            EventType.VOICE_CONVERSATION_TURN_COMPLETED,
+            {"source": "unknown"},
+        )
+
+        self.assertIsNone(context.coordinator.snapshot.active_turn)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+
     def test_inactive_session_ignores_assistant_playback_completion(self) -> None:
         context = _build()
 

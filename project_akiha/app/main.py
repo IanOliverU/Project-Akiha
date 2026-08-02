@@ -1548,6 +1548,10 @@ def _run_application() -> int:
             active_action_threads.remove(thread)
         update_chat_busy_state()
         thread.deleteLater()
+        event_bus.publish(
+            EventType.VOICE_CONVERSATION_TURN_COMPLETED,
+            {"source": "assistant_action"},
+        )
 
     def clear_behavior_history() -> None:
         asyncio.run(behavior_repository.clear_events())

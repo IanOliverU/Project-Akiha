@@ -1135,6 +1135,13 @@ cancelled output, late callbacks, duplicate completion events, and playback
 outside an active session cannot trigger reopening. The event contains only a
 bounded source and delivery category; it carries no response text or audio.
 
+Assistant actions complete without producing assistant-reply playback. Their
+worker cleanup therefore emits a separate privacy-safe turn-complete event
+after the action is no longer active. An explicit local Conversation Session
+uses that event to reopen the microphone through the same guarded resume path;
+the event contains only the bounded `assistant_action` source category and
+cannot bypass session, voice-ownership, or unfinished-work checks.
+
 While local conversation mode is explicitly active, each accepted final
 transcript is submitted to the canonical chat pipeline automatically even when
 single-turn Talk is configured to leave transcripts editable. This temporary

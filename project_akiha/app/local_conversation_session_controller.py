@@ -48,6 +48,10 @@ class LocalConversationSessionController:
             self._handle_response_playback_completed,
         )
         event_bus.subscribe(
+            EventType.VOICE_CONVERSATION_TURN_COMPLETED,
+            self._handle_non_voice_turn_completed,
+        )
+        event_bus.subscribe(
             EventType.VOICE_TRANSCRIPT_READY,
             self._handle_transcript_ready,
         )
@@ -153,6 +157,10 @@ class LocalConversationSessionController:
             self._handle_response_playback_completed,
         )
         self._event_bus.unsubscribe(
+            EventType.VOICE_CONVERSATION_TURN_COMPLETED,
+            self._handle_non_voice_turn_completed,
+        )
+        self._event_bus.unsubscribe(
             EventType.VOICE_TRANSCRIPT_READY,
             self._handle_transcript_ready,
         )
@@ -177,6 +185,14 @@ class LocalConversationSessionController:
     def _handle_response_playback_completed(self, event: Event) -> None:
         if event.payload.get("source") != "assistant_reply" or not self._active:
             return
+        self._resume_listening()
+
+    def _handle_non_voice_turn_completed(self, event: Event) -> None:
+        if event.payload.get("source") != "assistant_action" or not self._active:
+            return
+        self._resume_listening()
+
+    def _resume_listening(self) -> None:
         snapshot = self._coordinator.snapshot
         if (
             snapshot.lifecycle is not SessionLifecycle.ACTIVE
