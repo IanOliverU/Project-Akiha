@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 through V4 complete; V5 is next
+**Status:** Implementation in progress - V0 through V4 complete; V5 underway
 
 **Planning date:** 2026-08-01
 
@@ -1100,11 +1100,23 @@ button remains a bounded Stop voice control instead.
 
 ### Milestone V5: Local Conversation Session
 
-- [ ] Add explicit Start conversation and End conversation controls.
+- [x] Add explicit Start conversation and End conversation controls.
 - [ ] Reopen the microphone after completed local playback.
 - [ ] Keep local turn taking half-duplex.
 - [ ] Add idle/session timeout and visible elapsed state.
-- [ ] Verify that the session never starts on application launch.
+- [x] Verify that the session never starts on application launch.
+
+The Chat composer now exposes a fixed-width Start conversation / End
+conversation control. Start is available only when configured microphone input
+is idle and always requires a user click; constructing or launching the
+application does not publish a session-start or microphone event. An explicit
+start reserves one persistent coordinator session and opens its first turn as
+`local_conversation`. Accepting or cancelling that microphone turn releases
+turn ownership without discarding the session. End remains available while
+the chat is busy and cancels unfinished input, output, generation, or action
+work before closing the coordinator. A voice-session failure also clears the
+visible active state. Automatic microphone reopening is intentionally deferred
+to the next V5 task.
 
 ### Modular Track Release Gate
 

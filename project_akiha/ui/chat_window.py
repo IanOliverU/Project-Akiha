@@ -36,6 +36,8 @@ class ChatWindow(QWidget):
     voice_listen_cancel_requested = Signal()
     voice_speak_stop_requested = Signal()
     voice_replay_requested = Signal()
+    voice_conversation_start_requested = Signal()
+    voice_conversation_end_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -106,6 +108,12 @@ class ChatWindow(QWidget):
         self._voice_operation = "none"
         self._voice_replay_available = False
         self._chat_busy = False
+        self._voice_conversation_active = False
+        self._conversation_button = QPushButton("Start conversation")
+        self._conversation_button.setFixedWidth(144)
+        self._conversation_button.setToolTip("Start local voice conversation")
+        self._conversation_button.clicked.connect(self._request_conversation_action)
+        self._refresh_conversation_button()
         self._voice_button = QPushButton("Talk")
         self._voice_button.setFixedWidth(96)
         self._voice_button.setToolTip("Push to talk")
@@ -169,7 +177,12 @@ class ChatWindow(QWidget):
         composer_layout = QVBoxLayout()
         composer_layout.setContentsMargins(12, 10, 12, 12)
         composer_layout.setSpacing(8)
-        composer_layout.addWidget(self._voice_input_status)
+        conversation_layout = QHBoxLayout()
+        conversation_layout.setContentsMargins(0, 0, 0, 0)
+        conversation_layout.setSpacing(8)
+        conversation_layout.addWidget(self._voice_input_status, stretch=1)
+        conversation_layout.addWidget(self._conversation_button)
+        composer_layout.addLayout(conversation_layout)
         composer_layout.addLayout(input_layout)
         composer.setLayout(composer_layout)
 
@@ -254,6 +267,7 @@ class ChatWindow(QWidget):
         self._voice_output_enabled = output_enabled
         self._refresh_voice_button()
         self._refresh_voice_replay_button()
+        self._refresh_conversation_button()
 
     def set_voice_state(self, state: str, operation: str = "none") -> None:
         """Update the push-to-talk control for a runtime voice state."""
@@ -261,6 +275,12 @@ class ChatWindow(QWidget):
         self._voice_operation = operation
         self._refresh_voice_button()
         self._refresh_voice_replay_button()
+        self._refresh_conversation_button()
+
+    def set_voice_conversation_active(self, active: bool) -> None:
+        """Present the explicit local conversation-session lifecycle."""
+        self._voice_conversation_active = active
+        self._refresh_conversation_button()
 
     def set_voice_replay_available(self, available: bool) -> None:
         """Enable replay after at least one speech request reaches playback."""
@@ -325,6 +345,7 @@ class ChatWindow(QWidget):
         self._export_chat_button.setDisabled(is_busy)
         self._refresh_voice_button()
         self._refresh_voice_replay_button()
+        self._refresh_conversation_button()
         self.set_status("Thinking..." if is_busy else "Ready")
 
     def _submit_message(self) -> None:
@@ -358,6 +379,26 @@ class ChatWindow(QWidget):
                 self.voice_listen_requested.emit()
             else:
                 self.voice_speak_stop_requested.emit()
+
+    def _request_conversation_action(self) -> None:
+        if self._voice_conversation_active:
+            self.voice_conversation_end_requested.emit()
+        else:
+            self.voice_conversation_start_requested.emit()
+
+    def _refresh_conversation_button(self) -> None:
+        if self._voice_conversation_active:
+            self._conversation_button.setText("End conversation")
+            self._conversation_button.setToolTip("End local voice conversation")
+            self._conversation_button.setEnabled(True)
+            return
+        self._conversation_button.setText("Start conversation")
+        self._conversation_button.setToolTip("Start local voice conversation")
+        self._conversation_button.setEnabled(
+            self._voice_input_enabled
+            and self._voice_state == "idle"
+            and not self._chat_busy
+        )
 
     def _refresh_voice_button(self) -> None:
         label = "Talk"

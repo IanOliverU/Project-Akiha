@@ -48,6 +48,7 @@ class PushToTalkSessionController:
         self._processing_mode_provider = processing_mode_provider
         self._input_provider_name = input_provider_name
         self._owns_recording = False
+        self._persistent_session = False
         self._next_revision = 0
         self._endpoint_reason = EndpointReason.MANUAL_STOP
 
@@ -84,6 +85,7 @@ class PushToTalkSessionController:
     def close(self) -> None:
         """Reject callbacks before runtime workers begin shutdown."""
         self._owns_recording = False
+        self._persistent_session = False
         self._coordinator.close()
 
     def _handle_listen_requested(self, event: Event) -> None:
@@ -96,11 +98,19 @@ class PushToTalkSessionController:
         ):
             return
 
+        snapshot = self._coordinator.snapshot
+        persistent_session = (
+            snapshot.lifecycle is SessionLifecycle.ACTIVE
+            and snapshot.active_turn is None
+        )
         try:
-            self._coordinator.close()
-            self._coordinator.request_start(self._processing_mode_provider())
-            self._coordinator.activate()
-            turn = self._coordinator.begin_turn(VoiceInputMode.PUSH_TO_TALK)
+            if persistent_session:
+                turn = self._coordinator.begin_turn(VoiceInputMode.LOCAL_CONVERSATION)
+            else:
+                self._coordinator.close()
+                self._coordinator.request_start(self._processing_mode_provider())
+                self._coordinator.activate()
+                turn = self._coordinator.begin_turn(VoiceInputMode.PUSH_TO_TALK)
             self._coordinator.transition_stage(
                 turn.session_id,
                 turn.turn_id,
@@ -117,6 +127,7 @@ class PushToTalkSessionController:
             return
 
         self._owns_recording = True
+        self._persistent_session = persistent_session
         self._next_revision = 0
         self._endpoint_reason = EndpointReason.MANUAL_STOP
 
@@ -164,7 +175,12 @@ class PushToTalkSessionController:
         del event
         if not self._owns_recording:
             return
-        self.close()
+        persistent_session = self._persistent_session
+        self._owns_recording = False
+        self._persistent_session = False
+        self._coordinator.cancel_active_turn()
+        if not persistent_session:
+            self._coordinator.close()
 
     def _handle_transcript_partial(self, event: Event) -> None:
         turn = self._active_turn()
@@ -189,7 +205,10 @@ class PushToTalkSessionController:
         self._next_revision += 1
         self._coordinator.complete_turn(turn.session_id, turn.turn_id)
         self._owns_recording = False
-        self._coordinator.close()
+        persistent_session = self._persistent_session
+        self._persistent_session = False
+        if not persistent_session:
+            self._coordinator.close()
 
     def _handle_voice_error(self, event: Event) -> None:
         if not self._owns_recording:

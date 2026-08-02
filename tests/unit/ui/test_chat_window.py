@@ -112,6 +112,48 @@ class ChatWindowTest(unittest.TestCase):
         self.assertFalse(window._voice_button.isEnabled())
         self.assertEqual(window._voice_button.text(), "Talk")
 
+    def test_conversation_session_never_starts_during_window_construction(
+        self,
+    ) -> None:
+        window = ChatWindow()
+        requested: list[bool] = []
+        window.voice_conversation_start_requested.connect(
+            lambda: requested.append(True)
+        )
+
+        self.assertFalse(window._conversation_button.isEnabled())
+        self.assertEqual(window._conversation_button.text(), "Start conversation")
+        self.assertEqual(requested, [])
+
+    def test_conversation_button_starts_and_ends_explicit_session(self) -> None:
+        window = ChatWindow()
+        starts: list[bool] = []
+        ends: list[bool] = []
+        window.voice_conversation_start_requested.connect(lambda: starts.append(True))
+        window.voice_conversation_end_requested.connect(lambda: ends.append(True))
+        window.set_voice_capabilities(input_enabled=True, output_enabled=True)
+        window.set_voice_state("idle")
+
+        window._conversation_button.click()
+        window.set_voice_conversation_active(True)
+        window._conversation_button.click()
+
+        self.assertEqual(starts, [True])
+        self.assertEqual(ends, [True])
+        self.assertEqual(window._conversation_button.text(), "End conversation")
+        self.assertEqual(window._conversation_button.width(), 144)
+
+    def test_end_conversation_remains_available_while_chat_is_busy(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=True, output_enabled=True)
+        window.set_voice_state("idle")
+        window.set_voice_conversation_active(True)
+
+        window.set_busy(True)
+
+        self.assertTrue(window._conversation_button.isEnabled())
+        self.assertEqual(window._conversation_button.text(), "End conversation")
+
     def test_voice_button_requests_listening_from_idle(self) -> None:
         window = ChatWindow()
         requested: list[bool] = []

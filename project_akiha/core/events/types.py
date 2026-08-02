@@ -36,6 +36,7 @@ class EventType(StrEnum):
     VOICE_TRANSCRIPT_PARTIAL = "voice.transcript_partial"
     VOICE_TRANSCRIPT_READY = "voice.transcript_ready"
     VOICE_STATE_CHANGED = "voice.state_changed"
+    VOICE_CONVERSATION_STATE_CHANGED = "voice.conversation_state_changed"
     VOICE_ERROR_OCCURRED = "voice.error_occurred"
     STATE_CHANGED = "state.changed"
     ERROR_OCCURRED = "error.occurred"

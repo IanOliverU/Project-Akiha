@@ -21,6 +21,9 @@ from project_akiha.app.assistant_translation_controller import (
 )
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
+from project_akiha.app.local_conversation_session_controller import (
+    LocalConversationSessionController,
+)
 from project_akiha.app.mood_animation_controller import MoodAnimationController
 from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
@@ -315,15 +318,19 @@ def _run_application() -> int:
     activity_controller = ActivityController(event_bus, config.behavior)
     voice_controller = VoiceController(event_bus, config.voice)
     voice_session_coordinator = VoiceSessionCoordinator()
+
+    def current_voice_processing_mode() -> VoiceProcessingMode:
+        return (
+            VoiceProcessingMode.HYBRID_API_MODULAR
+            if config.ai.sends_text_off_device
+            else VoiceProcessingMode.LOCAL_MODULAR
+        )
+
     push_to_talk_session_controller = PushToTalkSessionController(
         event_bus=event_bus,
         voice_controller=voice_controller,
         session_coordinator=voice_session_coordinator,
-        processing_mode_provider=lambda: (
-            VoiceProcessingMode.HYBRID_API_MODULAR
-            if config.ai.sends_text_off_device
-            else VoiceProcessingMode.LOCAL_MODULAR
-        ),
+        processing_mode_provider=current_voice_processing_mode,
         input_provider_name=lambda: config.voice.input_provider,
     )
     mood_controller = MoodController(event_bus, MoodEngine())
@@ -2054,7 +2061,7 @@ def _run_application() -> int:
             thread.cancel()
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
 
-    def cancel_interruptible_work_for_talk() -> None:
+    def cancel_interruptible_work() -> None:
         for thread in tuple(active_chat_threads):
             if thread not in interrupted_chat_threads:
                 interrupted_chat_threads.append(thread)
@@ -2148,7 +2155,20 @@ def _run_application() -> int:
         event_bus=event_bus,
         voice_controller=voice_controller,
         has_interruptible_work=has_active_operations,
-        cancel_interruptible_work=cancel_interruptible_work_for_talk,
+        cancel_interruptible_work=cancel_interruptible_work,
+    )
+    local_conversation_session_controller = LocalConversationSessionController(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        session_coordinator=voice_session_coordinator,
+        processing_mode_provider=current_voice_processing_mode,
+        cancel_interruptible_work=cancel_interruptible_work,
+    )
+    event_bus.subscribe(
+        EventType.VOICE_CONVERSATION_STATE_CHANGED,
+        lambda event: chat_window.set_voice_conversation_active(
+            event.payload.get("active") is True
+        ),
     )
     chat_window.voice_listen_requested.connect(
         talk_interruption_controller.request_talk
@@ -2164,6 +2184,12 @@ def _run_application() -> int:
     )
     chat_window.voice_replay_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+    )
+    chat_window.voice_conversation_start_requested.connect(
+        local_conversation_session_controller.start
+    )
+    chat_window.voice_conversation_end_requested.connect(
+        local_conversation_session_controller.end
     )
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.edit_requested.connect(edit_memory)
@@ -2206,6 +2232,7 @@ def _run_application() -> int:
 
     def shutdown_app() -> None:
         voice_endpoint_controller.cancel()
+        local_conversation_session_controller.close()
         push_to_talk_session_controller.close()
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:

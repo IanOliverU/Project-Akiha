@@ -141,6 +141,44 @@ class PushToTalkSessionControllerTest(unittest.TestCase):
         self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
         self.assertFalse(coordinator.accepts_callback(turn.session_id, turn.turn_id))
 
+    def test_persistent_session_keeps_local_conversation_turn_mode(self) -> None:
+        bus, _, coordinator, _ = _build()
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+
+        bus.publish(
+            EventType.VOICE_LISTEN_REQUESTED,
+            {"source": "local_conversation"},
+        )
+
+        turn = coordinator.snapshot.active_turn
+        assert turn is not None
+        self.assertEqual(turn.input_mode, VoiceInputMode.LOCAL_CONVERSATION)
+        self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.ACTIVE)
+
+    def test_persistent_session_survives_final_transcript_between_turns(self) -> None:
+        bus, voice, coordinator, _ = _build()
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        voice.publish_transcript("Hello Akiha", "en", "high")
+
+        self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.ACTIVE)
+        self.assertIsNone(coordinator.snapshot.active_turn)
+
+    def test_persistent_session_survives_cancelled_microphone_turn(self) -> None:
+        bus, _, coordinator, _ = _build()
+        coordinator.request_start(VoiceProcessingMode.LOCAL_MODULAR)
+        coordinator.activate()
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED)
+
+        bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
+
+        self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.ACTIVE)
+        self.assertIsNone(coordinator.snapshot.active_turn)
+
     def test_voice_error_closes_owned_session(self) -> None:
         bus, voice, coordinator, _ = _build()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)
