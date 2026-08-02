@@ -91,6 +91,52 @@ class LocalConversationSessionControllerTest(unittest.TestCase):
         self.assertFalse(context.controller.active)
         self.assertEqual(context.states, [True, False])
 
+    def test_completed_assistant_playback_reopens_microphone_once(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        context.voice.publish_transcript("Hello Akiha", "en", "high")
+
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        snapshot = context.coordinator.snapshot
+        turn = snapshot.active_turn
+        assert turn is not None
+        self.assertEqual(turn.input_mode, VoiceInputMode.LOCAL_CONVERSATION)
+        self.assertEqual(context.voice.state, VoiceState.LISTENING)
+
+    def test_non_assistant_playback_never_reopens_microphone(self) -> None:
+        context = _build()
+        context.controller.start()
+        context.bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+        context.voice.publish_transcript("Hello Akiha", "en", "high")
+
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "replay", "delivery": "fallback"},
+        )
+
+        self.assertIsNone(context.coordinator.snapshot.active_turn)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+
+    def test_inactive_session_ignores_assistant_playback_completion(self) -> None:
+        context = _build()
+
+        context.bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
+
+        self.assertEqual(context.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
+        self.assertEqual(context.voice.state, VoiceState.IDLE)
+
 
 class _Context:
     def __init__(

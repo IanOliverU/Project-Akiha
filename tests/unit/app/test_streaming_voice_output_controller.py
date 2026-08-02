@@ -20,6 +20,11 @@ from project_akiha.providers.voice import SynthesizedAudio
 class StreamingVoiceOutputControllerTest(unittest.TestCase):
     def test_synthesizes_concurrently_and_plays_strictly_in_order(self) -> None:
         context = _build(maximum_concurrent_synthesis=2)
+        completions: list[Event] = []
+        context.bus.subscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            completions.append,
+        )
 
         self.assertTrue(context.controller.submit(_segment(0, "First.")))
         self.assertTrue(context.controller.submit(_segment(1, "Second.")))
@@ -47,6 +52,10 @@ class StreamingVoiceOutputControllerTest(unittest.TestCase):
         self.assertFalse(context.controller.is_active)
         self.assertEqual(context.voice.state, VoiceState.IDLE)
         self.assertEqual(context.spoken_responses, [("First. Second. Third.", 1.0)])
+        self.assertEqual(
+            completions[-1].payload,
+            {"source": "assistant_reply", "delivery": "streaming"},
+        )
 
     def test_queue_limit_cancels_only_derived_speech(self) -> None:
         context = _build(
@@ -112,6 +121,11 @@ class StreamingVoiceOutputControllerTest(unittest.TestCase):
 
     def test_stop_discards_queued_audio_and_late_callbacks(self) -> None:
         context = _build()
+        completions: list[Event] = []
+        context.bus.subscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            completions.append,
+        )
         context.controller.submit(_segment(0, "Cancelled.", final=True))
 
         context.bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
@@ -121,6 +135,7 @@ class StreamingVoiceOutputControllerTest(unittest.TestCase):
         self.assertEqual(context.playback.played, [])
         self.assertFalse(context.controller.is_active)
         self.assertEqual(context.voice.state, VoiceState.IDLE)
+        self.assertEqual(completions, [])
 
     def test_configured_and_identity_rates_are_combined_per_segment(self) -> None:
         context = _build(speaking_rate=1.2)

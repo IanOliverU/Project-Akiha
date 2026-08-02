@@ -1101,7 +1101,7 @@ button remains a bounded Stop voice control instead.
 ### Milestone V5: Local Conversation Session
 
 - [x] Add explicit Start conversation and End conversation controls.
-- [ ] Reopen the microphone after completed local playback.
+- [x] Reopen the microphone after completed local playback.
 - [ ] Keep local turn taking half-duplex.
 - [ ] Add idle/session timeout and visible elapsed state.
 - [x] Verify that the session never starts on application launch.
@@ -1115,8 +1115,16 @@ start reserves one persistent coordinator session and opens its first turn as
 turn ownership without discarding the session. End remains available while
 the chat is busy and cancels unfinished input, output, generation, or action
 work before closing the coordinator. A voice-session failure also clears the
-visible active state. Automatic microphone reopening is intentionally deferred
-to the next V5 task.
+visible active state.
+
+Natural completion of the final assistant-response audio now emits one
+privacy-safe playback-complete event from either the streaming segment queue
+or the completed-response fallback path. While an explicit local conversation
+session remains active and owns no current turn, that event reopens the
+microphone as a new `local_conversation` turn. Replay, proactive speech,
+cancelled output, late callbacks, duplicate completion events, and playback
+outside an active session cannot trigger reopening. The event contains only a
+bounded source and delivery category; it carries no response text or audio.
 
 ### Modular Track Release Gate
 

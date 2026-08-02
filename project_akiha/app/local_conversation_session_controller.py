@@ -9,7 +9,7 @@ from project_akiha.app.voice_session_coordinator import (
     VoiceSessionCoordinator,
     VoiceSessionSnapshot,
 )
-from project_akiha.core.events.bus import EventBus
+from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.voice_session import SessionLifecycle, VoiceProcessingMode
@@ -36,6 +36,10 @@ class LocalConversationSessionController:
         self._cancel_interruptible_work = cancel_interruptible_work
         self._active = False
         session_coordinator.subscribe(self._handle_session_snapshot)
+        event_bus.subscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            self._handle_response_playback_completed,
+        )
 
     @property
     def active(self) -> bool:
@@ -107,6 +111,10 @@ class LocalConversationSessionController:
         if self._active:
             self.end()
         self._coordinator.unsubscribe(self._handle_session_snapshot)
+        self._event_bus.unsubscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            self._handle_response_playback_completed,
+        )
 
     def _handle_session_snapshot(self, snapshot: VoiceSessionSnapshot) -> None:
         if self._active and snapshot.lifecycle in {
@@ -114,6 +122,26 @@ class LocalConversationSessionController:
             SessionLifecycle.ERROR,
         }:
             self._set_active(False)
+
+    def _handle_response_playback_completed(self, event: Event) -> None:
+        if event.payload.get("source") != "assistant_reply" or not self._active:
+            return
+        snapshot = self._coordinator.snapshot
+        if (
+            snapshot.lifecycle is not SessionLifecycle.ACTIVE
+            or snapshot.active_turn is not None
+            or self._voice_controller.state is not VoiceState.IDLE
+            or self._voice_controller.operation != "none"
+        ):
+            return
+        config = self._voice_controller.config
+        if not config.input_enabled or not config.push_to_talk_enabled:
+            self.end()
+            return
+        self._event_bus.publish(
+            EventType.VOICE_LISTEN_REQUESTED,
+            {"source": "local_conversation_resume"},
+        )
 
     def _set_active(self, active: bool) -> None:
         if self._active == active:

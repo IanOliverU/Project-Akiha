@@ -29,6 +29,37 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         self.assertEqual(voice.state, VoiceState.THINKING)
         self.assertTrue(controller.has_replay)
 
+    def test_assistant_fallback_reports_natural_playback_completion(self) -> None:
+        bus, _, _, threads, _, _ = _build(finish_playback_immediately=True)
+        completions: list[Event] = []
+        bus.subscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            completions.append,
+        )
+
+        _request_speech(bus, source="assistant_reply")
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+
+        self.assertEqual(
+            completions[-1].payload,
+            {"source": "assistant_reply", "delivery": "fallback"},
+        )
+
+    def test_replay_does_not_report_assistant_response_completion(self) -> None:
+        bus, voice, controller, threads, _, _ = _build(finish_playback_immediately=True)
+        completions: list[Event] = []
+        bus.subscribe(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            completions.append,
+        )
+        controller.remember_spoken_text("Replay me.")
+
+        bus.publish(EventType.VOICE_REPLAY_REQUESTED)
+        threads[0].audio_ready.emit(SynthesizedAudio(b"RIFFaudio"))
+
+        self.assertEqual(completions, [])
+        self.assertEqual(voice.state, VoiceState.THINKING)
+
     def test_success_publishes_replay_availability_without_text(self) -> None:
         bus, _, _, threads, _, _ = _build()
         availability: list[Event] = []
@@ -256,6 +287,7 @@ def _build(
     *,
     with_playback: bool = True,
     thread_finished: bool = True,
+    finish_playback_immediately: bool = False,
 ) -> tuple[
     EventBus,
     VoiceController,
@@ -275,6 +307,15 @@ def _build(
     )
     threads: list[_Thread] = []
     audio: list[SynthesizedAudio] = []
+
+    def play_audio(
+        synthesized: SynthesizedAudio,
+        *,
+        on_finished: Callable[[], None] | None = None,
+    ) -> None:
+        audio.append(synthesized)
+        if finish_playback_immediately and on_finished is not None:
+            on_finished()
 
     def build_thread(
         service: object,
@@ -296,7 +337,7 @@ def _build(
         event_bus=bus,
         voice_controller=voice,
         service=object(),
-        on_audio_synthesized=audio.append if with_playback else None,
+        on_audio_synthesized=play_audio if with_playback else None,
         thread_factory=build_thread,
     )
     errors: list[Event] = []
@@ -309,10 +350,13 @@ def _request_speech(
     text: str = "Good morning.",
     *,
     rate_multiplier: float | None = None,
+    source: str | None = None,
 ) -> None:
     payload: dict[str, object] = {"text": text}
     if rate_multiplier is not None:
         payload["speaking_rate_multiplier"] = rate_multiplier
+    if source is not None:
+        payload["source"] = source
     bus.publish(EventType.VOICE_SPEAK_REQUESTED, payload)
 
 

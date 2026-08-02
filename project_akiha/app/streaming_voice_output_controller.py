@@ -63,6 +63,7 @@ class StreamingVoiceOutputController:
             raise ValueError("streaming character queue must be positive.")
 
         self._voice_controller = voice_controller
+        self._event_bus = event_bus
         self._playback_controller = playback_controller
         self._service = service
         self._maximum_concurrent_synthesis = maximum_concurrent_synthesis
@@ -368,6 +369,14 @@ class StreamingVoiceOutputController:
         if self._on_response_spoken is not None and spoken_segments:
             spoken_text = " ".join(segment.speech_text for segment in spoken_segments)
             self._on_response_spoken(spoken_text, 1.0)
+        if spoken_segments:
+            self._event_bus.publish(
+                EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+                {
+                    "source": "assistant_reply",
+                    "delivery": "streaming",
+                },
+            )
 
     def _accepts_callback(
         self,

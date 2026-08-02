@@ -30,6 +30,16 @@ class _SynthesisThread(Protocol):
         """Wait for completion."""
 
 
+class _AudioPlaybackSubmitter(Protocol):
+    def __call__(
+        self,
+        audio: SynthesizedAudio,
+        *,
+        on_finished: Callable[[], None] | None = ...,
+    ) -> None:
+        """Play synthesized audio and optionally report natural completion."""
+
+
 class VoiceSynthesisController:
     """Run at most one TTS worker and hand audio directly to playback."""
 
@@ -39,7 +49,7 @@ class VoiceSynthesisController:
         voice_controller: VoiceController,
         service: SpeechOutputService,
         *,
-        on_audio_synthesized: Callable[[SynthesizedAudio], None] | None = None,
+        on_audio_synthesized: _AudioPlaybackSubmitter | None = None,
         thread_factory: Callable[
             [SpeechOutputService, str, str | None, str, float],
             _SynthesisThread,
@@ -138,6 +148,7 @@ class VoiceSynthesisController:
 
         config = self._voice_controller.config
         spoken_text = text.strip()
+        source = _speech_source(event.payload)
         rate_multiplier = _speaking_rate_multiplier(event.payload)
         thread = self._thread_factory(
             self._service,
@@ -153,6 +164,7 @@ class VoiceSynthesisController:
                 audio,
                 spoken_text,
                 rate_multiplier,
+                source,
             )
 
         thread.audio_ready.connect(handle_audio_ready)
@@ -203,6 +215,7 @@ class VoiceSynthesisController:
         audio: object,
         spoken_text: str,
         rate_multiplier: float,
+        source: str,
     ) -> None:
         if thread not in self._active_threads or thread in self._cancelled_threads:
             return
@@ -224,7 +237,14 @@ class VoiceSynthesisController:
             )
             return
         try:
-            self._on_audio_synthesized(audio)
+            self._on_audio_synthesized(
+                audio,
+                on_finished=(
+                    self._publish_assistant_playback_completed
+                    if source == "assistant_reply"
+                    else None
+                ),
+            )
         except Exception as error:
             self._voice_controller.report_error(
                 "playback_failed",
@@ -232,6 +252,15 @@ class VoiceSynthesisController:
             )
             return
         self._remember_spoken_text(spoken_text, rate_multiplier)
+
+    def _publish_assistant_playback_completed(self) -> None:
+        self._event_bus.publish(
+            EventType.VOICE_RESPONSE_PLAYBACK_COMPLETED,
+            {
+                "source": "assistant_reply",
+                "delivery": "fallback",
+            },
+        )
 
     def _handle_failure(
         self,
@@ -279,3 +308,15 @@ def _speaking_rate_multiplier(payload: dict[str, object]) -> float:
     ):
         return 1.0
     return float(value)
+
+
+def _speech_source(payload: dict[str, object]) -> str:
+    source = payload.get("source")
+    if source in {
+        "assistant_reply",
+        "proactive_suggestion",
+        "replay",
+        "voice_test",
+    }:
+        return str(source)
+    return "unspecified"
