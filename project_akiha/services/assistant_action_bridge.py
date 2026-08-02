@@ -246,6 +246,21 @@ _SPOTIFY_VOLUME_PATTERN = re.compile(
     r"(?P<mute>mute)\s+spotify(?:\s+playback)?)\s*[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_RELATIVE_VOLUME_PATTERN = re.compile(
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:"
+    r"(?P<direction>increase|raise|boost|decrease|lower|reduce)\s+"
+    r"(?:the\s+)?(?P<target>spotify|music|playback)\s+volume(?:\s+level)?|"
+    r"turn\s+(?:the\s+)?(?P<post_target>spotify|music|playback)\s+volume"
+    r"(?:\s+level)?\s+(?P<post_direction>up|down)|"
+    r"turn\s+(?P<pre_direction>up|down)\s+(?:the\s+)?"
+    r"(?P<pre_target>spotify|music|playback)\s+volume(?:\s+level)?|"
+    r"(?P<on_direction>increase|raise|boost|decrease|lower|reduce)\s+"
+    r"(?:the\s+)?volume(?:\s+level)?"
+    r")\s+by\s+(?P<value>.+?)"
+    r"(?P<on_spotify>\s+on\s+spotify)?\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_SEEK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-seek\s+(?P<slash>\d{1,5})|"
@@ -641,6 +656,40 @@ class AssistantActionRequestParser:
                 correlation_id=request_id,
                 action_id=SPOTIFY_REPEAT_ACTION,
                 parameters={"service": "spotify", "mode": mode},
+            )
+
+        relative_volume_match = _SPOTIFY_RELATIVE_VOLUME_PATTERN.fullmatch(normalized)
+        if relative_volume_match is not None:
+            if (
+                relative_volume_match.group("on_direction") is not None
+                and relative_volume_match.group("on_spotify") is None
+            ):
+                return None
+            raw_delta = _parse_volume_percent(relative_volume_match.group("value"))
+            if raw_delta is None or not 1 <= raw_delta <= 100:
+                return None
+            direction = next(
+                relative_volume_match.group(name)
+                for name in (
+                    "direction",
+                    "post_direction",
+                    "pre_direction",
+                    "on_direction",
+                )
+                if relative_volume_match.group(name) is not None
+            ).casefold()
+            volume_delta_percent = (
+                raw_delta
+                if direction in {"increase", "raise", "boost", "up"}
+                else -raw_delta
+            )
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_VOLUME_ACTION,
+                parameters={
+                    "service": "spotify",
+                    "volume_delta_percent": volume_delta_percent,
+                },
             )
 
         volume_match = _SPOTIFY_VOLUME_PATTERN.fullmatch(normalized)

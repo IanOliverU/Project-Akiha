@@ -318,7 +318,15 @@ def build_default_action_registry() -> ActionRegistry:
                     ActionParameterSpec(
                         name="volume_percent",
                         kind=ParameterKind.INTEGER,
+                        required=False,
                         minimum_value=0,
+                        maximum_value=100,
+                    ),
+                    ActionParameterSpec(
+                        name="volume_delta_percent",
+                        kind=ParameterKind.INTEGER,
+                        required=False,
+                        minimum_value=-100,
                         maximum_value=100,
                     ),
                 ),

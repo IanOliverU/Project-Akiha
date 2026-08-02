@@ -302,13 +302,10 @@ class SpotifyVolumeExecutor:
         if cancellation_token.is_cancelled:
             return _cancelled()
 
-        volume_percent = action.parameters["volume_percent"]
-        if (
-            not isinstance(volume_percent, int)
-            or isinstance(volume_percent, bool)
-            or not 0 <= volume_percent <= 100
-        ):
-            raise ValueError("Spotify volume was not validated.")
+        absolute_volume = action.parameters.get("volume_percent")
+        relative_delta = action.parameters.get("volume_delta_percent")
+        if (absolute_volume is None) == (relative_delta is None):
+            raise ValueError("Spotify volume mode was not validated.")
         resolution = await self._device_coordinator.resolve(
             action.request.correlation_id,
             cancellation_token=cancellation_token,
@@ -325,6 +322,22 @@ class SpotifyVolumeExecutor:
             )
         if cancellation_token.is_cancelled:
             return _cancelled()
+
+        if relative_delta is not None:
+            if not isinstance(relative_delta, int) or isinstance(relative_delta, bool):
+                raise ValueError("Spotify relative volume was not validated.")
+            if device.volume_percent is None:
+                return _unavailable("Spotify did not report the current device volume.")
+            volume_percent = max(
+                0,
+                min(100, device.volume_percent + relative_delta),
+            )
+        else:
+            if not isinstance(absolute_volume, int) or isinstance(
+                absolute_volume, bool
+            ):
+                raise ValueError("Spotify absolute volume was not validated.")
+            volume_percent = absolute_volume
 
         try:
             await asyncio.to_thread(

@@ -19,6 +19,7 @@ from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_VOLUME_ACTION,
     ActionRegistry,
 )
 
@@ -54,6 +55,8 @@ class ActionRequestValidator:
             request.parameters,
             definition.parameters,
         )
+        if definition.action_id == SPOTIFY_VOLUME_ACTION:
+            _validate_spotify_volume_parameters(normalized_parameters)
         raw_target = normalized_parameters[definition.target_parameter]
         if not isinstance(raw_target, str):
             raise _invalid_parameters("The action target must be a string.")
@@ -121,6 +124,17 @@ def _validate_parameter(value: object, spec: ActionParameterSpec) -> object:
         return value
 
     raise _invalid_parameters(f"{spec.name} uses an unsupported parameter kind.")
+
+
+def _validate_spotify_volume_parameters(parameters: Mapping[str, object]) -> None:
+    has_absolute = "volume_percent" in parameters
+    has_relative = "volume_delta_percent" in parameters
+    if has_absolute == has_relative:
+        raise _invalid_parameters(
+            "Spotify volume requires exactly one absolute or relative value."
+        )
+    if has_relative and parameters["volume_delta_percent"] == 0:
+        raise _invalid_parameters("Spotify relative volume cannot be zero.")
 
 
 def _invalid_parameters(message: str) -> ActionValidationError:

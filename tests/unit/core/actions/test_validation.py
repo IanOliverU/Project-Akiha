@@ -85,6 +85,43 @@ class ActionRequestValidatorTest(unittest.TestCase):
                     ActionFailureCategory.INVALID_PARAMETERS,
                 )
 
+        for value in (-101, 0, 101, False):
+            with self.subTest(relative=value):
+                self._assert_invalid(
+                    self._request(
+                        "spotify.volume",
+                        {
+                            "service": "spotify",
+                            "volume_delta_percent": value,
+                        },
+                    ),
+                    ActionFailureCategory.INVALID_PARAMETERS,
+                )
+
+    def test_spotify_volume_requires_exactly_one_volume_mode(self) -> None:
+        invalid_parameters = (
+            {"service": "spotify"},
+            {
+                "service": "spotify",
+                "volume_percent": 50,
+                "volume_delta_percent": 10,
+            },
+        )
+        for parameters in invalid_parameters:
+            with self.subTest(parameters=parameters):
+                self._assert_invalid(
+                    self._request("spotify.volume", parameters),
+                    ActionFailureCategory.INVALID_PARAMETERS,
+                )
+
+        relative = self.validator.validate(
+            self._request(
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -25},
+            )
+        )
+        self.assertEqual(relative.parameters["volume_delta_percent"], -25)
+
     def test_rejects_spotify_seek_outside_registered_bounds(self) -> None:
         for value in (-1, 86401, False):
             with self.subTest(value=value):

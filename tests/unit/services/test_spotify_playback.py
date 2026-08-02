@@ -446,6 +446,107 @@ class SpotifyVolumeExecutorTest(unittest.TestCase):
         self.assertIn("does not support", result.summary)
         self.assertEqual(client.volume_calls, [])
 
+    def test_relative_volume_uses_current_device_state(self) -> None:
+        client = _PlaybackClient()
+        coordinator = _Coordinator(
+            _ready(_desktop_device(supports_volume=True, volume_percent=35))
+        )
+        executor = SpotifyVolumeExecutor(
+            client,  # type: ignore[arg-type]
+            coordinator,  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-volume-up-10",
+                action_id="spotify.volume",
+                source="voice",
+                parameters={
+                    "service": "spotify",
+                    "volume_delta_percent": 10,
+                },
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(result.summary, "Spotify volume was set to 45%.")
+        self.assertEqual(client.volume_calls, [("desktop-id", 45)])
+
+    def test_relative_volume_clamps_to_device_bounds(self) -> None:
+        cases = ((95, 20, 100), (5, -20, 0))
+        for current, delta, expected in cases:
+            with self.subTest(current=current, delta=delta):
+                client = _PlaybackClient()
+                executor = SpotifyVolumeExecutor(
+                    client,  # type: ignore[arg-type]
+                    _Coordinator(
+                        _ready(
+                            _desktop_device(
+                                supports_volume=True,
+                                volume_percent=current,
+                            )
+                        )
+                    ),  # type: ignore[arg-type]
+                )
+                action = self.validator.validate(
+                    ActionRequest(
+                        correlation_id=f"spotify-volume-delta-{current}",
+                        action_id="spotify.volume",
+                        source="voice",
+                        parameters={
+                            "service": "spotify",
+                            "volume_delta_percent": delta,
+                        },
+                    )
+                )
+
+                result = asyncio.run(
+                    executor.execute(
+                        action,
+                        cancellation_token=ActionCancellationToken(),
+                    )
+                )
+
+                self.assertEqual(result.status, ActionStatus.SUCCESS)
+                self.assertEqual(client.volume_calls, [("desktop-id", expected)])
+
+    def test_relative_volume_requires_reported_current_volume(self) -> None:
+        client = _PlaybackClient()
+        executor = SpotifyVolumeExecutor(
+            client,  # type: ignore[arg-type]
+            _Coordinator(
+                _ready(_desktop_device(supports_volume=True, volume_percent=None))
+            ),  # type: ignore[arg-type]
+        )
+        action = self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-volume-current-missing",
+                action_id="spotify.volume",
+                source="voice",
+                parameters={
+                    "service": "spotify",
+                    "volume_delta_percent": 10,
+                },
+            )
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                action,
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertIn("current device volume", result.summary)
+        self.assertEqual(client.volume_calls, [])
+
 
 class SpotifySeekExecutorTest(unittest.TestCase):
     def setUp(self) -> None:

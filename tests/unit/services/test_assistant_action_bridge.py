@@ -281,6 +281,43 @@ class AssistantActionRequestParserTest(unittest.TestCase):
     def test_generic_volume_command_is_not_hijacked(self) -> None:
         self.assertIsNone(self.parser.parse("Set volume to 50 percent"))
 
+    def test_parses_state_aware_relative_spotify_volume_commands(self) -> None:
+        cases = (
+            ("Increase Spotify volume by 10%", 10),
+            ("Please lower music volume by twenty percent, Akiha.", -20),
+            ("Could you turn Spotify volume up by 15% for me?", 15),
+            ("Turn down playback volume by five percent", -5),
+            ("Raise the volume by 25% on Spotify", 25),
+            ("Reduce the volume by thirty percent on Spotify", -30),
+        )
+
+        for text, volume_delta_percent in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.volume")
+                self.assertEqual(
+                    dict(request.parameters),
+                    {
+                        "service": "spotify",
+                        "volume_delta_percent": volume_delta_percent,
+                    },
+                )
+
+    def test_rejects_ambiguous_or_invalid_relative_volume_commands(self) -> None:
+        cases = (
+            "Increase volume by 10%",
+            "Lower volume by ten percent",
+            "Increase Spotify volume by 0%",
+            "Increase Spotify volume by 101%",
+            "Increase Spotify volume sometime",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertIsNone(self.parser.parse(text))
+
     def test_natural_envelopes_cover_every_spotify_action_family(self) -> None:
         cases = (
             ("Could you play Spotify music for me, Akiha?", "spotify.play"),

@@ -1067,6 +1067,14 @@ forms such as `increase music volume to 50%`. This remains anchored envelope
 normalization, not arbitrary substring execution; negative and metalinguistic
 guards continue to run before any typed action can be created.
 
+Spotify volume requests now preserve an explicit typed distinction between an
+absolute `volume_percent` and a relative `volume_delta_percent`. A relative
+request resolves the current active-device volume locally, applies one bounded
+non-zero delta, clamps the result to `0..100`, and issues the existing Spotify
+volume action. Both modes share the same playback permission and audit path;
+the validator rejects requests containing both modes, neither mode, zero, or
+an out-of-range value. Hosted providers never receive device volume state.
+
 The local ephemeral resolver now gives exactly one latest validated result set
 ownership of numbered or ordinal references, preventing stale result stores
 from competing for phrases such as `open the second one`. It also supports a
