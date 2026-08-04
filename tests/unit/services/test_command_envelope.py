@@ -40,6 +40,10 @@ class DeterministicCommandEnvelopeParserTest(unittest.TestCase):
             ("Could you kindly open VLC for me?", "open VLC"),
             ("Would you be able to close Discord for me?", "close Discord"),
             ("Do me a favor and pause Spotify, please.", "pause Spotify"),
+            ("I want to listen to music.", "listen to music"),
+            ("Let's keep listening.", "keep listening"),
+            ("Can we skip this?", "skip this"),
+            ("Hold on, pause the song.", "pause the song"),
         )
 
         for text, expected in cases:

@@ -65,8 +65,14 @@ Generic playback commands use the deterministic local parser before any AI
 provider. Supported typed or spoken forms include `play Spotify`, `pause the
 music`, `resume Spotify playback`, `next track`, `previous song`, `enable
 shuffle`, and `disable shuffle`, plus the explicit `/spotify-*` command forms.
-Shuffle is always assigned an explicit boolean state through the fixed
-`spotify.shuffle` action rather than exposed as an ambiguous toggle. Speech
+Conversational variants are also accepted, including `I want to listen to
+music`, `skip this song`, `I don't like this one`, `go back`, `continue
+playing`, `turn the music down`, and `make the music louder`. Relative volume
+defaults to a 10% step when no percentage is stated. Pronoun forms such as
+`turn it up`, `make it quieter`, and `it's too loud` resolve only while recent
+Spotify activity remains in ephemeral context. Shuffle is always assigned an
+explicit boolean state through the fixed `spotify.shuffle` action rather than
+exposed as an ambiguous toggle. Speech
 commands also support `repeat this song`, `repeat this album`, and `turn repeat
 off`. Repeat is restricted to Spotify's fixed `track`, `context`, and `off`
 modes; the ambiguous phrase `enable repeat` is intentionally not interpreted.
@@ -108,15 +114,19 @@ and accept only an `open artist result 1` follow-up; they never start playback.
 Specific-track playback uses bounded local Spotify search and starts only one
 validated `spotify:track:<id>` URI. Explicit forms include `play Spotify track
 Usseewa by ADO`, `play Usseewa by ADO on Spotify`, and `/spotify-track Usseewa
-| ADO`. Standalone forms such as `search Spotify tracks for Usseewa by ADO`
-show up to five playable results in chat. Duplicate releases or uncertain
-matches require `play track result 1`; no AI provider chooses the track.
+| ADO`. Conversational play and listen requests such as `Play Kagakushu`,
+`Can you play Hurtful & Painful?`, and `I want to listen to Somniomancer` also
+route to Spotify track resolution. Standalone forms such as `search Spotify
+tracks for Usseewa by ADO` or `Look for Kagakushu` show up to five playable
+results in chat. Duplicate releases or uncertain matches require
+`play track result 1`; no AI provider chooses the track.
 If a strict title-and-artist search returns nothing, Akiha performs one bounded
 relaxed catalog search before local scoring. A transient missing-device response
 causes one fresh device lookup and one retry, never an unbounded loop.
-Unqualified local-media requests such as `play Elis by Megurine Luka` remain
-available to the approved-directory media workflow unless Spotify is named or
-the request explicitly says `Spotify track` or `Spotify song`.
+Local-file playback remains available through the approved-directory media
+workflow when the optional tool gateway proposes `play_media`, or when the user
+asks for local music explicitly. Ordinary conversational `play` / `listen to`
+requests prefer Spotify.
 
 Album discovery, desktop-first opening, and playback use validated
 `spotify:album:<id>` URIs. Supported forms include `search Spotify albums for

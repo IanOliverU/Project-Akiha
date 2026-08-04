@@ -11,12 +11,13 @@ _MAX_ENVELOPE_LENGTH = 2_000
 _ACTION_VERB = (
     r"(?:open|launch|start|close|quit|exit|play|pause|resume|continue|search|"
     r"find|show|take|turn|switch|set|raise|lower|increase|decrease|mute|seek|"
-    r"skip|restart|listen|look|go)"
+    r"skip|restart|listen|look|go|keep|make)"
 )
 _ACTION_GERUND = (
     r"(?:opening|launching|starting|closing|quitting|exiting|playing|pausing|"
     r"resuming|continuing|searching|finding|showing|taking|turning|switching|"
-    r"setting|muting|seeking|skipping|restarting|listening|looking|going)"
+    r"setting|muting|seeking|skipping|restarting|listening|looking|going|"
+    r"keeping|making)"
 )
 _NEGATED_COMMAND_PATTERNS = (
     re.compile(
@@ -95,11 +96,25 @@ _DIRECT_PREFIX_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"^(?:can|could|would|will)\s+we(?:\s+(?:please|kindly))?\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"^would\s+it\s+be\s+possible\s+for\s+you\s+to\s+",
         re.IGNORECASE,
     ),
     re.compile(
         r"^(?:i(?:'d|\s+would)\s+like|i\s+(?:want|need))\s+you\s+to\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:i(?:'d|\s+would)\s+like|i\s+(?:want|need))\s+to\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^let(?:'s|\s+us)\s+", re.IGNORECASE),
+    re.compile(
+        r"^(?:hold\s+on|one\s+(?:sec(?:ond)?|moment)|wait(?:\s+a\s+"
+        r"(?:sec(?:ond)?|moment|minute))?)(?:\s*[,;:]|\s+)\s*",
         re.IGNORECASE,
     ),
     re.compile(r"^do\s+me\s+a\s+favor\s+and\s+", re.IGNORECASE),
@@ -109,7 +124,8 @@ _MIND_PREFIX_PATTERN = re.compile(
     r"^(?:would|do)\s+you\s+mind(?:\s+please)?\s+"
     r"(?P<verb>opening|launching|starting|closing|quitting|exiting|playing|"
     r"pausing|resuming|continuing|searching|finding|showing|taking|turning|"
-    r"switching|setting|muting|seeking|skipping|restarting|listening|looking)\b",
+    r"switching|setting|muting|seeking|skipping|restarting|listening|looking|"
+    r"keeping|making)\b",
     re.IGNORECASE,
 )
 _IMPERATIVE_FORMS = {
@@ -136,6 +152,8 @@ _IMPERATIVE_FORMS = {
     "restarting": "restart",
     "listening": "listen",
     "looking": "look",
+    "keeping": "keep",
+    "making": "make",
 }
 _TRAILING_PUNCTUATION_PATTERN = re.compile(r"[.!?]+$")
 _TRAILING_COURTESY_PATTERN = re.compile(

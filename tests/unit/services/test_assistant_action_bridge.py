@@ -178,7 +178,12 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.action_id, action_id)
 
     def test_song_title_does_not_become_generic_spotify_control(self) -> None:
-        self.assertIsNone(self.parser.parse("Play Elis by Megurine Luka"))
+        request = self.parser.parse("Play Elis by Megurine Luka")
+
+        self.assertIsNotNone(request)
+        self.assertEqual(request.action_id, "spotify.play_track")
+        self.assertEqual(request.parameters["track_query"], "Elis")
+        self.assertEqual(request.parameters["artist_query"], "Megurine Luka")
         self.assertIsNone(self.parser.parse("Can you pause, the meeting?"))
 
     def test_guarded_command_discussion_never_becomes_an_action(self) -> None:
@@ -289,6 +294,10 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             ("Turn down playback volume by five percent", -5),
             ("Raise the volume by 25% on Spotify", 25),
             ("Reduce the volume by thirty percent on Spotify", -30),
+            ("Turn the music down", -10),
+            ("Can you make the music louder?", 10),
+            ("Increase Spotify volume", 10),
+            ("It's too loud for the music", -10),
         )
 
         for text, volume_delta_percent in cases:
@@ -312,11 +321,119 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             "Increase Spotify volume by 0%",
             "Increase Spotify volume by 101%",
             "Increase Spotify volume sometime",
+            "It's too loud",
+            "Make it louder",
+            "Turn it up",
         )
 
         for text in cases:
             with self.subTest(text=text):
                 self.assertIsNone(self.parser.parse(text))
+
+    def test_parses_natural_spotify_conversation_intents(self) -> None:
+        cases = (
+            ("Akiha, can you open Spotify for me?", "applications.launch", {"application_id": "spotify"}),
+            ("I want to listen to music.", "spotify.play", {"service": "spotify"}),
+            ("Let's listen to something.", "spotify.play", {"service": "spotify"}),
+            ("Can you play some music?", "spotify.play", {"service": "spotify"}),
+            ("Open my music.", "spotify.play", {"service": "spotify"}),
+            ("Can you play the music?", "spotify.play", {"service": "spotify"}),
+            ("Resume the song.", "spotify.resume", {"service": "spotify"}),
+            ("Continue playing.", "spotify.resume", {"service": "spotify"}),
+            ("Let's keep listening.", "spotify.resume", {"service": "spotify"}),
+            ("Hold on, pause the song.", "spotify.pause", {"service": "spotify"}),
+            ("Can you stop the music?", "spotify.pause", {"service": "spotify"}),
+            ("Skip this song.", "spotify.next", {"service": "spotify"}),
+            ("Can we skip this?", "spotify.next", {"service": "spotify"}),
+            ("I don't like this one.", "spotify.next", {"service": "spotify"}),
+            ("Play the next track.", "spotify.next", {"service": "spotify"}),
+            ("Go back.", "spotify.previous", {"service": "spotify"}),
+            ("Back one track.", "spotify.previous", {"service": "spotify"}),
+            ("Play the last song again.", "spotify.previous", {"service": "spotify"}),
+            (
+                "Play Kagakushu.",
+                "spotify.play_track",
+                {"service": "spotify", "track_query": "Kagakushu"},
+            ),
+            (
+                "Can you play Hurtful & Painful?",
+                "spotify.play_track",
+                {"service": "spotify", "track_query": "Hurtful & Painful"},
+            ),
+            (
+                "I want to listen to Somniomancer.",
+                "spotify.play_track",
+                {"service": "spotify", "track_query": "Somniomancer"},
+            ),
+            (
+                "Let's listen to Vivarium.",
+                "spotify.play_track",
+                {"service": "spotify", "track_query": "Vivarium"},
+            ),
+            (
+                "Play some Lil Peep.",
+                "spotify.play_artist",
+                {"service": "spotify", "artist_query": "Lil Peep"},
+            ),
+            (
+                "Can you play Yorushika?",
+                "spotify.play_track",
+                {"service": "spotify", "track_query": "Yorushika"},
+            ),
+            (
+                "Play my Anime playlist.",
+                "spotify.play_playlist",
+                {"service": "spotify", "playlist_query": "Anime"},
+            ),
+            (
+                "Open my Gym playlist.",
+                "spotify.play_playlist",
+                {"service": "spotify", "playlist_query": "Gym"},
+            ),
+            (
+                "Play my Liked Songs.",
+                "spotify.play_favorites",
+                {"service": "spotify", "favorite_mode": "liked"},
+            ),
+            (
+                "Let's listen to my favorites.",
+                "spotify.play_favorites",
+                {"service": "spotify", "favorite_mode": "mix"},
+            ),
+            (
+                "Find songs by Yorushika.",
+                "spotify.search_artists",
+                {"service": "spotify", "artist_query": "Yorushika"},
+            ),
+            (
+                "Look for Kagakushu.",
+                "spotify.search_tracks",
+                {"service": "spotify", "track_query": "Kagakushu"},
+            ),
+            (
+                "Can you find my Night Drive playlist?",
+                "spotify.search_playlists",
+                {"service": "spotify", "playlist_query": "Night Drive"},
+            ),
+            (
+                "Increase the volume by 20% on Spotify.",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": 20},
+            ),
+            (
+                "Set Spotify volume to 50%.",
+                "spotify.volume",
+                {"service": "spotify", "volume_percent": 50},
+            ),
+        )
+
+        for text, action_id, parameters in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, action_id)
+                self.assertEqual(dict(request.parameters), parameters)
 
     def test_natural_envelopes_cover_every_spotify_action_family(self) -> None:
         cases = (

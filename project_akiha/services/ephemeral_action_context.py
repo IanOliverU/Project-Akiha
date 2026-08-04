@@ -13,8 +13,10 @@ from project_akiha.core.actions import ActionRequest
 from project_akiha.core.actions.registry import (
     ALLOWLISTED_APPLICATION_IDS,
     CLOSE_APPLICATION_ACTION,
+    SPOTIFY_NEXT_ACTION,
     SPOTIFY_PAUSE_ACTION,
     SPOTIFY_RESUME_ACTION,
+    SPOTIFY_VOLUME_ACTION,
 )
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
@@ -42,8 +44,21 @@ _SELECTED_MEDIA_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _SPOTIFY_PRONOUN_PATTERN = re.compile(
-    r"^(?P<verb>pause|resume|continue)\s+(?:it|that|the\s+music|"
-    r"the\s+playback)(?:\s+on\s+spotify)?\s*[.!?]?$",
+    r"^(?P<pause_resume>pause|resume|continue|stop)\s+(?:it|that|the\s+music|"
+    r"the\s+playback)(?:\s+on\s+spotify)?\s*[.!?]?$|"
+    r"^(?P<next>skip|next)\s+(?:it|that|this|the\s+song|the\s+track)"
+    r"(?:\s+on\s+spotify)?\s*[.!?]?$|"
+    r"^turn\s+it\s+(?P<volume_direction>up|down)(?:\s+by\s+(?P<volume_value>.+?))?"
+    r"\s*[.!?]?$|"
+    r"^make\s+it\s+(?P<make_quality>louder|quieter|softer|higher)"
+    r"(?:\s+by\s+(?P<make_value>.+?))?\s*[.!?]?$|"
+    r"^(?:it(?:'s|\s+is)\s+)?too\s+(?P<too_quality>loud|quiet|soft)\s*[.!?]?$",
+    re.IGNORECASE,
+)
+_DEFAULT_RELATIVE_VOLUME_DELTA = 10
+_VOLUME_NUMBER_PATTERN = re.compile(
+    r"^\s*(?P<number>\d{1,3}|[a-z]+(?:[\s-][a-z]+)*)\s*"
+    r"(?:%|percent|per\s+cent)?\s*$",
     re.IGNORECASE,
 )
 _APPLICATION_PRONOUN_PATTERN = re.compile(
@@ -257,11 +272,25 @@ class EphemeralActionContext:
                 return EphemeralReferenceError(
                     "There is no recent Spotify playback to control."
                 )
-            verb = spotify_match.group("verb").casefold()
-            action_id = (
-                SPOTIFY_PAUSE_ACTION if verb == "pause" else SPOTIFY_RESUME_ACTION
+            if spotify_match.group("pause_resume") is not None:
+                verb = spotify_match.group("pause_resume").casefold()
+                action_id = (
+                    SPOTIFY_PAUSE_ACTION
+                    if verb in {"pause", "stop"}
+                    else SPOTIFY_RESUME_ACTION
+                )
+                return self._request(action_id, {"service": "spotify"})
+            if spotify_match.group("next") is not None:
+                return self._request(SPOTIFY_NEXT_ACTION, {"service": "spotify"})
+            delta = self._relative_volume_delta(spotify_match)
+            if delta is None:
+                return EphemeralReferenceError(
+                    "Spotify volume changes need a percentage between 1 and 100."
+                )
+            return self._request(
+                SPOTIFY_VOLUME_ACTION,
+                {"service": "spotify", "volume_delta_percent": delta},
             )
-            return self._request(action_id, {"service": "spotify"})
 
         if _APPLICATION_PRONOUN_PATTERN.fullmatch(normalized) is not None:
             if not self._application_id or self._application_expires_at <= self._now():
@@ -368,6 +397,32 @@ class EphemeralActionContext:
 
     def _expires_at(self) -> float:
         return self._now() + self._ttl_seconds
+
+    @staticmethod
+    def _relative_volume_delta(match: re.Match[str]) -> int | None:
+        raw_value = match.group("volume_value") or match.group("make_value")
+        if raw_value is None:
+            amount = _DEFAULT_RELATIVE_VOLUME_DELTA
+        else:
+            number_match = _VOLUME_NUMBER_PATTERN.fullmatch(raw_value)
+            if number_match is None or not number_match.group("number").isdigit():
+                return None
+            amount = int(number_match.group("number"))
+            if not 1 <= amount <= 100:
+                return None
+        if match.group("too_quality") is not None:
+            return (
+                -amount
+                if match.group("too_quality").casefold() == "loud"
+                else amount
+            )
+        if match.group("make_quality") is not None:
+            quality = match.group("make_quality").casefold()
+            return amount if quality in {"louder", "higher"} else -amount
+        direction = match.group("volume_direction")
+        if direction is None:
+            return None
+        return amount if direction.casefold() == "up" else -amount
 
     @staticmethod
     def _request(action_id: str, parameters: dict[str, object]) -> ActionRequest:

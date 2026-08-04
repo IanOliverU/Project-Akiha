@@ -106,6 +106,59 @@ _SPOTIFY_CONTROL_SEPARATOR = r"[\s,;:.-]+"
 _SPOTIFY_TARGET = (
     r"(?:spotify|spatify)(?:\s+(?:music|playback))?|music|playback|song|track"
 )
+_DEFAULT_RELATIVE_VOLUME_DELTA = 10
+_SPOTIFY_CONTENT_RESERVED = frozenset(
+    {
+        "music",
+        "playback",
+        "song",
+        "songs",
+        "spotify",
+        "spatify",
+        "track",
+        "tracks",
+        "album",
+        "albums",
+        "artist",
+        "artists",
+        "playlist",
+        "playlists",
+        "something",
+        "anything",
+        "it",
+        "that",
+        "this",
+        "some",
+        "my music",
+        "the music",
+        "some music",
+        "some songs",
+        "some tracks",
+        "spotify music",
+        "spotify playback",
+        "chrome",
+        "google chrome",
+        "discord",
+        "vlc",
+        "vlc media player",
+        "code",
+        "vs code",
+        "vscode",
+        "visual studio code",
+    }
+)
+_SPOTIFY_CONTROL_QUERY_PATTERN = re.compile(
+    r"^(?:(?:the|my)\s+)?(?:next|last|previous)\s+(?:song|track)(?:\s+again)?$",
+    re.IGNORECASE,
+)
+_SPOTIFY_RESULTISH_QUERY_PATTERN = re.compile(
+    r"^(?:album|track|song|artist|playlist)\s+result\s+\d+$",
+    re.IGNORECASE,
+)
+_SPOTIFY_MEDIA_PREFIX_PATTERN = re.compile(
+    r"^(?:songs?|tracks?|albums?|playlists?)\b",
+    re.IGNORECASE,
+)
 _SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-albums\s+(?P<slash>.+?)|"
@@ -117,9 +170,11 @@ _SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
 _SPOTIFY_PLAYLIST_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-playlists\s+(?P<slash>.+?)|"
-    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?playlists?"
-    r"(?:\s+(?:for|named|called))?\s*[:=]?\s*(?P<labeled>.+?)"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?(?:spotify\s+|my\s+)?"
+    r"playlists?(?:\s+(?:for|named|called))?\s*[:=]?\s*(?P<labeled>.+?)"
     r"(?:\s+on\s+spotify)?|"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?(?:my\s+)?"
+    r"(?P<named_playlist>.+?)\s+playlist(?:\s+on\s+spotify)?|"
     r"(?:search|find|look\s+up)\s+spotify\s+for\s+(?:the\s+)?playlist\s+"
     r"(?P<spotify_for>.+?))\s*[.!?]?$",
     re.IGNORECASE,
@@ -127,8 +182,10 @@ _SPOTIFY_PLAYLIST_SEARCH_PATTERN = re.compile(
 _SPOTIFY_PLAYLIST_PLAY_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-playlist\s+(?P<slash>.+?)|"
-    r"(?:play|listen\s+to)\s+(?:(?:my|the)\s+)?(?:spotify\s+)?playlist"
+    r"(?:play|open|listen\s+to)\s+(?:(?:my|the)\s+)?(?:spotify\s+)?playlist"
     r"(?:\s+(?:named|called))?\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"(?:play|open|listen\s+to)\s+(?:(?:my|the)\s+)(?P<prefixed>.+?)"
+    r"\s+playlist(?:\s+on\s+spotify)?|"
     r"play\s+(?P<on_spotify>.+?)\s+playlist\s+on\s+spotify)\s*[.!?]?$",
     re.IGNORECASE,
 )
@@ -152,12 +209,14 @@ _SPOTIFY_ALBUM_PLAY_PATTERN = re.compile(
 _SPOTIFY_ARTIST_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-artists\s+(?P<slash>.+?)|"
-    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?artists?"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?(?:spotify\s+)?artists?"
     r"(?:\s+(?:for|named))?\s*[:=]?\s*(?P<labeled>.+?)"
     r"(?:\s+on\s+spotify)?|"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?songs?\s+by\s+"
+    r"(?P<songs_by>.+?)(?:\s+on\s+spotify)?|"
     r"(?:search|find|look\s+up)\s+spotify\s+for\s+(?:the\s+)?artist\s+"
     r"(?P<spotify_for>.+?)|"
-    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?P<on_spotify>.+?)"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?(?P<on_spotify>.+?)"
     r"\s+on\s+spotify)\s*[.!?]?$",
     re.IGNORECASE,
 )
@@ -181,15 +240,19 @@ _SPOTIFY_ARTIST_PATTERN = re.compile(
     r"(?P<artist>.+?)(?:\s+on\s+spotify)?\s*[.!?]?$|"
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"play\s+(?P<possessive_artist>.+?)(?:'s|\u2019s)\s+"
-    r"(?:catalog|music|songs)(?:\s+on\s+spotify)?\s*[.!?]?$",
+    r"(?:catalog|music|songs)(?:\s+on\s+spotify)?\s*[.!?]?$|"
+    r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
+    r"(?:play|listen\s+to)\s+some\s+(?P<some_artist>.+?)(?:\s+on\s+spotify)?"
+    r"\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_TRACK_SEARCH_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-search-tracks\s+(?P<slash>.+?)|"
-    r"(?:search|find|look\s+up)\s+(?:for\s+)?(?:spotify\s+)?"
+    r"(?:search|find|look\s+(?:up|for))\s+(?:for\s+)?(?:spotify\s+)?"
     r"(?:tracks?|songs?)(?:\s+(?:for|named))?\s*[:=]?\s*"
-    r"(?P<labeled>.+?)(?:\s+on\s+spotify)?)\s*[.!?]?$",
+    r"(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
+    r"look\s+for\s+(?P<look_for>.+?)(?:\s+on\s+spotify)?)\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_TRACK_PLAY_PATTERN = re.compile(
@@ -197,13 +260,14 @@ _SPOTIFY_TRACK_PLAY_PATTERN = re.compile(
     r"(?:/spotify-track\s+(?P<slash>.+?)|"
     r"(?:play|listen\s+to)\s+(?:the\s+)?(?:spotify\s+)?"
     r"(?:track|song)\s+(?P<labeled>.+?)(?:\s+on\s+spotify)?|"
-    r"play\s+(?P<on_spotify>.+?)\s+on\s+spotify)\s*[.!?]?$",
+    r"play\s+(?P<on_spotify>.+?)\s+on\s+spotify|"
+    r"(?:play|listen\s+to)\s+(?:the\s+)?(?P<natural>.+?))\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_FAVORITES_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>liked|favorites)|"
-    r"(?:play|listen\s+to)\s+(?:(?:some|something|me\s+something)\s+)?"
+    r"(?:play|listen\s+to|open)\s+(?:(?:some|something|me\s+something)\s+)?"
     r"(?:(?P<liked>(?:my\s+)?(?:spotify\s+)?(?:liked\s+(?:songs|music)|"
     r"saved\s+tracks))|"
     r"(?P<mix>(?:my\s+)?(?:spotify\s+)?(?:favorites?|favourites?)"
@@ -250,15 +314,22 @@ _SPOTIFY_RELATIVE_VOLUME_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:"
     r"(?P<direction>increase|raise|boost|decrease|lower|reduce)\s+"
-    r"(?:the\s+)?(?P<target>spotify|music|playback)\s+volume(?:\s+level)?|"
+    r"(?:the\s+)?(?P<target>spotify|music|playback)\s+volume(?:\s+level)?"
+    r"(?:\s+by\s+(?P<value>.+?))?|"
     r"turn\s+(?:the\s+)?(?P<post_target>spotify|music|playback)\s+volume"
-    r"(?:\s+level)?\s+(?P<post_direction>up|down)|"
+    r"(?:\s+level)?\s+(?P<post_direction>up|down)(?:\s+by\s+(?P<post_value>.+?))?|"
     r"turn\s+(?P<pre_direction>up|down)\s+(?:the\s+)?"
-    r"(?P<pre_target>spotify|music|playback)\s+volume(?:\s+level)?|"
+    r"(?P<pre_target>spotify|music|playback)\s+volume(?:\s+level)?"
+    r"(?:\s+by\s+(?P<pre_value>.+?))?|"
+    r"turn\s+(?:the\s+)?(?P<music_target>spotify|music|playback|song)\s+"
+    r"(?P<music_direction>up|down)(?:\s+by\s+(?P<music_value>.+?))?|"
+    r"make\s+(?:the\s+)?(?P<make_target>spotify|music|playback|song|volume)\s+"
+    r"(?P<make_quality>louder|quieter|softer|higher)(?:\s+by\s+(?P<make_value>.+?))?|"
+    r"(?:it(?:'s|\s+is)\s+)?too\s+(?P<too_quality>loud|quiet|soft)"
+    r"(?P<too_music>\s+(?:for\s+(?:the\s+)?)?(?:music|spotify|playback))?|"
     r"(?P<on_direction>increase|raise|boost|decrease|lower|reduce)\s+"
-    r"(?:the\s+)?volume(?:\s+level)?"
-    r")\s+by\s+(?P<value>.+?)"
-    r"(?P<on_spotify>\s+on\s+spotify)?\s*[.!?]?$",
+    r"(?:the\s+)?volume(?:\s+level)?(?:\s+by\s+(?P<on_value>.+?))?"
+    r")(?P<on_spotify>\s+on\s+spotify)?\s*[.!?]?$",
     re.IGNORECASE,
 )
 _SPOTIFY_SEEK_PATTERN = re.compile(
@@ -279,17 +350,28 @@ _SPOTIFY_SEEK_PATTERN = re.compile(
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
-    rf"(?P<play>play){_SPOTIFY_CONTROL_SEPARATOR}(?:(?:the|my)\s+)?"
+    rf"(?P<play>play){_SPOTIFY_CONTROL_SEPARATOR}(?:(?:the|my|some)\s+)?"
     rf"(?:{_SPOTIFY_TARGET})|"
+    r"(?P<play_music>listen\s+to\s+(?:(?:some|my|the)\s+)?"
+    r"(?:music|something)|open\s+(?:my\s+)?music)|"
     rf"(?P<pause>pause|paws|pos|puzz|stop){_SPOTIFY_CONTROL_SEPARATOR}"
-    rf"(?:(?:the|my)\s+)?(?:{_SPOTIFY_TARGET})|"
+    rf"(?:(?:the|my)\s+)?(?:{_SPOTIFY_TARGET})"
+    r"(?:\s+for\s+a\s+(?:sec(?:ond)?|moment|bit|minute))?|"
     rf"(?P<resume>resume|continue){_SPOTIFY_CONTROL_SEPARATOR}"
     rf"(?:(?:the|my)\s+)?"
-    rf"(?:{_SPOTIFY_TARGET})|"
-    rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:the\s+)?"
-    r"(?:next\s+)?(?:song|track)|"
+    rf"(?:{_SPOTIFY_TARGET}|playing)|"
+    r"(?P<keep>keep\s+(?:playing|listening)(?:\s+(?:to\s+)?"
+    r"(?:(?:the|my)\s+)?(?:music|song|track|spotify|playback))?)|"
+    rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:(?:the|this)\s+)?"
+    r"(?:next\s+)?(?:song|track|one)|"
+    r"(?P<skip_this>skip(?:\s+(?:the|this))?(?:\s+(?:one|song|track))?|"
+    r"(?:i\s+)?don(?:'|\u2019)t\s+like\s+this(?:\s+(?:one|song|track))?|"
+    r"play\s+(?:the\s+)?next\s+(?:song|track))|"
     rf"(?P<previous>(?:previous|last){_SPOTIFY_CONTROL_SEPARATOR}"
-    r"(?:song|track)|go\s+back\s+to\s+(?:the\s+)?previous\s+(?:song|track)))"
+    r"(?:song|track)|go\s+back(?:\s+to\s+(?:the\s+)?previous\s+"
+    r"(?:song|track))?|back(?:\s+one)?\s+(?:song|track)|"
+    r"play\s+(?:the\s+)?(?:last|previous)\s+(?:song|track)"
+    r"(?:\s+again)?))"
     r"\s*[.!?]?$",
     re.IGNORECASE,
 )
@@ -439,7 +521,7 @@ class AssistantActionRequestParser:
         if playlist_search_match is not None:
             playlist = _matched_query(
                 playlist_search_match,
-                ("slash", "labeled", "spotify_for"),
+                ("slash", "labeled", "named_playlist", "spotify_for"),
             )
             if playlist and not _is_spotify_result_reference(playlist):
                 return _request(
@@ -455,7 +537,7 @@ class AssistantActionRequestParser:
         if playlist_play_match is not None:
             playlist = _matched_query(
                 playlist_play_match,
-                ("slash", "labeled", "on_spotify"),
+                ("slash", "labeled", "prefixed", "on_spotify"),
             )
             if playlist and not _is_spotify_result_reference(playlist):
                 return _request(
@@ -501,14 +583,48 @@ class AssistantActionRequestParser:
                     parameters=parameters,
                 )
 
+        artist_search_match = _SPOTIFY_ARTIST_SEARCH_PATTERN.fullmatch(normalized)
+        if artist_search_match is not None:
+            artist = next(
+                value
+                for group in (
+                    "slash",
+                    "labeled",
+                    "songs_by",
+                    "spotify_for",
+                    "on_spotify",
+                )
+                if (value := artist_search_match.group(group)) is not None
+            ).strip()
+            if (
+                artist
+                and not _is_spotify_result_reference(artist)
+                and not (
+                    artist_search_match.group("on_spotify") is not None
+                    and _is_artist_search_media_query(artist)
+                )
+            ):
+                return _request(
+                    correlation_id=request_id,
+                    action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
+                    parameters={
+                        "service": "spotify",
+                        "artist_query": artist,
+                    },
+                )
+
         track_search_match = _SPOTIFY_TRACK_SEARCH_PATTERN.fullmatch(normalized)
         if track_search_match is not None:
             query = _matched_query(
                 track_search_match,
-                ("slash", "labeled"),
+                ("slash", "labeled", "look_for"),
             )
             track, artist = _split_spotify_title_artist_query(query)
-            if track and not _is_spotify_result_reference(track):
+            if (
+                track
+                and not _is_spotify_result_reference(track)
+                and not _is_reserved_spotify_content(track)
+            ):
                 parameters = {
                     "service": "spotify",
                     "track_query": track,
@@ -519,23 +635,6 @@ class AssistantActionRequestParser:
                     correlation_id=request_id,
                     action_id=SPOTIFY_SEARCH_TRACKS_ACTION,
                     parameters=parameters,
-                )
-
-        artist_search_match = _SPOTIFY_ARTIST_SEARCH_PATTERN.fullmatch(normalized)
-        if artist_search_match is not None:
-            artist = next(
-                value
-                for group in ("slash", "labeled", "spotify_for", "on_spotify")
-                if (value := artist_search_match.group(group)) is not None
-            ).strip()
-            if artist and not _is_spotify_result_reference(artist):
-                return _request(
-                    correlation_id=request_id,
-                    action_id=SPOTIFY_SEARCH_ARTISTS_ACTION,
-                    parameters={
-                        "service": "spotify",
-                        "artist_query": artist,
-                    },
                 )
 
         artist_open_match = _SPOTIFY_ARTIST_OPEN_PATTERN.fullmatch(normalized)
@@ -556,10 +655,16 @@ class AssistantActionRequestParser:
 
         artist_match = _SPOTIFY_ARTIST_PATTERN.fullmatch(normalized)
         if artist_match is not None:
-            artist = (
-                artist_match.group("artist") or artist_match.group("possessive_artist")
+            artist = next(
+                value
+                for group in ("artist", "possessive_artist", "some_artist")
+                if (value := artist_match.group(group)) is not None
             ).strip()
-            if artist and not _is_spotify_result_reference(artist):
+            if (
+                artist
+                and not _is_spotify_result_reference(artist)
+                and not _is_reserved_spotify_content(artist)
+            ):
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_PLAY_ARTIST_ACTION,
@@ -591,20 +696,13 @@ class AssistantActionRequestParser:
         if track_play_match is not None:
             query = _matched_query(
                 track_play_match,
-                ("slash", "labeled", "on_spotify"),
+                ("slash", "labeled", "on_spotify", "natural"),
             )
             track, artist = _split_spotify_title_artist_query(query)
             if (
                 track
                 and not _is_spotify_result_reference(track)
-                and track.casefold()
-                not in {
-                    "music",
-                    "playback",
-                    "song",
-                    "spotify",
-                    "track",
-                }
+                and not _is_reserved_spotify_content(track)
             ):
                 parameters = {
                     "service": "spotify",
@@ -665,24 +763,61 @@ class AssistantActionRequestParser:
                 and relative_volume_match.group("on_spotify") is None
             ):
                 return None
-            raw_delta = _parse_volume_percent(relative_volume_match.group("value"))
-            if raw_delta is None or not 1 <= raw_delta <= 100:
+            too_quality = relative_volume_match.group("too_quality")
+            if too_quality is not None and relative_volume_match.group("too_music") is None:
+                # Bare "too loud" needs recent Spotify context via ephemeral resolution.
                 return None
-            direction = next(
-                relative_volume_match.group(name)
-                for name in (
-                    "direction",
-                    "post_direction",
-                    "pre_direction",
-                    "on_direction",
-                )
-                if relative_volume_match.group(name) is not None
-            ).casefold()
-            volume_delta_percent = (
-                raw_delta
-                if direction in {"increase", "raise", "boost", "up"}
-                else -raw_delta
+            raw_delta_text = next(
+                (
+                    relative_volume_match.group(name)
+                    for name in (
+                        "value",
+                        "post_value",
+                        "pre_value",
+                        "music_value",
+                        "make_value",
+                        "on_value",
+                    )
+                    if relative_volume_match.group(name) is not None
+                ),
+                None,
             )
+            if raw_delta_text is None:
+                raw_delta = _DEFAULT_RELATIVE_VOLUME_DELTA
+            else:
+                raw_delta = _parse_volume_percent(raw_delta_text)
+                if raw_delta is None or not 1 <= raw_delta <= 100:
+                    return None
+            if too_quality is not None:
+                volume_delta_percent = (
+                    -raw_delta
+                    if too_quality.casefold() == "loud"
+                    else raw_delta
+                )
+            elif relative_volume_match.group("make_quality") is not None:
+                quality = relative_volume_match.group("make_quality").casefold()
+                volume_delta_percent = (
+                    raw_delta
+                    if quality in {"louder", "higher"}
+                    else -raw_delta
+                )
+            else:
+                direction = next(
+                    relative_volume_match.group(name)
+                    for name in (
+                        "direction",
+                        "post_direction",
+                        "pre_direction",
+                        "music_direction",
+                        "on_direction",
+                    )
+                    if relative_volume_match.group(name) is not None
+                ).casefold()
+                volume_delta_percent = (
+                    raw_delta
+                    if direction in {"increase", "raise", "boost", "up"}
+                    else -raw_delta
+                )
             return _request(
                 correlation_id=request_id,
                 action_id=SPOTIFY_VOLUME_ACTION,
@@ -745,12 +880,26 @@ class AssistantActionRequestParser:
         if spotify_match is not None:
             command = next(
                 name
-                for name in ("slash", "play", "pause", "resume", "next", "previous")
+                for name in (
+                    "slash",
+                    "play",
+                    "play_music",
+                    "pause",
+                    "resume",
+                    "keep",
+                    "next",
+                    "skip_this",
+                    "previous",
+                )
                 if spotify_match.group(name) is not None
             )
             if command == "slash":
                 command = spotify_match.group("slash").casefold()
-            elif command in {"next", "previous"}:
+            elif command in {"play_music", "keep"}:
+                command = "play" if command == "play_music" else "resume"
+            elif command == "skip_this":
+                command = "next"
+            elif command in {"next", "previous", "play", "pause", "resume"}:
                 command = command
             return _request(
                 correlation_id=request_id,
@@ -857,7 +1006,26 @@ def _matched_query(match: re.Match[str], groups: tuple[str, ...]) -> str:
 
 
 def _is_spotify_result_reference(value: str) -> bool:
-    return _SPOTIFY_RESULT_REFERENCE_PATTERN.fullmatch(value.strip()) is not None
+    normalized = value.strip()
+    return (
+        _SPOTIFY_RESULT_REFERENCE_PATTERN.fullmatch(normalized) is not None
+        or _SPOTIFY_RESULTISH_QUERY_PATTERN.fullmatch(normalized) is not None
+    )
+
+
+def _is_reserved_spotify_content(value: str) -> bool:
+    key = value.strip().casefold()
+    if key in _SPOTIFY_CONTENT_RESERVED:
+        return True
+    if _SPOTIFY_CONTROL_QUERY_PATTERN.fullmatch(key) is not None:
+        return True
+    if _SPOTIFY_RESULTISH_QUERY_PATTERN.fullmatch(key) is not None:
+        return True
+    return False
+
+
+def _is_artist_search_media_query(value: str) -> bool:
+    return _SPOTIFY_MEDIA_PREFIX_PATTERN.match(value.strip()) is not None
 
 
 def _split_spotify_title_artist_query(query: str) -> tuple[str, str]:

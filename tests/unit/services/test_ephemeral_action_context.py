@@ -111,6 +111,24 @@ class EphemeralActionContextTest(unittest.TestCase):
         self.assertEqual(close.action_id, "applications.close")
         self.assertEqual(close.parameters["application_id"], "discord")
 
+    def test_resolves_natural_spotify_pronoun_controls(self) -> None:
+        self.context.record_spotify_activity()
+
+        cases = (
+            ("Turn it up", "spotify.volume", {"service": "spotify", "volume_delta_percent": 10}),
+            ("Make it quieter", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
+            ("It's too loud", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
+            ("Skip this", "spotify.next", {"service": "spotify"}),
+            ("Stop it", "spotify.pause", {"service": "spotify"}),
+        )
+
+        for text, action_id, parameters in cases:
+            with self.subTest(text=text):
+                request = self.context.resolve(text)
+
+                self.assertEqual(request.action_id, action_id)
+                self.assertEqual(dict(request.parameters), parameters)
+
     def test_resolves_named_child_only_under_recent_directory(self) -> None:
         self.context.record_directory(r"C:\Users\Akiha\Downloads")
 
