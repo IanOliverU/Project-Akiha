@@ -115,10 +115,34 @@ class EphemeralActionContextTest(unittest.TestCase):
         self.context.record_spotify_activity()
 
         cases = (
-            ("Turn it up", "spotify.volume", {"service": "spotify", "volume_delta_percent": 10}),
-            ("Make it quieter", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
-            ("It's too loud", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
+            (
+                "Turn it up",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": 10},
+            ),
+            (
+                "Make it quieter",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -10},
+            ),
+            (
+                "It's too loud",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -10},
+            ),
+            (
+                "Turn it up by twenty percent",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": 20},
+            ),
+            (
+                "Make it quieter by ten percent",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -10},
+            ),
             ("Skip this", "spotify.next", {"service": "spotify"}),
+            ("I don't like this one", "spotify.next", {"service": "spotify"}),
+            ("Go back", "spotify.previous", {"service": "spotify"}),
             ("Stop it", "spotify.pause", {"service": "spotify"}),
         )
 
@@ -128,6 +152,10 @@ class EphemeralActionContextTest(unittest.TestCase):
 
                 self.assertEqual(request.action_id, action_id)
                 self.assertEqual(dict(request.parameters), parameters)
+
+    def test_ambiguous_spotify_phrases_need_recent_context(self) -> None:
+        self.assertIsNone(self.context.resolve("I don't like this one"))
+        self.assertIsNone(self.context.resolve("Go back"))
 
     def test_resolves_named_child_only_under_recent_directory(self) -> None:
         self.context.record_directory(r"C:\Users\Akiha\Downloads")

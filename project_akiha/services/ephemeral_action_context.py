@@ -15,12 +15,14 @@ from project_akiha.core.actions.registry import (
     CLOSE_APPLICATION_ACTION,
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_PAUSE_ACTION,
+    SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_VOLUME_ACTION,
 )
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
+from project_akiha.services.spoken_numbers import parse_english_number
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _REFERENCE_PREFIX_PATTERN = re.compile(
@@ -48,6 +50,9 @@ _SPOTIFY_PRONOUN_PATTERN = re.compile(
     r"the\s+playback)(?:\s+on\s+spotify)?\s*[.!?]?$|"
     r"^(?P<next>skip|next)\s+(?:it|that|this|the\s+song|the\s+track)"
     r"(?:\s+on\s+spotify)?\s*[.!?]?$|"
+    r"^(?P<dislike>(?:i\s+)?don(?:'|\u2019)t\s+like\s+this"
+    r"(?:\s+(?:one|song|track))?)\s*[.!?]?$|"
+    r"^(?P<previous>go\s+back)\s*[.!?]?$|"
     r"^turn\s+it\s+(?P<volume_direction>up|down)(?:\s+by\s+(?P<volume_value>.+?))?"
     r"\s*[.!?]?$|"
     r"^make\s+it\s+(?P<make_quality>louder|quieter|softer|higher)"
@@ -57,7 +62,7 @@ _SPOTIFY_PRONOUN_PATTERN = re.compile(
 )
 _DEFAULT_RELATIVE_VOLUME_DELTA = 10
 _VOLUME_NUMBER_PATTERN = re.compile(
-    r"^\s*(?P<number>\d{1,3}|[a-z]+(?:[\s-][a-z]+)*)\s*"
+    r"^\s*(?P<number>\d{1,3}|[a-z]+(?:[\s-][a-z]+)*?)\s*"
     r"(?:%|percent|per\s+cent)?\s*$",
     re.IGNORECASE,
 )
@@ -269,6 +274,11 @@ class EphemeralActionContext:
         if spotify_match is not None:
             if self._spotify_expires_at <= self._now():
                 self._spotify_expires_at = 0.0
+                if (
+                    spotify_match.group("dislike") is not None
+                    or spotify_match.group("previous") is not None
+                ):
+                    return None
                 return EphemeralReferenceError(
                     "There is no recent Spotify playback to control."
                 )
@@ -282,6 +292,10 @@ class EphemeralActionContext:
                 return self._request(action_id, {"service": "spotify"})
             if spotify_match.group("next") is not None:
                 return self._request(SPOTIFY_NEXT_ACTION, {"service": "spotify"})
+            if spotify_match.group("dislike") is not None:
+                return self._request(SPOTIFY_NEXT_ACTION, {"service": "spotify"})
+            if spotify_match.group("previous") is not None:
+                return self._request(SPOTIFY_PREVIOUS_ACTION, {"service": "spotify"})
             delta = self._relative_volume_delta(spotify_match)
             if delta is None:
                 return EphemeralReferenceError(
@@ -405,16 +419,16 @@ class EphemeralActionContext:
             amount = _DEFAULT_RELATIVE_VOLUME_DELTA
         else:
             number_match = _VOLUME_NUMBER_PATTERN.fullmatch(raw_value)
-            if number_match is None or not number_match.group("number").isdigit():
+            if number_match is None:
                 return None
-            amount = int(number_match.group("number"))
+            amount = parse_english_number(number_match.group("number"))
+            if amount is None:
+                return None
             if not 1 <= amount <= 100:
                 return None
         if match.group("too_quality") is not None:
             return (
-                -amount
-                if match.group("too_quality").casefold() == "loud"
-                else amount
+                -amount if match.group("too_quality").casefold() == "loud" else amount
             )
         if match.group("make_quality") is not None:
             quality = match.group("make_quality").casefold()

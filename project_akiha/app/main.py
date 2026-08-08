@@ -1977,10 +1977,18 @@ def _run_application() -> int:
         turn_id = f"intent-turn-{uuid4().hex}"
         refresh_assistant_action_aliases()
         selection_error = None
-        action_request = None
-        action_source = IntentProposalSource.CONTEXT
+        action_request = assistant_action_bridge.parse_user_text(message)
+        action_source = (
+            IntentProposalSource.EXACT
+            if action_request is not None
+            else IntentProposalSource.CONTEXT
+        )
         directory_reference = None
-        reference = ephemeral_action_context.resolve(message)
+        reference = (
+            None
+            if action_request is not None
+            else ephemeral_action_context.resolve(message)
+        )
         if isinstance(reference, ActionRequest):
             action_request = reference
         elif isinstance(reference, EphemeralSelectionReference):
@@ -2015,10 +2023,6 @@ def _run_application() -> int:
             )
         elif isinstance(reference, EphemeralReferenceError):
             selection_error = reference.message
-        if action_request is None and selection_error is None:
-            action_request = assistant_action_bridge.parse_user_text(message)
-            if action_request is not None:
-                action_source = IntentProposalSource.EXACT
         directory_proposal = None
         if directory_reference is not None:
             directory_proposal = directory_reference
