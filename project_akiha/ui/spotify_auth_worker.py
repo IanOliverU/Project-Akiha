@@ -8,8 +8,8 @@ from collections.abc import Callable
 from PySide6.QtCore import QObject, QThread, Signal
 
 from project_akiha.config import SpotifyConfig
-from project_akiha.services.spotify_auth import SpotifyOAuthError, SpotifyToken
-from project_akiha.services.spotify_oauth_flow import authorize_spotify
+from project_akiha.integrations.spotify.auth import SpotifyOAuthError, SpotifyToken
+from project_akiha.integrations.spotify.oauth_flow import authorize_spotify
 
 AuthorizationService = Callable[
     [SpotifyConfig, Callable[[str], None], threading.Event],

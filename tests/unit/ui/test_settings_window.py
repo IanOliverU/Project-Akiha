@@ -20,10 +20,10 @@ from project_akiha.core.actions import (
     InstalledApplication,
     PermissionGrant,
 )
+from project_akiha.integrations.spotify.auth import SpotifyToken
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
-from project_akiha.services.spotify_auth import SpotifyToken
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.theme import AKIHA_PALETTE
 

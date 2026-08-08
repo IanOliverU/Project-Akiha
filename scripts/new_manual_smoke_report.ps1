@@ -1,6 +1,6 @@
 param(
     [string]$OutputDir = "dist\manual-smoke-reports",
-    [string]$TemplatePath = "docs\MANUAL_SMOKE_REPORT_TEMPLATE.md"
+    [string]$TemplatePath = "docs\phases\phase-06-packaging\MANUAL_SMOKE_REPORT_TEMPLATE.md"
 )
 
 $ErrorActionPreference = "Stop"

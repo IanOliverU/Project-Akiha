@@ -52,6 +52,7 @@ from project_akiha.core.actions import (
     PermissionGrant,
 )
 from project_akiha.core.voice_session import VoiceProcessingMode
+from project_akiha.integrations.spotify.auth import SpotifyToken
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryRequest,
     AIProviderDiscoveryResult,
@@ -60,7 +61,6 @@ from project_akiha.services.credential_store import (
     CredentialStore,
     CredentialStoreError,
 )
-from project_akiha.services.spotify_auth import SpotifyToken
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )

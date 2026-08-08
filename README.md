@@ -38,7 +38,7 @@ Akiha is intended to become a personal desktop companion that can:
 
 ## Current Status
 
-Phases 1 through 7 are complete. Akiha now supports local microphone capture,
+Phases 1 through 8 are complete. Akiha now supports local microphone capture,
 faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX playback,
 automatic reply speech, and a minimal speech identity. Chat can switch between
 mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
@@ -47,17 +47,18 @@ Windows user and never stored in ordinary TOML configuration. Phase 8 is
 complete with permission-gated file discovery, approved-root and descendant
 directory navigation, passive-file and local-media opening, allowlisted
 application launch/close, revocable grants, confirmation surfaces, and
-sanitized action history. The Python 3.13 standalone package passed automated
-and manual Phase 8 verification. The optional Spotify extension is now
-source-complete with PKCE account connection, permission-gated playback,
+sanitized action history. The optional Spotify extension provides PKCE account
+connection, permission-gated playback,
 artist/track/album/playlist workflows, Liked Songs and favorite mixes, and
-ephemeral local preference ranking. Its source implementation is complete, but
-its independent manual packaged verification and replacement standalone build
-remain pending. Pet simulation remains planned after the Voice Intent and Live
-Conversation work. The approved Post-Phase 8 voice milestone will replace the
-current sequential wait pattern with a provider-neutral pipeline supporting a
-fully local Ollama lane, a hybrid hosted-text-API lane, and an optional hosted
-live-audio lane without changing the Phase 8 permission boundary.
+ephemeral local preference ranking. Post-Phase 8 Voice Intelligence milestones
+V0 through V5 are complete: Akiha now owns a provider-neutral, pipelined local
+voice coordinator with rolling recognition, contextual intent correction,
+streamed VOICEVOX speech, interruption, and bounded multi-turn Conversation
+Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
+data smoke checks and the complete manual voice, provider, conversation,
+context, action, and shutdown checklist. V6 will add optional Gemini Live
+without weakening or replacing the complete local modular lane. Pet simulation
+remains planned after the Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -69,7 +70,8 @@ live-audio lane without changing the Phase 8 permission boundary.
 | Phase 6 | Done | Packaging, release hardening, and maintainability |
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
-| Post-Phase 8 | Approved | Pipelined voice intent and live conversation with local/API support |
+| Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
+| Post-Phase 8 V6-V8 | Planned | Optional Gemini Live and provider-native typed tool proposals |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -141,7 +143,7 @@ Build the non-AI foundation that makes Akiha feel present on the desktop.
 - Sprite animation manifest loading with placeholder fallback.
 - Walking animation filmstrip support and mirrored left/right walking.
 
-Details: `docs/PHASE1_DESKTOP_PET.md`
+Details: `docs/phases/phase-01-desktop-pet/README.md`
 
 ### Phase 2: Chat Foundation
 
@@ -159,7 +161,7 @@ provider interface.
 - SQLite conversation and message persistence.
 - New chat, clear chat, export transcript, status labels, and cancellation.
 
-Details: `docs/PHASE2_CHAT_FOUNDATION.md`
+Details: `docs/phases/phase-02-chat/README.md`
 
 ### Phase 3: Memory Pipeline
 
@@ -177,7 +179,7 @@ Turn raw conversations into durable, reviewable memory.
 - Memory manager UI for search, edit, archive, restore, delete, and clear.
 - Closed-conversation summaries and hidden summary prompt context.
 
-Details: `docs/PHASE3_MEMORY_LAYER.md`
+Details: `docs/phases/phase-03-memory/README.md`
 
 ### Phase 4: Activity, Mood, And Proactive Behavior
 
@@ -195,7 +197,7 @@ Make Akiha aware of user activity and capable of careful proactive behavior.
 - Behavior event history stored in SQLite.
 - Behavior history recording for proactive suggestions and delivery outcomes.
 
-Details: `docs/PHASE4_ACTIVITY_MOOD_PROACTIVE.md`
+Details: `docs/phases/phase-04-behavior/README.md`
 
 ### Phase 5: Companion Experience Polish And Interaction Depth
 
@@ -212,7 +214,7 @@ Improve the user-facing companion experience now that the core systems exist.
 - Startup and shutdown robustness review.
 - Phase 6 packaging checklist.
 
-Details: `docs/PHASE5_COMPANION_POLISH.md`
+Details: `docs/phases/phase-05-polish/README.md`
 
 ### Phase 6: Packaging, Release Hardening, And Maintainability
 
@@ -228,7 +230,7 @@ Prepare Akiha for longer-term use and eventual distribution.
 - Python 3.13 standalone packaging and smoke workflow established.
 - Pet-menu fallback controls for Behavior History and Quit.
 
-Details: `docs/PHASE6_PACKAGING_RELEASE.md`
+Details: `docs/phases/phase-06-packaging/README.md`
 
 ### Phase 7: Voice Layer
 
@@ -244,7 +246,7 @@ one speech engine.
 - Replaceable speech-to-text and text-to-speech provider interfaces.
 - Listening, thinking, speaking, muted, and error states.
 - Voice settings, diagnostics, device selection, and failure recovery.
-- A minimal Akiha speech identity derived from `docs/AKIHA.MD`.
+- A minimal Akiha speech identity derived from `docs/reference/AKIHA.md`.
 - Raw-text fallback when speech styling fails.
 - Japanese canonical assistant responses with optional persisted English
   subtitles.
@@ -252,7 +254,7 @@ one speech engine.
 - Japanese deterministic memory fallback for mock or unavailable AI providers.
 - Custom voice training and cloud voice providers deferred.
 
-Details: `docs/PHASE7_VOICE_LAYER.md`
+Details: `docs/phases/phase-07-voice/README.md`
 
 ### Phase 8: Permission-Gated Assistant Actions
 
@@ -278,7 +280,7 @@ granting unrestricted operating-system access.
 - Deny shell commands, elevation, file mutation, system-critical access,
   arbitrary executables, arguments, and autonomous background actions.
 
-Details: `docs/PHASE8_ASSISTANT_ACTIONS.md`
+Details: `docs/phases/phase-08-actions/README.md`
 
 ### Phase 9: Pet Sim Layer
 
@@ -288,7 +290,7 @@ stored state but never determines it through keyword or sentiment parsing.
 Gameplay pressure, care-loop behavior, the minimum reaction matrix, and asset
 fallbacks will be researched before implementation begins.
 
-Details: `docs/PHASE9_PET_SIM_LAYER.md`
+Details: `docs/phases/phase-09-pet-sim/README.md`
 
 ### Phase 10: Shop And Visual Pet Expansion
 
@@ -313,7 +315,7 @@ Akiha follows a layered, event-driven structure:
 UI Layer (PySide6)
     -> Application Controllers
         -> Framework-free Core
-            -> Providers, Repositories, Services
+            -> Providers, Integrations, Repositories, Services
 ```
 
 Important architectural rules:
@@ -322,6 +324,8 @@ Important architectural rules:
 - UI sends and receives app events instead of directly owning companion logic.
 - AI access goes through provider interfaces.
 - Database access goes through repository classes.
+- External product integrations live under `project_akiha/integrations/` and
+  still enter the app through typed service and permission boundaries.
 - Memory is a pipeline: extraction, normalization, validation, storage,
   retrieval, and prompt context assembly.
 - Behavior is built from small components: activity, policy, proactive
@@ -342,9 +346,9 @@ Runtime data is stored under `%LOCALAPPDATA%\Akiha\`.
 | App logs | `%LOCALAPPDATA%\Akiha\logs\app.log` |
 | Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` |
 
-Details: `docs/LOCAL_DATA_PRIVACY.md`
+Details: `docs/reference/LOCAL_DATA_PRIVACY.md`
 
-Provider setup: `docs/AI_PROVIDERS.md`
+Provider setup: `docs/reference/AI_PROVIDERS.md`
 
 ## Run
 
@@ -394,42 +398,44 @@ release-candidate standalone builds:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-phase8-release
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v5-local-voice-final
 ```
 
 Automated release readiness for the current standalone package:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-phase8-release\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v5-local-voice-final\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
-Build and release workflow details: `docs/BUILD_RELEASE.md`
+Documentation index: `docs/README.md`
 
-Distribution decision: `docs/DISTRIBUTION_DECISION.md`
+Build and release workflow details:
+`docs/phases/phase-06-packaging/BUILD_RELEASE.md`
 
-Security review: `docs/SECURITY_REVIEW.md`
+Distribution decision: `docs/phases/phase-06-packaging/DISTRIBUTION_DECISION.md`
 
-Post-Phase-6 backlog: `docs/POST_PHASE6_BACKLOG.md`
+Security review: `docs/reference/SECURITY_REVIEW.md`
 
-Phase 8 plan: `docs/PHASE8_ASSISTANT_ACTIONS.md`
+Project backlog: `docs/roadmap/PROJECT_BACKLOG.md`
 
-Assistant-action improvement backlog: `docs/ASSISTANT_ACTIONS_BACKLOG.md`
+Phase 8 plan: `docs/phases/phase-08-actions/README.md`
 
-Spotify integration and closure record: `docs/SPOTIFY_INTEGRATION.md`
+Assistant-action improvement backlog: `docs/phases/phase-08-actions/BACKLOG.md`
 
-Approved Post-Phase 8 Voice Intent and Live Conversation architecture:
-`docs/VOICE_INTENT_LIVE_CONVERSATION.md`
+Spotify integration and closure record:
+`docs/phases/phase-08-actions/SPOTIFY_INTEGRATION.md`
 
-Voice Pipeline V0 evaluation: `docs/VOICE_PIPELINE_V0_EVALUATION.md`
+Post-Phase 8 Voice Intelligence V0-V8 architecture and evidence:
+`docs/roadmap/VOICE_INTELLIGENCE_V0_V8.md`
 
-Voice Pipeline V0 decision: `docs/VOICE_PIPELINE_V0_DECISION.md`
+Phase 9 plan: `docs/phases/phase-09-pet-sim/README.md`
 
-Phase 9 plan: `docs/PHASE9_PET_SIM_LAYER.md`
+Manual packaged smoke checklist:
+`docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md`
 
-Manual packaged smoke checklist: `docs/MANUAL_PACKAGED_SMOKE.md`
+Manual smoke report template:
+`docs/phases/phase-06-packaging/MANUAL_SMOKE_REPORT_TEMPLATE.md`
 
-Manual smoke report template: `docs/MANUAL_SMOKE_REPORT_TEMPLATE.md`
-
-Release notes draft: `docs/RELEASE_NOTES_DRAFT.md`
+Release notes draft: `docs/phases/phase-06-packaging/RELEASE_NOTES_DRAFT.md`

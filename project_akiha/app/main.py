@@ -130,6 +130,32 @@ from project_akiha.database import (
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
 )
+from project_akiha.integrations.spotify.albums import (
+    SpotifyAlbumSelectionStore,
+    build_spotify_album_executors,
+)
+from project_akiha.integrations.spotify.client import SpotifyClient
+from project_akiha.integrations.spotify.devices import (
+    PermissionGatedSpotifyActivator,
+    SpotifyDeviceCoordinator,
+)
+from project_akiha.integrations.spotify.favorites import (
+    build_spotify_favorites_executors,
+)
+from project_akiha.integrations.spotify.playback import (
+    SpotifyArtistSelectionStore,
+    build_spotify_playback_executors,
+)
+from project_akiha.integrations.spotify.playlists import (
+    SpotifyPlaylistSelectionStore,
+    build_spotify_playlist_executors,
+)
+from project_akiha.integrations.spotify.preferences import SpotifyPreferenceRanker
+from project_akiha.integrations.spotify.session import SpotifySession
+from project_akiha.integrations.spotify.tracks import (
+    SpotifyTrackSelectionStore,
+    build_spotify_track_executors,
+)
 from project_akiha.providers.ai import (
     AIProvider,
     MockAIProvider,
@@ -211,30 +237,6 @@ from project_akiha.services.speech_identity import (
 )
 from project_akiha.services.speech_input import SpeechInputService
 from project_akiha.services.speech_output import SpeechOutputService
-from project_akiha.services.spotify_albums import (
-    SpotifyAlbumSelectionStore,
-    build_spotify_album_executors,
-)
-from project_akiha.services.spotify_client import SpotifyClient
-from project_akiha.services.spotify_devices import (
-    PermissionGatedSpotifyActivator,
-    SpotifyDeviceCoordinator,
-)
-from project_akiha.services.spotify_favorites import build_spotify_favorites_executors
-from project_akiha.services.spotify_playback import (
-    SpotifyArtistSelectionStore,
-    build_spotify_playback_executors,
-)
-from project_akiha.services.spotify_playlists import (
-    SpotifyPlaylistSelectionStore,
-    build_spotify_playlist_executors,
-)
-from project_akiha.services.spotify_preferences import SpotifyPreferenceRanker
-from project_akiha.services.spotify_session import SpotifySession
-from project_akiha.services.spotify_tracks import (
-    SpotifyTrackSelectionStore,
-    build_spotify_track_executors,
-)
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,

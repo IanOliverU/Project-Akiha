@@ -25,11 +25,11 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_VOLUME_ACTION,
 )
+from project_akiha.integrations.spotify.contextual_intent import (
+    ContextualSpotifyIntentResolver,
+)
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
-)
-from project_akiha.services.contextual_spotify_intent import (
-    ContextualSpotifyIntentResolver,
 )
 from project_akiha.services.intent_context import IntentContextSnapshot
 from project_akiha.services.spoken_numbers import parse_english_number
