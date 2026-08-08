@@ -1087,6 +1087,16 @@ memory; this context is never persisted or sent to companion memory. An
 unnamed child folder remains ambiguous and produces a clarification instead of
 guessing.
 
+Post-V5 contextual correction now records only successful, sanitized action
+identifiers plus coarse Spotify playback state. While that context is fresh,
+the local resolver can conservatively recover pronunciation and
+language-detection variants such as `Paue MIZIK` after playback or
+`Continua la música` after a successful pause. Resolution requires one strong
+context-compatible candidate; competing pause/resume-style candidates produce
+a fixed local clarification, and unrelated music conversation falls through
+without execution. Context expiry, chat reset, settings changes, or closing
+Spotify remove the correction state.
+
 Each submitted message now receives an opaque intent-turn ID. Exact and
 contextual local routing closes before a hosted proposal becomes eligible, and
 the bounded `IntentTurnLedger` accepts at most one action category for that
@@ -1100,10 +1110,14 @@ The optional JSON provider fallback now runs only after local parsing and
 context resolution fail. It is disabled by default, rejects negated,
 metalinguistic, quoted, oversized, or non-action input before contacting the
 selected provider, and accepts only exact path-free schemas for allowlisted
-applications, named directory lookup, passive media lookup, `none`, or a typed
-clarification topic. Clarification text is rendered locally. Approved roots,
-search results, paths, action parameters, and durable memory are never added to
-provider proposal messages. Returned proposals still pass through local target
+applications, named directory lookup, passive media lookup, bounded Spotify
+playback, `none`, or a typed clarification topic. Clarification text is
+rendered locally. The model receives the current action sentence and only
+coarse expiring labels for recent action, allowlisted application,
+directory-context presence, and Spotify `playing` / `paused` state. Approved
+roots, conversation history, search results, paths, action parameters, Spotify
+library data, device IDs, and durable memory are never added to provider
+proposal messages. Returned proposals still pass through local target
 resolution, permissions, confirmation, execution, audit, and intent
 arbitration. Provider-native function calling remains deferred to V7.
 

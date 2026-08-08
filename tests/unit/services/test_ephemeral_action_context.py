@@ -157,6 +157,85 @@ class EphemeralActionContextTest(unittest.TestCase):
         self.assertIsNone(self.context.resolve("I don't like this one"))
         self.assertIsNone(self.context.resolve("Go back"))
 
+    def test_uses_recent_spotify_state_to_correct_noisy_transcripts(self) -> None:
+        self.context.record_spotify_action("spotify.play")
+
+        pause = self.context.resolve("Paue MIZIK!")
+
+        self.assertEqual(pause.action_id, "spotify.pause")
+        self.assertEqual(dict(pause.parameters), {"service": "spotify"})
+
+        self.context.record_spotify_action("spotify.pause")
+        resume = self.context.resolve("Continua la música")
+
+        self.assertEqual(resume.action_id, "spotify.resume")
+        self.assertEqual(dict(resume.parameters), {"service": "spotify"})
+
+    def test_contextual_spotify_resolution_does_not_blindly_guess(self) -> None:
+        self.context.record_spotify_action("spotify.pause")
+
+        clarification = self.context.resolve("Pause or resume music")
+        unrelated = self.context.resolve("I really enjoy music theory")
+        unrelated_follow_up = self.context.resolve("Continue working on the project")
+
+        self.assertIsInstance(clarification, EphemeralReferenceError)
+        self.assertIn("pause", clarification.message)
+        self.assertIn("resume", clarification.message)
+        self.assertIsNone(unrelated)
+        self.assertIsNone(unrelated_follow_up)
+
+    def test_contextual_correction_requires_fresh_successful_activity(self) -> None:
+        self.assertIsNone(self.context.resolve("Continua la música"))
+
+        self.context.record_spotify_action("spotify.pause")
+        self.now += 31.0
+
+        self.assertIsNone(self.context.resolve("Continua la música"))
+
+    def test_clearing_spotify_activity_removes_contextual_corrections(self) -> None:
+        self.context.record_spotify_action("spotify.pause")
+        self.context.clear_spotify_activity()
+
+        self.assertIsNone(self.context.resolve("Continua la música"))
+
+    def test_exposes_only_sanitized_fresh_intent_context(self) -> None:
+        self.context.record_successful_action("spotify.pause")
+        self.context.record_application("spotify")
+        self.context.record_directory(r"C:\Users\Akiha\Music")
+
+        snapshot = self.context.intent_context_snapshot()
+
+        self.assertEqual(snapshot.recent_action_id, "spotify.pause")
+        self.assertEqual(snapshot.recent_application_id, "spotify")
+        self.assertEqual(snapshot.spotify_playback_state, "paused")
+        self.assertTrue(snapshot.has_recent_spotify_activity)
+        self.assertTrue(snapshot.has_recent_directory)
+        self.assertNotIn(r"C:\Users\Akiha", snapshot.render_for_provider())
+
+        self.now += 31.0
+        expired = self.context.intent_context_snapshot()
+
+        self.assertFalse(expired.has_action_context)
+
+    def test_spotify_search_does_not_claim_playback_context(self) -> None:
+        self.context.record_successful_action("spotify.search_tracks")
+
+        snapshot = self.context.intent_context_snapshot()
+
+        self.assertEqual(snapshot.recent_action_id, "spotify.search_tracks")
+        self.assertFalse(snapshot.has_recent_spotify_activity)
+
+    def test_non_spotify_action_survives_empty_spotify_context(self) -> None:
+        self.context.record_successful_action("applications.launch")
+
+        snapshot = self.context.intent_context_snapshot()
+
+        self.assertEqual(snapshot.recent_action_id, "applications.launch")
+        self.assertFalse(snapshot.has_recent_spotify_activity)
+
+    def test_empty_context_snapshot_is_safe_before_any_action(self) -> None:
+        self.assertFalse(self.context.intent_context_snapshot().has_action_context)
+
     def test_resolves_named_child_only_under_recent_directory(self) -> None:
         self.context.record_directory(r"C:\Users\Akiha\Downloads")
 

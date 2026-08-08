@@ -14,6 +14,7 @@ from project_akiha.services.assistant_tool_gateway import (
     AssistantToolResultStore,
     LLMAssistantToolGateway,
     MediaKind,
+    SpotifyPlaybackOperation,
     build_media_search_queries,
     directory_name_matches,
     filter_directory_matches,
@@ -23,6 +24,7 @@ from project_akiha.services.assistant_tool_gateway import (
     render_assistant_tool_clarification,
     should_request_tool_proposal,
 )
+from project_akiha.services.intent_context import IntentContextSnapshot
 
 
 class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
@@ -87,6 +89,68 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
             ChatMessage(role="user", content="put on Elis by Megurine Luka"),
         )
 
+    async def test_gateway_uses_sanitized_context_for_noisy_follow_up(self) -> None:
+        provider = _FakeProvider('{"action":"spotify_playback","operation":"resume"}')
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+        context = IntentContextSnapshot(
+            recent_action_id="spotify.pause",
+            recent_application_id="spotify",
+            spotify_playback_state="paused",
+            has_recent_spotify_activity=True,
+        )
+
+        proposal = await gateway.propose("Continua la música", context=context)
+
+        self.assertEqual(proposal.kind, AssistantToolKind.SPOTIFY_PLAYBACK)
+        self.assertEqual(
+            proposal.spotify_operation,
+            SpotifyPlaybackOperation.RESUME,
+        )
+        system_prompt = provider.messages[0].content
+        self.assertIn("recent_action=spotify.pause", system_prompt)
+        self.assertIn("spotify_state=paused", system_prompt)
+        self.assertNotIn("C:\\", system_prompt)
+
+    async def test_gateway_can_use_recent_allowlisted_application_context(self) -> None:
+        provider = _FakeProvider(
+            '{"action":"close_application","application_id":"discord"}'
+        )
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+        context = IntentContextSnapshot(
+            recent_action_id="applications.launch",
+            recent_application_id="discord",
+        )
+
+        proposal = await gateway.propose("Could you stop that one?", context=context)
+
+        self.assertEqual(proposal.kind, AssistantToolKind.CLOSE_APPLICATION)
+        self.assertEqual(proposal.application_id, "discord")
+        self.assertIn("recent_application=discord", provider.messages[0].content)
+
+    async def test_gateway_clarifies_competing_recent_action_targets(self) -> None:
+        provider = _FakeProvider(
+            '{"action":"close_application","application_id":"discord"}'
+        )
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+        context = IntentContextSnapshot(
+            recent_action_id="spotify.pause",
+            recent_application_id="discord",
+            spotify_playback_state="paused",
+            has_recent_spotify_activity=True,
+        )
+
+        proposal = await gateway.propose("Could you stop that one?", context=context)
+
+        self.assertEqual(proposal.kind, AssistantToolKind.CLARIFY)
+        self.assertEqual(
+            proposal.clarification,
+            AssistantToolClarification.CONTEXT_TARGET,
+        )
+        self.assertIn(
+            "recent application or Spotify",
+            render_assistant_tool_clarification(proposal),
+        )
+
     def test_rejects_unallowlisted_application_and_extra_path(self) -> None:
         with self.assertRaises(AssistantToolProposalError):
             parse_assistant_tool_proposal(
@@ -125,6 +189,26 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(AssistantToolProposalError):
             parse_assistant_tool_proposal(
                 '{"action":"close_application","application_id":"akiha"}'
+            )
+
+    def test_accepts_only_bounded_spotify_playback_proposals(self) -> None:
+        proposal = parse_assistant_tool_proposal(
+            '{"action":"spotify_playback","operation":"previous"}'
+        )
+
+        self.assertEqual(proposal.kind, AssistantToolKind.SPOTIFY_PLAYBACK)
+        self.assertEqual(
+            proposal.spotify_operation,
+            SpotifyPlaybackOperation.PREVIOUS,
+        )
+        with self.assertRaises(AssistantToolProposalError):
+            parse_assistant_tool_proposal(
+                '{"action":"spotify_playback","operation":"search"}'
+            )
+        with self.assertRaises(AssistantToolProposalError):
+            parse_assistant_tool_proposal(
+                '{"action":"spotify_playback","operation":"pause",'
+                '"device_id":"secret"}'
             )
 
     def test_accepts_path_free_directory_proposal(self) -> None:
@@ -174,6 +258,19 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(should_request_tool_proposal("What should we do today?"))
         self.assertFalse(should_request_tool_proposal("Do not open Discord"))
         self.assertFalse(should_request_tool_proposal("How do I open Discord?"))
+
+        spotify_context = IntentContextSnapshot(
+            recent_action_id="spotify.pause",
+            spotify_playback_state="paused",
+            has_recent_spotify_activity=True,
+        )
+        self.assertTrue(
+            should_request_tool_proposal(
+                "Continua la música",
+                context=spotify_context,
+            )
+        )
+        self.assertFalse(should_request_tool_proposal("Continua la música"))
 
 
 class AssistantToolMediaTest(unittest.TestCase):

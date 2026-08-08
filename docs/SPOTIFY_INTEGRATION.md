@@ -89,6 +89,17 @@ small tested alias set for observed `pause`/`Spotify` transcription errors.
 Artist, track, album, playlist, and favorites selection use separate local
 resolution steps.
 
+Successful playback also creates a five-minute, memory-only context containing
+only the last Spotify action and coarse `playing` / `paused` state. This lets
+the contextual resolver recover strong speech-recognition variants such as
+`Paue MIZIK` or `Continua la música` without changing the displayed transcript
+or stored conversation. Weak or competing interpretations ask a fixed local
+clarification instead of executing. When optional AI-assisted actions are
+enabled, the selected hosted or local model may receive the current request
+and those coarse labels, but never library data, device IDs, Spotify URIs, or
+conversation history; its typed proposal still uses the existing permission
+and audit path.
+
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
 Megurine Luka`, `play Megurine Luka's catalog on Spotify`, and

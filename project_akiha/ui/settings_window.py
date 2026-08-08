@@ -195,7 +195,8 @@ class SettingsWindow(QWidget):
             config.ai.assistant_tools_enabled
         )
         self._assistant_tools_enabled_input.setToolTip(
-            "Let the selected AI interpret allowlisted app and local media requests."
+            "Let the selected AI interpret allowlisted actions using bounded recent "
+            "action context."
         )
         self._character_name_input = QLineEdit(config.personality.character_name)
         self._system_prompt_input = QPlainTextEdit(config.personality.system_prompt)

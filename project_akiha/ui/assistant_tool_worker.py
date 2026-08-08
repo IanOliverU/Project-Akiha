@@ -26,6 +26,7 @@ from project_akiha.services.assistant_tool_gateway import (
     filter_directory_matches,
     filter_media_matches,
 )
+from project_akiha.services.intent_context import IntentContextSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,11 +56,13 @@ class AssistantToolProposalThread(QThread):
         self,
         gateway: LLMAssistantToolGateway,
         user_text: str,
+        context: IntentContextSnapshot | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
         self._gateway = gateway
         self._user_text = user_text
+        self._context = context or IntentContextSnapshot()
         self._is_cancel_requested = False
 
     def run(self) -> None:
@@ -68,7 +71,12 @@ class AssistantToolProposalThread(QThread):
             self.cancelled.emit()
             return
         try:
-            proposal = asyncio.run(self._gateway.propose(self._user_text))
+            proposal = asyncio.run(
+                self._gateway.propose(
+                    self._user_text,
+                    context=self._context,
+                )
+            )
         except Exception as error:
             self.failed.emit(str(error))
             return

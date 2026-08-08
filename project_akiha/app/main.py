@@ -78,12 +78,17 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_NEXT_ACTION,
     SPOTIFY_OPEN_ALBUM_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
+    SPOTIFY_PAUSE_ACTION,
+    SPOTIFY_PLAY_ACTION,
     SPOTIFY_PLAY_ALBUM_ACTION,
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PLAY_PLAYLIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
+    SPOTIFY_PREVIOUS_ACTION,
+    SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ALBUMS_ACTION,
     SPOTIFY_SEARCH_ARTISTS_ACTION,
     SPOTIFY_SEARCH_PLAYLISTS_ACTION,
@@ -157,6 +162,7 @@ from project_akiha.services.assistant_tool_gateway import (
     AssistantToolProposal,
     AssistantToolResultStore,
     LLMAssistantToolGateway,
+    SpotifyPlaybackOperation,
     directory_name_matches,
     parse_directory_navigation_proposal,
     render_assistant_tool_clarification,
@@ -1418,6 +1424,7 @@ def _run_application() -> int:
 
         if result.status.value == "success":
             action_id = dispatch.request.action_id
+            ephemeral_action_context.record_successful_action(action_id)
             if action_id == LAUNCH_APPLICATION_ACTION:
                 application_id = dispatch.request.parameters.get("application_id")
                 if isinstance(application_id, str):
@@ -1427,15 +1434,8 @@ def _run_application() -> int:
                 ephemeral_action_context.clear_application(
                     application_id if isinstance(application_id, str) else None
                 )
-            if action_id.startswith("spotify.") and action_id not in {
-                SPOTIFY_OPEN_ALBUM_ACTION,
-                SPOTIFY_OPEN_ARTIST_ACTION,
-                SPOTIFY_SEARCH_ALBUMS_ACTION,
-                SPOTIFY_SEARCH_ARTISTS_ACTION,
-                SPOTIFY_SEARCH_PLAYLISTS_ACTION,
-                SPOTIFY_SEARCH_TRACKS_ACTION,
-            }:
-                ephemeral_action_context.record_spotify_activity()
+                if application_id == "spotify":
+                    ephemeral_action_context.clear_spotify_activity()
             if dispatch.request.action_id in {
                 SPOTIFY_OPEN_ARTIST_ACTION,
                 SPOTIFY_PLAY_ARTIST_ACTION,
@@ -1899,6 +1899,7 @@ def _run_application() -> int:
         thread = AssistantToolProposalThread(
             assistant_tool_gateway,
             message,
+            ephemeral_action_context.intent_context_snapshot(),
         )
         active_tool_threads.append(thread)
 
@@ -1941,6 +1942,26 @@ def _run_application() -> int:
             if proposal.kind is AssistantToolKind.OPEN_DIRECTORY:
                 start_directory_search(
                     proposal,
+                    turn_id=turn_id,
+                    source=IntentProposalSource.PROVIDER,
+                )
+                return
+            if proposal.kind is AssistantToolKind.SPOTIFY_PLAYBACK:
+                spotify_action_id = {
+                    SpotifyPlaybackOperation.PLAY: SPOTIFY_PLAY_ACTION,
+                    SpotifyPlaybackOperation.PAUSE: SPOTIFY_PAUSE_ACTION,
+                    SpotifyPlaybackOperation.RESUME: SPOTIFY_RESUME_ACTION,
+                    SpotifyPlaybackOperation.NEXT: SPOTIFY_NEXT_ACTION,
+                    SpotifyPlaybackOperation.PREVIOUS: SPOTIFY_PREVIOUS_ACTION,
+                }[proposal.spotify_operation]
+                request = ActionRequest(
+                    correlation_id=f"llm-spotify-{uuid4().hex}",
+                    action_id=spotify_action_id,
+                    source="llm_proposal",
+                    parameters={"service": "spotify"},
+                )
+                start_intent_action(
+                    request,
                     turn_id=turn_id,
                     source=IntentProposalSource.PROVIDER,
                 )
@@ -2053,7 +2074,10 @@ def _run_application() -> int:
                 source=IntentProposalSource.CONTEXT,
             )
             return
-        if assistant_tool_gateway.enabled and should_request_tool_proposal(message):
+        if assistant_tool_gateway.enabled and should_request_tool_proposal(
+            message,
+            context=ephemeral_action_context.intent_context_snapshot(),
+        ):
             intent_arbiter.complete_local_routing(turn_id)
             start_tool_proposal(message, turn_id=turn_id)
             return

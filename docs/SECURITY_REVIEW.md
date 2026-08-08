@@ -109,7 +109,7 @@ The implemented scope is intentionally shallow:
 - gracefully closing an explicitly enabled catalog application through a
   normal window-close request
 - optionally asking the selected AI provider to classify an explicit
-  allowlisted-app or passive-media request
+  allowlisted-app, passive-media, directory, or Spotify playback request
 
 The design rejects shell text, arbitrary executable paths and arguments,
 administrator elevation, filesystem mutation, protected Windows locations,
@@ -122,10 +122,13 @@ accept a process identifier or arbitrary path and never falls back to
 `taskkill`, shell execution, or force termination.
 
 The optional AI proposal gateway is disabled by default and accepts exact JSON
-for only allowlisted application identifiers, directory names, or media
-title/artist terms. The provider receives the user's request, but Akiha does
-not append approved roots, local paths, directory listings, search results,
-metadata, or file contents. Discovery, permission evaluation, confirmation,
+for only allowlisted application identifiers, directory names, media
+title/artist terms, or bounded Spotify playback operations. The provider
+receives the user's request and coarse expiring labels for recent action,
+application, directory-context presence, and Spotify playback state. Akiha
+does not append approved roots, local paths, directory listings, search
+results, metadata, file contents, Spotify library data, device IDs, or
+conversation history. Discovery, permission evaluation, confirmation,
 execution, and auditing remain local.
 
 Directory navigation does not build a persistent full-tree index. It searches

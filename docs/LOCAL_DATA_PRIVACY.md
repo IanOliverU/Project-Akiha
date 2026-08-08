@@ -200,11 +200,14 @@ actions. Its design is documented in `docs/PHASE8_ASSISTANT_ACTIONS.md`.
   contents or credentials.
 - AI-assisted action proposals are off by default. When enabled, the selected
   provider receives the user's explicit action sentence for constrained intent
-  classification.
+  classification plus coarse, expiring action labels such as the last action
+  category, recent allowlisted application, whether directory context exists,
+  and Spotify's `playing` / `paused` state.
 - Akiha never adds approved roots, local paths, directory listings, search
-  results, file metadata, or file contents to that proposal prompt. Text the
-  user explicitly enters remains part of the provider request, as it does in
-  normal hosted chat.
+  results, file metadata, file contents, Spotify library data, device IDs, or
+  conversation history to that proposal prompt. Text the user explicitly
+  enters remains part of the provider request, as it does in normal hosted
+  chat.
 - Temporary directory-navigation context stores only the last opened local
   path in memory and is cleared with chat lifecycle or permission changes.
 - Settings provides local controls to review, enable, disable, and reset
