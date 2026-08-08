@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** Implementation in progress - V0 through V4 complete; V5 underway
+**Status:** V0 through V5 implementation complete - Modular Track release gate underway
 
 **Planning date:** 2026-08-01
 
@@ -1221,13 +1221,46 @@ latency remains a release-gate measurement rather than a documentation claim.
 ### Modular Track Release Gate
 
 - [x] Run the full automated suite and local voice regression checks.
-- [ ] Complete local push-to-talk, natural intent, streaming speech,
+- [x] Complete local push-to-talk, natural intent, streaming speech,
   interruption, and Conversation Session manual checks.
 - [ ] Build and validate a Local Voice Intelligence standalone candidate.
 - [ ] Complete packaged microphone, faster-whisper, Ollama, one configured
   hosted text provider when available, VOICEVOX, actions, and graceful-
   shutdown smoke tests.
-- [ ] Record measured latency baselines and remaining local limitations.
+- [x] Record measured latency baselines and remaining local limitations.
+
+#### Source Verification And Latency Record
+
+The 2026-08-08 source-application roundup confirmed push-to-talk, local
+Conversation Session turn cycling, automatic action-turn resume, contextual
+Spotify controls, natural command phrasing, streamed VOICEVOX output,
+interruption, and fan-noise endpoint behavior. Contextual correction also
+resolved bounded pronunciation and transcription errors without bypassing the
+typed action gateway, while ambiguous requests remained clarification-first.
+
+User-observed finalization latency for short English turns after the stale
+preview-work fix was approximately two to three seconds from the end of speech
+to the submitted final transcript. Earlier affected turns took roughly seven
+to twenty-five seconds when obsolete partial-recognition work accumulated.
+These are practical observations on the development machine, not a controlled
+cross-hardware benchmark, and they exclude provider response generation and
+speech synthesis time.
+
+Remaining local limitations are explicit:
+
+- local Conversation Session remains half-duplex rather than simultaneous
+  full-duplex audio;
+- final intent still depends on faster-whisper text, so unclear pronunciation
+  can require contextual correction or user clarification;
+- uncommon free-form paraphrases outside deterministic coverage need the
+  optional bounded provider-proposal path;
+- response time still varies with Whisper model size, CPU load, provider
+  latency, response length, VOICEVOX synthesis, and audio-device conditions;
+- the configured idle and total session limits remain intentional resource and
+  privacy bounds rather than an always-open microphone mode.
+
+This record closes source verification only. It makes no claim about the
+standalone artifact until the two remaining packaged release-gate checks pass.
 
 **Checkpoint:** The modular track is closed before hosted live implementation
 begins. A failure or delay in Gemini Live must not keep local or hybrid API
