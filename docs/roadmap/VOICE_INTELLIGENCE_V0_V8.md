@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6 planned
+**Status:** V0 through V5 complete - V6A complete, V6B next
 
 **Planning date:** 2026-08-01
 
@@ -1286,7 +1286,7 @@ improvements in an unfinished state.
 
 ### Milestone V6: Gemini Live Conversation
 
-- [ ] Add the Gemini Live adapter behind `LiveSessionAdapter`.
+- [x] Add the SDK-neutral Gemini Live adapter behind `LiveSessionAdapter`.
 - [ ] Add native audio, input transcription, and output transcription paths.
 - [ ] Add provider-native interruption with coordinator reconciliation.
 - [ ] Add bounded session timeout/resumption behavior.
@@ -1294,6 +1294,83 @@ improvements in an unfinished state.
 - [ ] Add explicit cloud-audio notice, settings, and diagnostics.
 - [ ] Revalidate and disclose current free- versus paid-tier data use.
 - [ ] Preserve Local Modular as an independent fallback choice.
+
+#### V6A: Live Foundation - Complete
+
+- [x] Add explicit hosted-live response modality and capability contracts.
+- [x] Require hosted-live processing mode and a finite 15-minute maximum in
+  `LiveSessionConfig`.
+- [x] Add privacy-safe lifecycle events and bounded error codes.
+- [x] Add a Gemini-specific transport protocol that cannot leak SDK classes
+  into application controllers, UI, actions, chat, or memory.
+- [x] Add `GeminiLiveSessionAdapter` with one-session and one-turn ownership.
+- [x] Translate provider input transcripts, output transcripts, and native PCM
+  frames into canonical Akiha contracts.
+- [x] Reject wrong-session, wrong-turn, stale, cancelled, and unsupported audio
+  input before transport dispatch.
+- [x] Keep provider-native tool results disabled until V7.
+- [x] Add an in-memory fake Gemini transport for deterministic lifecycle,
+  cancellation, failure, and stale-event tests.
+- [x] Keep V5 startup and the Local Modular lane unchanged.
+
+The V6A adapter is deliberately SDK-neutral and performs no network access.
+The current Google reference model name is represented by the configurable
+default `gemini-3.1-flash-live-preview`; no preview model name is part of the
+provider-neutral core contract. The concrete Google Gen AI SDK transport and
+credential wiring belong to V6B, after its dependency and packaging impact are
+measured.
+
+V6A follows the current official protocol boundary: realtime audio is sent as
+raw PCM through a persistent session, input and output transcriptions are
+optional setup features, and audio output is 24 kHz PCM. Akiha requires input
+to be prepared as mono 16-bit 16 kHz PCM before it enters the adapter; V6B owns
+the bounded resampler and frame pump.
+
+#### V6B: Native Audio Transport - Next
+
+- [ ] Add the optional Google Gen AI SDK dependency behind the live extra.
+- [ ] Implement the concrete async Gemini transport.
+- [ ] Convert bounded Qt microphone frames to mono 16-bit 16 kHz PCM.
+- [ ] Send 20-100 ms realtime chunks through one bounded queue.
+- [ ] Receive 24 kHz native PCM into the existing single Qt playback owner.
+- [ ] Prove queue backpressure, cancellation, and shutdown without microphone
+  or playback resource duplication.
+
+#### V6C: Live Transcripts
+
+- [ ] Map interim and final input transcription revisions.
+- [ ] Map output transcription revisions for canonical chat persistence.
+- [ ] Persist only accepted finals; never persist raw audio or partial text.
+
+#### V6D: Live Interruption
+
+- [ ] Reconcile provider-native interruption with the turn ledger.
+- [ ] Cancel/truncate stale output and reject late audio or text.
+
+#### V6E: Session Management
+
+- [ ] Add explicit Start/End hosted conversation controls.
+- [ ] Add finite duration, context compression, resumption, `GoAway`, and
+  reconnect behavior without extending the logical session limit.
+
+#### V6F: Privacy, Settings, And Diagnostics
+
+- [ ] Add the versioned cloud-audio notice and processing-location labels.
+- [ ] Add model, voice, session duration, and diagnostic settings.
+- [ ] Revalidate current Gemini availability, quota, pricing, and data-use
+  language before release.
+
+#### V6G: Local Fallback
+
+- [ ] Preserve push-to-talk, Local Conversation, Ollama, hosted text, and
+  VOICEVOX as explicit independent choices.
+- [ ] Never silently send local audio or text to Gemini after a failure.
+
+#### V6H: Verification
+
+- [ ] Complete fake-protocol, native audio, transcript, interruption,
+  resumption, privacy, fallback, and real-provider manual checks.
+- [ ] Keep final hosted-live packaging deferred to the V8 release gate.
 
 ### Milestone V7: Provider-Neutral Typed Tool Proposals
 

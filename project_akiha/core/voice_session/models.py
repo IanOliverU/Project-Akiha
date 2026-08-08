@@ -67,6 +67,26 @@ class SessionLifecycle(StrEnum):
     ERROR = "error"
 
 
+class LiveResponseModality(StrEnum):
+    """Primary response representation requested from a hosted live provider."""
+
+    AUDIO = "audio"
+    TEXT = "text"
+
+
+class LiveSessionCapability(StrEnum):
+    """Provider features disclosed before a hosted live session becomes active."""
+
+    AUDIO_INPUT = "audio_input"
+    AUDIO_OUTPUT = "audio_output"
+    INPUT_TRANSCRIPTION = "input_transcription"
+    OUTPUT_TRANSCRIPTION = "output_transcription"
+    INTERRUPTION = "interruption"
+    CONTEXT_COMPRESSION = "context_compression"
+    SESSION_RESUMPTION = "session_resumption"
+    TOOL_PROPOSALS = "tool_proposals"
+
+
 class VoiceStage(StrEnum):
     """Named concurrent stage that may advance independently."""
 
@@ -309,6 +329,12 @@ class LiveSessionConfig:
     provider_name: str
     input_sample_rate_hz: int
     max_duration_seconds: int
+    model_name: str = ""
+    response_modality: LiveResponseModality = LiveResponseModality.AUDIO
+    input_transcription_enabled: bool = True
+    output_transcription_enabled: bool = True
+    context_compression_enabled: bool = True
+    session_resumption_enabled: bool = True
 
     def __post_init__(self) -> None:
         _require_identifier(self.session_id, "session ID")
@@ -317,10 +343,59 @@ class LiveSessionConfig:
             "live-session provider name",
             max_chars=128,
         )
+        if self.processing_mode is not VoiceProcessingMode.HOSTED_LIVE:
+            raise ValueError("a live session requires hosted-live processing mode.")
         if self.input_sample_rate_hz <= 0:
             raise ValueError("live-session sample rate must be positive.")
         if not 1 <= self.max_duration_seconds <= 900:
             raise ValueError("live-session duration must be between 1 and 900 seconds.")
+        if self.model_name and len(self.model_name) > 256:
+            raise ValueError("live-session model name is too long.")
+
+
+@dataclass(frozen=True, slots=True)
+class LiveSessionCapabilities:
+    """Immutable capabilities reported by one concrete live adapter."""
+
+    provider_name: str
+    capabilities: frozenset[LiveSessionCapability]
+    input_sample_rate_hz: int
+    output_sample_rate_hz: int | None = None
+
+    def __post_init__(self) -> None:
+        _require_text(
+            self.provider_name,
+            "live-session provider name",
+            max_chars=128,
+        )
+        if self.input_sample_rate_hz <= 0:
+            raise ValueError("live-session input sample rate must be positive.")
+        if self.output_sample_rate_hz is not None and self.output_sample_rate_hz <= 0:
+            raise ValueError("live-session output sample rate must be positive.")
+
+    def supports(self, capability: LiveSessionCapability) -> bool:
+        """Return whether the adapter explicitly reports one capability."""
+        return capability in self.capabilities
+
+
+@dataclass(frozen=True, slots=True)
+class LiveSessionStateEvent:
+    """Privacy-safe hosted session lifecycle update."""
+
+    session_id: str
+    provider_name: str
+    lifecycle: SessionLifecycle
+    reason: str = ""
+
+    def __post_init__(self) -> None:
+        _require_identifier(self.session_id, "session ID")
+        _require_text(
+            self.provider_name,
+            "live-session provider name",
+            max_chars=128,
+        )
+        if len(self.reason) > 256:
+            raise ValueError("live-session state reason is too long.")
 
 
 @dataclass(frozen=True, slots=True)

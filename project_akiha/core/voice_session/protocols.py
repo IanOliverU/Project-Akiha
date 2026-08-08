@@ -10,7 +10,9 @@ from project_akiha.core.voice_session.models import (
     AssistantTextRevision,
     AudioFrame,
     EndpointReason,
+    LiveSessionCapabilities,
     LiveSessionConfig,
+    LiveSessionStateEvent,
     SanitizedActionResult,
     TranscriptRevision,
     VoiceCancellationToken,
@@ -34,8 +36,20 @@ class LiveSessionEventSink(Protocol):
     def action_proposed(self, proposal: ActionProposal) -> None:
         """Receive an untrusted typed action proposal."""
 
+    def response_interrupted(self, turn_id: str) -> None:
+        """Receive provider confirmation that one response was interrupted."""
+
+    def turn_completed(self, turn_id: str) -> None:
+        """Receive provider confirmation that one model turn completed."""
+
     def failed(self, code: str, message: str) -> None:
         """Receive a sanitized provider failure."""
+
+    def session_state_changed(self, event: LiveSessionStateEvent) -> None:
+        """Receive a privacy-safe lifecycle update."""
+
+    def capabilities_received(self, capabilities: LiveSessionCapabilities) -> None:
+        """Receive the adapter's explicit feature set."""
 
 
 class LiveSessionAdapter(Protocol):

@@ -4,6 +4,10 @@ from project_akiha.core.voice_session.audio_buffer import (
     AudioBufferSnapshot,
     RollingAudioBuffer,
 )
+from project_akiha.core.voice_session.errors import (
+    LiveSessionError,
+    LiveSessionErrorCode,
+)
 from project_akiha.core.voice_session.ledger import VoiceTurnLedger
 from project_akiha.core.voice_session.models import (
     ActionProposal,
@@ -15,7 +19,11 @@ from project_akiha.core.voice_session.models import (
     EndpointReason,
     GenerationStage,
     IntentStage,
+    LiveResponseModality,
+    LiveSessionCapabilities,
+    LiveSessionCapability,
     LiveSessionConfig,
+    LiveSessionStateEvent,
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
@@ -56,8 +64,14 @@ __all__ = [
     "GenerationStage",
     "IntentStage",
     "LiveSessionAdapter",
+    "LiveSessionCapabilities",
+    "LiveSessionCapability",
     "LiveSessionConfig",
+    "LiveSessionError",
+    "LiveSessionErrorCode",
     "LiveSessionEventSink",
+    "LiveSessionStateEvent",
+    "LiveResponseModality",
     "ModularResponseContext",
     "ModularResponseEvent",
     "ModularResponseEventKind",

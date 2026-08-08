@@ -9,6 +9,10 @@ from project_akiha.core.voice_session import (
     AudioFrame,
     CanonicalResponseSegment,
     EndpointReason,
+    LiveResponseModality,
+    LiveSessionCapabilities,
+    LiveSessionCapability,
+    LiveSessionConfig,
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
@@ -58,6 +62,41 @@ class VoiceSessionModelsTest(unittest.TestCase):
                 status=TranscriptStatus.FINAL,
                 provider_name="faster-whisper",
             )
+
+    def test_live_config_requires_hosted_mode_and_bounded_duration(self) -> None:
+        with self.assertRaisesRegex(ValueError, "hosted-live"):
+            LiveSessionConfig(
+                session_id="session-1",
+                processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
+                provider_name="gemini",
+                input_sample_rate_hz=16_000,
+                max_duration_seconds=600,
+            )
+        with self.assertRaisesRegex(ValueError, "between 1 and 900"):
+            LiveSessionConfig(
+                session_id="session-1",
+                processing_mode=VoiceProcessingMode.HOSTED_LIVE,
+                provider_name="gemini",
+                input_sample_rate_hz=16_000,
+                max_duration_seconds=901,
+            )
+
+    def test_live_capabilities_are_explicit_and_immutable(self) -> None:
+        capabilities = LiveSessionCapabilities(
+            provider_name="gemini",
+            capabilities=frozenset(
+                {
+                    LiveSessionCapability.AUDIO_INPUT,
+                    LiveSessionCapability.AUDIO_OUTPUT,
+                }
+            ),
+            input_sample_rate_hz=16_000,
+            output_sample_rate_hz=24_000,
+        )
+
+        self.assertTrue(capabilities.supports(LiveSessionCapability.AUDIO_INPUT))
+        self.assertFalse(capabilities.supports(LiveSessionCapability.TOOL_PROPOSALS))
+        self.assertEqual(LiveResponseModality.AUDIO, "audio")
 
     def test_partial_transcript_cannot_claim_endpoint_reason(self) -> None:
         with self.assertRaisesRegex(ValueError, "partial transcript"):
