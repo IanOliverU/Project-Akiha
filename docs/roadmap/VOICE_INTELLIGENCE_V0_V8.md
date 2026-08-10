@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A complete - V7B proposal gateway next
+**Status:** V0 through V6 and V7A-V7B complete - V7C safe dispatch next
 
 **Planning date:** 2026-08-01
 
@@ -1571,7 +1571,7 @@ release gate.
 ### Milestone V7: Provider-Neutral Typed Tool Proposals
 
 - [x] Expose only allowlisted action schemas.
-- [ ] Treat function calls as untrusted `ActionProposal` values.
+- [x] Treat function calls as untrusted `ActionProposal` values.
 - [ ] Reuse validation, permission, confirmation, execution, and audit.
 - [ ] Return only sanitized function results.
 - [ ] Add Gemini Live function proposals behind the provider-neutral adapter.
@@ -1600,10 +1600,35 @@ provider-neutral proposal/result values.
 V7A verification passed with 1,287 tests and 3 optional-environment skips,
 plus repository-wide Ruff, Black, compilation, and diff checks.
 
-V7B will translate one provider proposal into one untrusted Phase 8
+V7B translates one provider proposal into one untrusted Phase 8
 `ActionRequest`, retain session/turn/proposal ownership, and reject stale,
 duplicate, unknown, or non-ready proposals before the existing validator and
 permission service are reached.
+
+#### V7B: Untrusted Proposal Gateway - Complete
+
+V7B adds `ProviderActionProposalGateway` between provider events and the Phase
+8 action service. `ActionProposal` now carries both session and turn identity,
+so the gateway can use the existing voice-session authority to reject a wrong
+session, completed turn, cancelled turn, or replaced turn mechanically. A
+bounded replay ledger consumes proposal identities once and rejects duplicate
+delivery without retaining target arguments or transcript text.
+
+Only ready proposals whose action identifiers appear in the V7A catalog become
+an `ActionRequest`. The request receives a deterministic privacy-safe
+correlation identifier and a bounded provider source. Its primitive arguments
+remain untrusted and are deliberately left for the unchanged Phase 8
+`ActionRequestValidator`; conversion does not validate permissions, request
+confirmation, call an executor, or write an action audit entry.
+
+V7B verification passed with 1,294 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks.
+
+V7C will pass an accepted request through the existing validation, permission,
+confirmation, execution, and audit boundary, coordinate deterministic/provider
+at-most-once arbitration, and translate the result into a bounded
+`SanitizedActionResult`. Provider-specific Gemini function transport remains
+disabled until that application-owned path is complete.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

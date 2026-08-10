@@ -74,9 +74,11 @@ continuous multi-turn conversation and automatic return to listening. Native
 audio crackle remains release-quality follow-up work, while final hosted-live
 packaging remains intentionally deferred to V8. V7A now adds an explicit
 provider-facing tool-schema catalog that exposes only separately opted-in
-Phase 8 actions and never grants execution authority. The V7B untrusted
-proposal gateway is next; pet simulation remains planned after the Voice
-Intelligence roadmap.
+Phase 8 actions and never grants execution authority. V7B now adds session- and
+turn-owned conversion from a ready provider proposal into one untrusted Phase
+8 request, with stale, duplicate, ambiguous, and unexposed proposals rejected
+before validation. V7C safe permission-gated dispatch is next; pet simulation
+remains planned after the Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -89,7 +91,7 @@ Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and V7A schema catalog complete; proposal gateway next |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and V7A-V7B tool foundations complete; safe dispatch next |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

@@ -537,6 +537,7 @@ class ResponseSegment:
 class ActionProposal:
     """Untrusted typed action candidate emitted by an intent provider."""
 
+    session_id: str
     turn_id: str
     proposal_id: str
     source: str
@@ -546,6 +547,7 @@ class ActionProposal:
     confidence: TranscriptConfidence = TranscriptConfidence.UNKNOWN
 
     def __post_init__(self) -> None:
+        _require_identifier(self.session_id, "session ID")
         _require_identifier(self.turn_id, "turn ID")
         _require_identifier(self.proposal_id, "proposal ID")
         _require_identifier(self.source, "proposal source")

@@ -113,6 +113,7 @@ class VoiceSessionModelsTest(unittest.TestCase):
     def test_action_proposal_copies_arguments_into_read_only_mapping(self) -> None:
         arguments = {"application_id": "discord"}
         proposal = ActionProposal(
+            session_id="session-1",
             turn_id="1",
             proposal_id="proposal-1",
             source="local.intent",
@@ -128,11 +129,23 @@ class VoiceSessionModelsTest(unittest.TestCase):
     def test_action_proposal_rejects_nested_unbounded_values(self) -> None:
         with self.assertRaisesRegex(ValueError, "primitive bounded values"):
             ActionProposal(
+                session_id="session-1",
                 turn_id="1",
                 proposal_id="proposal-1",
                 source="local.intent",
                 action_name="applications.launch",
                 arguments={"nested": {"command": "unrestricted"}},
+            )
+
+    def test_action_proposal_requires_session_ownership(self) -> None:
+        with self.assertRaisesRegex(ValueError, "session ID"):
+            ActionProposal(
+                session_id="",
+                turn_id="1",
+                proposal_id="proposal-1",
+                source="gemini.live",
+                action_name="applications.launch",
+                arguments={"application_id": "discord"},
             )
 
     def test_modular_response_context_requires_paired_turn_identity(self) -> None:
