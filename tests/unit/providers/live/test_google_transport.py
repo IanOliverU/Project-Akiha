@@ -76,6 +76,7 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
                 interim_input="Open Spotify",
                 input_text="Open Spotify",
                 input_finished=True,
+                input_language="en-US",
                 output_text="Spotify was opened.",
                 output_finished=True,
                 audio=b"\x01\x02",
@@ -100,7 +101,39 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(events[0].is_final)
         self.assertTrue(events[1].is_final)
+        self.assertEqual(events[1].detected_language, "en-US")
         self.assertEqual(events[3].audio_data, b"\x01\x02")
+
+    async def test_incremental_transcript_fragments_become_cumulative_revisions(
+        self,
+    ) -> None:
+        await self.transport.connect(_config())
+        await self.session.emit(
+            _message(
+                input_text="Open",
+                output_text="Good",
+            )
+        )
+        await self.session.emit(
+            _message(
+                input_text="Spotify",
+                input_finished=True,
+                output_text="morning.",
+                output_finished=True,
+            )
+        )
+
+        stream = self.transport.receive()
+        events = [await anext(stream) for _ in range(4)]
+
+        self.assertEqual(
+            [event.text for event in events],
+            ["Open", "Good", "Open Spotify", "Good morning."],
+        )
+        self.assertFalse(events[0].is_final)
+        self.assertFalse(events[1].is_final)
+        self.assertTrue(events[2].is_final)
+        self.assertTrue(events[3].is_final)
 
     async def test_audio_queue_overflow_is_bounded_and_retryable(self) -> None:
         gate = asyncio.Event()
@@ -292,6 +325,7 @@ def _message(
     interim_input: str = "",
     input_text: str = "",
     input_finished: bool = False,
+    input_language: str = "",
     output_text: str = "",
     output_finished: bool = False,
     audio: bytes = b"",
@@ -311,7 +345,11 @@ def _message(
             else None
         ),
         input_transcription=(
-            SimpleNamespace(text=input_text, finished=input_finished)
+            SimpleNamespace(
+                text=input_text,
+                finished=input_finished,
+                language_code=input_language,
+            )
             if input_text
             else None
         ),

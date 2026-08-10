@@ -73,6 +73,9 @@ class GoogleGenAILiveTransport:
         self._receiver_task: asyncio.Task[None] | None = None
         self._closing = False
         self._failed = False
+        self._input_transcript_text = ""
+        self._output_transcript_text = ""
+        self._audio_stream_ended = False
 
     @property
     def is_connected(self) -> bool:
@@ -88,6 +91,8 @@ class GoogleGenAILiveTransport:
             )
         self._closing = False
         self._failed = False
+        self._reset_transcript_text()
+        self._audio_stream_ended = False
         self._audio_queue = asyncio.Queue(maxsize=self._audio_queue_capacity)
         self._event_queue = asyncio.Queue(maxsize=self._event_queue_capacity)
         try:
@@ -211,7 +216,11 @@ class GoogleGenAILiveTransport:
                 command = await queue.get()
                 if command.stream_end:
                     await session.send_realtime_input(audio_stream_end=True)
+                    self._audio_stream_ended = True
                     continue
+                if self._audio_stream_ended:
+                    self._reset_transcript_text()
+                    self._audio_stream_ended = False
                 await session.send_realtime_input(
                     audio={
                         "data": command.data,
@@ -232,7 +241,14 @@ class GoogleGenAILiveTransport:
                 received_any = False
                 async for message in session.receive():
                     received_any = True
-                    for event in _translate_sdk_message(message):
+                    events, input_text, output_text = _translate_sdk_message(
+                        message,
+                        input_text=self._input_transcript_text,
+                        output_text=self._output_transcript_text,
+                    )
+                    self._input_transcript_text = input_text
+                    self._output_transcript_text = output_text
+                    for event in events:
                         await self._put_event(event)
                 if not received_any and not self._closing:
                     await asyncio.sleep(0.01)
@@ -289,6 +305,10 @@ class GoogleGenAILiveTransport:
             if command.data is not None:
                 del command
 
+    def _reset_transcript_text(self) -> None:
+        self._input_transcript_text = ""
+        self._output_transcript_text = ""
+
 
 def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
     value: dict[str, object] = {
@@ -305,7 +325,12 @@ def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
     return value
 
 
-def _translate_sdk_message(message: object) -> tuple[GeminiTransportEvent, ...]:
+def _translate_sdk_message(
+    message: object,
+    *,
+    input_text: str,
+    output_text: str,
+) -> tuple[tuple[GeminiTransportEvent, ...], str, str]:
     if getattr(message, "tool_call", None) is not None:
         raise LiveSessionError(
             LiveSessionErrorCode.PROTOCOL_ERROR,
@@ -313,17 +338,21 @@ def _translate_sdk_message(message: object) -> tuple[GeminiTransportEvent, ...]:
         )
     if getattr(message, "go_away", None) is not None:
         return (
-            GeminiTransportEvent(
-                GeminiTransportEventKind.FAILED,
-                error_code=LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
-                error_message="Gemini Live requested a bounded reconnect.",
-                retryable=True,
+            (
+                GeminiTransportEvent(
+                    GeminiTransportEventKind.FAILED,
+                    error_code=LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
+                    error_message="Gemini Live requested a bounded reconnect.",
+                    retryable=True,
+                ),
             ),
+            input_text,
+            output_text,
         )
 
     content = getattr(message, "server_content", None)
     if content is None:
-        return ()
+        return (), input_text, output_text
     events: list[GeminiTransportEvent] = []
     interim = getattr(content, "interim_input_transcription", None)
     if interim is not None:
@@ -334,27 +363,35 @@ def _translate_sdk_message(message: object) -> tuple[GeminiTransportEvent, ...]:
                     GeminiTransportEventKind.INPUT_TRANSCRIPT,
                     text=text,
                     is_final=False,
+                    detected_language=_optional_language(interim),
                 )
             )
     input_transcript = getattr(content, "input_transcription", None)
     if input_transcript is not None:
-        text = str(getattr(input_transcript, "text", "") or "").strip()
-        if text:
+        input_text = _merge_incremental_text(
+            input_text,
+            str(getattr(input_transcript, "text", "") or ""),
+        )
+        if input_text:
             events.append(
                 GeminiTransportEvent(
                     GeminiTransportEventKind.INPUT_TRANSCRIPT,
-                    text=text,
+                    text=input_text,
                     is_final=bool(getattr(input_transcript, "finished", False)),
+                    detected_language=_optional_language(input_transcript),
                 )
             )
     output_transcript = getattr(content, "output_transcription", None)
     if output_transcript is not None:
-        text = str(getattr(output_transcript, "text", "") or "").strip()
-        if text:
+        output_text = _merge_incremental_text(
+            output_text,
+            str(getattr(output_transcript, "text", "") or ""),
+        )
+        if output_text:
             events.append(
                 GeminiTransportEvent(
                     GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
-                    text=text,
+                    text=output_text,
                     is_final=bool(getattr(output_transcript, "finished", False)),
                 )
             )
@@ -374,7 +411,29 @@ def _translate_sdk_message(message: object) -> tuple[GeminiTransportEvent, ...]:
         events.append(GeminiTransportEvent(GeminiTransportEventKind.INTERRUPTED))
     if getattr(content, "turn_complete", False):
         events.append(GeminiTransportEvent(GeminiTransportEventKind.TURN_COMPLETE))
-    return tuple(events)
+    return tuple(events), input_text, output_text
+
+
+def _merge_incremental_text(current: str, incoming: str) -> str:
+    current = current.strip()
+    incoming = incoming.strip()
+    if not incoming:
+        return current
+    if not current or incoming.startswith(current):
+        return incoming
+    if current.endswith(incoming):
+        return current
+    maximum_overlap = min(len(current), len(incoming))
+    for overlap in range(maximum_overlap, 0, -1):
+        if current[-overlap:] == incoming[:overlap]:
+            return current + incoming[overlap:]
+    separator = " " if current[-1].isascii() and incoming[0].isascii() else ""
+    return current + separator + incoming
+
+
+def _optional_language(transcription: object) -> str | None:
+    value = str(getattr(transcription, "language_code", "") or "").strip()
+    return value or None
 
 
 def _validate_pcm_chunk(data: bytes, mime_type: str) -> None:

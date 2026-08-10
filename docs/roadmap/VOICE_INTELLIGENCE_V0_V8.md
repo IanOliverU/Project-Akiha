@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A and V6B complete, V6C next
+**Status:** V0 through V5 complete - V6A through V6C complete, V6D next
 
 **Planning date:** 2026-08-01
 
@@ -1287,7 +1287,7 @@ improvements in an unfinished state.
 ### Milestone V6: Gemini Live Conversation
 
 - [x] Add the SDK-neutral Gemini Live adapter behind `LiveSessionAdapter`.
-- [ ] Add native audio, input transcription, and output transcription paths.
+- [x] Add native audio, input transcription, and output transcription paths.
 - [ ] Add provider-native interruption with coordinator reconciliation.
 - [ ] Add bounded session timeout/resumption behavior.
 - [ ] Require context-window compression and the finite session-duration cap.
@@ -1359,11 +1359,38 @@ Settings, or rebuild the packaged application. Transcript integration begins in
 V6C; interruption, session controls, privacy UI, and release verification remain
 in their later V6 checkpoints.
 
-#### V6C: Live Transcripts
+#### V6C: Live Transcripts - Complete
 
-- [ ] Map interim and final input transcription revisions.
-- [ ] Map output transcription revisions for canonical chat persistence.
-- [ ] Persist only accepted finals; never persist raw audio or partial text.
+- [x] Map interim and final input transcription revisions.
+- [x] Map output transcription revisions for canonical chat persistence.
+- [x] Persist only accepted finals; never persist raw audio or partial text.
+
+The Google transport now normalizes incremental input and output transcription
+fragments into cumulative provider-neutral revisions, including detected input
+language when available. `LiveTranscriptController` rejects wrong-session,
+wrong-turn, stale, duplicate, and post-final revisions. Input revisions must
+also pass the existing `VoiceSessionCoordinator` and `VoiceTurnLedger`
+authority before they can become canonical.
+
+Partial input and assistant revisions are exposed only through replaceable
+preview callbacks. Provider turn completion does not immediately persist text,
+because Gemini transcription events are independently ordered and a valid final
+may arrive after `turn_complete`. The explicit commit gate waits for the
+accepted final user transcript and final assistant transcript, then calls the
+existing `ChatController` persistence and memory boundary exactly once.
+An unknown persistence failure is terminal for that live turn and is not
+silently retried, preventing a partially written message from being duplicated.
+
+An audio-only response requires an explicit fallback decision. In that case,
+the accepted final user transcript may be persisted, but no assistant text is
+invented and the incomplete exchange is excluded from memory extraction.
+Cancelled turns discard their transcript state. Raw audio and partial text are
+never passed to repositories, summaries, exports, or memory processing.
+
+V6C verifies this boundary with deterministic provider and repository tests. It
+does not yet expose Gemini Live in Settings, create the full application event
+sink, or rebuild the packaged app. Those composition and release steps remain
+in V6E and V6F; provider-native interruption is next in V6D.
 
 #### V6D: Live Interruption
 

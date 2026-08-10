@@ -57,10 +57,11 @@ streamed VOICEVOX speech, interruption, and bounded multi-turn Conversation
 Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
 data smoke checks and the complete manual voice, provider, conversation,
 context, action, and shutdown checklist. V6 is now in progress: V6A established
-the provider-neutral hosted-live contracts, and V6B added the optional concrete
-Gemini SDK and bounded native-audio transport without weakening or replacing
-the complete local modular lane. Pet simulation remains planned after the Voice
-Intelligence roadmap.
+the provider-neutral hosted-live contracts, V6B added the optional concrete
+Gemini SDK and bounded native-audio transport, and V6C added ordered live
+transcript projection with final-only canonical persistence. These additions do
+not weaken or replace the complete local modular lane. Pet simulation remains
+planned after the Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |

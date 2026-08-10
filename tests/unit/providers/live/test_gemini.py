@@ -196,6 +196,7 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
                 turn_id="turn-1",
                 text="Hello Akiha",
                 is_final=True,
+                detected_language="en-US",
             )
         )
         await self.transport.emit(
@@ -217,11 +218,12 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.sink.transcripts[0].status, TranscriptStatus.FINAL)
         self.assertEqual(self.sink.transcripts[0].text, "Hello Akiha")
+        self.assertEqual(self.sink.transcripts[0].detected_language, "en-US")
         self.assertEqual(self.sink.assistant_text[0].text, "Good afternoon.")
         self.assertEqual(self.sink.audio[0].sample_rate_hz, 24_000)
         self.assertEqual(self.sink.audio[0].data, b"\x02\x03")
 
-    async def test_completed_turn_rejects_late_provider_events(self) -> None:
+    async def test_completed_turn_accepts_late_final_text(self) -> None:
         await self._start()
         await self.adapter.accept_audio(_frame())
         await self.transport.emit(
@@ -241,6 +243,29 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         await _yield_to_receiver()
 
         self.assertEqual(self.sink.completed_turns, ["turn-1"])
+        self.assertEqual(self.sink.assistant_text[0].text, "Late private output")
+
+    async def test_next_turn_rejects_events_labeled_for_completed_turn(self) -> None:
+        await self._start()
+        await self.adapter.accept_audio(_frame())
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.TURN_COMPLETE,
+                turn_id="turn-1",
+            )
+        )
+        await _yield_to_receiver()
+        await self.adapter.accept_audio(_frame(turn_id="turn-2"))
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                turn_id="turn-1",
+                text="Stale private output",
+                is_final=True,
+            )
+        )
+        await _yield_to_receiver()
+
         self.assertEqual(self.sink.assistant_text, [])
 
     async def test_failure_event_uses_bounded_error_contract(self) -> None:

@@ -69,6 +69,7 @@ class GeminiTransportEvent:
     turn_id: str | None = None
     text: str | None = field(default=None, repr=False)
     is_final: bool = False
+    detected_language: str | None = None
     audio_data: bytes | None = field(default=None, repr=False)
     error_code: LiveSessionErrorCode | None = None
     error_message: str | None = field(default=None, repr=False)
@@ -83,6 +84,13 @@ class GeminiTransportEvent:
                 raise ValueError("a Gemini transcript event requires text.")
         elif self.text is not None:
             raise ValueError("only Gemini transcript events may contain text.")
+        if (
+            self.detected_language is not None
+            and self.kind is not GeminiTransportEventKind.INPUT_TRANSCRIPT
+        ):
+            raise ValueError("only input transcripts may include a language.")
+        if self.detected_language is not None and not self.detected_language.strip():
+            raise ValueError("Gemini transcript language cannot be blank.")
         if self.kind is GeminiTransportEventKind.OUTPUT_AUDIO:
             if not self.audio_data:
                 raise ValueError("a Gemini audio event requires PCM data.")
@@ -138,6 +146,7 @@ class GeminiLiveSessionAdapter:
         self._input_revision = -1
         self._output_revision = -1
         self._output_audio_sequence = -1
+        self._provider_turn_complete = False
 
     @property
     def lifecycle(self) -> SessionLifecycle:
@@ -254,7 +263,7 @@ class GeminiLiveSessionAdapter:
                 LiveSessionErrorCode.UNSUPPORTED_AUDIO_FORMAT,
                 "Gemini Live requires mono 16-bit PCM at the configured input rate.",
             )
-        if self._active_turn_id is None:
+        if self._active_turn_id is None or self._provider_turn_complete:
             self._begin_turn(frame.turn_id)
         elif frame.turn_id != self._active_turn_id:
             raise LiveSessionError(
@@ -369,6 +378,7 @@ class GeminiLiveSessionAdapter:
                         else TranscriptStatus.PARTIAL
                     ),
                     provider_name="gemini-live",
+                    detected_language=event.detected_language,
                     endpoint_reason=(
                         EndpointReason.PROVIDER_FINAL if event.is_final else None
                     ),
@@ -409,7 +419,7 @@ class GeminiLiveSessionAdapter:
         elif event.kind is GeminiTransportEventKind.TURN_COMPLETE:
             if turn_id is not None:
                 sink.turn_completed(turn_id)
-                self._active_turn_id = None
+                self._provider_turn_complete = True
         elif event.kind is GeminiTransportEventKind.FAILED:
             self._report_failure(
                 LiveSessionError(
@@ -432,6 +442,7 @@ class GeminiLiveSessionAdapter:
         self._input_revision = -1
         self._output_revision = -1
         self._output_audio_sequence = -1
+        self._provider_turn_complete = False
 
     def _require_active(self) -> None:
         if self._lifecycle is not SessionLifecycle.ACTIVE:
@@ -499,3 +510,4 @@ class GeminiLiveSessionAdapter:
         self._input_revision = -1
         self._output_revision = -1
         self._output_audio_sequence = -1
+        self._provider_turn_complete = False

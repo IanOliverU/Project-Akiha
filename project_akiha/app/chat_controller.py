@@ -37,6 +37,14 @@ class ChatExchange:
     assistant_message: ChatMessage
 
 
+@dataclass(frozen=True, slots=True)
+class CanonicalLiveChatCommit:
+    """A persisted hosted-live user turn with optional canonical assistant text."""
+
+    user_message: ChatMessage
+    assistant_message: ChatMessage | None
+
+
 class ChatController:
     """Keep chat history and route messages through an AIProvider."""
 
@@ -250,6 +258,30 @@ class ChatController:
         await self._process_memory((user_message, assistant_message))
 
         return ChatExchange(
+            user_message=user_message,
+            assistant_message=assistant_message,
+        )
+
+    async def commit_canonical_live_turn(
+        self,
+        user_content: str,
+        assistant_content: str | None,
+    ) -> CanonicalLiveChatCommit:
+        """Persist accepted hosted-live finals without calling a text provider."""
+        self._latest_assistant_message_id = None
+        user_message = self._append_user_message(user_content)
+        await self._persist_message(user_message)
+
+        assistant_message: ChatMessage | None = None
+        if assistant_content is not None:
+            assistant_message = self._append_assistant_message(assistant_content)
+            stored_assistant = await self._persist_message(assistant_message)
+            self._latest_assistant_message_id = (
+                stored_assistant.id if stored_assistant is not None else None
+            )
+            await self._process_memory((user_message, assistant_message))
+
+        return CanonicalLiveChatCommit(
             user_message=user_message,
             assistant_message=assistant_message,
         )

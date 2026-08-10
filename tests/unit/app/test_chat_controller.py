@@ -391,6 +391,54 @@ class ChatControllerTest(unittest.TestCase):
             ],
         )
 
+    def test_canonical_live_turn_persists_finals_and_processes_memory(self) -> None:
+        repository = RecordingConversationRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("unused"),
+            conversation_repository=repository,
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        committed = asyncio.run(
+            controller.commit_canonical_live_turn(
+                "今日は雨です。",
+                "傘をお持ちください。",
+            )
+        )
+
+        self.assertEqual(
+            repository.saved_messages,
+            [
+                (7, "user", "今日は雨です。"),
+                (7, "assistant", "傘をお持ちください。"),
+            ],
+        )
+        processed, conversation_id = memory_pipeline.processed_messages[-1]
+        self.assertEqual(conversation_id, 7)
+        self.assertEqual(processed, controller.messages)
+        self.assertEqual(committed.assistant_message, controller.messages[-1])
+
+    def test_audio_only_live_turn_excludes_assistant_memory_extraction(self) -> None:
+        repository = RecordingConversationRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("unused"),
+            conversation_repository=repository,
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        committed = asyncio.run(
+            controller.commit_canonical_live_turn("Hello Akiha", None)
+        )
+
+        self.assertEqual(repository.saved_messages, [(7, "user", "Hello Akiha")])
+        self.assertEqual(memory_pipeline.processed_messages, [])
+        self.assertIsNone(committed.assistant_message)
+        self.assertIsNone(controller.latest_assistant_message_id)
+
     def test_initial_system_messages_are_not_exposed_as_history(self) -> None:
         controller = ChatController(
             StaticProvider("done"),
