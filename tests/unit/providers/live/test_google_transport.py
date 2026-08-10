@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from datetime import timedelta
 from types import SimpleNamespace
 
 from project_akiha.core.voice_session import (
@@ -73,6 +74,17 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
                 {"activity_end": {}},
             ],
         )
+
+    async def test_resumption_handle_is_used_only_for_reconnect_setup(self) -> None:
+        config = _config(resumption_handle="private-resumption-handle")
+
+        await self.transport.connect(config)
+
+        self.assertEqual(
+            self.context.config["session_resumption"],
+            {"handle": "private-resumption-handle"},
+        )
+        self.assertNotIn("private-resumption-handle", repr(config))
 
     async def test_interrupt_sends_new_activity_start_after_completed_input(
         self,
@@ -163,6 +175,31 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(events[1].is_final)
         self.assertTrue(events[2].is_final)
         self.assertTrue(events[3].is_final)
+
+    async def test_resumption_and_go_away_messages_are_bounded_events(self) -> None:
+        await self.transport.connect(_config())
+        await self.session.emit(
+            _message(
+                resumption_handle="private-handle",
+                resumable=True,
+                go_away_seconds=4.5,
+            )
+        )
+
+        stream = self.transport.receive()
+        events = [await anext(stream) for _ in range(2)]
+
+        self.assertEqual(
+            [event.kind for event in events],
+            [
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                GeminiTransportEventKind.GO_AWAY,
+            ],
+        )
+        self.assertTrue(events[0].resumable)
+        self.assertEqual(events[0].resumption_handle, "private-handle")
+        self.assertNotIn("private-handle", repr(events[0]))
+        self.assertEqual(events[1].go_away_time_left_seconds, 4.5)
 
     async def test_audio_queue_overflow_is_bounded_and_retryable(self) -> None:
         gate = asyncio.Event()
@@ -338,7 +375,7 @@ class _SdkError(RuntimeError):
         self.code = code
 
 
-def _config() -> GeminiLiveTransportConfig:
+def _config(*, resumption_handle: str | None = None) -> GeminiLiveTransportConfig:
     return GeminiLiveTransportConfig(
         model_name="gemini-live-model",
         response_modality=LiveResponseModality.AUDIO,
@@ -346,6 +383,7 @@ def _config() -> GeminiLiveTransportConfig:
         output_audio_transcription=True,
         context_window_compression=True,
         session_resumption=True,
+        resumption_handle=resumption_handle,
     )
 
 
@@ -360,6 +398,9 @@ def _message(
     audio: bytes = b"",
     interrupted: bool = False,
     turn_complete: bool = False,
+    resumption_handle: str = "",
+    resumable: bool = False,
+    go_away_seconds: float | None = None,
 ) -> object:
     inline_data = SimpleNamespace(data=audio) if audio else None
     model_turn = (
@@ -391,7 +432,24 @@ def _message(
         interrupted=interrupted,
         turn_complete=turn_complete,
     )
-    return SimpleNamespace(tool_call=None, go_away=None, server_content=content)
+    return SimpleNamespace(
+        tool_call=None,
+        session_resumption_update=(
+            SimpleNamespace(
+                new_handle=resumption_handle,
+                resumable=resumable,
+                last_consumed_client_message_index=None,
+            )
+            if resumption_handle or resumable
+            else None
+        ),
+        go_away=(
+            SimpleNamespace(time_left=timedelta(seconds=go_away_seconds))
+            if go_away_seconds is not None
+            else None
+        ),
+        server_content=content,
+    )
 
 
 async def _wait_until(predicate, *, attempts: int = 100) -> None:

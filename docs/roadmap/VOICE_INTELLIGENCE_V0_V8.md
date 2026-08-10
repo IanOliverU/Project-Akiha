@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A through V6D complete, V6E next
+**Status:** V0 through V5 complete - V6A through V6E complete, V6F next
 
 **Planning date:** 2026-08-01
 
@@ -1289,8 +1289,8 @@ improvements in an unfinished state.
 - [x] Add the SDK-neutral Gemini Live adapter behind `LiveSessionAdapter`.
 - [x] Add native audio, input transcription, and output transcription paths.
 - [x] Add provider-native interruption with coordinator reconciliation.
-- [ ] Add bounded session timeout/resumption behavior.
-- [ ] Require context-window compression and the finite session-duration cap.
+- [x] Add bounded session timeout/resumption behavior.
+- [x] Require context-window compression and the finite session-duration cap.
 - [ ] Add explicit cloud-audio notice, settings, and diagnostics.
 - [ ] Revalidate and disclose current free- versus paid-tier data use.
 - [ ] Preserve Local Modular as an independent fallback choice.
@@ -1387,10 +1387,11 @@ invented and the incomplete exchange is excluded from memory extraction.
 Cancelled turns discard their transcript state. Raw audio and partial text are
 never passed to repositories, summaries, exports, or memory processing.
 
-V6C verifies this boundary with deterministic provider and repository tests. It
-does not yet expose Gemini Live in Settings, create the full application event
-sink, or rebuild the packaged app. Those composition and release steps remain
-in V6E and V6F; provider-native interruption is next in V6D.
+V6C verifies this boundary with deterministic provider and repository tests. At
+that checkpoint it did not expose Gemini Live in Settings, create the full
+application event sink, or rebuild the packaged app. Provider-native
+interruption followed in V6D, while application lifecycle composition and
+user-facing Settings remain divided between V6E and V6F.
 
 #### V6D: Live Interruption - Complete
 
@@ -1420,11 +1421,49 @@ tests. It does not yet expose hosted live mode in Settings or compose the full
 application event sink; those user-facing session controls begin in V6E. No
 real Gemini network call or packaged rebuild is part of this checkpoint.
 
-#### V6E: Session Management
+#### V6E: Session Management - Complete
 
-- [ ] Add explicit Start/End hosted conversation controls.
-- [ ] Add finite duration, context compression, resumption, `GoAway`, and
+- [x] Add explicit Start/End hosted conversation controls.
+- [x] Add finite duration, context compression, resumption, `GoAway`, and
   reconnect behavior without extending the logical session limit.
+
+`HostedLiveSessionController` now provides the application-level Start and End
+ownership boundary for one hosted conversation. It reserves the canonical
+coordinator session before connecting, requires the provider config to use that
+same session identity, forwards only provider-neutral events, and synchronizes
+explicit stop, timeout, provider failure, and shutdown with the existing
+coordinator. The current chat UI remains on the Local Modular lane until V6F
+can present hosted mode together with its required cloud-audio notice and
+processing-location controls.
+
+The Gemini adapter starts one monotonic logical deadline before the initial
+connection attempt. Its provider configuration requires context-window
+compression and session resumption, while `LiveSessionConfig` retains the hard
+15-minute maximum. A connection rotation never creates a second deadline or
+extends the first one. The planned V6F Settings values remain 5, 10, or 15
+minutes with a 10-minute default.
+
+Gemini session-resumption updates are translated into bounded events. Only the
+latest resumable handle is retained, it remains memory-only and excluded from
+dataclass representations, and a non-resumable update revokes the previous
+handle. `GoAway` and an unexpected retryable connection close can reconnect
+only when a current handle exists and the logical deadline has not passed.
+Reconnect is capped at two attempts with a short bounded delay. Microphone
+frames are rejected while reconnecting, raw audio is not replayed, and terminal
+failure closes provider resources immediately while preserving a sanitized
+error state for the application.
+
+The transport recognizes the official `session_resumption_update` and
+`go_away.time_left` messages and supplies the current handle only in the next
+SDK connection setup. This checkpoint is covered by deterministic Start/End,
+deadline, reconnect, retry exhaustion, handle revocation, input rejection,
+cleanup, and coordinator tests. It performs no real Gemini call and does not
+rebuild the standalone package.
+
+References:
+
+- [Gemini Live session management](https://ai.google.dev/gemini-api/docs/live-api/session-management)
+- [Google Gen AI Python SDK](https://googleapis.github.io/python-genai/genai.html)
 
 #### V6F: Privacy, Settings, And Diagnostics
 

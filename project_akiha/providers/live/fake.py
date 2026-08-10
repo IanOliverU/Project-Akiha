@@ -20,6 +20,9 @@ class FakeGeminiLiveTransport:
     def __init__(self, *, connect_error: LiveSessionError | None = None) -> None:
         self.connect_error = connect_error
         self.connected_config: GeminiLiveTransportConfig | None = None
+        self.connected_configs: list[GeminiLiveTransportConfig] = []
+        self.connect_errors: list[LiveSessionError] = []
+        self.connect_count = 0
         self.sent_audio: list[tuple[bytes, str]] = []
         self.audio_stream_end_count = 0
         self.interrupt_count = 0
@@ -28,9 +31,14 @@ class FakeGeminiLiveTransport:
 
     async def connect(self, config: GeminiLiveTransportConfig) -> None:
         """Record setup or raise the configured connection failure."""
+        self.connect_count += 1
+        if self.connect_errors:
+            raise self.connect_errors.pop(0)
         if self.connect_error is not None:
             raise self.connect_error
         self.connected_config = config
+        self.connected_configs.append(config)
+        self._events = asyncio.Queue()
 
     async def send_audio(self, data: bytes, mime_type: str) -> None:
         """Record one copied PCM frame."""

@@ -29,6 +29,7 @@ from project_akiha.providers.live import (
     DEFAULT_GEMINI_LIVE_MODEL,
     FakeGeminiLiveTransport,
     GeminiLiveSessionAdapter,
+    GeminiLiveTransportConfig,
     GeminiTransportEvent,
     GeminiTransportEventKind,
 )
@@ -83,7 +84,10 @@ class _BrokenReceiveTransport(FakeGeminiLiveTransport):
 class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.transport = FakeGeminiLiveTransport()
-        self.adapter = GeminiLiveSessionAdapter(self.transport)
+        self.adapter = GeminiLiveSessionAdapter(
+            self.transport,
+            reconnect_delay_seconds=0,
+        )
         self.sink = _Sink()
         self.token = VoiceCancellationToken()
 
@@ -139,6 +143,20 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(self.adapter.lifecycle, SessionLifecycle.IDLE)
+
+    async def test_start_requires_compression_and_resumption(self) -> None:
+        for config in (
+            _config(context_compression_enabled=False),
+            _config(session_resumption_enabled=False),
+        ):
+            with self.subTest(config=config):
+                with self.assertRaises(LiveSessionError) as captured:
+                    await self.adapter.start(config, self.sink, self.token)
+                self.assertEqual(
+                    captured.exception.code,
+                    LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
+                )
+                self.assertEqual(self.adapter.lifecycle, SessionLifecycle.IDLE)
 
     async def test_connection_failure_is_sanitized_and_retryable(self) -> None:
         transport = FakeGeminiLiveTransport(
@@ -377,6 +395,201 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.adapter.lifecycle, SessionLifecycle.ERROR)
         self.assertEqual(self.sink.failures[0][0], "connection_closed")
 
+    async def test_go_away_reconnects_with_latest_memory_only_handle(self) -> None:
+        await self._start()
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+
+        await _wait_until(lambda: self.transport.connect_count == 2)
+
+        self.assertEqual(self.adapter.lifecycle, SessionLifecycle.ACTIVE)
+        resumed = self.transport.connected_configs[-1]
+        self.assertEqual(resumed.resumption_handle, "private-resumption-handle")
+        self.assertNotIn("private-resumption-handle", repr(resumed))
+        self.assertEqual(
+            [(event.lifecycle, event.reason) for event in self.sink.states[-2:]],
+            [
+                (SessionLifecycle.STARTING, "reconnecting:go_away"),
+                (SessionLifecycle.ACTIVE, "resumed"),
+            ],
+        )
+
+    async def test_go_away_without_resumption_handle_fails_visibly(self) -> None:
+        await self._start()
+
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+        await _wait_until(lambda: self.adapter.lifecycle is SessionLifecycle.ERROR)
+
+        self.assertEqual(self.transport.connect_count, 1)
+        self.assertEqual(self.transport.close_count, 1)
+        self.assertEqual(self.sink.failures[-1][0], "connection_closed")
+
+    async def test_non_resumable_update_revokes_previous_handle(self) -> None:
+        await self._start()
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumable=False,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+
+        await _wait_until(lambda: self.adapter.lifecycle is SessionLifecycle.ERROR)
+
+        self.assertEqual(self.transport.connect_count, 1)
+        self.assertEqual(self.sink.failures[-1][0], "connection_closed")
+
+    async def test_unexpected_connection_close_resumes_when_handle_exists(
+        self,
+    ) -> None:
+        await self._start()
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await self.transport.finish()
+
+        await _wait_until(lambda: self.transport.connect_count == 2)
+
+        self.assertEqual(self.adapter.lifecycle, SessionLifecycle.ACTIVE)
+        self.assertEqual(
+            self.transport.connected_configs[-1].resumption_handle,
+            "private-resumption-handle",
+        )
+
+    async def test_reconnect_attempts_are_bounded(self) -> None:
+        await self._start()
+        self.transport.connect_errors.extend(
+            [
+                LiveSessionError(
+                    LiveSessionErrorCode.CONNECTION_FAILED,
+                    "Reconnect failed.",
+                    retryable=True,
+                ),
+                LiveSessionError(
+                    LiveSessionErrorCode.CONNECTION_FAILED,
+                    "Reconnect failed again.",
+                    retryable=True,
+                ),
+            ]
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+
+        await _wait_until(lambda: self.adapter.lifecycle is SessionLifecycle.ERROR)
+
+        self.assertEqual(self.transport.connect_count, 3)
+        self.assertEqual(self.sink.failures[-1][0], "connection_failed")
+
+    async def test_audio_is_rejected_while_connection_is_resuming(self) -> None:
+        transport = _GatedReconnectTransport()
+        adapter = GeminiLiveSessionAdapter(transport, reconnect_delay_seconds=0)
+        await adapter.start(_config(), self.sink, self.token)
+        await transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+        await transport.reconnect_started.wait()
+
+        with self.assertRaises(LiveSessionError) as captured:
+            await adapter.accept_audio(_frame())
+        self.assertEqual(captured.exception.code, LiveSessionErrorCode.INVALID_STATE)
+
+        transport.allow_reconnect.set()
+        await _wait_until(lambda: adapter.lifecycle is SessionLifecycle.ACTIVE)
+        await adapter.stop()
+
+    async def test_reconnect_does_not_extend_logical_session_deadline(self) -> None:
+        clock = _FakeClock()
+        sleeper = _ControlledSleep()
+        transport = FakeGeminiLiveTransport()
+        adapter = GeminiLiveSessionAdapter(
+            transport,
+            monotonic_clock=clock,
+            sleep=sleeper,
+            reconnect_delay_seconds=0,
+        )
+        await adapter.start(
+            _config(max_duration_seconds=5),
+            self.sink,
+            self.token,
+        )
+        await sleeper.started.wait()
+        clock.advance(4)
+        await transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle="private-resumption-handle",
+                resumable=True,
+            )
+        )
+        await transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=5.0,
+            )
+        )
+        await _wait_until(lambda: transport.connect_count == 2)
+
+        clock.advance(1)
+        sleeper.release.set()
+        await _wait_until(lambda: adapter.lifecycle is SessionLifecycle.IDLE)
+
+        self.assertEqual(sleeper.delays, [5.0])
+        self.assertEqual(self.sink.states[-1].reason, "session_timeout")
+        self.assertEqual(transport.connect_count, 2)
+
     async def test_unexpected_receive_error_is_reported_without_task_failure(
         self,
     ) -> None:
@@ -444,13 +657,18 @@ def _config(
     *,
     provider_name: str = "gemini",
     input_sample_rate_hz: int = 16_000,
+    max_duration_seconds: int = 600,
+    context_compression_enabled: bool = True,
+    session_resumption_enabled: bool = True,
 ) -> LiveSessionConfig:
     return LiveSessionConfig(
         session_id="session-1",
         processing_mode=VoiceProcessingMode.HOSTED_LIVE,
         provider_name=provider_name,
         input_sample_rate_hz=input_sample_rate_hz,
-        max_duration_seconds=600,
+        max_duration_seconds=max_duration_seconds,
+        context_compression_enabled=context_compression_enabled,
+        session_resumption_enabled=session_resumption_enabled,
     )
 
 
@@ -475,6 +693,50 @@ def _frame(
 async def _yield_to_receiver() -> None:
     await asyncio.sleep(0)
     await asyncio.sleep(0)
+
+
+async def _wait_until(predicate, *, attempts: int = 100) -> None:
+    for _ in range(attempts):
+        if predicate():
+            return
+        await asyncio.sleep(0)
+    raise AssertionError("Async Gemini adapter condition was not reached.")
+
+
+class _GatedReconnectTransport(FakeGeminiLiveTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.reconnect_started = asyncio.Event()
+        self.allow_reconnect = asyncio.Event()
+
+    async def connect(self, config: GeminiLiveTransportConfig) -> None:
+        if self.connect_count:
+            self.reconnect_started.set()
+            await self.allow_reconnect.wait()
+        await super().connect(config)
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+class _ControlledSleep:
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.delays: list[float] = []
+
+    async def __call__(self, delay: float) -> None:
+        self.delays.append(delay)
+        self.started.set()
+        await self.release.wait()
 
 
 if __name__ == "__main__":

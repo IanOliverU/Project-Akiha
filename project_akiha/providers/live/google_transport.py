@@ -337,7 +337,11 @@ def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
     if config.context_window_compression:
         value["context_window_compression"] = {"sliding_window": {}}
     if config.session_resumption:
-        value["session_resumption"] = {}
+        value["session_resumption"] = (
+            {"handle": config.resumption_handle}
+            if config.resumption_handle is not None
+            else {}
+        )
     return value
 
 
@@ -352,24 +356,37 @@ def _translate_sdk_message(
             LiveSessionErrorCode.PROTOCOL_ERROR,
             "Gemini Live returned an unexpected tool request before V7.",
         )
-    if getattr(message, "go_away", None) is not None:
-        return (
-            (
-                GeminiTransportEvent(
-                    GeminiTransportEventKind.FAILED,
-                    error_code=LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
-                    error_message="Gemini Live requested a bounded reconnect.",
-                    retryable=True,
+    events: list[GeminiTransportEvent] = []
+    resumption = getattr(message, "session_resumption_update", None)
+    if resumption is not None:
+        resumable = bool(getattr(resumption, "resumable", False))
+        handle = str(getattr(resumption, "new_handle", "") or "").strip()
+        events.append(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE,
+                resumption_handle=handle if resumable and handle else None,
+                resumable=resumable and bool(handle),
+            )
+        )
+    go_away = getattr(message, "go_away", None)
+    if go_away is not None:
+        events.append(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.GO_AWAY,
+                go_away_time_left_seconds=_duration_seconds(
+                    getattr(go_away, "time_left", 0)
                 ),
-            ),
+            )
+        )
+        return (
+            tuple(events),
             input_text,
             output_text,
         )
 
     content = getattr(message, "server_content", None)
     if content is None:
-        return (), input_text, output_text
-    events: list[GeminiTransportEvent] = []
+        return tuple(events), input_text, output_text
     interim = getattr(content, "interim_input_transcription", None)
     if interim is not None:
         text = str(getattr(interim, "text", "") or "").strip()
@@ -450,6 +467,21 @@ def _merge_incremental_text(current: str, incoming: str) -> str:
 def _optional_language(transcription: object) -> str | None:
     value = str(getattr(transcription, "language_code", "") or "").strip()
     return value or None
+
+
+def _duration_seconds(value: object) -> float:
+    total_seconds = getattr(value, "total_seconds", None)
+    if callable(total_seconds):
+        try:
+            seconds = float(total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            seconds = 0.0
+    else:
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError, OverflowError):
+            seconds = 0.0
+    return min(3_600.0, max(0.0, seconds))
 
 
 def _validate_pcm_chunk(data: bytes, mime_type: str) -> None:

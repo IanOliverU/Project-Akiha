@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from time import monotonic
@@ -31,6 +31,8 @@ from project_akiha.core.voice_session import (
 DEFAULT_GEMINI_LIVE_MODEL = "gemini-3.1-flash-live-preview"
 _GEMINI_INPUT_RATE_HZ = 16_000
 _GEMINI_OUTPUT_RATE_HZ = 24_000
+_DEFAULT_MAX_RECONNECT_ATTEMPTS = 2
+_DEFAULT_RECONNECT_DELAY_SECONDS = 0.25
 
 
 class GeminiTransportEventKind(StrEnum):
@@ -41,6 +43,8 @@ class GeminiTransportEventKind(StrEnum):
     OUTPUT_AUDIO = "output_audio"
     INTERRUPTED = "interrupted"
     TURN_COMPLETE = "turn_complete"
+    SESSION_RESUMPTION_UPDATE = "session_resumption_update"
+    GO_AWAY = "go_away"
     CLOSED = "closed"
     FAILED = "failed"
 
@@ -55,10 +59,18 @@ class GeminiLiveTransportConfig:
     output_audio_transcription: bool
     context_window_compression: bool
     session_resumption: bool
+    resumption_handle: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if not self.model_name.strip():
             raise ValueError("Gemini Live model name cannot be empty.")
+        if self.resumption_handle is not None:
+            if not self.session_resumption:
+                raise ValueError("a resumption handle requires session resumption.")
+            if not self.resumption_handle.strip():
+                raise ValueError("Gemini Live resumption handle cannot be blank.")
+            if len(self.resumption_handle) > 4_096:
+                raise ValueError("Gemini Live resumption handle is too long.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +86,9 @@ class GeminiTransportEvent:
     error_code: LiveSessionErrorCode | None = None
     error_message: str | None = field(default=None, repr=False)
     retryable: bool = False
+    resumption_handle: str | None = field(default=None, repr=False)
+    resumable: bool | None = None
+    go_away_time_left_seconds: float | None = None
 
     def __post_init__(self) -> None:
         if self.kind in {
@@ -101,6 +116,26 @@ class GeminiTransportEvent:
                 raise ValueError("a Gemini failure event requires a bounded error.")
         elif self.error_code is not None or self.error_message is not None:
             raise ValueError("only Gemini failure events may contain an error.")
+        if self.kind is GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE:
+            if self.resumable is None:
+                raise ValueError("a resumption update requires resumable state.")
+            if self.resumable and not self.resumption_handle:
+                raise ValueError("a resumable update requires a handle.")
+            if (
+                self.resumption_handle is not None
+                and not self.resumption_handle.strip()
+            ):
+                raise ValueError("a resumption handle cannot be blank.")
+        elif self.resumption_handle is not None or self.resumable is not None:
+            raise ValueError("only resumption updates may contain resumption state.")
+        if self.kind is GeminiTransportEventKind.GO_AWAY:
+            if (
+                self.go_away_time_left_seconds is None
+                or self.go_away_time_left_seconds < 0
+            ):
+                raise ValueError("a GoAway event requires non-negative time left.")
+        elif self.go_away_time_left_seconds is not None:
+            raise ValueError("only GoAway events may contain time left.")
 
 
 class GeminiLiveTransport(Protocol):
@@ -133,13 +168,26 @@ class GeminiLiveSessionAdapter:
         transport: GeminiLiveTransport,
         *,
         default_model: str = DEFAULT_GEMINI_LIVE_MODEL,
+        monotonic_clock: Callable[[], float] = monotonic,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        max_reconnect_attempts: int = _DEFAULT_MAX_RECONNECT_ATTEMPTS,
+        reconnect_delay_seconds: float = _DEFAULT_RECONNECT_DELAY_SECONDS,
     ) -> None:
+        if max_reconnect_attempts < 0:
+            raise ValueError("Gemini reconnect attempts cannot be negative.")
+        if reconnect_delay_seconds < 0:
+            raise ValueError("Gemini reconnect delay cannot be negative.")
         self._transport = transport
         self._default_model = default_model
+        self._monotonic_clock = monotonic_clock
+        self._sleep = sleep
+        self._max_reconnect_attempts = max_reconnect_attempts
+        self._reconnect_delay_seconds = reconnect_delay_seconds
         self._config: LiveSessionConfig | None = None
         self._event_sink: LiveSessionEventSink | None = None
         self._cancellation_token: VoiceCancellationToken | None = None
         self._receive_task: asyncio.Task[None] | None = None
+        self._deadline_task: asyncio.Task[None] | None = None
         self._transport_connected = False
         self._lifecycle = SessionLifecycle.IDLE
         self._active_turn_id: str | None = None
@@ -148,6 +196,9 @@ class GeminiLiveSessionAdapter:
         self._output_audio_sequence = -1
         self._provider_turn_complete = False
         self._interruption_pending_turn_id: str | None = None
+        self._logical_deadline_at: float | None = None
+        self._resumption_handle: str | None = None
+        self._reconnect_attempts = 0
 
     @property
     def lifecycle(self) -> SessionLifecycle:
@@ -196,6 +247,16 @@ class GeminiLiveSessionAdapter:
                 LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
                 "Gemini Live input must be prepared as 16 kHz PCM.",
             )
+        if not config.context_compression_enabled:
+            raise LiveSessionError(
+                LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
+                "Gemini Live requires context-window compression.",
+            )
+        if not config.session_resumption_enabled:
+            raise LiveSessionError(
+                LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
+                "Gemini Live requires bounded session resumption.",
+            )
         if cancellation_token.is_cancelled:
             raise LiveSessionError(
                 LiveSessionErrorCode.CANCELLED,
@@ -205,18 +266,15 @@ class GeminiLiveSessionAdapter:
         self._config = config
         self._event_sink = event_sink
         self._cancellation_token = cancellation_token
-        self._set_lifecycle(SessionLifecycle.STARTING)
-        transport_config = GeminiLiveTransportConfig(
-            model_name=config.model_name.strip() or self._default_model,
-            response_modality=config.response_modality,
-            input_audio_transcription=config.input_transcription_enabled,
-            output_audio_transcription=config.output_transcription_enabled,
-            context_window_compression=config.context_compression_enabled,
-            session_resumption=config.session_resumption_enabled,
+        self._logical_deadline_at = (
+            self._monotonic_clock() + config.max_duration_seconds
         )
+        self._resumption_handle = None
+        self._reconnect_attempts = 0
+        self._set_lifecycle(SessionLifecycle.STARTING)
         self._transport_connected = True
         try:
-            await self._transport.connect(transport_config)
+            await self._transport.connect(self._transport_config())
         except LiveSessionError as error:
             await self._startup_failed(error)
             raise
@@ -243,6 +301,10 @@ class GeminiLiveSessionAdapter:
         self._receive_task = asyncio.create_task(
             self._receive_loop(),
             name=f"gemini-live-receive-{config.session_id}",
+        )
+        self._deadline_task = asyncio.create_task(
+            self._duration_guard(),
+            name=f"gemini-live-deadline-{config.session_id}",
         )
 
     async def accept_audio(self, frame: AudioFrame) -> None:
@@ -301,21 +363,28 @@ class GeminiLiveSessionAdapter:
 
     async def stop(self) -> None:
         """Idempotently close receive work and the provider transport."""
+        await self._stop_with_reason("stopped")
+
+    async def _stop_with_reason(self, reason: str) -> None:
         if self._lifecycle is SessionLifecycle.IDLE:
             return
-        self._set_lifecycle(SessionLifecycle.STOPPING)
-        task = self._receive_task
+        self._set_lifecycle(SessionLifecycle.STOPPING, reason)
+        current_task = asyncio.current_task()
+        tasks = tuple(
+            task
+            for task in (self._receive_task, self._deadline_task)
+            if task is not None and task is not current_task
+        )
         self._receive_task = None
-        if task is not None and task is not asyncio.current_task():
+        self._deadline_task = None
+        for task in tasks:
             task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         try:
             await self._close_transport_once()
         finally:
-            self._set_lifecycle(SessionLifecycle.IDLE, "stopped")
+            self._set_lifecycle(SessionLifecycle.IDLE, reason)
             self._clear_session()
 
     async def wait_for_receiver(self) -> None:
@@ -325,36 +394,115 @@ class GeminiLiveSessionAdapter:
             await task
 
     async def _receive_loop(self) -> None:
-        try:
-            async for event in self._transport.receive():
-                if self._lifecycle is not SessionLifecycle.ACTIVE:
+        while self._lifecycle in {
+            SessionLifecycle.ACTIVE,
+            SessionLifecycle.STARTING,
+        }:
+            reconnect_reason: str | None = None
+            try:
+                async for event in self._transport.receive():
+                    if self._lifecycle is not SessionLifecycle.ACTIVE:
+                        return
+                    token = self._cancellation_token
+                    if token is None or token.is_cancelled:
+                        return
+                    if event.kind is GeminiTransportEventKind.SESSION_RESUMPTION_UPDATE:
+                        self._accept_resumption_update(event)
+                        continue
+                    if event.kind is GeminiTransportEventKind.GO_AWAY:
+                        reconnect_reason = "go_away"
+                        break
+                    self._dispatch(event)
+                    if self._lifecycle is not SessionLifecycle.ACTIVE:
+                        await self._close_after_failure()
+                        return
+                else:
+                    reconnect_reason = "connection_closed"
+            except asyncio.CancelledError:
+                raise
+            except LiveSessionError as error:
+                if error.retryable and error.code in {
+                    LiveSessionErrorCode.CONNECTION_CLOSED,
+                    LiveSessionErrorCode.CONNECTION_FAILED,
+                    LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
+                }:
+                    reconnect_reason = error.code
+                else:
+                    self._report_failure(error)
+                    await self._close_after_failure()
                     return
-                token = self._cancellation_token
-                if token is None or token.is_cancelled:
-                    return
-                self._dispatch(event)
-                if self._lifecycle is not SessionLifecycle.ACTIVE:
-                    return
-            if self._lifecycle is SessionLifecycle.ACTIVE:
-                self._report_failure(
-                    LiveSessionError(
-                        LiveSessionErrorCode.CONNECTION_CLOSED,
-                        "Gemini Live closed the connection unexpectedly.",
-                        retryable=True,
-                    )
+            except Exception as error:
+                failure = LiveSessionError(
+                    LiveSessionErrorCode.PROTOCOL_ERROR,
+                    "Gemini Live returned an invalid provider event.",
+                    retryable=True,
                 )
+                self._report_failure(failure)
+                del error
+                await self._close_after_failure()
+                return
+
+            if reconnect_reason is None:
+                return
+            if not await self._reconnect(reconnect_reason):
+                await self._close_after_failure()
+                return
+
+    async def _duration_guard(self) -> None:
+        try:
+            while self._logical_deadline_at is not None:
+                remaining = self._logical_deadline_at - self._monotonic_clock()
+                if remaining <= 0:
+                    break
+                await self._sleep(remaining)
+            if self._lifecycle in {
+                SessionLifecycle.ACTIVE,
+                SessionLifecycle.STARTING,
+            }:
+                await self._stop_with_reason("session_timeout")
         except asyncio.CancelledError:
             raise
-        except LiveSessionError as error:
-            self._report_failure(error)
-        except Exception as error:
-            failure = LiveSessionError(
-                LiveSessionErrorCode.PROTOCOL_ERROR,
-                "Gemini Live returned an invalid provider event.",
+
+    async def _reconnect(self, reason: str) -> bool:
+        handle = self._resumption_handle
+        if handle is None or self._deadline_reached():
+            self._report_failure(
+                LiveSessionError(
+                    LiveSessionErrorCode.CONNECTION_CLOSED,
+                    "Gemini Live could not resume the bounded session.",
+                    retryable=True,
+                )
+            )
+            return False
+
+        self._set_lifecycle(SessionLifecycle.STARTING, f"reconnecting:{reason}")
+        await self._close_transport_once()
+        while self._reconnect_attempts < self._max_reconnect_attempts:
+            if self._deadline_reached():
+                break
+            self._reconnect_attempts += 1
+            if self._reconnect_delay_seconds:
+                await self._sleep(self._reconnect_delay_seconds)
+            self._transport_connected = True
+            try:
+                await self._transport.connect(self._transport_config(handle))
+            except LiveSessionError:
+                await self._close_transport_once()
+                continue
+            except Exception:
+                await self._close_transport_once()
+                continue
+            self._set_lifecycle(SessionLifecycle.ACTIVE, "resumed")
+            return True
+
+        self._report_failure(
+            LiveSessionError(
+                LiveSessionErrorCode.CONNECTION_FAILED,
+                "Gemini Live could not reconnect within the bounded retry limit.",
                 retryable=True,
             )
-            self._report_failure(failure)
-            del error
+        )
+        return False
 
     def _dispatch(self, event: GeminiTransportEvent) -> None:
         sink = self._event_sink
@@ -453,6 +601,36 @@ class GeminiLiveSessionAdapter:
                 )
             )
 
+    def _accept_resumption_update(self, event: GeminiTransportEvent) -> None:
+        if event.resumable and event.resumption_handle:
+            self._resumption_handle = event.resumption_handle
+        else:
+            self._resumption_handle = None
+
+    def _transport_config(
+        self,
+        resumption_handle: str | None = None,
+    ) -> GeminiLiveTransportConfig:
+        config = self._config
+        if config is None:
+            raise LiveSessionError(
+                LiveSessionErrorCode.INVALID_STATE,
+                "The Gemini Live session configuration is unavailable.",
+            )
+        return GeminiLiveTransportConfig(
+            model_name=config.model_name.strip() or self._default_model,
+            response_modality=config.response_modality,
+            input_audio_transcription=config.input_transcription_enabled,
+            output_audio_transcription=config.output_transcription_enabled,
+            context_window_compression=config.context_compression_enabled,
+            session_resumption=config.session_resumption_enabled,
+            resumption_handle=resumption_handle,
+        )
+
+    def _deadline_reached(self) -> bool:
+        deadline = self._logical_deadline_at
+        return deadline is None or self._monotonic_clock() >= deadline
+
     def _begin_turn(self, turn_id: str) -> None:
         self._active_turn_id = turn_id
         self._input_revision = -1
@@ -494,6 +672,10 @@ class GeminiLiveSessionAdapter:
         self._transport_connected = False
         await self._transport.close()
 
+    async def _close_after_failure(self) -> None:
+        if self._lifecycle is SessionLifecycle.ERROR:
+            await self._close_transport_once()
+
     def _report_failure(self, error: LiveSessionError) -> None:
         sink = self._event_sink
         if sink is not None:
@@ -528,3 +710,7 @@ class GeminiLiveSessionAdapter:
         self._output_audio_sequence = -1
         self._provider_turn_complete = False
         self._interruption_pending_turn_id = None
+        self._logical_deadline_at = None
+        self._resumption_handle = None
+        self._reconnect_attempts = 0
+        self._deadline_task = None

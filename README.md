@@ -61,8 +61,11 @@ the provider-neutral hosted-live contracts, V6B added the optional concrete
 Gemini SDK and bounded native-audio transport, V6C added ordered live transcript
 projection with final-only canonical persistence, and V6D added provider-native
 barge-in with immediate local playback cancellation and stale-output rejection.
-These additions do not weaken or replace the complete local modular lane. Pet
-simulation remains planned after the Voice Intelligence roadmap.
+V6E now adds explicit hosted-session ownership, a hard logical deadline,
+memory-only resumption handles, `GoAway` handling, and bounded reconnects that
+cannot extend the session. These additions do not weaken or replace the
+complete local modular lane. Pet simulation remains planned after the Voice
+Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
