@@ -39,6 +39,7 @@ from project_akiha.config import (
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
+    PrivacyConfig,
     SpotifyConfig,
     VoiceConfig,
     ai_text_processing_is_remote,
@@ -61,9 +62,17 @@ from project_akiha.services.credential_store import (
     CredentialStore,
     CredentialStoreError,
 )
+from project_akiha.services.hosted_live_diagnostics import (
+    build_hosted_live_diagnostics,
+)
+from project_akiha.services.privacy_notice import (
+    acknowledge_current_hosted_live_privacy_notice,
+    hosted_live_privacy_notice_required,
+)
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
+from project_akiha.ui.privacy_notice import HostedLivePrivacyNoticeDialog
 from project_akiha.ui.spotify_auth_worker import SpotifyAuthorizationThread
 from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
 
@@ -112,6 +121,7 @@ class SettingsWindow(QWidget):
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
     voice_output_test_requested = Signal()
+    hosted_live_privacy_acknowledged = Signal(object)
 
     def __init__(
         self,
@@ -390,6 +400,41 @@ class SettingsWindow(QWidget):
             config.voice.local_conversation_max_duration_seconds / 60
         )
         self._voice_conversation_duration_input.setSuffix(" min")
+        self._voice_session_provider_input = QComboBox()
+        self._voice_session_provider_input.addItem("Local Modular", "local_modular")
+        self._voice_session_provider_input.addItem("Gemini Live", "gemini_live")
+        self._set_voice_session_provider(config.voice.session_provider)
+        self._hosted_live_model_input = QLineEdit(config.voice.hosted_live_model)
+        self._hosted_live_voice_input = _build_combo(
+            ("Kore", "Aoede", "Leda", "Puck", "Charon"),
+            config.voice.hosted_live_voice_name,
+            editable=True,
+        )
+        self._hosted_live_duration_input = QComboBox()
+        for minutes in (5, 10, 15):
+            self._hosted_live_duration_input.addItem(
+                f"{minutes} minutes",
+                minutes * 60,
+            )
+        self._set_hosted_live_duration(config.voice.hosted_live_max_duration_seconds)
+        self._hosted_live_processing_location = QLabel(
+            "Google Gemini API (off device during an active session)"
+        )
+        self._hosted_live_processing_location.setWordWrap(True)
+        self._hosted_live_safeguards = QLabel(
+            "Context compression and bounded session resumption are always on."
+        )
+        self._hosted_live_safeguards.setWordWrap(True)
+        self._hosted_live_privacy_status = QLabel()
+        self._hosted_live_privacy_status.setWordWrap(True)
+        self._hosted_live_privacy_button = QPushButton("Review cloud-audio notice")
+        self._hosted_live_privacy_button.clicked.connect(
+            self._review_hosted_live_privacy_notice
+        )
+        self._hosted_live_health_button = QPushButton("Check Gemini Live setup")
+        self._hosted_live_health_button.clicked.connect(self._check_hosted_live_setup)
+        self._hosted_live_health_status = QLabel("Not checked")
+        self._hosted_live_health_status.setWordWrap(True)
         self._voice_health_check_button = QPushButton("Check setup")
         self._voice_health_check_button.clicked.connect(
             self.voice_health_check_requested.emit
@@ -424,6 +469,9 @@ class SettingsWindow(QWidget):
             )
         )
         self._voice_enabled_input.toggled.connect(self._sync_voice_controls)
+        self._voice_session_provider_input.currentIndexChanged.connect(
+            lambda _index: self._sync_hosted_live_controls()
+        )
         self._voice_output_provider_input.currentTextChanged.connect(
             lambda _provider: self._sync_voice_engine_controls()
         )
@@ -605,6 +653,13 @@ class SettingsWindow(QWidget):
         self._voice_conversation_duration_input.setValue(
             config.voice.local_conversation_max_duration_seconds / 60
         )
+        self._set_voice_session_provider(config.voice.session_provider)
+        self._hosted_live_model_input.setText(config.voice.hosted_live_model)
+        self._hosted_live_voice_input.setCurrentText(
+            config.voice.hosted_live_voice_name
+        )
+        self._set_hosted_live_duration(config.voice.hosted_live_max_duration_seconds)
+        self._sync_hosted_live_privacy_status(config.privacy)
         self._sync_voice_controls(config.voice.enabled)
 
     def set_voice_health(
@@ -962,6 +1017,24 @@ class SettingsWindow(QWidget):
             self._voice_conversation_duration_input,
         )
 
+        hosted_layout = _build_form_layout(wrap_long_rows=True)
+        hosted_layout.addRow(
+            "Session provider",
+            self._voice_session_provider_input,
+        )
+        hosted_layout.addRow("Gemini Live model", self._hosted_live_model_input)
+        hosted_layout.addRow("Native voice", self._hosted_live_voice_input)
+        hosted_layout.addRow("Hosted session limit", self._hosted_live_duration_input)
+        hosted_layout.addRow(
+            "Audio processing",
+            self._hosted_live_processing_location,
+        )
+        hosted_layout.addRow("Safeguards", self._hosted_live_safeguards)
+        hosted_layout.addRow("Cloud-audio consent", self._hosted_live_privacy_status)
+        hosted_layout.addRow("Privacy notice", self._hosted_live_privacy_button)
+        hosted_layout.addRow("Hosted diagnostics", self._hosted_live_health_button)
+        hosted_layout.addRow("Hosted status", self._hosted_live_health_status)
+
         speaking_layout = _build_form_layout(wrap_long_rows=True)
         speaking_layout.addRow(
             "Output provider",
@@ -1037,6 +1110,7 @@ class SettingsWindow(QWidget):
         return _build_scroll_tab(
             _build_section("Listening", listening_layout),
             _build_section("Local conversation", conversation_layout),
+            _build_section("Hosted conversation", hosted_layout),
             _build_section("Speaking", speaking_layout),
             _build_section("Subtitles", subtitle_layout),
             _build_section("Diagnostics", diagnostics_layout),
@@ -1295,6 +1369,17 @@ class SettingsWindow(QWidget):
         except ValueError as error:
             self._set_spotify_connection_status(str(error), is_error=True)
             return False
+        if (
+            self._selected_voice_session_provider() == "gemini_live"
+            and hosted_live_privacy_notice_required(self._config.privacy)
+            and not self._review_hosted_live_privacy_notice()
+        ):
+            self._set_hosted_live_health_status(
+                "Cloud-audio acknowledgement is required before selecting "
+                "Gemini Live.",
+                is_error=True,
+            )
+            return False
         if not self._save_ai_api_key():
             return False
         pet_window = PetWindowConfig(
@@ -1407,6 +1492,12 @@ class SettingsWindow(QWidget):
                 ),
                 local_conversation_max_duration_seconds=round(
                     self._voice_conversation_duration_input.value() * 60
+                ),
+                session_provider=self._selected_voice_session_provider(),
+                hosted_live_model=self._hosted_live_model_input.text(),
+                hosted_live_voice_name=self._hosted_live_voice_input.currentText(),
+                hosted_live_max_duration_seconds=(
+                    self._selected_hosted_live_duration()
                 ),
             )
         )
@@ -1612,6 +1703,22 @@ class SettingsWindow(QWidget):
         self._sync_ai_processing_boundary(provider)
 
     def _sync_ai_processing_boundary(self, provider: str) -> None:
+        hosted_live_selected = (
+            hasattr(self, "_voice_session_provider_input")
+            and self._selected_voice_session_provider() == "gemini_live"
+        )
+        if hosted_live_selected:
+            self._processing_mode_value.setText("Hosted Live")
+            self._text_processing_value.setText(
+                "Google Gemini Live during an active hosted session"
+            )
+            self._audio_processing_value.setText(
+                "Google Gemini API while you explicitly run Gemini Live"
+            )
+            self._processing_mode_value.setStyleSheet(
+                f"color: {AKIHA_PALETTE.highlight};"
+            )
+            return
         provider_base_url = (
             self._ollama_base_url_input.text()
             if provider == "ollama"
@@ -1847,9 +1954,95 @@ class SettingsWindow(QWidget):
             self._voice_health_check_button,
             self._voice_microphone_test_button,
             self._voice_output_test_button,
+            self._voice_session_provider_input,
+            self._hosted_live_privacy_button,
+            self._hosted_live_health_button,
         ):
             control.setEnabled(enabled)
         self._sync_voice_engine_controls()
+        self._sync_hosted_live_controls()
+
+    def _sync_hosted_live_controls(self) -> None:
+        enabled = self._voice_enabled_input.isChecked()
+        hosted_selected = self._selected_voice_session_provider() == "gemini_live"
+        for control in (
+            self._hosted_live_model_input,
+            self._hosted_live_voice_input,
+            self._hosted_live_duration_input,
+        ):
+            control.setEnabled(enabled and hosted_selected)
+        self._sync_ai_processing_boundary(self._ai_provider_input.currentText())
+
+    def _selected_voice_session_provider(self) -> str:
+        provider = self._voice_session_provider_input.currentData()
+        return provider if isinstance(provider, str) else "local_modular"
+
+    def _set_voice_session_provider(self, provider: str) -> None:
+        index = self._voice_session_provider_input.findData(provider)
+        self._voice_session_provider_input.setCurrentIndex(max(0, index))
+
+    def _selected_hosted_live_duration(self) -> int:
+        duration = self._hosted_live_duration_input.currentData()
+        return duration if isinstance(duration, int) else 600
+
+    def _set_hosted_live_duration(self, duration_seconds: int) -> None:
+        index = self._hosted_live_duration_input.findData(duration_seconds)
+        self._hosted_live_duration_input.setCurrentIndex(max(0, index))
+
+    def _review_hosted_live_privacy_notice(self) -> bool:
+        dialog = HostedLivePrivacyNoticeDialog(self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return False
+        privacy = acknowledge_current_hosted_live_privacy_notice(self._config.privacy)
+        self._config = self._config.with_privacy(privacy)
+        self._sync_hosted_live_privacy_status(privacy)
+        self.hosted_live_privacy_acknowledged.emit(privacy)
+        return True
+
+    def _sync_hosted_live_privacy_status(self, privacy: PrivacyConfig) -> None:
+        required = hosted_live_privacy_notice_required(privacy)
+        self._hosted_live_privacy_status.setText(
+            "Required before first use" if required else "Acknowledged and current"
+        )
+        color = AKIHA_PALETTE.error if required else AKIHA_PALETTE.success
+        self._hosted_live_privacy_status.setStyleSheet(f"color: {color};")
+
+    def _check_hosted_live_setup(self) -> None:
+        try:
+            voice = VoiceConfig(
+                session_provider=self._selected_voice_session_provider(),
+                hosted_live_model=self._hosted_live_model_input.text(),
+                hosted_live_voice_name=self._hosted_live_voice_input.currentText(),
+                hosted_live_max_duration_seconds=(
+                    self._selected_hosted_live_duration()
+                ),
+            )
+        except ValueError as error:
+            self._set_hosted_live_health_status(str(error), is_error=True)
+            return
+        snapshot = build_hosted_live_diagnostics(
+            voice,
+            self._config.privacy,
+            self._credential_store,
+        )
+        details = (
+            f"SDK: {'ready' if snapshot.sdk_available else 'missing'}; "
+            f"Gemini key: {'saved' if snapshot.api_key_available else 'missing'}; "
+            f"consent: {'current' if snapshot.privacy_notice_current else 'required'}; "
+            f"limit: {snapshot.max_duration_seconds // 60} min. "
+            "No network connection or microphone capture was performed."
+        )
+        self._set_hosted_live_health_status(details, is_error=not snapshot.ready)
+
+    def _set_hosted_live_health_status(
+        self,
+        status: str,
+        *,
+        is_error: bool = False,
+    ) -> None:
+        self._hosted_live_health_status.setText(status.strip() or "Not checked")
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
+        self._hosted_live_health_status.setStyleSheet(f"color: {color};")
 
     def _sync_voice_engine_controls(self) -> None:
         provider_enabled = (

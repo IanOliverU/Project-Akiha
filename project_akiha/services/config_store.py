@@ -63,6 +63,9 @@ def _serialize_config(config: AppConfig) -> str:
     voice_output_voice_id = _escape_toml_string(voice.output_voice_id)
     voice_output_device = _escape_toml_string(voice.output_device)
     voice_output_engine_path = _escape_toml_string(voice.output_engine_path)
+    voice_session_provider = _escape_toml_string(voice.session_provider)
+    hosted_live_model = _escape_toml_string(voice.hosted_live_model)
+    hosted_live_voice_name = _escape_toml_string(voice.hosted_live_voice_name)
     spotify_client_id = _escape_toml_string(spotify.client_id)
     spotify_redirect_uri = _escape_toml_string(spotify.redirect_uri)
 
@@ -98,6 +101,8 @@ def _serialize_config(config: AppConfig) -> str:
         "[privacy]\n"
         "notice_version_acknowledged = "
         f"{privacy.notice_version_acknowledged}\n"
+        "hosted_live_notice_version_acknowledged = "
+        f"{privacy.hosted_live_notice_version_acknowledged}\n"
         "\n"
         "[behavior]\n"
         f"enabled = {behavior_enabled}\n"
@@ -153,6 +158,11 @@ def _serialize_config(config: AppConfig) -> str:
         f"{voice.local_conversation_idle_timeout_seconds}\n"
         "local_conversation_max_duration_seconds = "
         f"{voice.local_conversation_max_duration_seconds}\n"
+        f'session_provider = "{voice_session_provider}"\n'
+        f'hosted_live_model = "{hosted_live_model}"\n'
+        f'hosted_live_voice_name = "{hosted_live_voice_name}"\n'
+        "hosted_live_max_duration_seconds = "
+        f"{voice.hosted_live_max_duration_seconds}\n"
         "\n"
         "[spotify]\n"
         f"enabled = {str(spotify.enabled).lower()}\n"

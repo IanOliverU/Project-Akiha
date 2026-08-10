@@ -76,6 +76,20 @@ provider, hosted provider, local storage, and encrypted credential boundaries.
 Acknowledgement is persisted in the user config and the notice returns only
 when its version is increased or local data is reset.
 
+Hosted microphone audio has a second, independently versioned consent notice.
+Gemini Live cannot be saved as the selected conversation-session provider until
+that notice is accepted. The acknowledgement contains no conversation data.
+The notice discloses off-device microphone processing, temporary raw audio,
+final-transcript persistence, free- versus paid-tier data-use labels, bounded
+session duration, and how to stop streaming.
+
+The Gemini Live setup diagnostic is local-only. It checks optional SDK
+availability, presence of the DPAPI-encrypted Gemini credential, current
+consent, and non-secret model/voice/duration settings. It does not connect to a
+provider, capture audio, decrypt a key into UI text, or inspect transcripts.
+Context compression and bounded session resumption remain mandatory adapter
+invariants and are not exposed as user-disableable settings.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:

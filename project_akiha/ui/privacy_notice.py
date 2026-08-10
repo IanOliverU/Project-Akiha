@@ -66,3 +66,57 @@ class PrivacyNoticeDialog(QDialog):
         layout.addWidget(summary)
         layout.addWidget(buttons)
         self.setLayout(layout)
+
+
+class HostedLivePrivacyNoticeDialog(QDialog):
+    """Require explicit consent before microphone audio may leave the PC."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Gemini Live Cloud Audio")
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setMinimumWidth(520)
+
+        heading = QLabel("Before using Gemini Live")
+        heading.setStyleSheet("font-size: 16px; font-weight: 600;")
+
+        summary = QLabel(
+            "<p><b>Cloud audio:</b> During a Gemini Live conversation, "
+            "microphone audio and active conversation context are sent to "
+            "Google for off-device processing. Streaming begins only after "
+            "you explicitly start that session and stops when you end it, "
+            "it fails, or its time limit is reached.</p>"
+            "<p><b>Local retention:</b> Akiha keeps raw audio in memory only "
+            "for the active operation. Interim transcripts are not saved. "
+            "Accepted final conversation text follows Akiha's normal local "
+            "chat and memory policy.</p>"
+            "<p><b>Google data use:</b> Google's current Gemini API pricing "
+            "page states that free-tier content may be used to improve its "
+            "products, while paid-tier content is not. Confirm your account "
+            "tier and Google's current terms before speaking sensitive "
+            "information.</p>"
+            "<p><b>Cost and limits:</b> Usage is provider-metered. Akiha's "
+            "5, 10, or 15 minute session limit bounds one session but is not "
+            "a price guarantee. Context compression and bounded session "
+            "resumption are always enabled.</p>"
+            '<p><a href="https://ai.google.dev/gemini-api/docs/pricing">'
+            "Review current Gemini API pricing and data-use labels</a></p>"
+        )
+        summary.setWordWrap(True)
+        summary.setTextFormat(Qt.TextFormat.RichText)
+        summary.setOpenExternalLinks(True)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(
+            "I understand and allow cloud audio"
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout()
+        layout.addWidget(heading)
+        layout.addWidget(summary)
+        layout.addWidget(buttons)
+        self.setLayout(layout)

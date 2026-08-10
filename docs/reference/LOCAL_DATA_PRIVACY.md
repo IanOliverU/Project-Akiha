@@ -98,10 +98,10 @@ Ollama and custom OpenAI-compatible endpoints are treated as local only when
 their URL is loopback-only (`localhost`, `127.0.0.0/8`, or `::1`). Any other
 endpoint is conservatively disclosed as off-device text processing.
 
-If Gemini Live is enabled later:
+Gemini Live setup now has these additional boundaries:
 
-- cloud microphone streaming will require a separate explicit user-started
-  session and versioned privacy acknowledgement
+- cloud microphone streaming requires a separate explicit user-started session
+  and versioned privacy acknowledgement
 - the first release will enforce a finite duration and mandatory context-window
   compression rather than permit unlimited sessions
 - current Google pricing and data-use terms will be revalidated before release
@@ -112,6 +112,13 @@ If Gemini Live is enabled later:
   Akiha will not promise a fixed per-minute cost
 - local push-to-talk, local Conversation Session, Ollama, faster-whisper, and
   VOICEVOX will remain available without Gemini Live
+
+The hosted-audio acknowledgement is stored separately as
+`privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini
+Live in Settings does not contact Google or capture microphone audio. The
+privacy-safe readiness check reports only whether the optional SDK, encrypted
+Gemini key, and current acknowledgement are present, plus the selected model,
+voice, and bounded duration.
 
 ## Chat Transcripts
 

@@ -6,8 +6,11 @@ import unittest
 
 from project_akiha.config import PrivacyConfig
 from project_akiha.services.privacy_notice import (
+    CURRENT_HOSTED_LIVE_PRIVACY_NOTICE_VERSION,
     CURRENT_PRIVACY_NOTICE_VERSION,
+    acknowledge_current_hosted_live_privacy_notice,
     acknowledge_current_privacy_notice,
+    hosted_live_privacy_notice_required,
     privacy_notice_required,
 )
 
@@ -35,6 +38,19 @@ class PrivacyNoticePolicyTest(unittest.TestCase):
                 PrivacyConfig(notice_version_acknowledged=previous_version)
             )
         )
+
+    def test_hosted_live_notice_is_independent_and_versioned(self) -> None:
+        base = acknowledge_current_privacy_notice(PrivacyConfig())
+
+        self.assertTrue(hosted_live_privacy_notice_required(base))
+        acknowledged = acknowledge_current_hosted_live_privacy_notice(base)
+
+        self.assertEqual(
+            acknowledged.hosted_live_notice_version_acknowledged,
+            CURRENT_HOSTED_LIVE_PRIVACY_NOTICE_VERSION,
+        )
+        self.assertFalse(hosted_live_privacy_notice_required(acknowledged))
+        self.assertFalse(privacy_notice_required(acknowledged))
 
 
 if __name__ == "__main__":

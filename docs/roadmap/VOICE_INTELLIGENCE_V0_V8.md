@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A through V6E complete, V6F next
+**Status:** V0 through V5 complete - V6A through V6F complete, V6G next
 
 **Planning date:** 2026-08-01
 
@@ -1291,8 +1291,8 @@ improvements in an unfinished state.
 - [x] Add provider-native interruption with coordinator reconciliation.
 - [x] Add bounded session timeout/resumption behavior.
 - [x] Require context-window compression and the finite session-duration cap.
-- [ ] Add explicit cloud-audio notice, settings, and diagnostics.
-- [ ] Revalidate and disclose current free- versus paid-tier data use.
+- [x] Add explicit cloud-audio notice, settings, and diagnostics.
+- [x] Revalidate and disclose current free- versus paid-tier data use.
 - [ ] Preserve Local Modular as an independent fallback choice.
 
 #### V6A: Live Foundation - Complete
@@ -1467,10 +1467,42 @@ References:
 
 #### V6F: Privacy, Settings, And Diagnostics
 
-- [ ] Add the versioned cloud-audio notice and processing-location labels.
-- [ ] Add model, voice, session duration, and diagnostic settings.
-- [ ] Revalidate current Gemini availability, quota, pricing, and data-use
+- [x] Add the versioned cloud-audio notice and processing-location labels.
+- [x] Add model, voice, session duration, and diagnostic settings.
+- [x] Revalidate current Gemini availability, quota, pricing, and data-use
   language before release.
+
+V6F added a second acknowledgement version dedicated to microphone audio sent
+to Gemini Live. It is independent from the general first-run privacy notice,
+is stored as non-sensitive configuration, and is required before Settings can
+save Gemini Live as the conversation-session provider. The notice states when
+streaming begins and ends, which transcript forms may be persisted, and that a
+5, 10, or 15 minute application limit is not a fixed-price guarantee.
+
+Voice Settings now persist the selected Local Modular or Gemini Live lane, the
+Gemini Live model, native voice, and finite session duration. They visibly
+label hosted audio as off-device processing and show context compression and
+bounded session resumption as mandatory safeguards rather than disableable
+options. The hosted readiness check inspects only local SDK, encrypted-key,
+consent, model, voice, and duration state. It never connects to Google, opens
+the microphone, logs a credential, or exposes transcript content.
+
+As revalidated on 2026-08-10, Google's official pricing page lists
+`gemini-3.1-flash-live-preview` as a low-latency audio-to-audio model. Its free
+tier is labeled free of charge with content used to improve Google products;
+the paid tier is token-metered and labeled as not used to improve Google
+products. Availability, quotas, pricing, and terms remain provider-controlled
+and must be checked again before a release.
+
+V6F exposes and persists hosted setup but does not silently replace the current
+Local Modular conversation runtime. Runtime lane selection and explicit local
+fallback behavior remain the V6G checkpoint.
+
+References:
+
+- [Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing)
+- [Gemini Live capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities)
+- [Gemini API terms](https://ai.google.dev/gemini-api/terms)
 
 #### V6G: Local Fallback
 

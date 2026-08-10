@@ -14,7 +14,13 @@ from PySide6.QtCore import QTime
 from PySide6.QtWidgets import QApplication, QGroupBox
 
 import project_akiha.ui.settings_window as settings_window_module
-from project_akiha.config import AIConfig, AppConfig, PrivacyConfig, SpotifyConfig
+from project_akiha.config import (
+    AIConfig,
+    AppConfig,
+    PrivacyConfig,
+    SpotifyConfig,
+    VoiceConfig,
+)
 from project_akiha.core.actions import (
     ApprovedDirectory,
     InstalledApplication,
@@ -526,6 +532,51 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(voice.local_conversation_max_duration_seconds, 900)
         self.assertEqual(emitted[0].privacy.notice_version_acknowledged, 1)
 
+    def test_saves_acknowledged_hosted_live_controls(self) -> None:
+        config = AppConfig(
+            privacy=PrivacyConfig(hosted_live_notice_version_acknowledged=1),
+            voice=VoiceConfig(enabled=True),
+        )
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(config, log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._set_voice_session_provider("gemini_live")
+            window._hosted_live_model_input.setText("gemini-live-test")
+            window._hosted_live_voice_input.setCurrentText("Aoede")
+            window._set_hosted_live_duration(300)
+
+            saved = window._save()
+
+        self.assertTrue(saved)
+        self.assertEqual(emitted[0].voice.session_provider, "gemini_live")
+        self.assertEqual(emitted[0].voice.hosted_live_model, "gemini-live-test")
+        self.assertEqual(emitted[0].voice.hosted_live_voice_name, "Aoede")
+        self.assertEqual(emitted[0].voice.hosted_live_max_duration_seconds, 300)
+        self.assertIn("Google Gemini", window._audio_processing_value.text())
+
+    def test_hosted_live_save_stops_when_notice_is_declined(self) -> None:
+        credentials = _CredentialStore()
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                AppConfig(voice=VoiceConfig(enabled=True)),
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._ai_provider_input.setCurrentText("gemini")
+            window._ai_api_key_input.setText("not-persisted")
+            window._set_voice_session_provider("gemini_live")
+            window._review_hosted_live_privacy_notice = lambda: False
+
+            saved = window._save()
+
+        self.assertFalse(saved)
+        self.assertEqual(emitted, [])
+        self.assertEqual(credentials.secrets, {})
+        self.assertIn("required", window._hosted_live_health_status.text())
+
     def test_voice_controls_follow_master_switch(self) -> None:
         with TemporaryDirectory() as directory:
             window = SettingsWindow(AppConfig(), log_dir=Path(directory))
@@ -536,6 +587,7 @@ class SettingsWindowTest(unittest.TestCase):
             self.assertFalse(window._export_english_subtitles_enabled_input.isEnabled())
             self.assertFalse(window._live_transcription_enabled_input.isEnabled())
             self.assertFalse(window._voice_output_engine_auto_start_input.isEnabled())
+            self.assertFalse(window._voice_session_provider_input.isEnabled())
             window._voice_enabled_input.setChecked(True)
 
         self.assertTrue(window._automatic_speech_enabled_input.isEnabled())
@@ -545,6 +597,10 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertTrue(window._live_transcription_enabled_input.isEnabled())
         self.assertTrue(window._voice_output_base_url_input.isEnabled())
         self.assertTrue(window._voice_output_engine_auto_start_input.isEnabled())
+        self.assertTrue(window._voice_session_provider_input.isEnabled())
+        self.assertFalse(window._hosted_live_model_input.isEnabled())
+        window._set_voice_session_provider("gemini_live")
+        self.assertTrue(window._hosted_live_model_input.isEnabled())
         self.assertFalse(window._voice_output_engine_path_input.isEnabled())
         window._voice_output_engine_auto_start_input.setChecked(True)
         self.assertTrue(window._voice_output_engine_path_input.isEnabled())

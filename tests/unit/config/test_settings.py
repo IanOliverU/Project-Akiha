@@ -40,6 +40,10 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.memory.retrieval_limit, 5)
         self.assertFalse(config.memory.require_approval)
         self.assertEqual(config.privacy.notice_version_acknowledged, 0)
+        self.assertEqual(
+            config.privacy.hosted_live_notice_version_acknowledged,
+            0,
+        )
         self.assertTrue(config.behavior.enabled)
         self.assertFalse(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 300)
@@ -61,6 +65,13 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.capture_timeout_seconds, 30)
         self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 120)
         self.assertEqual(config.voice.local_conversation_max_duration_seconds, 1800)
+        self.assertEqual(config.voice.session_provider, "local_modular")
+        self.assertEqual(
+            config.voice.hosted_live_model,
+            "gemini-3.1-flash-live-preview",
+        )
+        self.assertEqual(config.voice.hosted_live_voice_name, "Kore")
+        self.assertEqual(config.voice.hosted_live_max_duration_seconds, 600)
         self.assertFalse(config.voice.input_enabled)
         self.assertFalse(config.voice.output_enabled)
 
@@ -88,6 +99,7 @@ class SettingsTest(unittest.TestCase):
                 "\n"
                 "[privacy]\n"
                 "notice_version_acknowledged = 1\n"
+                "hosted_live_notice_version_acknowledged = 1\n"
                 "\n"
                 "[behavior]\n"
                 "proactive_enabled = true\n"
@@ -125,7 +137,11 @@ class SettingsTest(unittest.TestCase):
                 "capture_timeout_seconds = 12\n"
                 "request_timeout_seconds = 10\n"
                 "local_conversation_idle_timeout_seconds = 90\n"
-                "local_conversation_max_duration_seconds = 900\n",
+                "local_conversation_max_duration_seconds = 900\n"
+                'session_provider = "gemini_live"\n'
+                'hosted_live_model = "gemini-live-test"\n'
+                'hosted_live_voice_name = "Aoede"\n'
+                "hosted_live_max_duration_seconds = 300\n",
                 encoding="utf-8",
             )
 
@@ -145,6 +161,10 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
         self.assertEqual(config.privacy.notice_version_acknowledged, 1)
+        self.assertEqual(
+            config.privacy.hosted_live_notice_version_acknowledged,
+            1,
+        )
         self.assertTrue(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 60)
         self.assertEqual(config.behavior.away_after_seconds, 120)
@@ -179,6 +199,10 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.request_timeout_seconds, 10)
         self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 90)
         self.assertEqual(config.voice.local_conversation_max_duration_seconds, 900)
+        self.assertEqual(config.voice.session_provider, "gemini_live")
+        self.assertEqual(config.voice.hosted_live_model, "gemini-live-test")
+        self.assertEqual(config.voice.hosted_live_voice_name, "Aoede")
+        self.assertEqual(config.voice.hosted_live_max_duration_seconds, 300)
         self.assertFalse(config.voice.input_enabled)
         self.assertTrue(config.voice.output_enabled)
 
@@ -212,6 +236,9 @@ class SettingsTest(unittest.TestCase):
     def test_privacy_config_rejects_negative_notice_version(self) -> None:
         with self.assertRaises(ValueError):
             PrivacyConfig(notice_version_acknowledged=-1)
+
+        with self.assertRaises(ValueError):
+            PrivacyConfig(hosted_live_notice_version_acknowledged=-1)
 
     def test_behavior_config_rejects_away_threshold_before_idle(self) -> None:
         with self.assertRaises(ValueError):
@@ -349,6 +376,18 @@ class SettingsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             VoiceConfig(local_conversation_max_duration_seconds=14_401)
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(session_provider="automatic")
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(hosted_live_model=" ")
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(hosted_live_voice_name=" ")
+
+        with self.assertRaises(ValueError):
+            VoiceConfig(hosted_live_max_duration_seconds=1_200)
 
 
 if __name__ == "__main__":

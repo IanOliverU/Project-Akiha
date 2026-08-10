@@ -332,7 +332,11 @@ class AssistantActionRequestParserTest(unittest.TestCase):
 
     def test_parses_natural_spotify_conversation_intents(self) -> None:
         cases = (
-            ("Akiha, can you open Spotify for me?", "applications.launch", {"application_id": "spotify"}),
+            (
+                "Akiha, can you open Spotify for me?",
+                "applications.launch",
+                {"application_id": "spotify"},
+            ),
             ("I want to listen to music.", "spotify.play", {"service": "spotify"}),
             ("Let's listen to something.", "spotify.play", {"service": "spotify"}),
             ("Can you play some music?", "spotify.play", {"service": "spotify"}),

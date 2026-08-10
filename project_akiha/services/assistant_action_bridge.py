@@ -764,7 +764,10 @@ class AssistantActionRequestParser:
             ):
                 return None
             too_quality = relative_volume_match.group("too_quality")
-            if too_quality is not None and relative_volume_match.group("too_music") is None:
+            if (
+                too_quality is not None
+                and relative_volume_match.group("too_music") is None
+            ):
                 # Bare "too loud" needs recent Spotify context via ephemeral resolution.
                 return None
             raw_delta_text = next(
@@ -790,16 +793,12 @@ class AssistantActionRequestParser:
                     return None
             if too_quality is not None:
                 volume_delta_percent = (
-                    -raw_delta
-                    if too_quality.casefold() == "loud"
-                    else raw_delta
+                    -raw_delta if too_quality.casefold() == "loud" else raw_delta
                 )
             elif relative_volume_match.group("make_quality") is not None:
                 quality = relative_volume_match.group("make_quality").casefold()
                 volume_delta_percent = (
-                    raw_delta
-                    if quality in {"louder", "higher"}
-                    else -raw_delta
+                    raw_delta if quality in {"louder", "higher"} else -raw_delta
                 )
             else:
                 direction = next(

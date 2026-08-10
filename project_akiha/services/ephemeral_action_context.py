@@ -412,9 +412,7 @@ class EphemeralActionContext:
                 return None
         if match.group("too_quality") is not None:
             return (
-                -amount
-                if match.group("too_quality").casefold() == "loud"
-                else amount
+                -amount if match.group("too_quality").casefold() == "loud" else amount
             )
         if match.group("make_quality") is not None:
             quality = match.group("make_quality").casefold()

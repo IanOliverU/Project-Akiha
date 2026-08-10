@@ -58,7 +58,10 @@ class UserConfigStoreTest(unittest.TestCase):
                         retrieval_limit=3,
                         require_approval=True,
                     ),
-                    privacy=PrivacyConfig(notice_version_acknowledged=1),
+                    privacy=PrivacyConfig(
+                        notice_version_acknowledged=1,
+                        hosted_live_notice_version_acknowledged=1,
+                    ),
                     behavior=BehaviorConfig(
                         enabled=True,
                         proactive_enabled=True,
@@ -100,6 +103,10 @@ class UserConfigStoreTest(unittest.TestCase):
                         request_timeout_seconds=10,
                         local_conversation_idle_timeout_seconds=90,
                         local_conversation_max_duration_seconds=900,
+                        session_provider="gemini_live",
+                        hosted_live_model="gemini-live-test",
+                        hosted_live_voice_name="Aoede",
+                        hosted_live_max_duration_seconds=300,
                     ),
                     spotify=SpotifyConfig(
                         enabled=True,
@@ -136,6 +143,10 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.memory.retrieval_limit, 3)
         self.assertTrue(config.memory.require_approval)
         self.assertEqual(config.privacy.notice_version_acknowledged, 1)
+        self.assertEqual(
+            config.privacy.hosted_live_notice_version_acknowledged,
+            1,
+        )
         self.assertTrue(config.behavior.enabled)
         self.assertTrue(config.behavior.proactive_enabled)
         self.assertEqual(config.behavior.idle_after_seconds, 60)
@@ -177,6 +188,10 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.request_timeout_seconds, 10)
         self.assertEqual(config.voice.local_conversation_idle_timeout_seconds, 90)
         self.assertEqual(config.voice.local_conversation_max_duration_seconds, 900)
+        self.assertEqual(config.voice.session_provider, "gemini_live")
+        self.assertEqual(config.voice.hosted_live_model, "gemini-live-test")
+        self.assertEqual(config.voice.hosted_live_voice_name, "Aoede")
+        self.assertEqual(config.voice.hosted_live_max_duration_seconds, 300)
         self.assertTrue(config.spotify.enabled)
         self.assertEqual(config.spotify.client_id, "a" * 32)
         self.assertFalse(config.spotify.auto_launch_desktop_app)

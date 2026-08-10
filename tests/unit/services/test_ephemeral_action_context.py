@@ -115,9 +115,21 @@ class EphemeralActionContextTest(unittest.TestCase):
         self.context.record_spotify_activity()
 
         cases = (
-            ("Turn it up", "spotify.volume", {"service": "spotify", "volume_delta_percent": 10}),
-            ("Make it quieter", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
-            ("It's too loud", "spotify.volume", {"service": "spotify", "volume_delta_percent": -10}),
+            (
+                "Turn it up",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": 10},
+            ),
+            (
+                "Make it quieter",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -10},
+            ),
+            (
+                "It's too loud",
+                "spotify.volume",
+                {"service": "spotify", "volume_delta_percent": -10},
+            ),
             ("Skip this", "spotify.next", {"service": "spotify"}),
             ("Stop it", "spotify.pause", {"service": "spotify"}),
         )

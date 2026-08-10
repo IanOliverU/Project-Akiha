@@ -78,7 +78,7 @@ Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Optional Gemini Live and provider-native typed tool proposals |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live setup through V6F; explicit fallback and provider-native tools next |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

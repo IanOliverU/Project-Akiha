@@ -171,11 +171,16 @@ class PrivacyConfig:
     """Versioned acknowledgement state for privacy notices."""
 
     notice_version_acknowledged: int = 0
+    hosted_live_notice_version_acknowledged: int = 0
 
     def __post_init__(self) -> None:
         """Reject invalid persisted notice versions."""
         if self.notice_version_acknowledged < 0:
             raise ValueError("privacy.notice_version_acknowledged cannot be negative.")
+        if self.hosted_live_notice_version_acknowledged < 0:
+            raise ValueError(
+                "privacy.hosted_live_notice_version_acknowledged cannot be negative."
+            )
 
 
 def _validate_hh_mm(value: str, field_name: str) -> None:
@@ -268,6 +273,10 @@ class VoiceConfig:
     request_timeout_seconds: int = 30
     local_conversation_idle_timeout_seconds: int = 120
     local_conversation_max_duration_seconds: int = 1800
+    session_provider: str = "local_modular"
+    hosted_live_model: str = "gemini-3.1-flash-live-preview"
+    hosted_live_voice_name: str = "Kore"
+    hosted_live_max_duration_seconds: int = 600
 
     def __post_init__(self) -> None:
         """Validate provider-neutral voice settings."""
@@ -314,6 +323,18 @@ class VoiceConfig:
             raise ValueError(
                 "voice.local_conversation_max_duration_seconds must be between "
                 "60 and 14400."
+            )
+        if self.session_provider not in {"local_modular", "gemini_live"}:
+            raise ValueError(
+                "voice.session_provider must be 'local_modular' or 'gemini_live'."
+            )
+        if not self.hosted_live_model.strip():
+            raise ValueError("voice.hosted_live_model cannot be empty.")
+        if not self.hosted_live_voice_name.strip():
+            raise ValueError("voice.hosted_live_voice_name cannot be empty.")
+        if self.hosted_live_max_duration_seconds not in {300, 600, 900}:
+            raise ValueError(
+                "voice.hosted_live_max_duration_seconds must be 300, 600, or 900."
             )
 
     @property

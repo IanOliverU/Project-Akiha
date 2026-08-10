@@ -57,7 +57,13 @@ from project_akiha.app.voice_synthesis_controller import VoiceSynthesisControlle
 from project_akiha.app.voice_transcription_controller import (
     VoiceTranscriptionController,
 )
-from project_akiha.config import AIConfig, AppConfig, VoiceConfig, load_config
+from project_akiha.config import (
+    AIConfig,
+    AppConfig,
+    PrivacyConfig,
+    VoiceConfig,
+    load_config,
+)
 from project_akiha.core.actions import (
     ActionPermissionPolicy,
     ActionRequest,
@@ -521,6 +527,22 @@ def _run_application() -> int:
         )
 
     privacy_notice.accepted.connect(acknowledge_privacy_notice)
+
+    def acknowledge_hosted_live_privacy_notice(privacy_config: object) -> None:
+        nonlocal config
+        if not isinstance(privacy_config, PrivacyConfig):
+            logger.error("Ignored invalid hosted-live privacy acknowledgement.")
+            return
+        config = config.with_privacy(privacy_config)
+        user_config_store.save_config(config)
+        logger.info(
+            "Acknowledged hosted-live privacy notice version %s.",
+            privacy_config.hosted_live_notice_version_acknowledged,
+        )
+
+    settings_window.hosted_live_privacy_acknowledged.connect(
+        acknowledge_hosted_live_privacy_notice
+    )
     voicevox_engine_manager = VoiceVoxEngineManager(paths.project_root)
 
     def apply_voicevox_engine_config(voice_config: VoiceConfig) -> None:
