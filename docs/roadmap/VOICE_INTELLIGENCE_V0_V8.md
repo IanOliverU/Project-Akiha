@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A complete, V6B next
+**Status:** V0 through V5 complete - V6A and V6B complete, V6C next
 
 **Planning date:** 2026-08-01
 
@@ -1323,18 +1323,41 @@ measured.
 V6A follows the current official protocol boundary: realtime audio is sent as
 raw PCM through a persistent session, input and output transcriptions are
 optional setup features, and audio output is 24 kHz PCM. Akiha requires input
-to be prepared as mono 16-bit 16 kHz PCM before it enters the adapter; V6B owns
-the bounded resampler and frame pump.
+to be prepared as mono 16-bit 16 kHz PCM before it enters the adapter. Because
+the existing Qt microphone owner already captures that exact format, V6B uses a
+bounded chunker and rejects nonconforming input instead of adding a CPU-heavy
+resampler.
 
-#### V6B: Native Audio Transport - Next
+#### V6B: Native Audio Transport - Complete
 
-- [ ] Add the optional Google Gen AI SDK dependency behind the live extra.
-- [ ] Implement the concrete async Gemini transport.
-- [ ] Convert bounded Qt microphone frames to mono 16-bit 16 kHz PCM.
-- [ ] Send 20-100 ms realtime chunks through one bounded queue.
-- [ ] Receive 24 kHz native PCM into the existing single Qt playback owner.
-- [ ] Prove queue backpressure, cancellation, and shutdown without microphone
+- [x] Add the optional Google Gen AI SDK dependency behind the live extra.
+- [x] Implement the concrete async Gemini transport.
+- [x] Convert bounded Qt microphone frames to mono 16-bit 16 kHz PCM.
+- [x] Send 20-100 ms realtime chunks through one bounded queue.
+- [x] Receive 24 kHz native PCM into the existing single Qt playback owner.
+- [x] Prove queue backpressure, cancellation, and shutdown without microphone
   or playback resource duplication.
+
+V6B uses the optional `google-genai>=2.17,<3` extra. The dependency is imported
+lazily, and Google SDK objects remain inside `GoogleGenAILiveTransport`. Akiha's
+existing Qt microphone emits direct 20 ms mono PCM16 frames; the canonical
+realtime bridge adds session, turn, time, and sequence ownership without
+retaining cumulative audio. `GeminiPcmInputChunker` combines those frames into
+40 ms provider chunks and sends them through a bounded asynchronous queue.
+
+Native 24 kHz PCM responses are converted into short 200 ms in-memory WAV
+segments and passed to the existing `VoicePlaybackController` and Qt audio
+owner. V6B does not create a second microphone or playback device. Queue
+overflow fails visibly, cancellation drops pending audio, stale playback
+callbacks are ignored, and shutdown closes worker tasks and releases queued
+buffers. Raw audio and credentials are never written to diagnostics or local
+persistence.
+
+This checkpoint verifies the concrete SDK boundary with deterministic SDK-shaped
+fakes. It does not perform a real Gemini network call, expose Gemini Live in
+Settings, or rebuild the packaged application. Transcript integration begins in
+V6C; interruption, session controls, privacy UI, and release verification remain
+in their later V6 checkpoints.
 
 #### V6C: Live Transcripts
 

@@ -56,9 +56,11 @@ voice coordinator with rolling recognition, contextual intent correction,
 streamed VOICEVOX speech, interruption, and bounded multi-turn Conversation
 Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
 data smoke checks and the complete manual voice, provider, conversation,
-context, action, and shutdown checklist. V6 will add optional Gemini Live
-without weakening or replacing the complete local modular lane. Pet simulation
-remains planned after the Voice Intelligence roadmap.
+context, action, and shutdown checklist. V6 is now in progress: V6A established
+the provider-neutral hosted-live contracts, and V6B added the optional concrete
+Gemini SDK and bounded native-audio transport without weakening or replacing
+the complete local modular lane. Pet simulation remains planned after the Voice
+Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -71,7 +73,7 @@ remains planned after the Voice Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | Planned | Optional Gemini Live and provider-native typed tool proposals |
+| Post-Phase 8 V6-V8 | In progress | Optional Gemini Live and provider-native typed tool proposals |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -105,6 +107,8 @@ remains planned after the Voice Intelligence roadmap.
 - **OllamaProvider** supports optional local non-cloud chat streaming.
 - **OpenAICompatibleProvider** supports hosted and self-hosted Chat Completions
   endpoints through one streaming adapter.
+- **Google Gen AI SDK** is an optional, lazily loaded transport for Gemini Live;
+  its SDK objects remain behind Akiha's provider-neutral voice contracts.
 - **Windows DPAPI** encrypts API keys for the current Windows user separately
   from ordinary application configuration.
 - **faster-whisper** provides optional local push-to-talk transcription on the

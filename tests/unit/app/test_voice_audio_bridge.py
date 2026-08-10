@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import unittest
 
-from project_akiha.app.voice_audio_bridge import CumulativeAudioFrameBridge
+from project_akiha.app.voice_audio_bridge import (
+    CumulativeAudioFrameBridge,
+    RealtimeAudioFrameBridge,
+)
 from project_akiha.providers.voice import CapturedAudio
 
 
@@ -75,6 +78,29 @@ class CumulativeAudioFrameBridgeTest(unittest.TestCase):
         frames = bridge.accept_snapshot(_audio(b"\x02\x03"))
         self.assertEqual(frames[0].sequence_number, 0)
         self.assertEqual(frames[0].session_id, "session-2")
+
+
+class RealtimeAudioFrameBridgeTest(unittest.TestCase):
+    def test_attaches_ordered_turn_identity_without_retaining_prior_pcm(self) -> None:
+        bridge = RealtimeAudioFrameBridge(clock=iter((1.0, 2.0)).__next__)
+        bridge.start_turn(session_id="session-1", turn_id="turn-1")
+
+        first = bridge.accept(_audio(b"\x00\x01"))
+        second = bridge.accept(_audio(b"\x02\x03"))
+
+        self.assertEqual(first.sequence_number, 0)
+        self.assertEqual(first.captured_at_monotonic, 1.0)
+        self.assertEqual(first.data, b"\x00\x01")
+        self.assertEqual(second.sequence_number, 1)
+        self.assertEqual(second.data, b"\x02\x03")
+        bridge.release()
+        self.assertFalse(bridge.is_active)
+
+    def test_rejects_frames_without_live_turn_ownership(self) -> None:
+        bridge = RealtimeAudioFrameBridge()
+
+        with self.assertRaisesRegex(RuntimeError, "does not own"):
+            bridge.accept(_audio(b"\x00\x01"))
 
 
 def _bridge() -> CumulativeAudioFrameBridge:

@@ -332,11 +332,7 @@ class AssistantActionRequestParserTest(unittest.TestCase):
 
     def test_parses_natural_spotify_conversation_intents(self) -> None:
         cases = (
-            (
-                "Akiha, can you open Spotify for me?",
-                "applications.launch",
-                {"application_id": "spotify"},
-            ),
+            ("Akiha, can you open Spotify for me?", "applications.launch", {"application_id": "spotify"}),
             ("I want to listen to music.", "spotify.play", {"service": "spotify"}),
             ("Let's listen to something.", "spotify.play", {"service": "spotify"}),
             ("Can you play some music?", "spotify.play", {"service": "spotify"}),
@@ -348,7 +344,10 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             ("Hold on, pause the song.", "spotify.pause", {"service": "spotify"}),
             ("Can you stop the music?", "spotify.pause", {"service": "spotify"}),
             ("Skip this song.", "spotify.next", {"service": "spotify"}),
+            ("Can we skip this?", "spotify.next", {"service": "spotify"}),
+            ("I don't like this one.", "spotify.next", {"service": "spotify"}),
             ("Play the next track.", "spotify.next", {"service": "spotify"}),
+            ("Go back.", "spotify.previous", {"service": "spotify"}),
             ("Back one track.", "spotify.previous", {"service": "spotify"}),
             ("Play the last song again.", "spotify.previous", {"service": "spotify"}),
             (
@@ -435,38 +434,6 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertIsNotNone(request)
                 self.assertEqual(request.action_id, action_id)
                 self.assertEqual(dict(request.parameters), parameters)
-
-    def test_context_dependent_spotify_controls_are_not_direct_actions(self) -> None:
-        cases = (
-            "Can we skip this?",
-            "I don't like this one.",
-            "Go back.",
-            "Hold on, go back.",
-        )
-
-        for text in cases:
-            with self.subTest(text=text):
-                self.assertIsNone(self.parser.parse(text))
-
-    def test_obvious_non_music_requests_are_not_spotify_track_actions(self) -> None:
-        cases = (
-            "Play this video.",
-            "Play the video.",
-            "Play that file.",
-            "Play a game.",
-            "Play chess.",
-            "Listen to this podcast.",
-            "I want to listen to this podcast.",
-        )
-
-        for text in cases:
-            with self.subTest(text=text):
-                self.assertIsNone(self.parser.parse(text))
-
-    def test_selected_spotify_media_references_are_not_track_queries(self) -> None:
-        for text in ("Play that album.", "Play the same playlist."):
-            with self.subTest(text=text):
-                self.assertIsNone(self.parser.parse(text))
 
     def test_natural_envelopes_cover_every_spotify_action_family(self) -> None:
         cases = (

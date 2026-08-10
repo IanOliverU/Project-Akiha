@@ -17,6 +17,7 @@ class LiveSessionErrorCode(StrEnum):
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     UNSUPPORTED_CONFIGURATION = "unsupported_configuration"
     UNSUPPORTED_AUDIO_FORMAT = "unsupported_audio_format"
+    AUDIO_BACKPRESSURE = "audio_backpressure"
     PROTOCOL_ERROR = "protocol_error"
 
 

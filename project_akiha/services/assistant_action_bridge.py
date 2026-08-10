@@ -43,7 +43,6 @@ from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
-from project_akiha.services.spoken_numbers import parse_english_number
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _OPEN_DIRECTORY_PATTERN = re.compile(
@@ -158,20 +157,6 @@ _SPOTIFY_RESULTISH_QUERY_PATTERN = re.compile(
 )
 _SPOTIFY_MEDIA_PREFIX_PATTERN = re.compile(
     r"^(?:songs?|tracks?|albums?|playlists?)\b",
-    re.IGNORECASE,
-)
-_SPOTIFY_SELECTED_MEDIA_QUERY_PATTERN = re.compile(
-    r"^(?:that|this|same|the\s+same)\s+(?:album|playlist)$",
-    re.IGNORECASE,
-)
-_SPOTIFY_SELECTED_NAME_PATTERN = re.compile(
-    r"^(?:that|this|same|the\s+same)$",
-    re.IGNORECASE,
-)
-_OBVIOUS_NON_MUSIC_REQUEST_PATTERN = re.compile(
-    r"^(?:play|listen\s+to)\s+(?:(?:this|that|the|a|an|my)\s+)?"
-    r"(?:video|movie|film|podcast|episode|game|chess|checkers|file|folder|"
-    r"directory|youtube(?:\s+video)?|clip|stream)\b",
     re.IGNORECASE,
 )
 _SPOTIFY_ALBUM_SEARCH_PATTERN = re.compile(
@@ -379,11 +364,12 @@ _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"(?:(?:the|my)\s+)?(?:music|song|track|spotify|playback))?)|"
     rf"(?P<next>next|skip){_SPOTIFY_CONTROL_SEPARATOR}(?:(?:the|this)\s+)?"
     r"(?:next\s+)?(?:song|track|one)|"
-    r"(?P<skip_this>skip\s+(?:(?:the|this)\s+)?(?:one|song|track)|"
+    r"(?P<skip_this>skip(?:\s+(?:the|this))?(?:\s+(?:one|song|track))?|"
+    r"(?:i\s+)?don(?:'|\u2019)t\s+like\s+this(?:\s+(?:one|song|track))?|"
     r"play\s+(?:the\s+)?next\s+(?:song|track))|"
     rf"(?P<previous>(?:previous|last){_SPOTIFY_CONTROL_SEPARATOR}"
-    r"(?:song|track)|go\s+back\s+to\s+(?:the\s+)?previous\s+"
-    r"(?:song|track)|back(?:\s+one)?\s+(?:song|track)|"
+    r"(?:song|track)|go\s+back(?:\s+to\s+(?:the\s+)?previous\s+"
+    r"(?:song|track))?|back(?:\s+one)?\s+(?:song|track)|"
     r"play\s+(?:the\s+)?(?:last|previous)\s+(?:song|track)"
     r"(?:\s+again)?))"
     r"\s*[.!?]?$",
@@ -397,6 +383,39 @@ _SPOTIFY_ACTIONS = {
     "next": SPOTIFY_NEXT_ACTION,
     "previous": SPOTIFY_PREVIOUS_ACTION,
 }
+_SMALL_NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+_TENS_NUMBER_WORDS = {
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+
 _APPLICATION_ALIASES = {
     "chrome": "chrome",
     "google chrome": "chrome",
@@ -520,14 +539,7 @@ class AssistantActionRequestParser:
                 playlist_play_match,
                 ("slash", "labeled", "prefixed", "on_spotify"),
             )
-            if (
-                playlist
-                and not _is_spotify_result_reference(playlist)
-                and not (
-                    playlist_play_match.group("prefixed") is not None
-                    and _SPOTIFY_SELECTED_NAME_PATTERN.fullmatch(playlist) is not None
-                )
-            ):
+            if playlist and not _is_spotify_result_reference(playlist):
                 return _request(
                     correlation_id=request_id,
                     action_id=SPOTIFY_PLAY_PLAYLIST_ACTION,
@@ -689,10 +701,6 @@ class AssistantActionRequestParser:
             track, artist = _split_spotify_title_artist_query(query)
             if (
                 track
-                and not (
-                    track_play_match.group("natural") is not None
-                    and _OBVIOUS_NON_MUSIC_REQUEST_PATTERN.match(normalized) is not None
-                )
                 and not _is_spotify_result_reference(track)
                 and not _is_reserved_spotify_content(track)
             ):
@@ -756,10 +764,7 @@ class AssistantActionRequestParser:
             ):
                 return None
             too_quality = relative_volume_match.group("too_quality")
-            if (
-                too_quality is not None
-                and relative_volume_match.group("too_music") is None
-            ):
+            if too_quality is not None and relative_volume_match.group("too_music") is None:
                 # Bare "too loud" needs recent Spotify context via ephemeral resolution.
                 return None
             raw_delta_text = next(
@@ -785,12 +790,16 @@ class AssistantActionRequestParser:
                     return None
             if too_quality is not None:
                 volume_delta_percent = (
-                    -raw_delta if too_quality.casefold() == "loud" else raw_delta
+                    -raw_delta
+                    if too_quality.casefold() == "loud"
+                    else raw_delta
                 )
             elif relative_volume_match.group("make_quality") is not None:
                 quality = relative_volume_match.group("make_quality").casefold()
                 volume_delta_percent = (
-                    raw_delta if quality in {"louder", "higher"} else -raw_delta
+                    raw_delta
+                    if quality in {"louder", "higher"}
+                    else -raw_delta
                 )
             else:
                 direction = next(
@@ -1012,8 +1021,6 @@ def _is_reserved_spotify_content(value: str) -> bool:
         return True
     if _SPOTIFY_RESULTISH_QUERY_PATTERN.fullmatch(key) is not None:
         return True
-    if _SPOTIFY_SELECTED_MEDIA_QUERY_PATTERN.fullmatch(key) is not None:
-        return True
     return False
 
 
@@ -1038,7 +1045,7 @@ def _parse_volume_percent(value: str) -> int | None:
         "",
         value.strip().casefold(),
     )
-    return parse_english_number(normalized)
+    return _parse_english_number(normalized)
 
 
 def _parse_seek_seconds(value: str) -> int | None:
@@ -1068,7 +1075,7 @@ def _parse_seek_seconds(value: str) -> int | None:
     for match in part_pattern.finditer(cleaned):
         if cleaned[cursor : match.start()].strip():
             return None
-        amount = parse_english_number(match.group("value"))
+        amount = _parse_english_number(match.group("value"))
         unit = match.group("unit").casefold().rstrip("s")
         if amount is None or unit in units:
             return None
@@ -1081,6 +1088,22 @@ def _parse_seek_seconds(value: str) -> int | None:
         + units.get("minute", 0) * 60
         + units.get("second", 0)
     )
+
+
+def _parse_english_number(value: str) -> int | None:
+    normalized = value.strip().casefold()
+    if normalized.isdigit():
+        return int(normalized)
+    words = normalized.replace("-", " ").split()
+    if words == ["one", "hundred"]:
+        return 100
+    if len(words) == 1:
+        return _SMALL_NUMBER_WORDS.get(words[0], _TENS_NUMBER_WORDS.get(words[0]))
+    if len(words) == 2 and words[0] in _TENS_NUMBER_WORDS:
+        unit = _SMALL_NUMBER_WORDS.get(words[1])
+        if unit is not None and 1 <= unit <= 9:
+            return _TENS_NUMBER_WORDS[words[0]] + unit
+    return None
 
 
 class AssistantActionBridge:

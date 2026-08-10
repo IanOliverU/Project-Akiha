@@ -78,6 +78,7 @@ class QtMicrophoneCapture(QObject):
         self._is_capturing = False
         self._on_timeout: Callable[[], None] | None = None
         self._on_error: Callable[[str, str], None] | None = None
+        self._on_audio_frame: Callable[[CapturedAudio], None] | None = None
         self._on_audio_snapshot: Callable[[CapturedAudio], None] | None = None
         self._on_silence: Callable[[], None] | None = None
         self._on_activity: Callable[[MicrophoneActivity], None] | None = None
@@ -117,6 +118,7 @@ class QtMicrophoneCapture(QObject):
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_frame: Callable[[CapturedAudio], None] | None = None,
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
         on_activity: Callable[[MicrophoneActivity], None] | None = None,
@@ -164,6 +166,7 @@ class QtMicrophoneCapture(QObject):
         self._analysis_buffer.clear()
         self._on_timeout = on_timeout
         self._on_error = on_error
+        self._on_audio_frame = on_audio_frame
         self._on_audio_snapshot = on_audio_snapshot
         self._on_silence = on_silence
         self._on_activity = on_activity
@@ -274,6 +277,26 @@ class QtMicrophoneCapture(QObject):
                 self._next_snapshot_bytes += self._live_interval_bytes
 
     def _process_audio_frame(self, frame: bytes) -> None:
+        callback = self._on_audio_frame
+        if callback is not None:
+            try:
+                callback(
+                    CapturedAudio(
+                        data=frame,
+                        sample_rate_hz=_SAMPLE_RATE_HZ,
+                        channels=_CHANNELS,
+                        sample_width_bytes=_SAMPLE_WIDTH_BYTES,
+                    )
+                )
+            except Exception:
+                error_callback = self._on_error
+                self._cleanup()
+                if error_callback is not None:
+                    error_callback(
+                        "microphone_stream_failed",
+                        "Live microphone audio could not be delivered.",
+                    )
+                return
         frame_size = len(frame)
         rms = _pcm_rms(frame)
         if not self._has_speech:
@@ -477,6 +500,7 @@ class QtMicrophoneCapture(QObject):
         self._io_device = None
         self._on_timeout = None
         self._on_error = None
+        self._on_audio_frame = None
         self._on_audio_snapshot = None
         self._on_silence = None
         self._on_activity = None

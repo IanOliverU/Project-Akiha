@@ -15,24 +15,12 @@ from project_akiha.core.actions.registry import (
     CLOSE_APPLICATION_ACTION,
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_PAUSE_ACTION,
-    SPOTIFY_PLAY_ACTION,
-    SPOTIFY_PLAY_ALBUM_ACTION,
-    SPOTIFY_PLAY_ARTIST_ACTION,
-    SPOTIFY_PLAY_FAVORITES_ACTION,
-    SPOTIFY_PLAY_PLAYLIST_ACTION,
-    SPOTIFY_PLAY_TRACK_ACTION,
-    SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_VOLUME_ACTION,
-)
-from project_akiha.integrations.spotify.contextual_intent import (
-    ContextualSpotifyIntentResolver,
 )
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
-from project_akiha.services.intent_context import IntentContextSnapshot
-from project_akiha.services.spoken_numbers import parse_english_number
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _REFERENCE_PREFIX_PATTERN = re.compile(
@@ -60,9 +48,6 @@ _SPOTIFY_PRONOUN_PATTERN = re.compile(
     r"the\s+playback)(?:\s+on\s+spotify)?\s*[.!?]?$|"
     r"^(?P<next>skip|next)\s+(?:it|that|this|the\s+song|the\s+track)"
     r"(?:\s+on\s+spotify)?\s*[.!?]?$|"
-    r"^(?P<dislike>(?:i\s+)?don(?:'|\u2019)t\s+like\s+this"
-    r"(?:\s+(?:one|song|track))?)\s*[.!?]?$|"
-    r"^(?P<previous>go\s+back)\s*[.!?]?$|"
     r"^turn\s+it\s+(?P<volume_direction>up|down)(?:\s+by\s+(?P<volume_value>.+?))?"
     r"\s*[.!?]?$|"
     r"^make\s+it\s+(?P<make_quality>louder|quieter|softer|higher)"
@@ -71,31 +56,8 @@ _SPOTIFY_PRONOUN_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _DEFAULT_RELATIVE_VOLUME_DELTA = 10
-_SPOTIFY_PLAYING_ACTIONS = frozenset(
-    {
-        SPOTIFY_PLAY_ACTION,
-        SPOTIFY_PLAY_ALBUM_ACTION,
-        SPOTIFY_PLAY_ARTIST_ACTION,
-        SPOTIFY_PLAY_FAVORITES_ACTION,
-        SPOTIFY_PLAY_PLAYLIST_ACTION,
-        SPOTIFY_PLAY_TRACK_ACTION,
-        SPOTIFY_NEXT_ACTION,
-        SPOTIFY_PREVIOUS_ACTION,
-        SPOTIFY_RESUME_ACTION,
-    }
-)
-_SPOTIFY_NONPLAYBACK_ACTIONS = frozenset(
-    {
-        "spotify.open_album",
-        "spotify.open_artist",
-        "spotify.search_albums",
-        "spotify.search_artists",
-        "spotify.search_playlists",
-        "spotify.search_tracks",
-    }
-)
 _VOLUME_NUMBER_PATTERN = re.compile(
-    r"^\s*(?P<number>\d{1,3}|[a-z]+(?:[\s-][a-z]+)*?)\s*"
+    r"^\s*(?P<number>\d{1,3}|[a-z]+(?:[\s-][a-z]+)*)\s*"
     r"(?:%|percent|per\s+cent)?\s*$",
     re.IGNORECASE,
 )
@@ -203,16 +165,12 @@ class EphemeralActionContext:
         ttl_seconds: float = 300.0,
         now: Callable[[], float] = monotonic,
         envelope_parser: DeterministicCommandEnvelopeParser | None = None,
-        spotify_intent_resolver: ContextualSpotifyIntentResolver | None = None,
     ) -> None:
         if ttl_seconds <= 0:
             raise ValueError("ephemeral context TTL must be positive.")
         self._ttl_seconds = ttl_seconds
         self._now = now
         self._envelope_parser = envelope_parser or DeterministicCommandEnvelopeParser()
-        self._spotify_intent_resolver = (
-            spotify_intent_resolver or ContextualSpotifyIntentResolver()
-        )
         self.clear()
 
     @property
@@ -291,64 +249,7 @@ class EphemeralActionContext:
             self._application_expires_at = 0.0
 
     def record_spotify_activity(self) -> None:
-        """Retain recent Spotify context without assuming playback state."""
         self._spotify_expires_at = self._expires_at()
-
-    def record_spotify_action(self, action_id: str) -> None:
-        """Retain one successful Spotify action and its coarse playback state."""
-        if not action_id.startswith("spotify."):
-            raise ValueError("Spotify context requires a Spotify action ID.")
-        self._spotify_expires_at = self._expires_at()
-        self._spotify_last_action_id = action_id
-        if action_id in _SPOTIFY_PLAYING_ACTIONS:
-            self._spotify_playback_state = "playing"
-        elif action_id == SPOTIFY_PAUSE_ACTION:
-            self._spotify_playback_state = "paused"
-
-    def record_successful_action(self, action_id: str) -> None:
-        """Record only one sanitized successful action identifier."""
-        if not re.fullmatch(r"[a-z][a-z0-9_.-]{1,79}", action_id):
-            raise ValueError("successful action ID is invalid.")
-        self._recent_action_id = action_id
-        self._recent_action_expires_at = self._expires_at()
-        if (
-            action_id.startswith("spotify.")
-            and action_id not in _SPOTIFY_NONPLAYBACK_ACTIONS
-        ):
-            self.record_spotify_action(action_id)
-
-    def intent_context_snapshot(self) -> IntentContextSnapshot:
-        """Return fresh coarse context suitable for local or hosted intent models."""
-        now = self._now()
-        recent_action_id = self._recent_action_id
-        if self._recent_action_expires_at <= now:
-            recent_action_id = ""
-            self._recent_action_id = ""
-            self._recent_action_expires_at = 0.0
-        application_id = self._application_id
-        if self._application_expires_at <= now:
-            application_id = ""
-        has_spotify = self._spotify_expires_at > now
-        if not has_spotify:
-            self.clear_spotify_activity()
-        return IntentContextSnapshot(
-            recent_action_id=recent_action_id,
-            recent_application_id=application_id,
-            spotify_playback_state=(
-                self._spotify_playback_state if has_spotify else "unknown"
-            ),
-            has_recent_spotify_activity=has_spotify,
-            has_recent_directory=self.current_directory is not None,
-        )
-
-    def clear_spotify_activity(self) -> None:
-        """Discard transient Spotify state, such as after closing the client."""
-        self._spotify_expires_at = 0.0
-        self._spotify_last_action_id = ""
-        self._spotify_playback_state = "unknown"
-        if self._recent_action_id.startswith("spotify."):
-            self._recent_action_id = ""
-            self._recent_action_expires_at = 0.0
 
     def resolve(self, text: str) -> EphemeralReferenceResolution | None:
         """Resolve one explicit local reference, never arbitrary conversation."""
@@ -368,11 +269,6 @@ class EphemeralActionContext:
         if spotify_match is not None:
             if self._spotify_expires_at <= self._now():
                 self._spotify_expires_at = 0.0
-                if (
-                    spotify_match.group("dislike") is not None
-                    or spotify_match.group("previous") is not None
-                ):
-                    return None
                 return EphemeralReferenceError(
                     "There is no recent Spotify playback to control."
                 )
@@ -386,10 +282,6 @@ class EphemeralActionContext:
                 return self._request(action_id, {"service": "spotify"})
             if spotify_match.group("next") is not None:
                 return self._request(SPOTIFY_NEXT_ACTION, {"service": "spotify"})
-            if spotify_match.group("dislike") is not None:
-                return self._request(SPOTIFY_NEXT_ACTION, {"service": "spotify"})
-            if spotify_match.group("previous") is not None:
-                return self._request(SPOTIFY_PREVIOUS_ACTION, {"service": "spotify"})
             delta = self._relative_volume_delta(spotify_match)
             if delta is None:
                 return EphemeralReferenceError(
@@ -399,10 +291,6 @@ class EphemeralActionContext:
                 SPOTIFY_VOLUME_ACTION,
                 {"service": "spotify", "volume_delta_percent": delta},
             )
-
-        contextual_spotify = self._resolve_contextual_spotify(normalized)
-        if contextual_spotify is not None:
-            return contextual_spotify
 
         if _APPLICATION_PRONOUN_PATTERN.fullmatch(normalized) is not None:
             if not self._application_id or self._application_expires_at <= self._now():
@@ -439,10 +327,6 @@ class EphemeralActionContext:
         self._application_id = ""
         self._application_expires_at = 0.0
         self._spotify_expires_at = 0.0
-        self._spotify_last_action_id = ""
-        self._spotify_playback_state = "unknown"
-        self._recent_action_id = ""
-        self._recent_action_expires_at = 0.0
 
     def _resolve_result(
         self,
@@ -514,23 +398,6 @@ class EphemeralActionContext:
     def _expires_at(self) -> float:
         return self._now() + self._ttl_seconds
 
-    def _resolve_contextual_spotify(
-        self,
-        text: str,
-    ) -> ActionRequest | EphemeralReferenceError | None:
-        if self._spotify_expires_at <= self._now():
-            self.clear_spotify_activity()
-            return None
-        resolution = self._spotify_intent_resolver.resolve(
-            text,
-            playback_state=self._spotify_playback_state,
-        )
-        if resolution is None:
-            return None
-        if resolution.clarification:
-            return EphemeralReferenceError(resolution.clarification)
-        return self._request(resolution.action_id, {"service": "spotify"})
-
     @staticmethod
     def _relative_volume_delta(match: re.Match[str]) -> int | None:
         raw_value = match.group("volume_value") or match.group("make_value")
@@ -538,16 +405,16 @@ class EphemeralActionContext:
             amount = _DEFAULT_RELATIVE_VOLUME_DELTA
         else:
             number_match = _VOLUME_NUMBER_PATTERN.fullmatch(raw_value)
-            if number_match is None:
+            if number_match is None or not number_match.group("number").isdigit():
                 return None
-            amount = parse_english_number(number_match.group("number"))
-            if amount is None:
-                return None
+            amount = int(number_match.group("number"))
             if not 1 <= amount <= 100:
                 return None
         if match.group("too_quality") is not None:
             return (
-                -amount if match.group("too_quality").casefold() == "loud" else amount
+                -amount
+                if match.group("too_quality").casefold() == "loud"
+                else amount
             )
         if match.group("make_quality") is not None:
             quality = match.group("make_quality").casefold()

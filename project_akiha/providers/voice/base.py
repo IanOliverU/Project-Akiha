@@ -174,6 +174,7 @@ class MicrophoneCapture(Protocol):
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_frame: Callable[[CapturedAudio], None] | None = None,
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
         on_activity: Callable[[MicrophoneActivity], None] | None = None,
@@ -181,7 +182,7 @@ class MicrophoneCapture(Protocol):
         silence_timeout_seconds: float = 1.2,
         auto_stop_on_silence: bool = False,
     ) -> None:
-        """Start temporary microphone capture."""
+        """Start capture with optional direct PCM frames and snapshots."""
 
     def stop(self) -> CapturedAudio:
         """Stop capture and return the temporary PCM audio."""

@@ -133,3 +133,50 @@ class CumulativeAudioFrameBridge:
     @staticmethod
     def _digest(data: bytes) -> bytes:
         return hashlib.blake2s(data).digest()
+
+
+class RealtimeAudioFrameBridge:
+    """Attach live-session ownership to direct non-cumulative Qt PCM frames."""
+
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._session_id: str | None = None
+        self._turn_id: str | None = None
+        self._next_sequence_number = 0
+
+    @property
+    def is_active(self) -> bool:
+        return self._session_id is not None
+
+    def start_turn(self, *, session_id: str, turn_id: str) -> None:
+        """Own direct Qt frames for one live turn."""
+        if self.is_active:
+            raise RuntimeError("Realtime audio-frame bridge already owns a turn.")
+        if not session_id.strip() or not turn_id.strip():
+            raise ValueError("Realtime audio-frame bridge IDs cannot be blank.")
+        self._session_id = session_id
+        self._turn_id = turn_id
+        self._next_sequence_number = 0
+
+    def accept(self, audio: CapturedAudio) -> AudioFrame:
+        """Return one copied canonical frame without retaining microphone PCM."""
+        if self._session_id is None or self._turn_id is None:
+            raise RuntimeError("Realtime audio-frame bridge does not own a turn.")
+        frame = AudioFrame(
+            session_id=self._session_id,
+            turn_id=self._turn_id,
+            sequence_number=self._next_sequence_number,
+            captured_at_monotonic=self._clock(),
+            sample_rate_hz=audio.sample_rate_hz,
+            channels=audio.channels,
+            sample_width_bytes=audio.sample_width_bytes,
+            data=bytes(audio.data),
+        )
+        self._next_sequence_number += 1
+        return frame
+
+    def release(self) -> None:
+        """Release live turn metadata without retaining any prior PCM."""
+        self._session_id = None
+        self._turn_id = None
+        self._next_sequence_number = 0

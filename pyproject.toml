@@ -16,6 +16,9 @@ dev = [
 voice = [
     "faster-whisper>=1.2.1,<2; python_version < '3.14'",
 ]
+live = [
+    "google-genai>=2.17,<3",
+]
 package = [
     "black>=24.10",
     "ruff>=0.8",

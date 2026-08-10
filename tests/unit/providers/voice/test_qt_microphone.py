@@ -9,7 +9,11 @@ from typing import Any
 
 from PySide6.QtMultimedia import QAudio, QAudioFormat
 
-from project_akiha.providers.voice import MicrophoneActivity, MicrophoneCaptureError
+from project_akiha.providers.voice import (
+    CapturedAudio,
+    MicrophoneActivity,
+    MicrophoneCaptureError,
+)
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 
 
@@ -170,6 +174,53 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
         self.assertEqual(snapshots, [speech, speech + silence])
         self.assertEqual(silence_events, [True])
         self.assertTrue(capture.is_capturing)
+
+    def test_live_audio_callback_emits_exact_20_ms_pcm_frames(self) -> None:
+        audio = _pcm_chunk(900, seconds=0.05)
+        fixture = _CaptureFixture(chunks=[audio])
+        capture = fixture.build()
+        frames: list[CapturedAudio] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_audio_frame=frames.append,
+        )
+
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(len(frames), 2)
+        self.assertEqual([len(frame.data) for frame in frames], [640, 640])
+        self.assertTrue(all(frame.sample_rate_hz == 16_000 for frame in frames))
+        self.assertTrue(all(frame.channels == 1 for frame in frames))
+        self.assertTrue(all(frame.sample_width_bytes == 2 for frame in frames))
+
+    def test_live_audio_callback_failure_stops_capture_with_safe_error(self) -> None:
+        fixture = _CaptureFixture(chunks=[_pcm_chunk(900, seconds=0.02)])
+        capture = fixture.build()
+        errors: list[tuple[str, str]] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda code, message: errors.append((code, message)),
+            on_audio_frame=lambda _audio: (_ for _ in ()).throw(
+                RuntimeError("private callback failure")
+            ),
+        )
+
+        fixture.io_device.readyRead.emit()
+
+        self.assertFalse(capture.is_capturing)
+        self.assertEqual(
+            errors,
+            [
+                (
+                    "microphone_stream_failed",
+                    "Live microphone audio could not be delivered.",
+                )
+            ],
+        )
+        self.assertNotIn("private callback failure", repr(errors))
 
     def test_quiet_speech_then_room_noise_reaches_silence_endpoint(self) -> None:
         initial_room_noise = _pcm_chunk(125, seconds=0.25)
