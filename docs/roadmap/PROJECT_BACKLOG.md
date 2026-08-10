@@ -42,6 +42,11 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
   engine process across multiple launches.
 - Decide whether a managed VOICEVOX Engine that crashes mid-session should
   restart automatically or require an explicit user retry.
+- Replace short segmented Hosted Live WAV playback with a continuous PCM output
+  path if V8 listening tests still expose audible seams or crackle.
+- Evaluate an identity-preserving local voice backend or user-trained voice
+  model behind the existing provider-neutral speech-output boundary. Keep the
+  model optional and do not bundle copyrighted training material.
 
 ## Animation And Model Improvements
 

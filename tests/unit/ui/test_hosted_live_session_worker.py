@@ -9,8 +9,11 @@ from PySide6.QtCore import QCoreApplication
 
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.core.voice_session import (
+    AudioFrame,
     LiveResponseModality,
     LiveSessionConfig,
+    LiveSessionError,
+    LiveSessionErrorCode,
     LiveSessionStateEvent,
     SessionLifecycle,
     VoiceProcessingMode,
@@ -69,6 +72,31 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
         self.assertEqual(failures[0][0], "hosted_live_start_failed")
         self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
 
+    def test_operation_failure_preserves_privacy_safe_live_error(self) -> None:
+        adapter = _FailingOperationAdapter()
+        coordinator = VoiceSessionCoordinator(
+            session_id_factory=lambda: "hosted-session-1"
+        )
+        worker = HostedLiveSessionThread(
+            adapter_factory=lambda: adapter,
+            coordinator=coordinator,
+            config_provider=_config,
+        )
+        failures: list[tuple[str, str]] = []
+        worker.failed_signal.connect(
+            lambda code, message: failures.append((code, message))
+        )
+
+        worker.start()
+        self.assertTrue(_wait_until(self.app, lambda: worker.submit_audio(_frame())))
+        self.assertTrue(_wait_until(self.app, lambda: bool(failures)))
+        self.assertTrue(worker.wait(2_000))
+
+        self.assertEqual(
+            failures,
+            [("invalid_state", "The live turn is no longer active.")],
+        )
+
 
 class _Adapter:
     def __init__(self) -> None:
@@ -121,6 +149,15 @@ class _FailingAdapter(_Adapter):
         raise RuntimeError("private provider failure")
 
 
+class _FailingOperationAdapter(_Adapter):
+    async def accept_audio(self, frame) -> None:
+        del frame
+        raise LiveSessionError(
+            LiveSessionErrorCode.INVALID_STATE,
+            "The live turn is no longer active.",
+        )
+
+
 def _config(session_id: str) -> LiveSessionConfig:
     return LiveSessionConfig(
         session_id=session_id,
@@ -129,6 +166,19 @@ def _config(session_id: str) -> LiveSessionConfig:
         input_sample_rate_hz=16_000,
         max_duration_seconds=600,
         response_modality=LiveResponseModality.AUDIO,
+    )
+
+
+def _frame() -> AudioFrame:
+    return AudioFrame(
+        session_id="hosted-session-1",
+        turn_id="turn-1",
+        sequence_number=0,
+        captured_at_monotonic=1.0,
+        sample_rate_hz=16_000,
+        channels=1,
+        sample_width_bytes=2,
+        data=b"\x00\x00" * 320,
     )
 
 

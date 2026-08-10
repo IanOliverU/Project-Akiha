@@ -393,6 +393,8 @@ def _translate_sdk_message(
     content = getattr(message, "server_content", None)
     if content is None:
         return tuple(events), input_text, output_text
+    input_finished = False
+    output_finished = False
     interim = getattr(content, "interim_input_transcription", None)
     if interim is not None:
         text = str(getattr(interim, "text", "") or "").strip()
@@ -407,6 +409,7 @@ def _translate_sdk_message(
             )
     input_transcript = getattr(content, "input_transcription", None)
     if input_transcript is not None:
+        input_finished = bool(getattr(input_transcript, "finished", False))
         input_text = _merge_incremental_text(
             input_text,
             str(getattr(input_transcript, "text", "") or ""),
@@ -416,12 +419,13 @@ def _translate_sdk_message(
                 GeminiTransportEvent(
                     GeminiTransportEventKind.INPUT_TRANSCRIPT,
                     text=input_text,
-                    is_final=bool(getattr(input_transcript, "finished", False)),
+                    is_final=input_finished,
                     detected_language=_optional_language(input_transcript),
                 )
             )
     output_transcript = getattr(content, "output_transcription", None)
     if output_transcript is not None:
+        output_finished = bool(getattr(output_transcript, "finished", False))
         output_text = _merge_incremental_text(
             output_text,
             str(getattr(output_transcript, "text", "") or ""),
@@ -431,7 +435,28 @@ def _translate_sdk_message(
                 GeminiTransportEvent(
                     GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
                     text=output_text,
-                    is_final=bool(getattr(output_transcript, "finished", False)),
+                    is_final=output_finished,
+                )
+            )
+
+    if getattr(content, "turn_complete", False):
+        # Gemini transcription chunks are independent from the model turn and
+        # may omit ``finished``. The provider turn boundary is therefore the
+        # final fallback authority for the accumulated transcript text.
+        if input_text and not input_finished:
+            events.append(
+                GeminiTransportEvent(
+                    GeminiTransportEventKind.INPUT_TRANSCRIPT,
+                    text=input_text,
+                    is_final=True,
+                )
+            )
+        if output_text and not output_finished:
+            events.append(
+                GeminiTransportEvent(
+                    GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                    text=output_text,
+                    is_final=True,
                 )
             )
 

@@ -14,6 +14,18 @@ from project_akiha.providers.voice import SynthesizedAudio
 
 
 class NativeAudioPlaybackQueueTest(unittest.TestCase):
+    def test_default_queue_accepts_bursted_long_live_response(self) -> None:
+        owner = _PlaybackOwner()
+        queue = NativeAudioPlaybackQueue(owner)
+        queue.start_turn(session_id="session-1", turn_id="turn-1")
+
+        for sequence in range(75):
+            queue.submit(_frame(sequence=sequence, duration_ms=200))
+
+        self.assertEqual(len(owner.played), 1)
+        self.assertEqual(queue.queued_segment_count, 75)
+        queue.cancel()
+
     def test_plays_ordered_segments_through_one_existing_owner(self) -> None:
         owner = _PlaybackOwner()
         completed: list[bool] = []
@@ -143,16 +155,16 @@ class _PlaybackOwner:
             raise AssertionError("Native segments must retain shared output ownership.")
 
 
-def _frame(*, sequence: int = 0) -> AudioFrame:
+def _frame(*, sequence: int = 0, duration_ms: int = 100) -> AudioFrame:
     return AudioFrame(
         session_id="session-1",
         turn_id="turn-1",
         sequence_number=sequence,
-        captured_at_monotonic=sequence * 0.1,
+        captured_at_monotonic=sequence * duration_ms / 1_000,
         sample_rate_hz=24_000,
         channels=1,
         sample_width_bytes=2,
-        data=b"\x00\x00" * 2_400,
+        data=b"\x00\x00" * (24_000 * duration_ms // 1_000),
     )
 
 

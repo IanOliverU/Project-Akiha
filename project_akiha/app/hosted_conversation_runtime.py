@@ -312,6 +312,10 @@ class HostedConversationRuntime:
             return
         if commit is not None:
             self._on_commit(commit)
+        else:
+            # Never let a missing provider transcript strand the next live
+            # turn. Partials remain ephemeral when no canonical final exists.
+            self._transcripts.cancel_turn(turn_id)
         self._playback.finish_turn()
 
     def _handle_playback_completed(self) -> None:

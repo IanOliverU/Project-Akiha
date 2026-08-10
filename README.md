@@ -56,7 +56,7 @@ voice coordinator with rolling recognition, contextual intent correction,
 streamed VOICEVOX speech, interruption, and bounded multi-turn Conversation
 Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
 data smoke checks and the complete manual voice, provider, conversation,
-context, action, and shutdown checklist. V6 is now in progress: V6A established
+context, action, and shutdown checklist. V6 is complete: V6A established
 the provider-neutral hosted-live contracts, V6B added the optional concrete
 Gemini SDK and bounded native-audio transport, V6C added ordered live transcript
 projection with final-only canonical persistence, and V6D added provider-native
@@ -69,7 +69,13 @@ explicit Local/Cloud runtime selector, direct Gemini microphone streaming,
 canonical final transcript persistence, native playback, visible lane state,
 provider-native barge-in, and fail-closed behavior with no silent local or cloud
 fallback. These additions do not weaken or replace the complete local modular
-lane. V6H verification is next; pet simulation remains planned after the Voice
+lane. V6H completed fake-protocol and real Gemini verification, including
+continuous multi-turn conversation and automatic return to listening. Native
+audio crackle remains release-quality follow-up work, while final hosted-live
+packaging remains intentionally deferred to V8. V7A now adds an explicit
+provider-facing tool-schema catalog that exposes only separately opted-in
+Phase 8 actions and never grants execution authority. The V7B untrusted
+proposal gateway is next; pet simulation remains planned after the Voice
 Intelligence roadmap.
 
 | Phase | Status | Focus |
@@ -83,7 +89,7 @@ Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Gemini Live runtime through V6G; verification and provider-native tools next |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and V7A schema catalog complete; proposal gateway next |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

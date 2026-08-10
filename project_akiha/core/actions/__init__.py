@@ -85,6 +85,13 @@ from project_akiha.core.actions.repository import (
     ActionAuditRepository,
     ActionPermissionRepository,
 )
+from project_akiha.core.actions.tool_schemas import (
+    DEFAULT_PROVIDER_ACTION_IDS,
+    ActionToolParameterSchema,
+    ActionToolSchema,
+    ProviderActionToolCatalog,
+    build_default_provider_action_catalog,
+)
 from project_akiha.core.actions.validation import ActionRequestValidator
 
 __all__ = [
@@ -110,6 +117,8 @@ __all__ = [
     "ActionResult",
     "ActionRisk",
     "ActionStatus",
+    "ActionToolParameterSchema",
+    "ActionToolSchema",
     "ActionValidationError",
     "AssistantActionExecutor",
     "ConfirmationPolicy",
@@ -118,6 +127,7 @@ __all__ = [
     "DIRECTORY_SEARCH_ACTION",
     "DirectorySearchExecutor",
     "DirectorySearchMatch",
+    "DEFAULT_PROVIDER_ACTION_IDS",
     "FILE_OPEN_CAPABILITY",
     "FILE_SEARCH_CAPABILITY",
     "FileSearchExecutor",
@@ -159,7 +169,9 @@ __all__ = [
     "PermissionDecision",
     "PermissionGrant",
     "ProtectedPathPolicy",
+    "ProviderActionToolCatalog",
     "InstalledApplication",
     "ValidatedAction",
     "build_default_action_registry",
+    "build_default_provider_action_catalog",
 ]

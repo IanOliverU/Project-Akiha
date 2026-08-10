@@ -218,6 +218,23 @@ class PushToTalkSessionControllerTest(unittest.TestCase):
 
         self.assertEqual(coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
 
+    def test_hosted_live_listen_does_not_replace_cloud_session(self) -> None:
+        bus, _, coordinator, _ = _build()
+        coordinator.request_start(VoiceProcessingMode.HOSTED_LIVE)
+        coordinator.activate()
+        cloud_turn = coordinator.begin_turn(VoiceInputMode.HOSTED_LIVE_CONVERSATION)
+
+        bus.publish(
+            EventType.VOICE_LISTEN_REQUESTED,
+            {"source": "hosted_live"},
+        )
+
+        snapshot = coordinator.snapshot
+        self.assertEqual(snapshot.lifecycle, SessionLifecycle.ACTIVE)
+        self.assertEqual(snapshot.processing_mode, VoiceProcessingMode.HOSTED_LIVE)
+        self.assertEqual(snapshot.session_id, cloud_turn.session_id)
+        self.assertEqual(snapshot.active_turn, cloud_turn)
+
     def test_shutdown_close_is_idempotent(self) -> None:
         bus, _, coordinator, controller = _build()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)

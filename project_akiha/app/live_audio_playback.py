@@ -36,7 +36,7 @@ class NativeAudioPlaybackQueue:
         self,
         playback: _PlaybackOwner,
         *,
-        maximum_queued_segments: int = 12,
+        maximum_queued_segments: int = 600,
         segment_duration_ms: int = 200,
     ) -> None:
         if maximum_queued_segments <= 0:

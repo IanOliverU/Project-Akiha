@@ -26,6 +26,7 @@ from project_akiha.core.voice_session import (
 )
 
 _DIAGNOSTIC_SOURCE = "settings_microphone_test"
+_HOSTED_LIVE_SOURCE = "hosted_live"
 _CONFIDENCE_VALUES = {
     confidence.value: confidence for confidence in TranscriptConfidence
 }
@@ -94,7 +95,7 @@ class PushToTalkSessionController:
 
     def _handle_listen_requested(self, event: Event) -> None:
         source = event.payload.get("source")
-        if source == _DIAGNOSTIC_SOURCE:
+        if source in {_DIAGNOSTIC_SOURCE, _HOSTED_LIVE_SOURCE}:
             return
         if (
             self._voice_controller.state is not VoiceState.LISTENING

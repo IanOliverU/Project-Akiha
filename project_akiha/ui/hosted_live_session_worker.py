@@ -19,6 +19,7 @@ from project_akiha.core.voice_session import (
     LiveSessionAdapter,
     LiveSessionCapabilities,
     LiveSessionConfig,
+    LiveSessionError,
     LiveSessionStateEvent,
     SessionLifecycle,
     TranscriptRevision,
@@ -170,6 +171,9 @@ class HostedLiveSessionThread(QThread):
         def report_failure(completed) -> None:
             try:
                 completed.result()
+            except LiveSessionError as error:
+                self._emit_failure_once(str(error.code), str(error))
+                self.request_stop()
             except Exception:
                 self._emit_failure_once(
                     "hosted_live_operation_failed",

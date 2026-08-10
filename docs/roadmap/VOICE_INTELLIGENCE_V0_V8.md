@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A through V6G complete, V6H next
+**Status:** V0 through V6 and V7A complete - V7B proposal gateway next
 
 **Planning date:** 2026-08-01
 
@@ -1293,7 +1293,7 @@ improvements in an unfinished state.
 - [x] Require context-window compression and the finite session-duration cap.
 - [x] Add explicit cloud-audio notice, settings, and diagnostics.
 - [x] Revalidate and disclose current free- versus paid-tier data use.
-- [ ] Preserve Local Modular as an independent fallback choice.
+- [x] Preserve Local Modular as an independent fallback choice.
 
 #### V6A: Live Foundation - Complete
 
@@ -1542,13 +1542,35 @@ those checks remain V6H and the final release gate remains V8.
 
 #### V6H: Verification
 
-- [ ] Complete fake-protocol, native audio, transcript, interruption,
+- [x] Complete fake-protocol, native audio, transcript, interruption,
   resumption, privacy, fallback, and real-provider manual checks.
-- [ ] Keep final hosted-live packaging deferred to the V8 release gate.
+- [x] Keep final hosted-live packaging deferred to the V8 release gate.
+
+V6H closed on 2026-08-10 after the complete automated suite passed with
+1,284 tests and 3 optional-environment skips. The final corrective pass fixed
+bursted native-audio queue capacity, promoted provider transcript fragments at
+the Gemini turn boundary when the optional `finished` marker was absent,
+prevented missing provider transcripts from stranding the next turn, preserved
+privacy-safe provider operation errors, and isolated Hosted Live session
+ownership from the legacy push-to-talk event path.
+
+Real Gemini verification confirmed visible input/output transcripts, audible
+native Japanese responses, multiple consecutive turns in one Cloud session,
+and automatic return to listening after playback. The provider session no
+longer stops after the first response or loses microphone ownership to a local
+session. Native audio remains intelligible but can contain audible seams or
+crackle because the current Qt playback owner receives short in-memory WAV
+segments. Continuous PCM playback and a future identity-preserving custom
+voice remain quality work for the V8 release gate or a separately scoped voice
+follow-up; neither weakens the verified V6 session and privacy boundaries.
+
+No hosted-live standalone package was produced in V6. Packaging, packaged
+microphone verification, and final audio-quality acceptance remain the V8
+release gate.
 
 ### Milestone V7: Provider-Neutral Typed Tool Proposals
 
-- [ ] Expose only allowlisted action schemas.
+- [x] Expose only allowlisted action schemas.
 - [ ] Treat function calls as untrusted `ActionProposal` values.
 - [ ] Reuse validation, permission, confirmation, execution, and audit.
 - [ ] Return only sanitized function results.
@@ -1558,6 +1580,30 @@ those checks remain V6H and the final release gate remains V8.
 - [ ] Fall back to deterministic and JSON proposal paths when a provider model
   does not support native tools.
 - [ ] Prevent duplicate deterministic and provider execution for one turn.
+
+#### V7A: Explicit Tool Schema Catalog - Complete
+
+V7A adds an SDK-neutral `ProviderActionToolCatalog` derived from the existing
+Phase 8 action registry. Provider exposure requires a second explicit list of
+action identifiers: registering a future executor does not silently publish it
+to Gemini, Ollama, or another intent provider. Unknown, duplicate, and
+prohibited actions are rejected while building the catalog.
+
+Exported `ActionToolSchema` values contain only the action identifier,
+description, and bounded primitive parameter constraints. They deliberately do
+not expose executor identifiers, permission capabilities, repositories,
+confirmation state, subprocess handles, or filesystem objects. Schema exposure
+does not grant permission and cannot execute an action. The existing bounded
+`ActionProposal` and `SanitizedActionResult` voice contracts remain the only
+provider-neutral proposal/result values.
+
+V7A verification passed with 1,287 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks.
+
+V7B will translate one provider proposal into one untrusted Phase 8
+`ActionRequest`, retain session/turn/proposal ownership, and reject stale,
+duplicate, unknown, or non-ready proposals before the existing validator and
+permission service are reached.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

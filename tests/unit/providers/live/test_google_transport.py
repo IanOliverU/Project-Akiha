@@ -199,6 +199,36 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(events[2].is_final)
         self.assertTrue(events[3].is_final)
 
+    async def test_turn_complete_finalizes_transcripts_without_finished_flag(
+        self,
+    ) -> None:
+        await self.transport.connect(_config())
+        await self.session.emit(
+            _message(
+                input_text="Hello Akiha",
+                output_text="Good afternoon.",
+                turn_complete=True,
+            )
+        )
+
+        stream = self.transport.receive()
+        events = [await anext(stream) for _ in range(5)]
+
+        self.assertEqual(
+            [event.kind for event in events],
+            [
+                GeminiTransportEventKind.INPUT_TRANSCRIPT,
+                GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                GeminiTransportEventKind.INPUT_TRANSCRIPT,
+                GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                GeminiTransportEventKind.TURN_COMPLETE,
+            ],
+        )
+        self.assertFalse(events[0].is_final)
+        self.assertFalse(events[1].is_final)
+        self.assertTrue(events[2].is_final)
+        self.assertTrue(events[3].is_final)
+
     async def test_resumption_and_go_away_messages_are_bounded_events(self) -> None:
         await self.transport.connect(_config())
         await self.session.emit(
