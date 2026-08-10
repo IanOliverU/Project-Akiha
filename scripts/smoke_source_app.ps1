@@ -1,5 +1,6 @@
 param(
     [string]$SmokeRoot = "",
+    [string]$PythonExe = "",
     [int]$StartupSeconds = 8,
     [int]$ShutdownSeconds = 3
 )
@@ -75,7 +76,18 @@ function Invoke-SmokeLogCheck {
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $ProjectRoot
 try {
-    $PythonExe = (& python -c "import sys; print(sys.executable)").Trim()
+    if (-not $PythonExe) {
+        $EnvironmentCandidates = @(
+            (Join-Path $ProjectRoot ".venv313\Scripts\python.exe"),
+            (Join-Path $ProjectRoot ".venv\Scripts\python.exe")
+        )
+        $PythonExe = $EnvironmentCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+    }
+    if (-not $PythonExe) {
+        $PythonExe = (& python -c "import sys; print(sys.executable)").Trim()
+    }
     if (-not $PythonExe) {
         throw "Unable to resolve the current Python executable."
     }
