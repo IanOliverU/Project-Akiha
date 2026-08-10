@@ -317,6 +317,13 @@ class VoiceSessionCoordinator:
                 and self._ledger.accepts_callback(session_id, turn_id)
             )
 
+    def get_turn(self, turn_id: str) -> ConversationTurn | None:
+        """Return one historical turn snapshot without restoring its authority."""
+        with self._lock:
+            if self._ledger is None:
+                return None
+            return self._ledger.get_turn(turn_id)
+
     def accept_transcript_revision(self, revision: TranscriptRevision) -> bool:
         """Accept an ordered partial or final transcript from the active turn."""
         with self._lock:

@@ -166,6 +166,13 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         await self.adapter.accept_audio(_frame())
         await self.adapter.end_user_turn("turn-1")
         await self.adapter.interrupt("turn-1")
+        await self.transport.emit(
+            GeminiTransportEvent(GeminiTransportEventKind.INTERRUPTED)
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(GeminiTransportEventKind.INTERRUPTED)
+        )
+        await _yield_to_receiver()
 
         self.assertEqual(
             self.transport.sent_audio,
@@ -173,6 +180,80 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(self.transport.audio_stream_end_count, 1)
         self.assertEqual(self.transport.interrupt_count, 1)
+        self.assertEqual(self.sink.interruptions, ["turn-1"])
+
+    async def test_provider_failure_is_not_hidden_by_pending_interruption(self) -> None:
+        await self._start()
+        await self.adapter.accept_audio(_frame())
+        await self.adapter.interrupt("turn-1")
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.FAILED,
+                error_code=LiveSessionErrorCode.CONNECTION_CLOSED,
+                error_message="Gemini Live lost its provider connection.",
+                retryable=True,
+            )
+        )
+        await _yield_to_receiver()
+
+        self.assertEqual(
+            self.sink.failures,
+            [("connection_closed", "Gemini Live lost its provider connection.")],
+        )
+
+    async def test_interruption_drops_old_output_until_provider_confirmation(
+        self,
+    ) -> None:
+        await self._start()
+        await self.adapter.accept_audio(_frame())
+        await self.adapter.end_user_turn("turn-1")
+        await self.adapter.interrupt("turn-1")
+        await self.adapter.accept_audio(_frame(turn_id="turn-2"))
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.INPUT_TRANSCRIPT,
+                text="Replacement input",
+                is_final=False,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                text="Stale response",
+                is_final=True,
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.OUTPUT_AUDIO,
+                audio_data=b"\x01\x02",
+            )
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(GeminiTransportEventKind.TURN_COMPLETE)
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(GeminiTransportEventKind.INTERRUPTED)
+        )
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.OUTPUT_TRANSCRIPT,
+                text="Replacement response",
+                is_final=True,
+            )
+        )
+        await _yield_to_receiver()
+
+        self.assertEqual(
+            [(revision.turn_id, revision.text) for revision in self.sink.transcripts],
+            [("turn-2", "Replacement input")],
+        )
+        self.assertEqual(
+            [revision.text for revision in self.sink.assistant_text],
+            ["Replacement response"],
+        )
+        self.assertEqual(self.sink.audio, [])
+        self.assertEqual(self.sink.completed_turns, [])
         self.assertEqual(self.sink.interruptions, ["turn-1"])
 
     async def test_audio_rejects_wrong_session_format_and_turn(self) -> None:

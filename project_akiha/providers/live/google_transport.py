@@ -32,6 +32,7 @@ class _AudioCommand:
     data: bytes | None = None
     mime_type: str | None = None
     stream_end: bool = False
+    activity_start: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +77,7 @@ class GoogleGenAILiveTransport:
         self._input_transcript_text = ""
         self._output_transcript_text = ""
         self._audio_stream_ended = False
+        self._activity_active = False
 
     @property
     def is_connected(self) -> bool:
@@ -93,6 +95,7 @@ class GoogleGenAILiveTransport:
         self._failed = False
         self._reset_transcript_text()
         self._audio_stream_ended = False
+        self._activity_active = False
         self._audio_queue = asyncio.Queue(maxsize=self._audio_queue_capacity)
         self._event_queue = asyncio.Queue(maxsize=self._event_queue_capacity)
         try:
@@ -133,12 +136,9 @@ class GoogleGenAILiveTransport:
         await self._put_audio(_AudioCommand(stream_end=True))
 
     async def interrupt(self) -> None:
-        """Leave explicit interruption to the separately scoped V6D layer."""
+        """Start explicit user activity so Gemini interrupts current output."""
         self._require_connected()
-        raise LiveSessionError(
-            LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
-            "Explicit Gemini Live interruption is not enabled before V6D.",
-        )
+        await self._put_audio(_AudioCommand(activity_start=True))
 
     async def close(self) -> None:
         """Cancel workers, discard queued audio, and close the SDK context."""
@@ -214,13 +214,16 @@ class GoogleGenAILiveTransport:
         try:
             while True:
                 command = await queue.get()
+                if command.activity_start:
+                    await self._start_activity(session)
+                    continue
                 if command.stream_end:
-                    await session.send_realtime_input(audio_stream_end=True)
+                    if self._activity_active:
+                        await session.send_realtime_input(activity_end={})
+                        self._activity_active = False
                     self._audio_stream_ended = True
                     continue
-                if self._audio_stream_ended:
-                    self._reset_transcript_text()
-                    self._audio_stream_ended = False
+                await self._start_activity(session)
                 await session.send_realtime_input(
                     audio={
                         "data": command.data,
@@ -231,6 +234,15 @@ class GoogleGenAILiveTransport:
             raise
         except Exception as error:
             await self._report_worker_failure(_map_sdk_error(error))
+
+    async def _start_activity(self, session: Any) -> None:
+        if self._activity_active:
+            return
+        if self._audio_stream_ended:
+            self._reset_transcript_text()
+            self._audio_stream_ended = False
+        await session.send_realtime_input(activity_start={})
+        self._activity_active = True
 
     async def _receive_loop(self) -> None:
         session = self._session
@@ -313,6 +325,10 @@ class GoogleGenAILiveTransport:
 def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
     value: dict[str, object] = {
         "response_modalities": [config.response_modality.value.upper()],
+        "realtime_input_config": {
+            "automatic_activity_detection": {"disabled": True},
+            "activity_handling": "START_OF_ACTIVITY_INTERRUPTS",
+        },
     }
     if config.input_audio_transcription:
         value["input_audio_transcription"] = {}

@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A through V6C complete, V6D next
+**Status:** V0 through V5 complete - V6A through V6D complete, V6E next
 
 **Planning date:** 2026-08-01
 
@@ -1288,7 +1288,7 @@ improvements in an unfinished state.
 
 - [x] Add the SDK-neutral Gemini Live adapter behind `LiveSessionAdapter`.
 - [x] Add native audio, input transcription, and output transcription paths.
-- [ ] Add provider-native interruption with coordinator reconciliation.
+- [x] Add provider-native interruption with coordinator reconciliation.
 - [ ] Add bounded session timeout/resumption behavior.
 - [ ] Require context-window compression and the finite session-duration cap.
 - [ ] Add explicit cloud-audio notice, settings, and diagnostics.
@@ -1392,10 +1392,33 @@ does not yet expose Gemini Live in Settings, create the full application event
 sink, or rebuild the packaged app. Those composition and release steps remain
 in V6E and V6F; provider-native interruption is next in V6D.
 
-#### V6D: Live Interruption
+#### V6D: Live Interruption - Complete
 
-- [ ] Reconcile provider-native interruption with the turn ledger.
-- [ ] Cancel/truncate stale output and reject late audio or text.
+- [x] Reconcile provider-native interruption with the turn ledger.
+- [x] Cancel/truncate stale output and reject late audio or text.
+
+Gemini Live now runs with automatic activity detection disabled so Akiha's
+existing endpoint owner remains authoritative. The concrete transport sends
+explicit `activity_start` and `activity_end` signals around local microphone
+turns. Starting replacement user activity uses Gemini's
+`START_OF_ACTIVITY_INTERRUPTS` behavior instead of inventing an unsupported
+stop-generation request.
+
+`HostedLiveInterruptionController` performs local cancellation before waiting
+for the provider: it stops native playback, discards the interrupted
+transcript state, marks the old ledger turn interrupted, and transfers
+transcript ownership to a new turn. The Gemini adapter then quarantines old
+assistant text, audio, and completion events until one matching provider
+interruption confirmation arrives. Duplicate, mismatched, and late callbacks
+cannot regain ownership. Provider connection failures still terminate the
+session visibly rather than being hidden by a pending interruption.
+
+Interrupted partial transcripts and audio are never persisted, exported, or
+sent to memory extraction. This checkpoint is covered with deterministic
+transport, adapter, ledger, transcript, playback, failure, and late-event
+tests. It does not yet expose hosted live mode in Settings or compose the full
+application event sink; those user-facing session controls begin in V6E. No
+real Gemini network call or packaged rebuild is part of this checkpoint.
 
 #### V6E: Session Management
 

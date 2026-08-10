@@ -147,6 +147,7 @@ class GeminiLiveSessionAdapter:
         self._output_revision = -1
         self._output_audio_sequence = -1
         self._provider_turn_complete = False
+        self._interruption_pending_turn_id: str | None = None
 
     @property
     def lifecycle(self) -> SessionLifecycle:
@@ -290,12 +291,13 @@ class GeminiLiveSessionAdapter:
         )
 
     async def interrupt(self, turn_id: str) -> None:
-        """Interrupt one owned response while keeping the session available."""
+        """Request provider-native barge-in and quarantine old-turn output."""
         self._require_owned_turn(turn_id)
+        if self._interruption_pending_turn_id == turn_id:
+            return
+        self._interruption_pending_turn_id = turn_id
+        self._provider_turn_complete = True
         await self._transport.interrupt()
-        sink = self._event_sink
-        if sink is not None:
-            sink.response_interrupted(turn_id)
 
     async def stop(self) -> None:
         """Idempotently close receive work and the provider transport."""
@@ -359,9 +361,26 @@ class GeminiLiveSessionAdapter:
         config = self._config
         if sink is None or config is None:
             return
+        if event.kind is GeminiTransportEventKind.INTERRUPTED:
+            interrupted_turn_id = self._interruption_pending_turn_id
+            if interrupted_turn_id is None:
+                return
+            sink.response_interrupted(interrupted_turn_id)
+            self._interruption_pending_turn_id = None
+            return
         turn_id = event.turn_id or self._active_turn_id
         if turn_id is not None and turn_id != self._active_turn_id:
             return
+        if self._interruption_pending_turn_id is not None:
+            if event.kind in {
+                GeminiTransportEventKind.FAILED,
+                GeminiTransportEventKind.CLOSED,
+            }:
+                pass
+            elif event.kind is not GeminiTransportEventKind.INPUT_TRANSCRIPT:
+                return
+            elif turn_id == self._interruption_pending_turn_id:
+                return
         if event.kind is GeminiTransportEventKind.INPUT_TRANSCRIPT:
             if turn_id is None:
                 return
@@ -413,9 +432,6 @@ class GeminiLiveSessionAdapter:
                     data=event.audio_data or b"",
                 )
             )
-        elif event.kind is GeminiTransportEventKind.INTERRUPTED:
-            if turn_id is not None:
-                sink.response_interrupted(turn_id)
         elif event.kind is GeminiTransportEventKind.TURN_COMPLETE:
             if turn_id is not None:
                 sink.turn_completed(turn_id)
@@ -511,3 +527,4 @@ class GeminiLiveSessionAdapter:
         self._output_revision = -1
         self._output_audio_sequence = -1
         self._provider_turn_complete = False
+        self._interruption_pending_turn_id = None

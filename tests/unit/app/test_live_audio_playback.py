@@ -78,6 +78,9 @@ class NativeAudioPlaybackQueueTest(unittest.TestCase):
         self.assertEqual(completed, [])
         self.assertFalse(queue.is_active)
 
+        with self.assertRaisesRegex(LiveSessionError, "does not own"):
+            queue.submit(_frame(sequence=1))
+
     def test_synchronous_owner_failure_is_sanitized_and_releases_turn(self) -> None:
         owner = _PlaybackOwner(fail_on_play=True)
         failures: list[tuple[str, str]] = []

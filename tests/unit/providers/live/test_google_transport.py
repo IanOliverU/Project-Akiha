@@ -41,6 +41,10 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
             self.context.config,
             {
                 "response_modalities": ["AUDIO"],
+                "realtime_input_config": {
+                    "automatic_activity_detection": {"disabled": True},
+                    "activity_handling": "START_OF_ACTIVITY_INTERRUPTS",
+                },
                 "input_audio_transcription": {},
                 "output_audio_transcription": {},
                 "context_window_compression": {"sliding_window": {}},
@@ -54,18 +58,43 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
 
         await self.transport.send_audio(b"\x00\x00" * 320, _PCM_MIME)
         await self.transport.end_audio_stream()
-        await _wait_until(lambda: len(self.session.sent) == 2)
+        await _wait_until(lambda: len(self.session.sent) == 3)
 
         self.assertEqual(
             self.session.sent,
             [
+                {"activity_start": {}},
                 {
                     "audio": {
                         "data": b"\x00\x00" * 320,
                         "mime_type": _PCM_MIME,
                     }
                 },
-                {"audio_stream_end": True},
+                {"activity_end": {}},
+            ],
+        )
+
+    async def test_interrupt_sends_new_activity_start_after_completed_input(
+        self,
+    ) -> None:
+        await self.transport.connect(_config())
+        await self.transport.send_audio(b"\x00\x00" * 320, _PCM_MIME)
+        await self.transport.end_audio_stream()
+        await self.transport.interrupt()
+        await _wait_until(lambda: len(self.session.sent) == 4)
+
+        self.assertEqual(
+            self.session.sent,
+            [
+                {"activity_start": {}},
+                {
+                    "audio": {
+                        "data": b"\x00\x00" * 320,
+                        "mime_type": _PCM_MIME,
+                    }
+                },
+                {"activity_end": {}},
+                {"activity_start": {}},
             ],
         )
 
