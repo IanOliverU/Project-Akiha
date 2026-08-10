@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V5 complete - V6A through V6F complete, V6G next
+**Status:** V0 through V5 complete - V6A through V6G complete, V6H next
 
 **Planning date:** 2026-08-01
 
@@ -1506,9 +1506,39 @@ References:
 
 #### V6G: Local Fallback
 
-- [ ] Preserve push-to-talk, Local Conversation, Ollama, hosted text, and
+- [x] Preserve push-to-talk, Local Conversation, Ollama, hosted text, and
   VOICEVOX as explicit independent choices.
-- [ ] Never silently send local audio or text to Gemini after a failure.
+- [x] Never silently send local audio or text to Gemini after a failure.
+
+V6G added an explicit `ConversationRuntimeRouter` that starts exactly the lane
+selected in Voice Settings. The existing Talk path remains Local Modular:
+microphone frames go to faster-whisper, accepted text goes to the separately
+selected local or hosted text provider, and optional speech goes to VOICEVOX.
+The Start conversation control now selects either that existing Local Modular
+session or Gemini Live. The chat surface visibly labels the active lane as
+`Local` or `Cloud` and shows its elapsed time.
+
+Gemini Live owns a persistent asyncio session on a dedicated Qt worker. Direct
+20 ms PCM microphone frames enter only that worker and never enter local STT.
+Provider interim transcripts remain ephemeral; accepted final input/output
+transcripts use the V6C canonical chat persistence path. Native response audio
+reuses Akiha's existing Qt playback owner. The selected Gemini voice and Akiha
+identity system instruction are passed in the live connection setup. Cloud
+barge-in transfers turn ownership locally before requesting provider-native
+interruption, so stale transcript and audio callbacks cannot regain authority.
+
+The router contains no automatic cross-lane start operation. A Gemini startup,
+stream, endpoint, playback, or shutdown failure ends the Cloud session visibly
+and clears its resources without starting Local Modular or sending transcript
+text through a different provider. Changing the selected lane in Settings ends
+an active conversation first; starting the newly selected lane remains a
+separate visible user action. Typed chat, Settings, tray/pet controls, local
+push-to-talk, Ollama, hosted text APIs, and VOICEVOX remain independent.
+
+This checkpoint added deterministic lane-selection, failed-start, direct-audio,
+Qt worker lifecycle, shutdown, voice/system-config, visible-label, and barge-in
+coverage. No standalone rebuild or real Gemini network call belongs to V6G;
+those checks remain V6H and the final release gate remains V8.
 
 #### V6H: Verification
 

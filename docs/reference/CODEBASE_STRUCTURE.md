@@ -11,7 +11,7 @@ project_akiha/
 |-- database/             # SQLite repositories and ordered migrations
 |-- integrations/         # Optional external-product integrations
 |   `-- spotify/          # Spotify OAuth, catalog, device, and playback logic
-|-- providers/            # Swappable AI, animation, microphone, STT, and TTS adapters
+|-- providers/            # Swappable AI, animation, voice, and hosted-live adapters
 |-- services/             # Cross-cutting application services
 |-- tools/                # Package and release verification entry points
 `-- ui/                   # PySide6 windows, renderers, and background workers
@@ -49,3 +49,12 @@ the existing action system, and its composition remains in `app/main.py`.
 
 This split keeps external API details out of framework-free core logic and does
 not grant Spotify or any AI provider direct execution authority.
+
+Hosted-live provider contracts remain in `core/voice_session/`, Gemini and its
+Google SDK transport remain in `providers/live/`, and application ownership is
+split between `app/conversation_runtime_router.py`,
+`app/hosted_conversation_runtime.py`, and
+`app/hosted_live_session_controller.py`. The persistent Qt/async handoff lives
+in `ui/hosted_live_session_worker.py`; it owns no provider-selection policy.
+This keeps Local Modular and Hosted Live as explicit sibling lanes rather than
+allowing either provider to invoke the other as a fallback.

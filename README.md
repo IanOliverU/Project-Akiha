@@ -63,8 +63,13 @@ projection with final-only canonical persistence, and V6D added provider-native
 barge-in with immediate local playback cancellation and stale-output rejection.
 V6E now adds explicit hosted-session ownership, a hard logical deadline,
 memory-only resumption handles, `GoAway` handling, and bounded reconnects that
-cannot extend the session. These additions do not weaken or replace the
-complete local modular lane. Pet simulation remains planned after the Voice
+cannot extend the session. V6F adds separate cloud-audio consent, hosted model,
+native voice, duration, and local-only readiness diagnostics. V6G now wires the
+explicit Local/Cloud runtime selector, direct Gemini microphone streaming,
+canonical final transcript persistence, native playback, visible lane state,
+provider-native barge-in, and fail-closed behavior with no silent local or cloud
+fallback. These additions do not weaken or replace the complete local modular
+lane. V6H verification is next; pet simulation remains planned after the Voice
 Intelligence roadmap.
 
 | Phase | Status | Focus |
@@ -78,7 +83,7 @@ Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Gemini Live setup through V6F; explicit fallback and provider-native tools next |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live runtime through V6G; verification and provider-native tools next |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

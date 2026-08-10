@@ -181,6 +181,41 @@ class ChatWindowTest(unittest.TestCase):
 
         self.assertEqual(window._conversation_elapsed_label.text(), "Local 4:00:00")
 
+    def test_cloud_lane_is_visible_and_independent_of_local_stt(self) -> None:
+        window = ChatWindow()
+        window.set_voice_capabilities(input_enabled=False, output_enabled=False)
+        window.set_voice_conversation_lane("cloud", available=True)
+        window.set_voice_state("idle")
+
+        self.assertTrue(window._conversation_button.isEnabled())
+        self.assertEqual(window._conversation_elapsed_label.text(), "Cloud --:--")
+
+        window.set_voice_conversation_state(
+            active=True,
+            elapsed_seconds=9,
+            mode="cloud",
+        )
+
+        self.assertEqual(window._conversation_elapsed_label.text(), "Cloud 00:09")
+        self.assertEqual(
+            window._conversation_button.toolTip(),
+            "End cloud conversation",
+        )
+
+    def test_cloud_conversation_can_request_barge_in_without_local_stt(self) -> None:
+        window = ChatWindow()
+        requests: list[bool] = []
+        window.voice_listen_requested.connect(lambda: requests.append(True))
+        window.set_voice_capabilities(input_enabled=False, output_enabled=False)
+        window.set_voice_conversation_lane("cloud", available=True)
+        window.set_voice_conversation_state(active=True, mode="cloud")
+        window.set_voice_state("speaking", "output")
+
+        window._voice_button.click()
+
+        self.assertEqual(requests, [True])
+        self.assertEqual(window._voice_button.text(), "Talk")
+
     def test_voice_button_requests_listening_from_idle(self) -> None:
         window = ChatWindow()
         requested: list[bool] = []

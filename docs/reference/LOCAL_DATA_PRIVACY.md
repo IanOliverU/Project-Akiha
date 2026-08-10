@@ -76,11 +76,10 @@ does not request or store a Spotify Client Secret.
   path remains ignored and prohibited from packaged artifacts as defense in
   depth; Akiha has no runtime importer for it.
 
-## Planned Pipelined Voice Modes
+## Pipelined Voice Modes
 
-The approved Post-Phase 8 Voice Intent and Live Conversation architecture is
-being implemented in staged milestones. It preserves three explicit processing
-modes:
+The Post-Phase 8 Voice Intent and Live Conversation architecture preserves
+three explicit processing modes:
 
 - **Fully Local Modular:** microphone audio, transcription, Ollama/local LLM
   generation, speech rendering, and VOICEVOX playback remain local.
@@ -112,6 +111,14 @@ Gemini Live setup now has these additional boundaries:
   Akiha will not promise a fixed per-minute cost
 - local push-to-talk, local Conversation Session, Ollama, faster-whisper, and
   VOICEVOX will remain available without Gemini Live
+
+`Start conversation` routes only to the lane visibly selected in Settings.
+Direct cloud PCM frames bypass faster-whisper, while the ordinary `Talk` path
+continues to use local microphone processing. A cloud failure stops that
+session and does not start Local Modular, send its transcript to a text
+provider, or replay buffered audio into another lane. Switching lanes in
+Settings ends an active session and the user must explicitly start the newly
+selected lane.
 
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini

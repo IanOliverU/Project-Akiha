@@ -48,6 +48,35 @@ class VoiceCaptureControllerTest(unittest.TestCase):
             )
         )
 
+    def test_hosted_audio_uses_direct_frames_and_never_calls_local_stt(self) -> None:
+        submitted: list[CapturedAudio] = []
+        hosted_frames: list[CapturedAudio] = []
+        hosted_end_count: list[bool] = []
+        bus, _, capture, _ = _build_controller(
+            submitted.append,
+            config=VoiceConfig(
+                enabled=True,
+                input_provider="disabled",
+                session_provider="gemini_live",
+            ),
+            on_hosted_audio_frame=hosted_frames.append,
+            on_hosted_audio_ended=lambda: hosted_end_count.append(True),
+        )
+
+        bus.publish(
+            EventType.VOICE_LISTEN_REQUESTED,
+            {"source": "hosted_live"},
+        )
+        frame = CapturedAudio(data=b"\x10\x20", sample_rate_hz=16_000)
+        capture.trigger_frame(frame)
+        bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
+
+        self.assertEqual(hosted_frames, [frame])
+        self.assertEqual(hosted_end_count, [True])
+        self.assertEqual(submitted, [])
+        self.assertTrue(capture.auto_stop_on_silence)
+        self.assertIsNone(capture.on_audio_snapshot)
+
     def test_live_snapshot_uses_direct_non_logging_callback(self) -> None:
         snapshots: list[CapturedAudio] = []
         config = VoiceConfig(enabled=True, live_transcription_enabled=True)
@@ -270,6 +299,7 @@ class _FakeCapture:
         timeout_seconds: int,
         on_timeout: Callable[[], None],
         on_error: Callable[[str, str], None],
+        on_audio_frame: Callable[[CapturedAudio], None] | None = None,
         on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
         on_silence: Callable[[], None] | None = None,
         on_activity: Callable[[MicrophoneActivity], None] | None = None,
@@ -284,6 +314,7 @@ class _FakeCapture:
         self.timeout_seconds = timeout_seconds
         self.on_timeout = on_timeout
         self.on_error = on_error
+        self.on_audio_frame = on_audio_frame
         self.on_audio_snapshot = on_audio_snapshot
         self.on_silence = on_silence
         self.on_activity = on_activity
@@ -314,6 +345,10 @@ class _FakeCapture:
         assert self.on_audio_snapshot is not None
         self.on_audio_snapshot(audio or self.stop())
 
+    def trigger_frame(self, audio: CapturedAudio) -> None:
+        assert self.on_audio_frame is not None
+        self.on_audio_frame(audio)
+
     def trigger_silence(self) -> None:
         assert self.on_silence is not None
         self.on_silence()
@@ -330,6 +365,9 @@ def _build_controller(
     capture: _FakeCapture | None = None,
     on_audio_snapshot: Callable[[CapturedAudio], None] | None = None,
     on_microphone_test_captured: Callable[[CapturedAudio], None] | None = None,
+    on_hosted_audio_frame: Callable[[CapturedAudio], None] | None = None,
+    on_hosted_audio_ended: Callable[[], None] | None = None,
+    on_hosted_audio_failed: Callable[[str, str], None] | None = None,
 ) -> tuple[EventBus, VoiceController, _FakeCapture, list[Event]]:
     resolved_config = config or VoiceConfig(
         enabled=True,
@@ -349,6 +387,9 @@ def _build_controller(
         on_audio_captured=on_audio_captured,
         on_audio_snapshot=on_audio_snapshot,
         on_microphone_test_captured=on_microphone_test_captured,
+        on_hosted_audio_frame=on_hosted_audio_frame,
+        on_hosted_audio_ended=on_hosted_audio_ended,
+        on_hosted_audio_failed=on_hosted_audio_failed,
     )
     resolved_capture.controller = controller
     return bus, voice, resolved_capture, events

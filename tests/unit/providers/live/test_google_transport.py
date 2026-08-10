@@ -54,6 +54,29 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("private-api-key", repr(self.context.config))
 
+    async def test_connect_applies_selected_voice_and_system_instruction(self) -> None:
+        config = GeminiLiveTransportConfig(
+            model_name="gemini-live-model",
+            response_modality=LiveResponseModality.AUDIO,
+            input_audio_transcription=True,
+            output_audio_transcription=True,
+            context_window_compression=True,
+            session_resumption=True,
+            voice_name="Kore",
+            system_instruction="Speak as Akiha in Japanese.",
+        )
+
+        await self.transport.connect(config)
+
+        self.assertEqual(
+            self.context.config["speech_config"],
+            {"voice_config": {"prebuilt_voice_config": {"voice_name": "Kore"}}},
+        )
+        self.assertEqual(
+            self.context.config["system_instruction"],
+            "Speak as Akiha in Japanese.",
+        )
+
     async def test_audio_and_stream_end_are_sent_in_queue_order(self) -> None:
         await self.transport.connect(_config())
 

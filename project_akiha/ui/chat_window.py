@@ -109,6 +109,8 @@ class ChatWindow(QWidget):
         self._voice_replay_available = False
         self._chat_busy = False
         self._voice_conversation_active = False
+        self._voice_conversation_mode = "local"
+        self._voice_conversation_available = False
         self._conversation_elapsed_label = QLabel("Local --:--")
         self._conversation_elapsed_label.setObjectName("voiceInputStatus")
         self._conversation_elapsed_label.setFixedWidth(104)
@@ -270,6 +272,8 @@ class ChatWindow(QWidget):
         """Update configured voice input and output availability."""
         self._voice_input_enabled = input_enabled
         self._voice_output_enabled = output_enabled
+        if self._voice_conversation_mode == "local":
+            self._voice_conversation_available = input_enabled
         self._refresh_voice_button()
         self._refresh_voice_replay_button()
         self._refresh_conversation_button()
@@ -283,8 +287,20 @@ class ChatWindow(QWidget):
         self._refresh_conversation_button()
 
     def set_voice_conversation_active(self, active: bool) -> None:
-        """Present the explicit local conversation-session lifecycle."""
+        """Present the explicit conversation-session lifecycle."""
         self.set_voice_conversation_state(active=active)
+
+    def set_voice_conversation_lane(self, mode: str, *, available: bool) -> None:
+        """Present the explicitly selected Local or Cloud conversation lane."""
+        self._voice_conversation_mode = "cloud" if mode == "cloud" else "local"
+        self._voice_conversation_available = available
+        label = self._conversation_mode_label()
+        self._conversation_elapsed_label.setText(f"{label} --:--")
+        self._conversation_elapsed_label.setToolTip(
+            f"{label} conversation elapsed time"
+        )
+        self._refresh_conversation_button()
+        self._refresh_voice_button()
 
     def set_voice_conversation_state(
         self,
@@ -292,11 +308,17 @@ class ChatWindow(QWidget):
         active: bool,
         elapsed_seconds: int = 0,
         reason: str = "",
+        mode: str | None = None,
     ) -> None:
-        """Present bounded local-session state without exposing voice content."""
+        """Present bounded session state without exposing voice content."""
+        if mode is not None:
+            self._voice_conversation_mode = "cloud" if mode == "cloud" else "local"
         self._voice_conversation_active = active
+        label = self._conversation_mode_label()
         self._conversation_elapsed_label.setText(
-            f"Local {_format_elapsed(elapsed_seconds)}" if active else "Local --:--"
+            f"{label} {_format_elapsed(elapsed_seconds)}"
+            if active
+            else f"{label} --:--"
         )
         timeout_status = {
             "idle_timeout": "Conversation ended after inactivity.",
@@ -305,6 +327,7 @@ class ChatWindow(QWidget):
         if timeout_status is not None:
             self.set_voice_input_status(timeout_status)
         self._refresh_conversation_button()
+        self._refresh_voice_button()
 
     def set_voice_replay_available(self, available: bool) -> None:
         """Enable replay after at least one speech request reaches playback."""
@@ -386,20 +409,28 @@ class ChatWindow(QWidget):
         self.cancel_requested.emit()
 
     def _request_voice_action(self) -> None:
-        if self._voice_state == "idle" and self._voice_input_enabled:
+        hosted_talk_available = (
+            self._voice_conversation_active and self._voice_conversation_mode == "cloud"
+        )
+        if self._voice_state == "idle" and (
+            self._voice_input_enabled or hosted_talk_available
+        ):
             self.voice_listen_requested.emit()
         elif self._voice_state == "listening" and self._voice_operation == "input":
             self.voice_listen_stop_requested.emit()
         elif self._voice_state == "thinking":
             if self._voice_operation == "input":
-                self.voice_listen_cancel_requested.emit()
+                if hosted_talk_available:
+                    self.voice_listen_requested.emit()
+                else:
+                    self.voice_listen_cancel_requested.emit()
             elif self._voice_operation == "output":
-                if self._voice_input_enabled:
+                if self._voice_input_enabled or hosted_talk_available:
                     self.voice_listen_requested.emit()
                 else:
                     self.voice_speak_stop_requested.emit()
         elif self._voice_state == "speaking" and self._voice_operation == "output":
-            if self._voice_input_enabled:
+            if self._voice_input_enabled or hosted_talk_available:
                 self.voice_listen_requested.emit()
             else:
                 self.voice_speak_stop_requested.emit()
@@ -411,26 +442,33 @@ class ChatWindow(QWidget):
             self.voice_conversation_start_requested.emit()
 
     def _refresh_conversation_button(self) -> None:
+        label = self._conversation_mode_label()
         if self._voice_conversation_active:
             self._conversation_button.setText("End conversation")
-            self._conversation_button.setToolTip("End local voice conversation")
+            self._conversation_button.setToolTip(f"End {label.lower()} conversation")
             self._conversation_button.setEnabled(True)
             return
         self._conversation_button.setText("Start conversation")
-        self._conversation_button.setToolTip("Start local voice conversation")
+        self._conversation_button.setToolTip(f"Start {label.lower()} conversation")
         self._conversation_button.setEnabled(
-            self._voice_input_enabled
+            self._voice_conversation_available
             and self._voice_state == "idle"
             and not self._chat_busy
         )
+
+    def _conversation_mode_label(self) -> str:
+        return "Cloud" if self._voice_conversation_mode == "cloud" else "Local"
 
     def _refresh_voice_button(self) -> None:
         label = "Talk"
         tooltip = "Push to talk"
         enabled = False
+        hosted_talk_available = (
+            self._voice_conversation_active and self._voice_conversation_mode == "cloud"
+        )
 
         if self._voice_state == "idle":
-            enabled = self._voice_input_enabled
+            enabled = self._voice_input_enabled or hosted_talk_available
         elif self._voice_state == "listening":
             label = "Stop"
             tooltip = "Finish recording"
@@ -438,10 +476,15 @@ class ChatWindow(QWidget):
         elif self._voice_state == "thinking":
             label = "Cancel"
             if self._voice_operation == "input":
-                tooltip = "Cancel transcription"
-                enabled = self._voice_input_enabled
+                if hosted_talk_available:
+                    label = "Talk"
+                    tooltip = "Interrupt and talk"
+                    enabled = True
+                else:
+                    tooltip = "Cancel transcription"
+                    enabled = self._voice_input_enabled
             elif self._voice_operation == "output":
-                if self._voice_input_enabled:
+                if self._voice_input_enabled or hosted_talk_available:
                     label = "Talk"
                     tooltip = "Interrupt and talk"
                     enabled = True
@@ -449,7 +492,7 @@ class ChatWindow(QWidget):
                     tooltip = "Cancel speech synthesis"
                     enabled = self._voice_output_enabled
         elif self._voice_state == "speaking":
-            if self._voice_input_enabled:
+            if self._voice_input_enabled or hosted_talk_available:
                 label = "Talk"
                 tooltip = "Interrupt and talk"
                 enabled = True

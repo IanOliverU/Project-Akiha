@@ -59,6 +59,8 @@ class GeminiLiveTransportConfig:
     output_audio_transcription: bool
     context_window_compression: bool
     session_resumption: bool
+    voice_name: str = ""
+    system_instruction: str = ""
     resumption_handle: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -620,6 +622,8 @@ class GeminiLiveSessionAdapter:
         return GeminiLiveTransportConfig(
             model_name=config.model_name.strip() or self._default_model,
             response_modality=config.response_modality,
+            voice_name=config.voice_name.strip(),
+            system_instruction=config.system_instruction.strip(),
             input_audio_transcription=config.input_transcription_enabled,
             output_audio_transcription=config.output_transcription_enabled,
             context_window_compression=config.context_compression_enabled,

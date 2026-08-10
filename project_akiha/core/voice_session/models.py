@@ -330,6 +330,8 @@ class LiveSessionConfig:
     input_sample_rate_hz: int
     max_duration_seconds: int
     model_name: str = ""
+    voice_name: str = ""
+    system_instruction: str = field(default="", repr=False)
     response_modality: LiveResponseModality = LiveResponseModality.AUDIO
     input_transcription_enabled: bool = True
     output_transcription_enabled: bool = True
@@ -351,6 +353,10 @@ class LiveSessionConfig:
             raise ValueError("live-session duration must be between 1 and 900 seconds.")
         if self.model_name and len(self.model_name) > 256:
             raise ValueError("live-session model name is too long.")
+        if self.voice_name and len(self.voice_name) > 128:
+            raise ValueError("live-session voice name is too long.")
+        if len(self.system_instruction) > 32_000:
+            raise ValueError("live-session system instruction is too long.")
 
 
 @dataclass(frozen=True, slots=True)

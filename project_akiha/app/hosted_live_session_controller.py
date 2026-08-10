@@ -107,6 +107,24 @@ class HostedLiveSessionController:
         """Release hosted provider ownership during application shutdown."""
         await self.end()
 
+    async def accept_audio(self, frame: AudioFrame) -> None:
+        """Forward one owned microphone frame to the active adapter."""
+        if not self._active:
+            raise RuntimeError("Hosted live audio requires an active session.")
+        await self._adapter.accept_audio(frame)
+
+    async def end_user_turn(self, turn_id: str) -> None:
+        """End one provider audio turn without closing the conversation."""
+        if not self._active:
+            raise RuntimeError("Hosted live input requires an active session.")
+        await self._adapter.end_user_turn(turn_id)
+
+    async def interrupt(self, turn_id: str) -> None:
+        """Request provider-native interruption for the currently owned turn."""
+        if not self._active:
+            raise RuntimeError("Hosted live interruption requires an active session.")
+        await self._adapter.interrupt(turn_id)
+
     def transcript_revised(self, revision: TranscriptRevision) -> None:
         self._event_sink.transcript_revised(revision)
 

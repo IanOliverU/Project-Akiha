@@ -118,6 +118,29 @@ class HostedLiveSessionControllerTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.controller.end())
         self.assertEqual(self.coordinator.snapshot.lifecycle, SessionLifecycle.IDLE)
 
+    async def test_active_controller_forwards_audio_endpoint_and_interruption(
+        self,
+    ) -> None:
+        await self.controller.start()
+        frame = AudioFrame(
+            session_id="hosted-session-1",
+            turn_id="turn-1",
+            sequence_number=0,
+            captured_at_monotonic=1.0,
+            sample_rate_hz=16_000,
+            channels=1,
+            sample_width_bytes=2,
+            data=b"\x00\x01",
+        )
+
+        await self.controller.accept_audio(frame)
+        await self.controller.end_user_turn("turn-1")
+        await self.controller.interrupt("turn-1")
+
+        self.assertEqual(self.adapter.audio_frames, [frame])
+        self.assertEqual(self.adapter.ended_turns, ["turn-1"])
+        self.assertEqual(self.adapter.interrupted_turns, ["turn-1"])
+
 
 class _Adapter:
     def __init__(self) -> None:
@@ -125,6 +148,9 @@ class _Adapter:
         self.sink: HostedLiveSessionController | None = None
         self.token: VoiceCancellationToken | None = None
         self.stop_count = 0
+        self.audio_frames: list[AudioFrame] = []
+        self.ended_turns: list[str] = []
+        self.interrupted_turns: list[str] = []
 
     async def start(
         self,
@@ -165,16 +191,16 @@ class _Adapter:
         self.emit_state(SessionLifecycle.ERROR, code)
 
     async def accept_audio(self, frame: AudioFrame) -> None:
-        del frame
+        self.audio_frames.append(frame)
 
     async def end_user_turn(self, turn_id: str) -> None:
-        del turn_id
+        self.ended_turns.append(turn_id)
 
     async def accept_action_result(self, result: SanitizedActionResult) -> None:
         del result
 
     async def interrupt(self, turn_id: str) -> None:
-        del turn_id
+        self.interrupted_turns.append(turn_id)
 
 
 @dataclass

@@ -85,7 +85,11 @@ class VoiceController:
             )
         elif self.state == VoiceState.MUTED:
             self._transition_to(VoiceState.IDLE, "voice_enabled")
-        elif self._operation == _VoiceOperation.INPUT and not config.input_enabled:
+        elif (
+            self._operation == _VoiceOperation.INPUT
+            and not config.input_enabled
+            and config.session_provider != "gemini_live"
+        ):
             self._transition_to(
                 VoiceState.IDLE,
                 "input_disabled",
@@ -100,7 +104,8 @@ class VoiceController:
 
     def mark_speaking(self) -> None:
         """Mark that synthesized audio playback has started."""
-        if not self._ensure_output_enabled():
+        hosted_native = self._config.session_provider == "gemini_live"
+        if not hosted_native and not self._ensure_output_enabled():
             return
         if self._operation != _VoiceOperation.OUTPUT:
             self._publish_error(
@@ -210,9 +215,39 @@ class VoiceController:
             operation=_VoiceOperation.OUTPUT,
         )
 
+    def begin_hosted_output(self) -> bool:
+        """Transfer a hosted turn from microphone input to native playback."""
+        if not self._config.enabled:
+            self._publish_error("voice_disabled", "Voice is disabled.")
+            return False
+        if self.state is not VoiceState.THINKING:
+            return False
+        return self._transition_to(
+            VoiceState.THINKING,
+            "hosted_live_output_started",
+            operation=_VoiceOperation.OUTPUT,
+        )
+
+    def mark_hosted_speaking(self) -> None:
+        """Present native hosted audio independently of local TTS selection."""
+        if not self._config.enabled:
+            return
+        if self._operation is not _VoiceOperation.OUTPUT:
+            self._publish_error(
+                "unexpected_hosted_playback",
+                "Hosted audio arrived without an active live response.",
+            )
+            return
+        self._transition_to(VoiceState.SPEAKING, "hosted_live_playback_started")
+
     def _handle_listen_requested(self, event: Event) -> None:
-        del event
-        if not self._ensure_input_enabled():
+        source = event.payload.get("source")
+        hosted_live = source == "hosted_live"
+        if hosted_live:
+            if not self._config.enabled:
+                self._publish_error("voice_disabled", "Voice is disabled.")
+                return
+        elif not self._ensure_input_enabled():
             return
         if not self._config.push_to_talk_enabled:
             self._publish_error(

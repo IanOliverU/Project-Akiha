@@ -90,6 +90,13 @@ provider, capture audio, decrypt a key into UI text, or inspect transcripts.
 Context compression and bounded session resumption remain mandatory adapter
 invariants and are not exposed as user-disableable settings.
 
+The conversation runtime selector starts exactly one explicit Local Modular or
+Gemini Live lane. Gemini microphone frames use a direct non-logging callback to
+the hosted worker and never enter faster-whisper. Provider failures terminate
+the cloud session visibly; no failure handler invokes the local runtime or a
+hosted text provider. Changing lanes ends current ownership before a later,
+separate user Start action can open the new lane.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:

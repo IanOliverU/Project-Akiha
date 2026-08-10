@@ -111,7 +111,14 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(capabilities.output_sample_rate_hz, 24_000)
 
     async def test_start_maps_config_without_embedding_credentials(self) -> None:
-        await self._start()
+        await self.adapter.start(
+            _config(
+                voice_name="Kore",
+                system_instruction="Speak as Akiha in Japanese.",
+            ),
+            self.sink,
+            self.token,
+        )
 
         config = self.transport.connected_config
         assert config is not None
@@ -121,6 +128,11 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(config.output_audio_transcription)
         self.assertTrue(config.context_window_compression)
         self.assertTrue(config.session_resumption)
+        self.assertEqual(config.voice_name, "Kore")
+        self.assertEqual(
+            config.system_instruction,
+            "Speak as Akiha in Japanese.",
+        )
         self.assertNotIn("key", repr(config).casefold())
 
     async def test_start_rejects_non_gemini_provider(self) -> None:
@@ -660,6 +672,8 @@ def _config(
     max_duration_seconds: int = 600,
     context_compression_enabled: bool = True,
     session_resumption_enabled: bool = True,
+    voice_name: str = "",
+    system_instruction: str = "",
 ) -> LiveSessionConfig:
     return LiveSessionConfig(
         session_id="session-1",
@@ -667,6 +681,8 @@ def _config(
         provider_name=provider_name,
         input_sample_rate_hz=input_sample_rate_hz,
         max_duration_seconds=max_duration_seconds,
+        voice_name=voice_name,
+        system_instruction=system_instruction,
         context_compression_enabled=context_compression_enabled,
         session_resumption_enabled=session_resumption_enabled,
     )

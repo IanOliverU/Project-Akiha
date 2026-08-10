@@ -21,6 +21,13 @@ from project_akiha.app.assistant_translation_controller import (
 )
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
+from project_akiha.app.conversation_runtime_router import (
+    ConversationRuntimeLane,
+    ConversationRuntimeRouter,
+)
+from project_akiha.app.hosted_conversation_runtime import HostedConversationRuntime
+from project_akiha.app.live_audio_playback import NativeAudioPlaybackQueue
+from project_akiha.app.live_transcript_controller import LiveTranscriptController
 from project_akiha.app.local_conversation_session_controller import (
     LocalConversationSessionController,
 )
@@ -47,6 +54,7 @@ from project_akiha.app.streaming_voice_output_controller import (
 from project_akiha.app.talk_interruption_controller import (
     TalkInterruptionController,
 )
+from project_akiha.app.voice_audio_bridge import RealtimeAudioFrameBridge
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_diagnostics_controller import VoiceDiagnosticsController
@@ -123,11 +131,15 @@ from project_akiha.core.memory.extraction import (
     MemoryExtractor,
 )
 from project_akiha.core.state.animation import AnimationStateMachine
+from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.voice_session import (
+    LiveResponseModality,
+    LiveSessionConfig,
     ModularResponseContext,
     ModularResponseEvent,
     ModularResponseEventKind,
     ResponseSegment,
+    TranscriptStatus,
     VoiceProcessingMode,
 )
 from project_akiha.database import (
@@ -174,6 +186,10 @@ from project_akiha.providers.animation import (
     AnimationManifestError,
     AssetAnimationProvider,
     PlaceholderAnimationProvider,
+)
+from project_akiha.providers.live import (
+    GeminiLiveSessionAdapter,
+    GoogleGenAILiveTransport,
 )
 from project_akiha.providers.voice import (
     FasterWhisperProvider,
@@ -269,6 +285,7 @@ from project_akiha.ui.assistant_tool_worker import (
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
+from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
@@ -569,6 +586,14 @@ def _run_application() -> int:
 
     apply_voicevox_engine_config(config.voice)
     chat_window = ChatWindow()
+    chat_window.set_voice_conversation_lane(
+        "cloud" if config.voice.session_provider == "gemini_live" else "local",
+        available=(
+            config.voice.enabled and config.voice.push_to_talk_enabled
+            if config.voice.session_provider == "gemini_live"
+            else config.voice.input_enabled and config.voice.push_to_talk_enabled
+        ),
+    )
     assistant_translation_controller = AssistantTranslationController(
         service=AssistantTranslationService(ai_provider, conversation_repository),
         surface=chat_window,
@@ -685,8 +710,17 @@ def _run_application() -> int:
         del event
         window_state_store.save_position(WindowPosition(x=window.x(), y=window.y()))
 
+    conversation_runtime_router: ConversationRuntimeRouter | None = None
+
     def apply_settings(updated_config: AppConfig) -> None:
         nonlocal config, speech_input_service, speech_output_service
+        previous_session_provider = config.voice.session_provider
+        if (
+            conversation_runtime_router is not None
+            and previous_session_provider != updated_config.voice.session_provider
+            and conversation_runtime_router.active
+        ):
+            conversation_runtime_router.end("provider_changed")
         config = updated_config
         user_config_store.save_config(updated_config)
         window.apply_config(updated_config.pet_window)
@@ -756,6 +790,20 @@ def _run_application() -> int:
         voice_playback_controller.apply_config(updated_config.voice)
         voice_capture_controller.apply_config(updated_config.voice)
         voice_endpoint_controller.apply_config(updated_config.voice)
+        chat_window.set_voice_conversation_lane(
+            (
+                "cloud"
+                if updated_config.voice.session_provider == "gemini_live"
+                else "local"
+            ),
+            available=(
+                updated_config.voice.enabled
+                and updated_config.voice.push_to_talk_enabled
+                if updated_config.voice.session_provider == "gemini_live"
+                else updated_config.voice.input_enabled
+                and updated_config.voice.push_to_talk_enabled
+            ),
+        )
         notification_policy.update_config(updated_config.behavior)
         scheduled_check_in_engine.update_config(updated_config.behavior)
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
@@ -2222,15 +2270,104 @@ def _run_application() -> int:
         cancel_interruptible_work=cancel_interruptible_work,
     )
 
+    def present_hosted_input_revision(revision) -> None:
+        status = "Hearing cloud transcript..."
+        if revision.status is TranscriptStatus.FINAL:
+            status = "Cloud transcript accepted."
+        chat_window.set_voice_input_status(status)
+
+    live_transcript_controller = LiveTranscriptController(
+        chat_controller=chat_controller,
+        transcript_authority=voice_session_coordinator,
+        on_input_revision=present_hosted_input_revision,
+    )
+    hosted_audio_bridge = RealtimeAudioFrameBridge()
+    hosted_audio_playback = NativeAudioPlaybackQueue(voice_playback_controller)
+
+    def build_hosted_live_thread() -> HostedLiveSessionThread:
+        api_key = _resolve_ai_api_key("gemini", credential_store, logger)
+        if not api_key:
+            raise RuntimeError(
+                "Gemini Live needs a saved Gemini API key in Settings > AI."
+            )
+
+        def build_live_config(session_id: str) -> LiveSessionConfig:
+            voice = config.voice
+            return LiveSessionConfig(
+                session_id=session_id,
+                processing_mode=VoiceProcessingMode.HOSTED_LIVE,
+                provider_name="gemini",
+                input_sample_rate_hz=16_000,
+                max_duration_seconds=voice.hosted_live_max_duration_seconds,
+                model_name=voice.hosted_live_model,
+                voice_name=voice.hosted_live_voice_name,
+                system_instruction=build_akiha_identity_system_prompt(
+                    config.personality.rendered_system_prompt()
+                ),
+                response_modality=LiveResponseModality.AUDIO,
+                input_transcription_enabled=True,
+                output_transcription_enabled=True,
+                context_compression_enabled=True,
+                session_resumption_enabled=True,
+            )
+
+        return HostedLiveSessionThread(
+            adapter_factory=lambda: GeminiLiveSessionAdapter(
+                GoogleGenAILiveTransport(api_key)
+            ),
+            coordinator=voice_session_coordinator,
+            config_provider=build_live_config,
+        )
+
+    def present_hosted_commit(commit) -> None:
+        chat_window.append_message("You", commit.user_message.content)
+        assistant_message = commit.assistant_message
+        if assistant_message is not None:
+            chat_window.append_message(
+                config.personality.character_name,
+                assistant_message.content,
+            )
+            assistant_translation_controller.translate_assistant_response(
+                assistant_message.content
+            )
+
+    hosted_conversation_runtime = HostedConversationRuntime(
+        event_bus=event_bus,
+        voice_controller=voice_controller,
+        coordinator=voice_session_coordinator,
+        transcripts=live_transcript_controller,
+        audio_bridge=hosted_audio_bridge,
+        playback=hosted_audio_playback,
+        thread_factory=build_hosted_live_thread,
+        on_commit=present_hosted_commit,
+    )
+    conversation_runtime_router = ConversationRuntimeRouter(
+        selection_provider=lambda: config.voice.session_provider,
+        local_runtime=local_conversation_session_controller,
+        hosted_runtime=hosted_conversation_runtime,
+    )
+    hosted_conversation_runtime.set_stopped_callback(
+        lambda: conversation_runtime_router.runtime_stopped(
+            ConversationRuntimeLane.GEMINI_LIVE
+        )
+    )
+    voice_capture_controller.set_hosted_live_callbacks(
+        on_audio_frame=hosted_conversation_runtime.submit_audio,
+        on_audio_ended=hosted_conversation_runtime.end_user_turn,
+        on_audio_failed=hosted_conversation_runtime.fail_input,
+    )
+
     def present_local_conversation_state(event: Event) -> None:
         elapsed = event.payload.get("elapsed_seconds")
         reason = event.payload.get("reason")
+        mode = event.payload.get("mode")
         chat_window.set_voice_conversation_state(
             active=event.payload.get("active") is True,
             elapsed_seconds=(
                 elapsed if isinstance(elapsed, int) and elapsed >= 0 else 0
             ),
             reason=reason if isinstance(reason, str) else "",
+            mode=mode if isinstance(mode, str) else None,
         )
 
     event_bus.subscribe(
@@ -2242,10 +2379,21 @@ def _run_application() -> int:
     local_conversation_tick_timer.timeout.connect(
         local_conversation_session_controller.tick
     )
+    local_conversation_tick_timer.timeout.connect(hosted_conversation_runtime.tick)
     local_conversation_tick_timer.start()
-    chat_window.voice_listen_requested.connect(
-        talk_interruption_controller.request_talk
-    )
+
+    def request_voice_listen() -> None:
+        if (
+            conversation_runtime_router.active_lane
+            is ConversationRuntimeLane.GEMINI_LIVE
+            and hosted_conversation_runtime.active
+            and voice_controller.state in {VoiceState.THINKING, VoiceState.SPEAKING}
+        ):
+            hosted_conversation_runtime.request_talk()
+            return
+        talk_interruption_controller.request_talk()
+
+    chat_window.voice_listen_requested.connect(request_voice_listen)
     chat_window.voice_listen_stop_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
     )
@@ -2259,10 +2407,10 @@ def _run_application() -> int:
         lambda: event_bus.publish(EventType.VOICE_REPLAY_REQUESTED)
     )
     chat_window.voice_conversation_start_requested.connect(
-        local_conversation_session_controller.start
+        conversation_runtime_router.start
     )
     chat_window.voice_conversation_end_requested.connect(
-        local_conversation_session_controller.end
+        conversation_runtime_router.end
     )
     memory_window.refresh_requested.connect(refresh_memory_window)
     memory_window.edit_requested.connect(edit_memory)
@@ -2306,7 +2454,7 @@ def _run_application() -> int:
     def shutdown_app() -> None:
         local_conversation_tick_timer.stop()
         voice_endpoint_controller.cancel()
-        local_conversation_session_controller.close()
+        conversation_runtime_router.close()
         push_to_talk_session_controller.close()
         ai_discovery_stopped = settings_window.cancel_ai_discovery()
         if not ai_discovery_stopped:

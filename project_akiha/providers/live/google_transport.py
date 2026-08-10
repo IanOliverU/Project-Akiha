@@ -330,6 +330,12 @@ def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
             "activity_handling": "START_OF_ACTIVITY_INTERRUPTS",
         },
     }
+    if config.voice_name:
+        value["speech_config"] = {
+            "voice_config": {"prebuilt_voice_config": {"voice_name": config.voice_name}}
+        }
+    if config.system_instruction:
+        value["system_instruction"] = config.system_instruction
     if config.input_audio_transcription:
         value["input_audio_transcription"] = {}
     if config.output_audio_transcription:
