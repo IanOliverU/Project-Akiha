@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A-V7B complete - V7C safe dispatch next
+**Status:** V0 through V6 and V7A-V7C complete - V7D Gemini tools next
 
 **Planning date:** 2026-08-01
 
@@ -1572,14 +1572,14 @@ release gate.
 
 - [x] Expose only allowlisted action schemas.
 - [x] Treat function calls as untrusted `ActionProposal` values.
-- [ ] Reuse validation, permission, confirmation, execution, and audit.
-- [ ] Return only sanitized function results.
+- [x] Reuse validation, permission, confirmation, execution, and audit.
+- [x] Return only sanitized function results.
 - [ ] Add Gemini Live function proposals behind the provider-neutral adapter.
 - [ ] Add Ollama tool proposals when the selected local model reports tool-call
   support.
 - [ ] Fall back to deterministic and JSON proposal paths when a provider model
   does not support native tools.
-- [ ] Prevent duplicate deterministic and provider execution for one turn.
+- [x] Prevent duplicate deterministic and provider execution for one turn.
 
 #### V7A: Explicit Tool Schema Catalog - Complete
 
@@ -1601,7 +1601,7 @@ V7A verification passed with 1,287 tests and 3 optional-environment skips,
 plus repository-wide Ruff, Black, compilation, and diff checks.
 
 V7B translates one provider proposal into one untrusted Phase 8
-`ActionRequest`, retain session/turn/proposal ownership, and reject stale,
+`ActionRequest`, retains session/turn/proposal ownership, and rejects stale,
 duplicate, unknown, or non-ready proposals before the existing validator and
 permission service are reached.
 
@@ -1624,11 +1624,38 @@ confirmation, call an executor, or write an action audit entry.
 V7B verification passed with 1,294 tests and 3 optional-environment skips,
 plus repository-wide Ruff, Black, compilation, and diff checks.
 
-V7C will pass an accepted request through the existing validation, permission,
-confirmation, execution, and audit boundary, coordinate deterministic/provider
-at-most-once arbitration, and translate the result into a bounded
-`SanitizedActionResult`. Provider-specific Gemini function transport remains
-disabled until that application-owned path is complete.
+#### V7C: Permission-Gated Dispatch And Sanitized Results - Complete
+
+V7C adds `ProviderActionDispatcher` after the V7B conversion boundary. An
+accepted provider request is rechecked against current session/turn authority,
+then passes through the unchanged Phase 8 `AssistantActionService` for schema
+validation, scoped permission evaluation, confirmation policy, allowlisted
+execution, and SQLite audit recording. Provider code receives no service,
+permission repository, executor, or confirmation override.
+
+The dispatcher reuses `IntentArbiter` with session-scoped hashed turn and
+proposal identities. Provider dispatch waits until local deterministic routing
+is complete, and an accepted exact, contextual, or confirmation intent blocks
+a conflicting provider proposal for that turn. Replayed conversions cannot
+execute twice. Provider actions always enter Phase 8 with `confirmed=False`.
+Confirmation-required requests are retained only in a bounded memory-only
+store and can be resumed once through a separate trusted local confirmation
+call. Denial or confirmation consumes the stored request, stale ownership makes
+it non-executable, and explicit `clear()` discards all pending requests. V7D
+must call that cleanup hook when the hosted lane stops or changes.
+
+`SanitizedActionResult` now includes session ownership. Provider results expose
+only session/turn/proposal identity, a bounded status, and a fixed generic
+message. Raw `ActionResult.summary`, metadata, local paths, search matches,
+Spotify candidates, credentials, and exception text are never copied into the
+provider result. Incorrect action-service correlation or action identity fails
+closed. A real SQLite composition test confirms that a provider-origin request
+without permission is denied and audited through the Phase 8 repository.
+
+V7C verification passed with 1,307 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks. Gemini SDK
+function declarations and results remain disabled until V7D connects the
+provider transport to this application-owned dispatcher.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

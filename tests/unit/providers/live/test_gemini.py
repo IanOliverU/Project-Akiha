@@ -635,6 +635,7 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(LiveSessionError, "not enabled before V7"):
             await self.adapter.accept_action_result(
                 SanitizedActionResult(
+                    session_id="session-1",
                     turn_id="turn-1",
                     proposal_id="proposal-1",
                     status="success",

@@ -56,6 +56,11 @@ class ProposalGatewayResult:
     def __post_init__(self) -> None:
         if self.decision.accepted != (self.request is not None):
             raise ValueError("accepted proposal decisions require one action request.")
+        if self.request is not None:
+            if self.request.action_id != self.decision.action_id:
+                raise ValueError("proposal decision and request action IDs must match.")
+            if not self.request.source.startswith("provider."):
+                raise ValueError("provider action requests require a provider source.")
 
 
 class ProviderActionProposalGateway:

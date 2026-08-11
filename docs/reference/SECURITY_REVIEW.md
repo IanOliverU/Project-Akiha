@@ -97,6 +97,21 @@ the cloud session visibly; no failure handler invokes the local runtime or a
 hosted text provider. Changing lanes ends current ownership before a later,
 separate user Start action can open the new lane.
 
+V7C prepares hosted and local-model tool proposals without granting providers
+direct action authority. Only a session- and turn-owned proposal exposed by the
+explicit provider tool catalog can become an untrusted Phase 8 `ActionRequest`.
+The existing validator, scoped permissions, local confirmation policy,
+allowlisted executor, and SQLite audit path remain mandatory. Deterministic
+local intent arbitration completes before a provider proposal can win the
+turn, preventing duplicate local/provider execution.
+
+Providers cannot set the confirmation flag. A confirmation-required request is
+held only in bounded process memory and can be resumed once by a separate local
+UI decision. Provider-facing results exclude executor metadata, local paths,
+search matches, Spotify candidates, credentials, and exception text. Gemini
+function transport remains disabled until V7D and receives no executor or
+repository reference when enabled.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:

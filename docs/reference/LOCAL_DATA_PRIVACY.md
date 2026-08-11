@@ -120,6 +120,17 @@ provider, or replay buffered audio into another lane. Switching lanes in
 Settings ends an active session and the user must explicitly start the newly
 selected lane.
 
+The V7 provider-tool boundary does not send local action metadata back to a
+provider. Tool schemas contain only explicitly exposed action names,
+descriptions, and primitive parameter constraints. Accepted requests still use
+local permissions, confirmation, execution, and audit. Provider results contain
+only bounded ownership identifiers, status, and a generic message; they exclude
+paths, search results, Spotify candidates, credentials, and exception text.
+Confirmation-pending request arguments remain memory-only and are cleared on
+resolution or explicit dispatcher cleanup. Stale ownership makes them
+non-executable. V7D must invoke cleanup when its hosted lane stops or changes;
+Gemini tool transport remains disabled until that integration is verified.
+
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini
 Live in Settings does not contact Google or capture microphone audio. The

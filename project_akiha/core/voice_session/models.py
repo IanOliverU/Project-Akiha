@@ -571,12 +571,14 @@ class ActionProposal:
 class SanitizedActionResult:
     """Bounded action result safe to return to a provider adapter."""
 
+    session_id: str
     turn_id: str
     proposal_id: str
     status: str
     message: str
 
     def __post_init__(self) -> None:
+        _require_identifier(self.session_id, "session ID")
         _require_identifier(self.turn_id, "turn ID")
         _require_identifier(self.proposal_id, "proposal ID")
         _require_text(self.status, "action result status", max_chars=128)

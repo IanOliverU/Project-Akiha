@@ -17,6 +17,7 @@ from project_akiha.core.voice_session import (
     ModularResponseEvent,
     ModularResponseEventKind,
     ResponseSegment,
+    SanitizedActionResult,
     TranscriptRevision,
     TranscriptStatus,
     VoiceProcessingMode,
@@ -146,6 +147,16 @@ class VoiceSessionModelsTest(unittest.TestCase):
                 source="gemini.live",
                 action_name="applications.launch",
                 arguments={"application_id": "discord"},
+            )
+
+    def test_sanitized_action_result_requires_session_ownership(self) -> None:
+        with self.assertRaisesRegex(ValueError, "session ID"):
+            SanitizedActionResult(
+                session_id="",
+                turn_id="1",
+                proposal_id="proposal-1",
+                status="success",
+                message="Completed.",
             )
 
     def test_modular_response_context_requires_paired_turn_identity(self) -> None:
