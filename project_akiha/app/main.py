@@ -257,6 +257,10 @@ from project_akiha.services.provider_action_dispatcher import (
 from project_akiha.services.provider_action_proposal_gateway import (
     ProviderActionProposalGateway,
 )
+from project_akiha.services.provider_tool_fallback import (
+    ProviderToolFallbackGate,
+    ProviderToolFallbackToken,
+)
 from project_akiha.services.response_segment_renderer import (
     ResponseSegmentRenderer,
     SafeSpeechStyleRenderer,
@@ -469,6 +473,7 @@ def _run_application() -> int:
     spotify_playlist_selection_store = SpotifyPlaylistSelectionStore()
     ephemeral_action_context = EphemeralActionContext()
     intent_arbiter = IntentArbiter()
+    provider_tool_fallback_gate = ProviderToolFallbackGate()
     provider_action_catalog = build_default_provider_action_catalog()
     provider_action_gateway = ProviderActionProposalGateway(
         provider_action_catalog,
@@ -770,6 +775,7 @@ def _run_application() -> int:
         assistant_tool_result_store.clear()
         ephemeral_action_context.clear()
         intent_arbiter.clear()
+        provider_tool_fallback_gate.clear()
         assistant_translation_controller.apply_service(
             AssistantTranslationService(ai_provider, conversation_repository)
         )
@@ -1993,10 +1999,19 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
-    def start_ollama_native_tool_proposal(message: str, *, turn_id: str) -> None:
+    def start_ollama_native_tool_proposal(
+        message: str,
+        *,
+        turn_id: str,
+        fallback_token: ProviderToolFallbackToken,
+    ) -> None:
         provider = ollama_native_provider
         if provider is None:
-            start_tool_proposal(message, turn_id=turn_id)
+            start_tool_proposal(
+                message,
+                turn_id=turn_id,
+                fallback_token=fallback_token,
+            )
             return
         chat_window.set_busy(True)
         thread = OllamaNativeToolThread(
@@ -2010,6 +2025,7 @@ def _run_application() -> int:
         active_tool_threads.append(thread)
 
         def handle_response(commit: object) -> None:
+            provider_tool_fallback_gate.close_turn(fallback_token)
             assistant_message = getattr(commit, "assistant_message", None)
             content = getattr(assistant_message, "content", "")
             if not isinstance(content, str) or not content.strip():
@@ -2046,18 +2062,26 @@ def _run_application() -> int:
                 "Selected Ollama model does not report native tool support; "
                 "using the constrained JSON proposal path."
             )
-            start_tool_proposal(message, turn_id=turn_id)
+            start_tool_proposal(
+                message,
+                turn_id=turn_id,
+                fallback_token=fallback_token,
+            )
 
         def handle_failure(error_message: str) -> None:
+            provider_tool_fallback_gate.close_turn(fallback_token)
             logger.error("Ollama native tool turn failed: %s", error_message)
             chat_window.append_error(
                 "Ollama's native action turn failed safely. No action was retried."
             )
 
         def handle_cancelled() -> None:
+            provider_tool_fallback_gate.close_turn(fallback_token)
             chat_window.append_notice("Ollama action interpretation stopped.")
 
         def cleanup_thread() -> None:
+            if not provider_tool_fallback_gate.accepts_json(fallback_token):
+                provider_tool_fallback_gate.close_turn(fallback_token)
             if thread in active_tool_threads:
                 active_tool_threads.remove(thread)
             update_chat_busy_state()
@@ -2071,7 +2095,18 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
-    def start_tool_proposal(message: str, *, turn_id: str) -> None:
+    def start_tool_proposal(
+        message: str,
+        *,
+        turn_id: str,
+        fallback_token: ProviderToolFallbackToken,
+    ) -> None:
+        if not provider_tool_fallback_gate.claim_json(fallback_token):
+            logger.info(
+                "Ignored duplicate or stale JSON fallback for turn %s.",
+                turn_id,
+            )
+            return
         chat_window.set_busy(True)
         thread = AssistantToolProposalThread(
             assistant_tool_gateway,
@@ -2081,6 +2116,12 @@ def _run_application() -> int:
         active_tool_threads.append(thread)
 
         def handle_proposal(proposal: AssistantToolProposal) -> None:
+            if not provider_tool_fallback_gate.consume_json(fallback_token):
+                logger.info(
+                    "Ignored duplicate or stale JSON proposal for turn %s.",
+                    turn_id,
+                )
+                return
             if proposal.kind is AssistantToolKind.NONE:
                 start_chat_response(message)
                 return
@@ -2150,6 +2191,12 @@ def _run_application() -> int:
             )
 
         def handle_failure(error_message: str) -> None:
+            if not provider_tool_fallback_gate.consume_json(fallback_token):
+                logger.info(
+                    "Ignored duplicate or stale JSON fallback failure for turn %s.",
+                    turn_id,
+                )
+                return
             logger.info(
                 "AI action proposal was unavailable; using normal chat: %s",
                 error_message,
@@ -2157,9 +2204,11 @@ def _run_application() -> int:
             start_chat_response(message)
 
         def handle_cancelled() -> None:
-            chat_window.append_notice("Action interpretation stopped.")
+            if provider_tool_fallback_gate.accepts_json(fallback_token):
+                chat_window.append_notice("Action interpretation stopped.")
 
         def cleanup_thread() -> None:
+            provider_tool_fallback_gate.close_turn(fallback_token)
             if thread in active_tool_threads:
                 active_tool_threads.remove(thread)
             update_chat_busy_state()
@@ -2256,10 +2305,19 @@ def _run_application() -> int:
             context=ephemeral_action_context.intent_context_snapshot(),
         ):
             intent_arbiter.complete_local_routing(turn_id)
+            fallback_token = provider_tool_fallback_gate.open_turn(turn_id)
             if ollama_native_provider is not None:
-                start_ollama_native_tool_proposal(message, turn_id=turn_id)
+                start_ollama_native_tool_proposal(
+                    message,
+                    turn_id=turn_id,
+                    fallback_token=fallback_token,
+                )
             else:
-                start_tool_proposal(message, turn_id=turn_id)
+                start_tool_proposal(
+                    message,
+                    turn_id=turn_id,
+                    fallback_token=fallback_token,
+                )
             return
         intent_arbiter.complete_local_routing(turn_id)
         start_chat_response(message)
@@ -2304,6 +2362,7 @@ def _run_application() -> int:
         spotify_track_selection_store.clear()
         ephemeral_action_context.clear()
         intent_arbiter.clear()
+        provider_tool_fallback_gate.clear()
         chat_window.clear_history()
         chat_window.append_notice("New chat started.")
         chat_window.set_status("Ready")
@@ -2325,6 +2384,7 @@ def _run_application() -> int:
         spotify_track_selection_store.clear()
         ephemeral_action_context.clear()
         intent_arbiter.clear()
+        provider_tool_fallback_gate.clear()
         chat_window.clear_history()
         chat_window.append_notice("Chat cleared.")
         chat_window.set_status("Ready")
@@ -2574,6 +2634,7 @@ def _run_application() -> int:
     activity_tick_timer.start(30_000)
 
     def shutdown_app() -> None:
+        provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
         voice_endpoint_controller.cancel()
         conversation_runtime_router.close()

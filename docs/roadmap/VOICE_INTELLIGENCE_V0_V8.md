@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A-V7E complete - V7F fallback hardening next
+**Status:** V0 through V6 and V7A-V7F complete - V7G verification next
 
 **Planning date:** 2026-08-01
 
@@ -1577,7 +1577,7 @@ release gate.
 - [x] Add Gemini Live function proposals behind the provider-neutral adapter.
 - [x] Add Ollama tool proposals when the selected local model reports tool-call
   support.
-- [ ] Fall back to deterministic and JSON proposal paths when a provider model
+- [x] Fall back to deterministic and JSON proposal paths when a provider model
   does not support native tools.
 - [x] Prevent duplicate deterministic and provider execution for one turn.
 
@@ -1727,6 +1727,48 @@ V7E verification passed with 1,325 tests and 3 optional-environment skips,
 plus repository-wide Ruff, Black, compilation, and diff checks. Real Ollama
 model testing and standalone packaging remain intentionally deferred until
 the V7 manual roundup and V8 release gate.
+
+#### V7F: Deterministic And Constrained JSON Fallback - Complete
+
+V7F makes fallback ordering and ownership mechanical instead of relying only
+on UI control flow. Exact deterministic parsing and ephemeral local context
+still run first. A provider fallback turn is opened only after those paths
+produce no action and the bounded likelihood gate identifies explicit action
+language. The new `ProviderToolFallbackGate` retains only an opaque turn ID,
+nonce, and lifecycle state. It permits one JSON request, consumes one result or
+failure callback, rejects duplicate or stale delivery, and invalidates all
+tokens on provider changes, chat reset, cancellation cleanup, and shutdown.
+
+Compatible Ollama models still use V7E native tools. A model that reports no
+`tools` capability, or whose local model-details request fails before any
+proposal exists, may hand the same owned turn to the constrained JSON path
+once. A native turn that has already proposed or dispatched an action is not
+retried through JSON. Hosted text providers without a native adapter enter the
+same constrained path directly; no fallback changes the selected provider or
+processing location.
+
+The JSON classifier remains default-off and receives only a normalized user
+command plus `IntentContextSnapshot` labels. It never receives approved roots,
+paths, search results, credentials, file contents, or executor metadata. Its
+response must match one exact bounded schema for an allowlisted application,
+path-free directory/media search hint, limited Spotify playback control,
+fixed clarification topic, or `none`. Unknown actions, invented fields,
+unallowlisted applications, path-like values, control characters, oversized
+input/output, prose, and malformed JSON fail before action dispatch.
+
+V7F also adds a pre-provider compound-action guard. Requests containing more
+than one recognizable desktop action produce a fixed local clarification
+instead of letting the model choose one silently. A single title containing a
+word such as `and` remains valid when only one clause contains action language.
+Accepted direct proposals continue through at-most-once intent arbitration and
+the unchanged Phase 8 validation, permission, confirmation, execution, and
+audit path. Directory and passive-media hints still require trusted local
+resolution beneath approved roots before any target can open.
+
+V7F verification passed with 1,332 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks. V7G owns the
+final source-level provider-tool roundup. Standalone packaging remains deferred
+to the V8 release gate.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

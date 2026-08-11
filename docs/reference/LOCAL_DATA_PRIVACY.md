@@ -135,6 +135,17 @@ the final bounded status and generic message are returned with the matching
 provider call ID. Stopping or changing the hosted lane clears replay and
 pending-confirmation state.
 
+Ollama-native calls use the same explicit schemas and generic-result boundary
+while remaining local when the configured endpoint is loopback-only. If native
+tool support is not reported, the constrained JSON fallback sends only the
+normalized command and a bounded `IntentContextSnapshot` to the already
+selected text provider. That snapshot can contain an allowlisted application
+identifier, action identifier, Spotify playback state, and boolean recent-state
+flags; it never contains paths, search results, file contents, credentials, or
+conversation excerpts. The provider receives no action result from this JSON
+classifier path. One-shot turn ownership prevents late or duplicate fallback
+output from executing after provider changes, chat reset, or shutdown.
+
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini
 Live in Settings does not contact Google or capture microphone audio. The

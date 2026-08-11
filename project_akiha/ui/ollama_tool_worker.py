@@ -11,7 +11,7 @@ from PySide6.QtCore import QThread, Signal
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.actions import ProviderActionToolCatalog
 from project_akiha.core.voice_session import SanitizedActionResult
-from project_akiha.providers.ai import OllamaProvider
+from project_akiha.providers.ai import OllamaProvider, OllamaProviderError
 from project_akiha.services.intent_arbitration import IntentArbiter
 from project_akiha.services.modular_provider_turn_authority import (
     ModularProviderTurnAuthority,
@@ -111,7 +111,14 @@ class OllamaNativeToolThread(QThread):
         if self._is_cancelled():
             self.cancelled.emit()
             return
-        supports_native_tools = await self._provider.supports_native_tools()
+        try:
+            supports_native_tools = await self._provider.supports_native_tools()
+        except OllamaProviderError:
+            if self._is_cancelled():
+                self.cancelled.emit()
+            else:
+                self.native_tools_unavailable.emit()
+            return
         if self._is_cancelled():
             self.cancelled.emit()
             return

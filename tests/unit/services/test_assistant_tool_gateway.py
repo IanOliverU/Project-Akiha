@@ -151,6 +151,42 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
             render_assistant_tool_clarification(proposal),
         )
 
+    async def test_gateway_clarifies_multiple_actions_without_calling_provider(
+        self,
+    ) -> None:
+        provider = _FakeProvider(
+            '{"action":"launch_application","application_id":"spotify"}'
+        )
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+
+        proposal = await gateway.propose("Please open Spotify and then play some music")
+
+        self.assertEqual(proposal.kind, AssistantToolKind.CLARIFY)
+        self.assertEqual(
+            proposal.clarification,
+            AssistantToolClarification.MULTIPLE_ACTIONS,
+        )
+        self.assertEqual(provider.messages, ())
+        self.assertIn(
+            "more than one desktop action",
+            render_assistant_tool_clarification(proposal),
+        )
+
+    async def test_gateway_does_not_misclassify_one_action_with_compound_target(
+        self,
+    ) -> None:
+        provider = _FakeProvider(
+            '{"action":"play_media","title":"Rock and Roll",'
+            '"artist":"","media_kind":"audio"}'
+        )
+        gateway = LLMAssistantToolGateway(provider, enabled=True)
+
+        proposal = await gateway.propose("Play Rock and Roll")
+
+        self.assertEqual(proposal.kind, AssistantToolKind.PLAY_MEDIA)
+        self.assertEqual(proposal.title, "Rock and Roll")
+        self.assertEqual(len(provider.messages), 2)
+
     def test_rejects_unallowlisted_application_and_extra_path(self) -> None:
         with self.assertRaises(AssistantToolProposalError):
             parse_assistant_tool_proposal(

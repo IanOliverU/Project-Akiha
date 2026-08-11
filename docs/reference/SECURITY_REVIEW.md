@@ -118,6 +118,24 @@ through the transport. Confirmation-required calls pause for a trusted local
 dialog; shutdown clears pending arguments. Gemini receives no executor,
 permission repository, or audit repository reference.
 
+Compatible Ollama models receive the same explicit V7A declarations through
+their local native-tool protocol. Raw Ollama calls remain inside the adapter;
+application-owned ephemeral turn IDs bind each call to V7B/V7C, and only
+generic sanitized status text returns. A selected model that does not report
+native tools, or whose capability lookup fails before a proposal exists, can
+use the existing constrained JSON classifier once. This does not change the
+selected provider or permit a retry after a native action has begun.
+
+The V7F fallback gate stores only an opaque turn ID, random nonce, and bounded
+lifecycle state. Deterministic local parsing runs before the gate opens. One
+token can claim and consume at most one JSON callback; provider changes, chat
+reset, cancellation cleanup, and shutdown invalidate late output. The JSON
+classifier receives only normalized command text and sanitized action-state
+labels. Exact schemas reject unknown actions, extra fields, paths, control
+characters, unallowlisted applications, oversized values, prose, and malformed
+JSON. Multiple recognizable actions produce a fixed local clarification rather
+than provider-selected partial execution.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:

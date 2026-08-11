@@ -15,7 +15,11 @@ from project_akiha.core.actions import (
     build_default_provider_action_catalog,
 )
 from project_akiha.core.voice_session import ActionProposal
-from project_akiha.providers.ai import ChatMessage, OllamaNativeToolTurn
+from project_akiha.providers.ai import (
+    ChatMessage,
+    OllamaNativeToolTurn,
+    OllamaProviderError,
+)
 from project_akiha.services.intent_arbitration import IntentArbiter
 from project_akiha.ui.ollama_tool_worker import OllamaNativeToolThread
 
@@ -107,14 +111,44 @@ class OllamaNativeToolThreadTest(unittest.TestCase):
         self.assertFalse(provider.requested)
         self.assertEqual(controller.commits, [])
 
+    def test_capability_check_failure_uses_safe_fallback_handoff(self) -> None:
+        provider = _NativeProvider(capability_error=True)
+        controller = _ChatController()
+        worker = OllamaNativeToolThread(
+            provider=provider,  # type: ignore[arg-type]
+            chat_controller=controller,  # type: ignore[arg-type]
+            message="Please open Spotify.",
+            catalog=build_default_provider_action_catalog(),
+            action_service=_ActionService(),
+            intent_arbiter=IntentArbiter(),
+        )
+        unavailable: list[bool] = []
+        failures: list[str] = []
+        worker.native_tools_unavailable.connect(lambda: unavailable.append(True))
+        worker.failed.connect(failures.append)
+
+        asyncio.run(worker._run_turn())
+
+        self.assertEqual(unavailable, [True])
+        self.assertEqual(failures, [])
+        self.assertFalse(provider.requested)
+
 
 class _NativeProvider:
-    def __init__(self, *, supports_tools: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        supports_tools: bool = True,
+        capability_error: bool = False,
+    ) -> None:
         self._supports_tools = supports_tools
+        self._capability_error = capability_error
         self.requested = False
         self.results = []
 
     async def supports_native_tools(self) -> bool:
+        if self._capability_error:
+            raise OllamaProviderError("model details unavailable")
         return self._supports_tools
 
     async def request_native_tool_turn(
