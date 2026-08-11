@@ -102,15 +102,21 @@ direct action authority. Only a session- and turn-owned proposal exposed by the
 explicit provider tool catalog can become an untrusted Phase 8 `ActionRequest`.
 The existing validator, scoped permissions, local confirmation policy,
 allowlisted executor, and SQLite audit path remain mandatory. Deterministic
-local intent arbitration completes before a provider proposal can win the
-turn, preventing duplicate local/provider execution.
+local intent arbitration completes before a provider proposal can win whenever
+a local parser participates in that lane. Hosted Live sends audio directly to
+Gemini and currently has no parallel deterministic parser, so its worker
+explicitly closes the empty local-routing stage before dispatch. The proposal
+still receives no authority beyond the unchanged local policy boundary.
 
 Providers cannot set the confirmation flag. A confirmation-required request is
 held only in bounded process memory and can be resumed once by a separate local
 UI decision. Provider-facing results exclude executor metadata, local paths,
 search matches, Spotify candidates, credentials, and exception text. Gemini
-function transport remains disabled until V7D and receives no executor or
-repository reference when enabled.
+function declarations are generated from the explicit V7A catalog. SDK calls
+become provider-neutral proposals, and only ID-matched sanitized results return
+through the transport. Confirmation-required calls pause for a trusted local
+dialog; shutdown clears pending arguments. Gemini receives no executor,
+permission repository, or audit repository reference.
 
 ## Local Data
 

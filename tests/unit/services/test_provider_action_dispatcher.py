@@ -139,6 +139,14 @@ class ProviderActionDispatcherTest(unittest.TestCase):
         )
 
         pending = asyncio.run(self.dispatcher.dispatch(conversion))
+        confirmation = self.dispatcher.pending_confirmation(
+            session_id=self.turn.session_id,
+            turn_id=self.turn.turn_id,
+            proposal_id=conversion.decision.proposal_id,
+        )
+        assert confirmation is not None
+        self.assertEqual(confirmation.action_id, "files.open")
+        self.assertIn(r"C:\Users\Private\notes.txt", confirmation.prompt)
         confirmed = asyncio.run(
             self.dispatcher.resolve_confirmation(
                 session_id=self.turn.session_id,

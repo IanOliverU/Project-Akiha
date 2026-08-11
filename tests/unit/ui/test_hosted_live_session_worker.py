@@ -8,7 +8,14 @@ import unittest
 from PySide6.QtCore import QCoreApplication
 
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
+from project_akiha.core.actions import (
+    ActionResult,
+    ActionStatus,
+    PermissionDecision,
+    build_default_provider_action_catalog,
+)
 from project_akiha.core.voice_session import (
+    ActionProposal,
     AudioFrame,
     LiveResponseModality,
     LiveSessionConfig,
@@ -16,7 +23,15 @@ from project_akiha.core.voice_session import (
     LiveSessionErrorCode,
     LiveSessionStateEvent,
     SessionLifecycle,
+    VoiceInputMode,
     VoiceProcessingMode,
+)
+from project_akiha.services.intent_arbitration import IntentArbiter
+from project_akiha.services.provider_action_dispatcher import (
+    ProviderActionDispatcher,
+)
+from project_akiha.services.provider_action_proposal_gateway import (
+    ProviderActionProposalGateway,
 )
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 
@@ -97,6 +112,99 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             [("invalid_state", "The live turn is no longer active.")],
         )
 
+    def test_tool_proposal_uses_gateway_dispatch_and_sanitized_result(self) -> None:
+        adapter = _ToolAdapter()
+        coordinator = VoiceSessionCoordinator(
+            session_id_factory=lambda: "hosted-session-1"
+        )
+        gateway = ProviderActionProposalGateway(
+            build_default_provider_action_catalog(),
+            coordinator,
+        )
+        dispatcher = ProviderActionDispatcher(
+            _SuccessfulActionService(),
+            coordinator,
+            IntentArbiter(),
+        )
+        worker = HostedLiveSessionThread(
+            adapter_factory=lambda: adapter,
+            coordinator=coordinator,
+            config_provider=_config,
+            proposal_gateway=gateway,
+            action_dispatcher=dispatcher,
+        )
+        emitted_results: list[object] = []
+        worker.action_result_signal.connect(emitted_results.append)
+
+        worker.start()
+        self.assertTrue(_wait_until(self.app, lambda: worker.isRunning()))
+        self.assertTrue(
+            _wait_until(
+                self.app,
+                lambda: coordinator.snapshot.lifecycle is SessionLifecycle.ACTIVE,
+            )
+        )
+        turn = coordinator.begin_turn(VoiceInputMode.HOSTED_LIVE_CONVERSATION)
+        frame = _frame(turn_id=turn.turn_id)
+        self.assertTrue(worker.submit_audio(frame))
+        self.assertTrue(_wait_until(self.app, lambda: bool(adapter.action_results)))
+
+        result = adapter.action_results[0]
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.message, "The approved action completed.")
+        self.assertTrue(_wait_until(self.app, lambda: bool(emitted_results)))
+
+        worker.request_stop()
+        self.assertTrue(worker.wait(2_000))
+
+    def test_confirmation_waits_for_trusted_local_decision(self) -> None:
+        adapter = _ConfirmationToolAdapter()
+        coordinator = VoiceSessionCoordinator(
+            session_id_factory=lambda: "hosted-session-1"
+        )
+        gateway = ProviderActionProposalGateway(
+            build_default_provider_action_catalog(),
+            coordinator,
+        )
+        dispatcher = ProviderActionDispatcher(
+            _ConfirmationActionService(),
+            coordinator,
+            IntentArbiter(),
+        )
+        worker = HostedLiveSessionThread(
+            adapter_factory=lambda: adapter,
+            coordinator=coordinator,
+            config_provider=_config,
+            proposal_gateway=gateway,
+            action_dispatcher=dispatcher,
+        )
+        confirmations = []
+
+        def approve(confirmation) -> None:
+            confirmations.append(confirmation)
+            self.assertTrue(
+                worker.resolve_action_confirmation(confirmation, approved=True)
+            )
+
+        worker.action_confirmation_requested_signal.connect(approve)
+        worker.start()
+        self.assertTrue(
+            _wait_until(
+                self.app,
+                lambda: coordinator.snapshot.lifecycle is SessionLifecycle.ACTIVE,
+            )
+        )
+        turn = coordinator.begin_turn(VoiceInputMode.HOSTED_LIVE_CONVERSATION)
+        self.assertTrue(worker.submit_audio(_frame(turn_id=turn.turn_id)))
+        self.assertTrue(_wait_until(self.app, lambda: bool(adapter.action_results)))
+
+        self.assertEqual(len(confirmations), 1)
+        self.assertIn("notes.txt", confirmations[0].prompt)
+        self.assertEqual(adapter.action_results[0].status, "success")
+
+        worker.request_stop()
+        self.assertTrue(worker.wait(2_000))
+
 
 class _Adapter:
     def __init__(self) -> None:
@@ -158,6 +266,87 @@ class _FailingOperationAdapter(_Adapter):
         )
 
 
+class _ToolAdapter(_Adapter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.action_results = []
+
+    async def accept_audio(self, frame) -> None:
+        assert self.sink is not None
+        self.sink.action_proposed(
+            ActionProposal(
+                session_id=frame.session_id,
+                turn_id=frame.turn_id,
+                proposal_id="gemini-tool-1",
+                source="gemini-live",
+                action_name="spotify.pause",
+                arguments={"service": "spotify"},
+            )
+        )
+
+    async def accept_action_result(self, result) -> None:
+        self.action_results.append(result)
+
+
+class _ConfirmationToolAdapter(_ToolAdapter):
+    async def accept_audio(self, frame) -> None:
+        assert self.sink is not None
+        self.sink.action_proposed(
+            ActionProposal(
+                session_id=frame.session_id,
+                turn_id=frame.turn_id,
+                proposal_id="gemini-tool-confirm-1",
+                source="gemini-live",
+                action_name="files.open",
+                arguments={"path": r"C:\Users\Private\notes.txt"},
+            )
+        )
+
+
+class _SuccessfulActionService:
+    async def evaluate_request(
+        self,
+        request,
+        *,
+        confirmed=False,
+        cancellation_token=None,
+    ) -> ActionResult:
+        del confirmed, cancellation_token
+        return ActionResult(
+            correlation_id=request.correlation_id,
+            action_id=request.action_id,
+            status=ActionStatus.SUCCESS,
+            summary="Private local result.",
+            permission_decision=PermissionDecision.GRANTED,
+        )
+
+
+class _ConfirmationActionService:
+    async def evaluate_request(
+        self,
+        request,
+        *,
+        confirmed=False,
+        cancellation_token=None,
+    ) -> ActionResult:
+        del cancellation_token
+        return ActionResult(
+            correlation_id=request.correlation_id,
+            action_id=request.action_id,
+            status=(
+                ActionStatus.SUCCESS
+                if confirmed
+                else ActionStatus.CONFIRMATION_REQUIRED
+            ),
+            summary="Private local result.",
+            permission_decision=(
+                PermissionDecision.GRANTED
+                if confirmed
+                else PermissionDecision.CONFIRMATION_REQUIRED
+            ),
+        )
+
+
 def _config(session_id: str) -> LiveSessionConfig:
     return LiveSessionConfig(
         session_id=session_id,
@@ -169,10 +358,10 @@ def _config(session_id: str) -> LiveSessionConfig:
     )
 
 
-def _frame() -> AudioFrame:
+def _frame(*, turn_id: str = "turn-1") -> AudioFrame:
     return AudioFrame(
         session_id="hosted-session-1",
-        turn_id="turn-1",
+        turn_id=turn_id,
         sequence_number=0,
         captured_at_monotonic=1.0,
         sample_rate_hz=16_000,

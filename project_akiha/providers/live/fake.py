@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 
-from project_akiha.core.voice_session import LiveSessionError
+from project_akiha.core.voice_session import LiveSessionError, SanitizedActionResult
 from project_akiha.providers.live.gemini import (
     GeminiLiveTransportConfig,
     GeminiTransportEvent,
@@ -26,6 +26,7 @@ class FakeGeminiLiveTransport:
         self.sent_audio: list[tuple[bytes, str]] = []
         self.audio_stream_end_count = 0
         self.interrupt_count = 0
+        self.action_results: list[SanitizedActionResult] = []
         self.close_count = 0
         self._events: asyncio.Queue[GeminiTransportEvent | object] = asyncio.Queue()
 
@@ -51,6 +52,10 @@ class FakeGeminiLiveTransport:
     async def interrupt(self) -> None:
         """Record one response-interruption request."""
         self.interrupt_count += 1
+
+    async def send_action_result(self, result: SanitizedActionResult) -> None:
+        """Record one provider-safe action result."""
+        self.action_results.append(result)
 
     async def close(self) -> None:
         """Release the fake receive stream idempotently."""

@@ -85,6 +85,7 @@ from project_akiha.core.actions import (
     OpenFileExecutor,
     ProtectedPathPolicy,
     build_default_action_registry,
+    build_default_provider_action_catalog,
 )
 from project_akiha.core.actions.registry import (
     APPLICATION_CLOSE_CAPABILITY,
@@ -248,6 +249,13 @@ from project_akiha.services.path_resolver import ConfigPathResolver
 from project_akiha.services.privacy_notice import (
     acknowledge_current_privacy_notice,
     privacy_notice_required,
+)
+from project_akiha.services.provider_action_dispatcher import (
+    ProviderActionConfirmation,
+    ProviderActionDispatcher,
+)
+from project_akiha.services.provider_action_proposal_gateway import (
+    ProviderActionProposalGateway,
 )
 from project_akiha.services.response_segment_renderer import (
     ResponseSegmentRenderer,
@@ -457,6 +465,16 @@ def _run_application() -> int:
     spotify_playlist_selection_store = SpotifyPlaylistSelectionStore()
     ephemeral_action_context = EphemeralActionContext()
     intent_arbiter = IntentArbiter()
+    provider_action_catalog = build_default_provider_action_catalog()
+    provider_action_gateway = ProviderActionProposalGateway(
+        provider_action_catalog,
+        voice_session_coordinator,
+    )
+    provider_action_dispatcher = ProviderActionDispatcher(
+        assistant_action_service,
+        voice_session_coordinator,
+        intent_arbiter,
+    )
     memory_pipeline = MemoryPipeline(
         memory_repository,
         extractor=_build_memory_extractor(ai_provider, config.ai),
@@ -2313,10 +2331,13 @@ def _run_application() -> int:
 
         return HostedLiveSessionThread(
             adapter_factory=lambda: GeminiLiveSessionAdapter(
-                GoogleGenAILiveTransport(api_key)
+                GoogleGenAILiveTransport(api_key),
+                action_tools=provider_action_catalog.schemas,
             ),
             coordinator=voice_session_coordinator,
             config_provider=build_live_config,
+            proposal_gateway=provider_action_gateway,
+            action_dispatcher=provider_action_dispatcher,
         )
 
     def present_hosted_commit(commit) -> None:
@@ -2331,6 +2352,16 @@ def _run_application() -> int:
                 assistant_message.content
             )
 
+    def confirm_hosted_action(confirmation: ProviderActionConfirmation) -> bool:
+        answer = QMessageBox.question(
+            chat_window,
+            "Confirm assistant action",
+            confirmation.prompt,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
     hosted_conversation_runtime = HostedConversationRuntime(
         event_bus=event_bus,
         voice_controller=voice_controller,
@@ -2340,6 +2371,7 @@ def _run_application() -> int:
         playback=hosted_audio_playback,
         thread_factory=build_hosted_live_thread,
         on_commit=present_hosted_commit,
+        on_action_confirmation=confirm_hosted_action,
     )
     conversation_runtime_router = ConversationRuntimeRouter(
         selection_provider=lambda: config.voice.session_provider,

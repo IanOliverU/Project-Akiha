@@ -14,6 +14,7 @@ from project_akiha.core.voice_session import (
     LiveSessionConfig,
     LiveSessionEventSink,
     LiveSessionStateEvent,
+    SanitizedActionResult,
     SessionLifecycle,
     TranscriptRevision,
     VoiceCancellationToken,
@@ -124,6 +125,12 @@ class HostedLiveSessionController:
         if not self._active:
             raise RuntimeError("Hosted live interruption requires an active session.")
         await self._adapter.interrupt(turn_id)
+
+    async def accept_action_result(self, result: SanitizedActionResult) -> None:
+        """Return one application-sanitized result to the active adapter."""
+        if not self._active:
+            raise RuntimeError("Hosted live tools require an active session.")
+        await self._adapter.accept_action_result(result)
 
     def transcript_revised(self, revision: TranscriptRevision) -> None:
         self._event_sink.transcript_revised(revision)

@@ -7,6 +7,7 @@ import unittest
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
+from project_akiha.core.actions import build_default_provider_action_catalog
 from project_akiha.core.voice_session import (
     ActionProposal,
     AssistantTextRevision,
@@ -629,10 +630,10 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.code, LiveSessionErrorCode.CANCELLED)
         self.assertEqual(self.transport.sent_audio, [])
 
-    async def test_tool_result_is_explicitly_deferred_to_v7(self) -> None:
+    async def test_tool_result_requires_an_explicit_tool_catalog(self) -> None:
         await self._start()
 
-        with self.assertRaisesRegex(LiveSessionError, "not enabled before V7"):
+        with self.assertRaisesRegex(LiveSessionError, "not configured"):
             await self.adapter.accept_action_result(
                 SanitizedActionResult(
                     session_id="session-1",
@@ -642,6 +643,70 @@ class GeminiLiveSessionAdapterTest(unittest.IsolatedAsyncioTestCase):
                     message="Done.",
                 )
             )
+
+    async def test_tool_proposal_and_result_use_provider_neutral_contracts(
+        self,
+    ) -> None:
+        tools = build_default_provider_action_catalog().schemas
+        adapter = GeminiLiveSessionAdapter(
+            self.transport,
+            reconnect_delay_seconds=0,
+            action_tools=tools,
+        )
+        await adapter.start(_config(), self.sink, self.token)
+        await adapter.accept_audio(_frame())
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.ACTION_PROPOSAL,
+                proposal_id="gemini-tool-1",
+                action_name="spotify.pause",
+                action_arguments={"service": "spotify"},
+                provider_call_id="private-sdk-call-id",
+                provider_function_name="akiha_spotify_pause",
+            )
+        )
+        await _wait_until(lambda: bool(self.sink.proposals))
+
+        self.assertTrue(
+            adapter.capabilities.supports(LiveSessionCapability.TOOL_PROPOSALS)
+        )
+        proposal = self.sink.proposals[0]
+        self.assertEqual(proposal.action_name, "spotify.pause")
+        self.assertEqual(proposal.source, "gemini-live")
+        result = SanitizedActionResult(
+            session_id="session-1",
+            turn_id="turn-1",
+            proposal_id="gemini-tool-1",
+            status="success",
+            message="The approved action completed.",
+        )
+        await adapter.accept_action_result(result)
+
+        self.assertEqual(self.transport.action_results, [result])
+        await adapter.stop()
+
+    async def test_tool_proposal_without_an_owned_turn_fails_closed(self) -> None:
+        adapter = GeminiLiveSessionAdapter(
+            self.transport,
+            reconnect_delay_seconds=0,
+            action_tools=build_default_provider_action_catalog().schemas,
+        )
+        await adapter.start(_config(), self.sink, self.token)
+        await self.transport.emit(
+            GeminiTransportEvent(
+                GeminiTransportEventKind.ACTION_PROPOSAL,
+                proposal_id="gemini-tool-unowned",
+                action_name="spotify.pause",
+                action_arguments={"service": "spotify"},
+                provider_call_id="private-sdk-call-id",
+                provider_function_name="akiha_spotify_pause",
+            )
+        )
+        await _wait_until(lambda: adapter.lifecycle is SessionLifecycle.ERROR)
+
+        self.assertEqual(self.sink.proposals, [])
+        self.assertEqual(self.sink.failures[0][0], "protocol_error")
+        await adapter.stop()
 
     async def test_stop_is_idempotent_and_suppresses_late_events(self) -> None:
         await self._start()

@@ -127,9 +127,13 @@ local permissions, confirmation, execution, and audit. Provider results contain
 only bounded ownership identifiers, status, and a generic message; they exclude
 paths, search results, Spotify candidates, credentials, and exception text.
 Confirmation-pending request arguments remain memory-only and are cleared on
-resolution or explicit dispatcher cleanup. Stale ownership makes them
-non-executable. V7D must invoke cleanup when its hosted lane stops or changes;
-Gemini tool transport remains disabled until that integration is verified.
+resolution or hosted-worker cleanup. Stale ownership makes them
+non-executable. Gemini Live receives the explicit bounded tool declarations,
+but SDK function calls become untrusted local proposals rather than direct
+execution. Confirmation-required calls wait for a trusted local dialog; only
+the final bounded status and generic message are returned with the matching
+provider call ID. Stopping or changing the hosted lane clears replay and
+pending-confirmation state.
 
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini

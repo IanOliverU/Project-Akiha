@@ -9,7 +9,9 @@ from enum import StrEnum
 from time import monotonic
 from typing import Protocol
 
+from project_akiha.core.actions import ActionToolSchema
 from project_akiha.core.voice_session import (
+    ActionProposal,
     AssistantTextRevision,
     AudioFrame,
     EndpointReason,
@@ -47,6 +49,7 @@ class GeminiTransportEventKind(StrEnum):
     GO_AWAY = "go_away"
     CLOSED = "closed"
     FAILED = "failed"
+    ACTION_PROPOSAL = "action_proposal"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +65,7 @@ class GeminiLiveTransportConfig:
     voice_name: str = ""
     system_instruction: str = ""
     resumption_handle: str | None = field(default=None, repr=False)
+    action_tools: tuple[ActionToolSchema, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.model_name.strip():
@@ -91,6 +95,11 @@ class GeminiTransportEvent:
     resumption_handle: str | None = field(default=None, repr=False)
     resumable: bool | None = None
     go_away_time_left_seconds: float | None = None
+    proposal_id: str | None = None
+    action_name: str | None = None
+    action_arguments: dict[str, object] | None = field(default=None, repr=False)
+    provider_call_id: str | None = field(default=None, repr=False)
+    provider_function_name: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.kind in {
@@ -138,6 +147,26 @@ class GeminiTransportEvent:
                 raise ValueError("a GoAway event requires non-negative time left.")
         elif self.go_away_time_left_seconds is not None:
             raise ValueError("only GoAway events may contain time left.")
+        if self.kind is GeminiTransportEventKind.ACTION_PROPOSAL:
+            if not self.proposal_id or not self.action_name:
+                raise ValueError(
+                    "an action proposal requires correlation and action IDs."
+                )
+            if self.action_arguments is None:
+                raise ValueError("an action proposal requires bounded arguments.")
+            if not self.provider_call_id or not self.provider_function_name:
+                raise ValueError("an action proposal requires provider correlation.")
+        elif any(
+            value is not None
+            for value in (
+                self.proposal_id,
+                self.action_name,
+                self.action_arguments,
+                self.provider_call_id,
+                self.provider_function_name,
+            )
+        ):
+            raise ValueError("only action proposals may contain action data.")
 
 
 class GeminiLiveTransport(Protocol):
@@ -154,6 +183,9 @@ class GeminiLiveTransport(Protocol):
 
     async def interrupt(self) -> None:
         """Request interruption of the current model response."""
+
+    async def send_action_result(self, result: SanitizedActionResult) -> None:
+        """Return one bounded result for a previously emitted proposal."""
 
     async def close(self) -> None:
         """Release the provider connection."""
@@ -174,6 +206,7 @@ class GeminiLiveSessionAdapter:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         max_reconnect_attempts: int = _DEFAULT_MAX_RECONNECT_ATTEMPTS,
         reconnect_delay_seconds: float = _DEFAULT_RECONNECT_DELAY_SECONDS,
+        action_tools: tuple[ActionToolSchema, ...] = (),
     ) -> None:
         if max_reconnect_attempts < 0:
             raise ValueError("Gemini reconnect attempts cannot be negative.")
@@ -185,6 +218,7 @@ class GeminiLiveSessionAdapter:
         self._sleep = sleep
         self._max_reconnect_attempts = max_reconnect_attempts
         self._reconnect_delay_seconds = reconnect_delay_seconds
+        self._action_tools = tuple(action_tools)
         self._config: LiveSessionConfig | None = None
         self._event_sink: LiveSessionEventSink | None = None
         self._cancellation_token: VoiceCancellationToken | None = None
@@ -210,19 +244,20 @@ class GeminiLiveSessionAdapter:
     @property
     def capabilities(self) -> LiveSessionCapabilities:
         """Return the Gemini features represented by the V6 contracts."""
+        capabilities = {
+            LiveSessionCapability.AUDIO_INPUT,
+            LiveSessionCapability.AUDIO_OUTPUT,
+            LiveSessionCapability.INPUT_TRANSCRIPTION,
+            LiveSessionCapability.OUTPUT_TRANSCRIPTION,
+            LiveSessionCapability.INTERRUPTION,
+            LiveSessionCapability.CONTEXT_COMPRESSION,
+            LiveSessionCapability.SESSION_RESUMPTION,
+        }
+        if self._action_tools:
+            capabilities.add(LiveSessionCapability.TOOL_PROPOSALS)
         return LiveSessionCapabilities(
             provider_name="gemini",
-            capabilities=frozenset(
-                {
-                    LiveSessionCapability.AUDIO_INPUT,
-                    LiveSessionCapability.AUDIO_OUTPUT,
-                    LiveSessionCapability.INPUT_TRANSCRIPTION,
-                    LiveSessionCapability.OUTPUT_TRANSCRIPTION,
-                    LiveSessionCapability.INTERRUPTION,
-                    LiveSessionCapability.CONTEXT_COMPRESSION,
-                    LiveSessionCapability.SESSION_RESUMPTION,
-                }
-            ),
+            capabilities=frozenset(capabilities),
             input_sample_rate_hz=_GEMINI_INPUT_RATE_HZ,
             output_sample_rate_hz=_GEMINI_OUTPUT_RATE_HZ,
         )
@@ -346,13 +381,22 @@ class GeminiLiveSessionAdapter:
         await self._transport.end_audio_stream()
 
     async def accept_action_result(self, result: SanitizedActionResult) -> None:
-        """Reject tool results until the separately scoped V7 implementation."""
-        del result
+        """Return one owned sanitized result through the provider transport."""
         self._require_active()
-        raise LiveSessionError(
-            LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
-            "Gemini Live tool results are not enabled before V7.",
-        )
+        if not self._action_tools:
+            raise LiveSessionError(
+                LiveSessionErrorCode.UNSUPPORTED_CONFIGURATION,
+                "Gemini Live tools were not configured for this session.",
+            )
+        config = self._config
+        assert config is not None
+        if result.session_id != config.session_id:
+            raise LiveSessionError(
+                LiveSessionErrorCode.INVALID_STATE,
+                "The action result belongs to a different live session.",
+            )
+        self._require_owned_turn(result.turn_id)
+        await self._transport.send_action_result(result)
 
     async def interrupt(self, turn_id: str) -> None:
         """Request provider-native barge-in and quarantine old-turn output."""
@@ -582,6 +626,22 @@ class GeminiLiveSessionAdapter:
                     data=event.audio_data or b"",
                 )
             )
+        elif event.kind is GeminiTransportEventKind.ACTION_PROPOSAL:
+            if turn_id is None:
+                raise LiveSessionError(
+                    LiveSessionErrorCode.PROTOCOL_ERROR,
+                    "Gemini Live proposed an action without an active turn.",
+                )
+            sink.action_proposed(
+                ActionProposal(
+                    session_id=config.session_id,
+                    turn_id=turn_id,
+                    proposal_id=event.proposal_id or "",
+                    source="gemini-live",
+                    action_name=event.action_name or "",
+                    arguments=event.action_arguments or {},
+                )
+            )
         elif event.kind is GeminiTransportEventKind.TURN_COMPLETE:
             if turn_id is not None:
                 sink.turn_completed(turn_id)
@@ -629,6 +689,7 @@ class GeminiLiveSessionAdapter:
             context_window_compression=config.context_compression_enabled,
             session_resumption=config.session_resumption_enabled,
             resumption_handle=resumption_handle,
+            action_tools=self._action_tools,
         )
 
     def _deadline_reached(self) -> bool:

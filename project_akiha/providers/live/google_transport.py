@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
-from collections.abc import AsyncIterator, Callable
+from collections import OrderedDict
+from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from project_akiha.core.voice_session import (
     LiveSessionError,
     LiveSessionErrorCode,
+    SanitizedActionResult,
 )
 from project_akiha.providers.live.gemini import (
     GeminiLiveTransportConfig,
@@ -25,14 +28,18 @@ _DEFAULT_AUDIO_QUEUE_CAPACITY = 8
 _DEFAULT_EVENT_QUEUE_CAPACITY = 64
 _DEFAULT_QUEUE_TIMEOUT_SECONDS = 0.250
 _CLOSE = object()
+_MAX_PENDING_TOOL_CALLS = 64
 
 
 @dataclass(frozen=True, slots=True)
-class _AudioCommand:
+class _SendCommand:
     data: bytes | None = None
     mime_type: str | None = None
     stream_end: bool = False
     activity_start: bool = False
+    action_result: SanitizedActionResult | None = None
+    provider_call_id: str | None = None
+    provider_function_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +58,7 @@ class GoogleGenAILiveTransport:
         audio_queue_capacity: int = _DEFAULT_AUDIO_QUEUE_CAPACITY,
         event_queue_capacity: int = _DEFAULT_EVENT_QUEUE_CAPACITY,
         queue_timeout_seconds: float = _DEFAULT_QUEUE_TIMEOUT_SECONDS,
+        function_response_factory: Callable[..., object] | None = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("A Gemini Live API key is required.")
@@ -63,10 +71,13 @@ class GoogleGenAILiveTransport:
         self._audio_queue_capacity = audio_queue_capacity
         self._event_queue_capacity = event_queue_capacity
         self._queue_timeout_seconds = queue_timeout_seconds
+        self._function_response_factory = (
+            function_response_factory or _build_function_response
+        )
         self._client: Any | None = None
         self._connection_context: Any | None = None
         self._session: Any | None = None
-        self._audio_queue: asyncio.Queue[_AudioCommand] | None = None
+        self._audio_queue: asyncio.Queue[_SendCommand] | None = None
         self._event_queue: (
             asyncio.Queue[GeminiTransportEvent | _TransportFailure | object] | None
         ) = None
@@ -78,6 +89,8 @@ class GoogleGenAILiveTransport:
         self._output_transcript_text = ""
         self._audio_stream_ended = False
         self._activity_active = False
+        self._tool_action_ids: dict[str, str] = {}
+        self._pending_tool_calls: OrderedDict[str, tuple[str, str]] = OrderedDict()
 
     @property
     def is_connected(self) -> bool:
@@ -96,6 +109,11 @@ class GoogleGenAILiveTransport:
         self._reset_transcript_text()
         self._audio_stream_ended = False
         self._activity_active = False
+        self._tool_action_ids = {
+            _provider_function_name(schema.action_id): schema.action_id
+            for schema in config.action_tools
+        }
+        self._pending_tool_calls.clear()
         self._audio_queue = asyncio.Queue(maxsize=self._audio_queue_capacity)
         self._event_queue = asyncio.Queue(maxsize=self._event_queue_capacity)
         try:
@@ -127,18 +145,36 @@ class GoogleGenAILiveTransport:
         self._require_connected()
         _validate_pcm_chunk(data, mime_type)
         await self._put_audio(
-            _AudioCommand(data=bytes(data), mime_type=mime_type.strip())
+            _SendCommand(data=bytes(data), mime_type=mime_type.strip())
         )
 
     async def end_audio_stream(self) -> None:
         """Queue the stream-end marker after all preceding PCM chunks."""
         self._require_connected()
-        await self._put_audio(_AudioCommand(stream_end=True))
+        await self._put_audio(_SendCommand(stream_end=True))
 
     async def interrupt(self) -> None:
         """Start explicit user activity so Gemini interrupts current output."""
         self._require_connected()
-        await self._put_audio(_AudioCommand(activity_start=True))
+        await self._put_audio(_SendCommand(activity_start=True))
+
+    async def send_action_result(self, result: SanitizedActionResult) -> None:
+        """Queue an ID-matched sanitized function response."""
+        self._require_connected()
+        match = self._pending_tool_calls.pop(result.proposal_id, None)
+        if match is None:
+            raise LiveSessionError(
+                LiveSessionErrorCode.INVALID_STATE,
+                "The Gemini tool result has no active provider call.",
+            )
+        provider_call_id, provider_function_name = match
+        await self._put_audio(
+            _SendCommand(
+                action_result=result,
+                provider_call_id=provider_call_id,
+                provider_function_name=provider_function_name,
+            )
+        )
 
     async def close(self) -> None:
         """Cancel workers, discard queued audio, and close the SDK context."""
@@ -162,6 +198,8 @@ class GoogleGenAILiveTransport:
         self._connection_context = None
         self._session = None
         self._client = None
+        self._tool_action_ids.clear()
+        self._pending_tool_calls.clear()
         try:
             if context is not None:
                 await context.__aexit__(None, None, None)
@@ -189,7 +227,7 @@ class GoogleGenAILiveTransport:
             if isinstance(item, GeminiTransportEvent):
                 yield item
 
-    async def _put_audio(self, command: _AudioCommand) -> None:
+    async def _put_audio(self, command: _SendCommand) -> None:
         queue = self._audio_queue
         if queue is None:
             self._require_connected()
@@ -214,6 +252,17 @@ class GoogleGenAILiveTransport:
         try:
             while True:
                 command = await queue.get()
+                if command.action_result is not None:
+                    response = self._function_response_factory(
+                        id=command.provider_call_id,
+                        name=command.provider_function_name,
+                        response={
+                            "status": command.action_result.status,
+                            "message": command.action_result.message,
+                        },
+                    )
+                    await session.send_tool_response(function_responses=[response])
+                    continue
                 if command.activity_start:
                     await self._start_activity(session)
                     continue
@@ -257,10 +306,13 @@ class GoogleGenAILiveTransport:
                         message,
                         input_text=self._input_transcript_text,
                         output_text=self._output_transcript_text,
+                        tool_action_ids=self._tool_action_ids,
                     )
                     self._input_transcript_text = input_text
                     self._output_transcript_text = output_text
                     for event in events:
+                        if event.kind is GeminiTransportEventKind.ACTION_PROPOSAL:
+                            self._remember_tool_call(event)
                         await self._put_event(event)
                 if not received_any and not self._closing:
                     await asyncio.sleep(0.01)
@@ -321,6 +373,20 @@ class GoogleGenAILiveTransport:
         self._input_transcript_text = ""
         self._output_transcript_text = ""
 
+    def _remember_tool_call(self, event: GeminiTransportEvent) -> None:
+        proposal_id = event.proposal_id
+        provider_call_id = event.provider_call_id
+        provider_function_name = event.provider_function_name
+        if not proposal_id or not provider_call_id or not provider_function_name:
+            return
+        self._pending_tool_calls[proposal_id] = (
+            provider_call_id,
+            provider_function_name,
+        )
+        self._pending_tool_calls.move_to_end(proposal_id)
+        while len(self._pending_tool_calls) > _MAX_PENDING_TOOL_CALLS:
+            self._pending_tool_calls.popitem(last=False)
+
 
 def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
     value: dict[str, object] = {
@@ -348,6 +414,14 @@ def _sdk_connect_config(config: GeminiLiveTransportConfig) -> dict[str, object]:
             if config.resumption_handle is not None
             else {}
         )
+    if config.action_tools:
+        value["tools"] = [
+            {
+                "function_declarations": [
+                    _sdk_function_declaration(schema) for schema in config.action_tools
+                ]
+            }
+        ]
     return value
 
 
@@ -356,13 +430,42 @@ def _translate_sdk_message(
     *,
     input_text: str,
     output_text: str,
+    tool_action_ids: Mapping[str, str],
 ) -> tuple[tuple[GeminiTransportEvent, ...], str, str]:
-    if getattr(message, "tool_call", None) is not None:
-        raise LiveSessionError(
-            LiveSessionErrorCode.PROTOCOL_ERROR,
-            "Gemini Live returned an unexpected tool request before V7.",
-        )
     events: list[GeminiTransportEvent] = []
+    tool_call = getattr(message, "tool_call", None)
+    if tool_call is not None:
+        function_calls = tuple(getattr(tool_call, "function_calls", None) or ())
+        if not function_calls:
+            raise LiveSessionError(
+                LiveSessionErrorCode.PROTOCOL_ERROR,
+                "Gemini Live returned an invalid tool request.",
+            )
+        for function_call in function_calls:
+            provider_name = str(getattr(function_call, "name", "") or "").strip()
+            provider_call_id = str(getattr(function_call, "id", "") or "").strip()
+            action_id = tool_action_ids.get(provider_name)
+            arguments = getattr(function_call, "args", None)
+            if (
+                action_id is None
+                or not provider_call_id
+                or len(provider_call_id) > 1_024
+                or not isinstance(arguments, Mapping)
+            ):
+                raise LiveSessionError(
+                    LiveSessionErrorCode.PROTOCOL_ERROR,
+                    "Gemini Live returned an invalid tool request.",
+                )
+            events.append(
+                GeminiTransportEvent(
+                    GeminiTransportEventKind.ACTION_PROPOSAL,
+                    proposal_id=_provider_proposal_id(provider_call_id),
+                    action_name=action_id,
+                    action_arguments=dict(arguments),
+                    provider_call_id=provider_call_id,
+                    provider_function_name=provider_name,
+                )
+            )
     resumption = getattr(message, "session_resumption_update", None)
     if resumption is not None:
         resumable = bool(getattr(resumption, "resumable", False))
@@ -476,6 +579,61 @@ def _translate_sdk_message(
     if getattr(content, "turn_complete", False):
         events.append(GeminiTransportEvent(GeminiTransportEventKind.TURN_COMPLETE))
     return tuple(events), input_text, output_text
+
+
+def _provider_function_name(action_id: str) -> str:
+    """Map Akiha dotted action IDs to stable Gemini-safe identifiers."""
+    candidate = "akiha_" + re.sub(r"[^A-Za-z0-9_]", "_", action_id)
+    if len(candidate) <= 64:
+        return candidate
+    digest = hashlib.sha256(action_id.encode("utf-8")).hexdigest()[:16]
+    return f"akiha_action_{digest}"
+
+
+def _provider_proposal_id(provider_call_id: str) -> str:
+    digest = hashlib.sha256(provider_call_id.encode("utf-8")).hexdigest()[:32]
+    return f"gemini-tool-{digest}"
+
+
+def _sdk_function_declaration(schema) -> dict[str, object]:
+    properties: dict[str, object] = {}
+    required: list[str] = []
+    for parameter in schema.parameters:
+        value: dict[str, object] = {"type": parameter.kind.value}
+        if parameter.max_length is not None:
+            value["maxLength"] = parameter.max_length
+        if parameter.allowed_values:
+            value["enum"] = list(parameter.allowed_values)
+        if parameter.minimum_value is not None:
+            value["minimum"] = parameter.minimum_value
+        if parameter.maximum_value is not None:
+            value["maximum"] = parameter.maximum_value
+        properties[parameter.name] = value
+        if parameter.required:
+            required.append(parameter.name)
+    parameters: dict[str, object] = {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+    if required:
+        parameters["required"] = required
+    return {
+        "name": _provider_function_name(schema.action_id),
+        "description": schema.description,
+        "parameters_json_schema": parameters,
+    }
+
+
+def _build_function_response(**kwargs: object) -> object:
+    try:
+        from google.genai import types
+    except ImportError as error:
+        raise LiveSessionError(
+            LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
+            "Gemini Live requires the optional google-genai package.",
+        ) from error
+    return types.FunctionResponse(**kwargs)
 
 
 def _merge_incremental_text(current: str, incoming: str) -> str:

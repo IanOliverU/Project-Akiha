@@ -7,10 +7,15 @@ import unittest
 from datetime import timedelta
 from types import SimpleNamespace
 
+from project_akiha.core.actions import (
+    ActionToolSchema,
+    build_default_provider_action_catalog,
+)
 from project_akiha.core.voice_session import (
     LiveResponseModality,
     LiveSessionError,
     LiveSessionErrorCode,
+    SanitizedActionResult,
 )
 from project_akiha.providers.live import (
     GeminiLiveTransportConfig,
@@ -28,6 +33,7 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
         self.transport = GoogleGenAILiveTransport(
             "private-api-key",
             client_factory=self._build_client,
+            function_response_factory=lambda **kwargs: kwargs,
         )
 
     async def asyncTearDown(self) -> None:
@@ -356,6 +362,77 @@ class GoogleGenAILiveTransportTest(unittest.IsolatedAsyncioTestCase):
             LiveSessionErrorCode.PROTOCOL_ERROR,
         )
 
+    async def test_tool_declaration_call_and_sanitized_response_are_correlated(
+        self,
+    ) -> None:
+        schema = next(
+            value
+            for value in build_default_provider_action_catalog().schemas
+            if value.action_id == "spotify.pause"
+        )
+        await self.transport.connect(_config(action_tools=(schema,)))
+
+        declarations = self.context.config["tools"][0]["function_declarations"]
+        self.assertEqual(declarations[0]["name"], "akiha_spotify_pause")
+        self.assertEqual(
+            declarations[0]["parameters_json_schema"],
+            {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "maxLength": 16,
+                        "enum": ["spotify"],
+                    }
+                },
+                "required": ["service"],
+                "additionalProperties": False,
+            },
+        )
+
+        await self.session.emit(
+            SimpleNamespace(
+                tool_call=SimpleNamespace(
+                    function_calls=(
+                        SimpleNamespace(
+                            id="private/provider-call-id",
+                            name="akiha_spotify_pause",
+                            args={"service": "spotify"},
+                        ),
+                    )
+                ),
+                session_resumption_update=None,
+                go_away=None,
+                server_content=None,
+            )
+        )
+        event = await anext(self.transport.receive())
+        self.assertEqual(event.kind, GeminiTransportEventKind.ACTION_PROPOSAL)
+        self.assertEqual(event.action_name, "spotify.pause")
+        self.assertNotIn("private/provider-call-id", repr(event))
+
+        await self.transport.send_action_result(
+            SanitizedActionResult(
+                session_id="session-1",
+                turn_id="turn-1",
+                proposal_id=event.proposal_id or "",
+                status="success",
+                message="The approved action completed.",
+            )
+        )
+        await _wait_until(lambda: bool(self.session.tool_responses))
+
+        response = self.session.tool_responses[0][0]
+        self.assertEqual(response["id"], "private/provider-call-id")
+        self.assertEqual(response["name"], "akiha_spotify_pause")
+        self.assertEqual(
+            response["response"],
+            {
+                "status": "success",
+                "message": "The approved action completed.",
+            },
+        )
+
     def _build_client(self, api_key: str) -> object:
         self.seen_keys.append(api_key)
         return self.client
@@ -368,6 +445,7 @@ class _Session:
         self.send_gate: asyncio.Event | None = None
         self.send_started = asyncio.Event()
         self.messages: asyncio.Queue[object] = asyncio.Queue()
+        self.tool_responses: list[list[object]] = []
 
     async def send_realtime_input(self, **kwargs: object) -> None:
         self.send_started.set()
@@ -376,6 +454,9 @@ class _Session:
         if self.send_error is not None:
             raise self.send_error
         self.sent.append(kwargs)
+
+    async def send_tool_response(self, *, function_responses) -> None:
+        self.tool_responses.append(list(function_responses))
 
     async def receive(self):
         message = await self.messages.get()
@@ -428,7 +509,11 @@ class _SdkError(RuntimeError):
         self.code = code
 
 
-def _config(*, resumption_handle: str | None = None) -> GeminiLiveTransportConfig:
+def _config(
+    *,
+    resumption_handle: str | None = None,
+    action_tools: tuple[ActionToolSchema, ...] = (),
+) -> GeminiLiveTransportConfig:
     return GeminiLiveTransportConfig(
         model_name="gemini-live-model",
         response_modality=LiveResponseModality.AUDIO,
@@ -437,6 +522,7 @@ def _config(*, resumption_handle: str | None = None) -> GeminiLiveTransportConfi
         context_window_compression=True,
         session_resumption=True,
         resumption_handle=resumption_handle,
+        action_tools=action_tools,
     )
 
 

@@ -24,6 +24,9 @@ from project_akiha.core.voice_session import (
     VoiceInputMode,
 )
 from project_akiha.providers.voice import CapturedAudio
+from project_akiha.services.provider_action_dispatcher import (
+    ProviderActionConfirmation,
+)
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 
 
@@ -41,6 +44,9 @@ class HostedConversationRuntime:
         playback: NativeAudioPlaybackQueue,
         thread_factory: Callable[[], HostedLiveSessionThread],
         on_commit: Callable[[CanonicalLiveChatCommit], None],
+        on_action_confirmation: (
+            Callable[[ProviderActionConfirmation], bool] | None
+        ) = None,
         on_stopped: Callable[[], None] | None = None,
         monotonic_clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -52,6 +58,7 @@ class HostedConversationRuntime:
         self._playback = playback
         self._thread_factory = thread_factory
         self._on_commit = on_commit
+        self._on_action_confirmation = on_action_confirmation
         self._on_stopped = on_stopped
         self._monotonic_clock = monotonic_clock
         self._thread: HostedLiveSessionThread | None = None
@@ -226,6 +233,9 @@ class HostedConversationRuntime:
         thread.transcript_revised_signal.connect(self._handle_transcript)
         thread.assistant_text_revised_signal.connect(self._handle_assistant_text)
         thread.audio_received_signal.connect(self._handle_audio)
+        thread.action_confirmation_requested_signal.connect(
+            self._handle_action_confirmation
+        )
         thread.response_interrupted_signal.connect(self._handle_interrupted)
         thread.turn_completed_signal.connect(self._handle_turn_completed)
         thread.failed_signal.connect(self._fail_visible)
@@ -287,6 +297,24 @@ class HostedConversationRuntime:
             self._fail_visible(
                 "hosted_playback_failed",
                 "Gemini Live audio playback failed.",
+            )
+
+    def _handle_action_confirmation(
+        self,
+        confirmation: ProviderActionConfirmation,
+    ) -> None:
+        thread = self._thread
+        if not self._active or thread is None:
+            return
+        callback = self._on_action_confirmation
+        approved = callback(confirmation) if callback is not None else False
+        if not thread.resolve_action_confirmation(
+            confirmation,
+            approved=approved,
+        ):
+            self._fail_visible(
+                "hosted_action_confirmation_failed",
+                "Gemini Live could not resolve the local action confirmation.",
             )
 
     def _handle_interrupted(self, turn_id: str) -> None:

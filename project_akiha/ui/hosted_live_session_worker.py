@@ -21,8 +21,16 @@ from project_akiha.core.voice_session import (
     LiveSessionConfig,
     LiveSessionError,
     LiveSessionStateEvent,
+    SanitizedActionResult,
     SessionLifecycle,
     TranscriptRevision,
+)
+from project_akiha.services.provider_action_dispatcher import (
+    ProviderActionConfirmation,
+    ProviderActionDispatcher,
+)
+from project_akiha.services.provider_action_proposal_gateway import (
+    ProviderActionProposalGateway,
 )
 
 
@@ -38,6 +46,8 @@ class HostedLiveSessionThread(QThread):
     failed_signal = Signal(str, str)
     session_state_changed_signal = Signal(object)
     capabilities_received_signal = Signal(object)
+    action_result_signal = Signal(object)
+    action_confirmation_requested_signal = Signal(object)
 
     def __init__(
         self,
@@ -45,15 +55,20 @@ class HostedLiveSessionThread(QThread):
         adapter_factory: Callable[[], LiveSessionAdapter],
         coordinator: VoiceSessionCoordinator,
         config_provider: Callable[[str], LiveSessionConfig],
+        proposal_gateway: ProviderActionProposalGateway | None = None,
+        action_dispatcher: ProviderActionDispatcher | None = None,
     ) -> None:
         super().__init__()
         self._adapter_factory = adapter_factory
         self._coordinator = coordinator
         self._config_provider = config_provider
+        self._proposal_gateway = proposal_gateway
+        self._action_dispatcher = action_dispatcher
         self._loop: asyncio.AbstractEventLoop | None = None
         self._stop_event: asyncio.Event | None = None
         self._controller: HostedLiveSessionController | None = None
         self._failure_emitted = False
+        self._action_tasks: set[asyncio.Task[None]] = set()
 
     def run(self) -> None:
         """Run one live session until explicit stop or provider termination."""
@@ -79,6 +94,21 @@ class HostedLiveSessionThread(QThread):
         if loop is not None and stop_event is not None and loop.is_running():
             loop.call_soon_threadsafe(stop_event.set)
 
+    def resolve_action_confirmation(
+        self,
+        confirmation: ProviderActionConfirmation,
+        *,
+        approved: bool,
+    ) -> bool:
+        """Queue one trusted local confirmation decision."""
+        return self._submit(
+            lambda controller: self._resolve_action_confirmation(
+                controller,
+                confirmation,
+                approved=approved,
+            )
+        )
+
     def transcript_revised(self, revision: TranscriptRevision) -> None:
         self.transcript_revised_signal.emit(revision)
 
@@ -89,12 +119,21 @@ class HostedLiveSessionThread(QThread):
         self.audio_received_signal.emit(frame)
 
     def action_proposed(self, proposal: ActionProposal) -> None:
-        del proposal
-        self._emit_failure_once(
-            "unexpected_tool_proposal",
-            "Gemini Live tools are unavailable before V7.",
+        gateway = self._proposal_gateway
+        dispatcher = self._action_dispatcher
+        if gateway is None or dispatcher is None:
+            self._emit_failure_once(
+                "hosted_tool_gateway_unavailable",
+                "Gemini Live action routing is unavailable.",
+            )
+            self.request_stop()
+            return
+        task = asyncio.create_task(
+            self._dispatch_action_proposal(proposal),
+            name=f"gemini-action-{proposal.proposal_id}",
         )
-        self.request_stop()
+        self._action_tasks.add(task)
+        task.add_done_callback(self._action_tasks.discard)
 
     def response_interrupted(self, turn_id: str) -> None:
         self.response_interrupted_signal.emit(turn_id)
@@ -140,6 +179,16 @@ class HostedLiveSessionThread(QThread):
                 "Gemini Live could not start. Check Settings and the network.",
             )
         finally:
+            action_tasks = tuple(self._action_tasks)
+            self._action_tasks.clear()
+            for task in action_tasks:
+                task.cancel()
+            if action_tasks:
+                await asyncio.gather(*action_tasks, return_exceptions=True)
+            if self._proposal_gateway is not None:
+                self._proposal_gateway.clear()
+            if self._action_dispatcher is not None:
+                self._action_dispatcher.clear()
             try:
                 await controller.close()
             except Exception:
@@ -150,6 +199,64 @@ class HostedLiveSessionThread(QThread):
             self._controller = None
             self._stop_event = None
             self._loop = None
+
+    async def _dispatch_action_proposal(self, proposal: ActionProposal) -> None:
+        gateway = self._proposal_gateway
+        dispatcher = self._action_dispatcher
+        controller = self._controller
+        if gateway is None or dispatcher is None or controller is None:
+            return
+        conversion = gateway.convert(proposal)
+        if conversion.decision.accepted:
+            # Hosted audio currently has no parallel deterministic parser. The
+            # provider proposal is released only after that local lane is known
+            # to have produced no competing action for this turn.
+            dispatcher.complete_local_routing(proposal.session_id, proposal.turn_id)
+            result = await dispatcher.dispatch(conversion)
+        else:
+            result = SanitizedActionResult(
+                session_id=proposal.session_id,
+                turn_id=proposal.turn_id,
+                proposal_id=proposal.proposal_id,
+                status="denied",
+                message="The action proposal was rejected safely.",
+            )
+        if result.status == "confirmation_required":
+            confirmation = dispatcher.pending_confirmation(
+                session_id=result.session_id,
+                turn_id=result.turn_id,
+                proposal_id=result.proposal_id,
+            )
+            if confirmation is not None:
+                self.action_confirmation_requested_signal.emit(confirmation)
+                return
+        await self._return_action_result(controller, result)
+
+    async def _resolve_action_confirmation(
+        self,
+        controller: HostedLiveSessionController,
+        confirmation: ProviderActionConfirmation,
+        *,
+        approved: bool,
+    ) -> None:
+        dispatcher = self._action_dispatcher
+        if dispatcher is None:
+            return
+        result = await dispatcher.resolve_confirmation(
+            session_id=confirmation.session_id,
+            turn_id=confirmation.turn_id,
+            proposal_id=confirmation.proposal_id,
+            approved=approved,
+        )
+        await self._return_action_result(controller, result)
+
+    async def _return_action_result(
+        self,
+        controller: HostedLiveSessionController,
+        result: SanitizedActionResult,
+    ) -> None:
+        await controller.accept_action_result(result)
+        self.action_result_signal.emit(result)
 
     def _submit(
         self,

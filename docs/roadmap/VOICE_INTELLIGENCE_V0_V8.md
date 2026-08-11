@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A-V7C complete - V7D Gemini tools next
+**Status:** V0 through V6 and V7A-V7D complete - V7E Ollama tools next
 
 **Planning date:** 2026-08-01
 
@@ -1574,7 +1574,7 @@ release gate.
 - [x] Treat function calls as untrusted `ActionProposal` values.
 - [x] Reuse validation, permission, confirmation, execution, and audit.
 - [x] Return only sanitized function results.
-- [ ] Add Gemini Live function proposals behind the provider-neutral adapter.
+- [x] Add Gemini Live function proposals behind the provider-neutral adapter.
 - [ ] Add Ollama tool proposals when the selected local model reports tool-call
   support.
 - [ ] Fall back to deterministic and JSON proposal paths when a provider model
@@ -1653,9 +1653,40 @@ closed. A real SQLite composition test confirms that a provider-origin request
 without permission is denied and audited through the Phase 8 repository.
 
 V7C verification passed with 1,307 tests and 3 optional-environment skips,
-plus repository-wide Ruff, Black, compilation, and diff checks. Gemini SDK
-function declarations and results remain disabled until V7D connects the
-provider transport to this application-owned dispatcher.
+plus repository-wide Ruff, Black, compilation, and diff checks. At the V7C
+boundary, Gemini SDK function declarations and results remained disabled;
+V7D performs that provider-transport connection below.
+
+#### V7D: Gemini Live Function Transport - Complete
+
+V7D translates the V7A catalog into Gemini-safe function declarations while
+preserving Akiha's dotted action identifiers behind a reversible
+transport-only name map. Google SDK objects, raw provider call IDs, and API
+session ownership remain inside `GoogleGenAILiveTransport`. Raw call IDs are
+hashed into bounded proposal identities before crossing the adapter boundary.
+Malformed, unknown, empty, oversized, or non-mapping function calls fail
+closed as sanitized protocol errors.
+
+The Gemini adapter reports tool-proposal capability only when an explicit
+catalog is configured. It converts transport calls into session- and
+turn-owned `ActionProposal` values and accepts only matching
+`SanitizedActionResult` values. The hosted worker owns V7B conversion and V7C
+dispatch; provider code never receives the action service, executors,
+permissions, repositories, or confirmation override. Hosted Live has no
+parallel deterministic parser, so the worker explicitly completes the empty
+local-routing stage before allowing a provider proposal into arbitration.
+
+Confirmation-required calls remain pending in bounded process memory while a
+trusted local Qt dialog shows the validated target. Gemini waits during that
+decision and receives only the final generic status and message, matched to
+the original SDK function-call ID. Decline, stale ownership, shutdown, lane
+change, or worker failure cannot execute the request. Worker shutdown clears
+both proposal replay state and pending confirmation arguments.
+
+V7D verification passed with 1,312 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks. Manual Gemini
+tool testing and standalone packaging remain intentionally deferred until V7
+and the V8 release gate respectively.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

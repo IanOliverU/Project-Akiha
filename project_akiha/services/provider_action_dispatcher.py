@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Protocol
 
 from project_akiha.core.actions import (
@@ -27,6 +28,17 @@ from project_akiha.services.provider_action_proposal_gateway import (
     ProposalGatewayResult,
     ProposalTurnAuthority,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderActionConfirmation:
+    """Trusted local-only confirmation description never sent to a provider."""
+
+    session_id: str
+    turn_id: str
+    proposal_id: str
+    action_id: str
+    prompt: str
 
 
 class ProviderActionService(Protocol):
@@ -197,6 +209,27 @@ class ProviderActionDispatcher:
         with self._lock:
             self._pending.clear()
 
+    def pending_confirmation(
+        self,
+        *,
+        session_id: str,
+        turn_id: str,
+        proposal_id: str,
+    ) -> ProviderActionConfirmation | None:
+        """Return a local UI description without consuming the pending request."""
+        key = (session_id, turn_id, proposal_id)
+        with self._lock:
+            request = self._pending.get(key)
+        if request is None:
+            return None
+        return ProviderActionConfirmation(
+            session_id=session_id,
+            turn_id=turn_id,
+            proposal_id=proposal_id,
+            action_id=request.action_id,
+            prompt=_confirmation_prompt(request),
+        )
+
     async def _evaluate(
         self,
         request: ActionRequest,
@@ -313,6 +346,17 @@ def _failed_action_result(request: ActionRequest) -> ActionResult:
         summary="The assistant action could not be completed.",
         permission_decision=PermissionDecision.NOT_EVALUATED,
     )
+
+
+def _confirmation_prompt(request: ActionRequest) -> str:
+    if request.action_id == "files.open":
+        target = request.parameters.get("path")
+        if isinstance(target, str) and target.strip():
+            return (
+                "Open this passive file with its default application?\n\n"
+                + target.strip()
+            )
+    return f"Allow Akiha to perform this action?\n\n{request.action_id}"
 
 
 def _arbitration_turn_id(session_id: str, turn_id: str) -> str:
