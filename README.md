@@ -82,8 +82,11 @@ permission, confirmation, execution, and audit boundary and returns only
 generic provider-safe results. V7D now declares the explicit action catalog to
 Gemini Live, translates SDK function calls into untrusted proposals, pauses
 confirmation-required calls for a trusted local dialog, and returns only
-ID-matched sanitized results. Ollama-native tools are next; pet simulation
-remains planned after the Voice Intelligence roadmap.
+ID-matched sanitized results. V7E now gives compatible Ollama models the same
+native proposal path through an ephemeral local turn authority, while keeping
+permission checks, confirmations, execution, and audit entirely application
+owned. Fallback hardening is next; pet simulation remains planned after the
+Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -96,7 +99,7 @@ remains planned after the Voice Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and V7A-V7D tool transport complete; Ollama tools next |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and V7A-V7E provider tool transport complete; fallback hardening next |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 

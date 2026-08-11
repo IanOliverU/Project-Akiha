@@ -295,6 +295,7 @@ from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 from project_akiha.ui.memory_window import MemoryWindow
+from project_akiha.ui.ollama_tool_worker import OllamaNativeToolThread
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
@@ -454,6 +455,9 @@ def _run_application() -> int:
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
     ai_provider = _build_ai_provider(config.ai, logger, credential_store)
+    ollama_native_provider = (
+        ai_provider if isinstance(ai_provider, OllamaProvider) else None
+    )
     assistant_tool_gateway = LLMAssistantToolGateway(
         ai_provider,
         enabled=config.ai.assistant_tools_enabled,
@@ -717,6 +721,7 @@ def _run_application() -> int:
         AssistantToolProposalThread
         | AssistantMediaSearchThread
         | AssistantDirectorySearchThread
+        | OllamaNativeToolThread
     ] = []
 
     def update_chat_busy_state() -> None:
@@ -732,6 +737,7 @@ def _run_application() -> int:
 
     def apply_settings(updated_config: AppConfig) -> None:
         nonlocal config, speech_input_service, speech_output_service
+        nonlocal ollama_native_provider
         previous_session_provider = config.voice.session_provider
         if (
             conversation_runtime_router is not None
@@ -750,6 +756,9 @@ def _run_application() -> int:
             updated_config.ai,
             logger,
             credential_store,
+        )
+        ollama_native_provider = (
+            ai_provider if isinstance(ai_provider, OllamaProvider) else None
         )
         chat_controller.set_ai_provider(ai_provider)
         assistant_tool_gateway.apply_provider(ai_provider)
@@ -1984,6 +1993,84 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
+    def start_ollama_native_tool_proposal(message: str, *, turn_id: str) -> None:
+        provider = ollama_native_provider
+        if provider is None:
+            start_tool_proposal(message, turn_id=turn_id)
+            return
+        chat_window.set_busy(True)
+        thread = OllamaNativeToolThread(
+            provider=provider,
+            chat_controller=chat_controller,
+            message=message,
+            catalog=provider_action_catalog,
+            action_service=assistant_action_service,
+            intent_arbiter=intent_arbiter,
+        )
+        active_tool_threads.append(thread)
+
+        def handle_response(commit: object) -> None:
+            assistant_message = getattr(commit, "assistant_message", None)
+            content = getattr(assistant_message, "content", "")
+            if not isinstance(content, str) or not content.strip():
+                chat_window.append_error(
+                    "Ollama completed the action without a usable reply."
+                )
+                return
+            chat_window.append_message(
+                config.personality.character_name,
+                content,
+            )
+            response_completion_controller.complete(
+                content,
+                streaming_speech_started=False,
+            )
+
+        def handle_confirmation(
+            confirmation: ProviderActionConfirmation,
+        ) -> None:
+            answer = QMessageBox.question(
+                chat_window,
+                "Confirm assistant action",
+                confirmation.prompt,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            thread.resolve_confirmation(
+                confirmation,
+                approved=answer == QMessageBox.StandardButton.Yes,
+            )
+
+        def handle_unavailable() -> None:
+            logger.info(
+                "Selected Ollama model does not report native tool support; "
+                "using the constrained JSON proposal path."
+            )
+            start_tool_proposal(message, turn_id=turn_id)
+
+        def handle_failure(error_message: str) -> None:
+            logger.error("Ollama native tool turn failed: %s", error_message)
+            chat_window.append_error(
+                "Ollama's native action turn failed safely. No action was retried."
+            )
+
+        def handle_cancelled() -> None:
+            chat_window.append_notice("Ollama action interpretation stopped.")
+
+        def cleanup_thread() -> None:
+            if thread in active_tool_threads:
+                active_tool_threads.remove(thread)
+            update_chat_busy_state()
+            thread.deleteLater()
+
+        thread.response_ready.connect(handle_response)
+        thread.confirmation_requested.connect(handle_confirmation)
+        thread.native_tools_unavailable.connect(handle_unavailable)
+        thread.failed.connect(handle_failure)
+        thread.cancelled.connect(handle_cancelled)
+        thread.finished.connect(cleanup_thread)
+        thread.start()
+
     def start_tool_proposal(message: str, *, turn_id: str) -> None:
         chat_window.set_busy(True)
         thread = AssistantToolProposalThread(
@@ -2169,7 +2256,10 @@ def _run_application() -> int:
             context=ephemeral_action_context.intent_context_snapshot(),
         ):
             intent_arbiter.complete_local_routing(turn_id)
-            start_tool_proposal(message, turn_id=turn_id)
+            if ollama_native_provider is not None:
+                start_ollama_native_tool_proposal(message, turn_id=turn_id)
+            else:
+                start_tool_proposal(message, turn_id=turn_id)
             return
         intent_arbiter.complete_local_routing(turn_id)
         start_chat_response(message)

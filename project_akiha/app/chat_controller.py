@@ -262,6 +262,24 @@ class ChatController:
             assistant_message=assistant_message,
         )
 
+    async def build_provider_messages(
+        self,
+        user_content: str,
+    ) -> tuple[ChatMessage, ...]:
+        """Build context for a prospective provider turn without persisting it."""
+        normalized_content = user_content.strip()
+        if not normalized_content:
+            raise ValueError("Chat message cannot be empty.")
+        user_message = ChatMessage(role="user", content=normalized_content)
+        system_prompt = await self._render_system_prompt(normalized_content)
+        if not system_prompt:
+            return (*self._messages, user_message)
+        return (
+            ChatMessage(role="system", content=system_prompt),
+            *self._messages,
+            user_message,
+        )
+
     async def commit_canonical_live_turn(
         self,
         user_content: str,

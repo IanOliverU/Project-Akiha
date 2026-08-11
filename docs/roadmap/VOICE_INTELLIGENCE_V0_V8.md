@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A-V7D complete - V7E Ollama tools next
+**Status:** V0 through V6 and V7A-V7E complete - V7F fallback hardening next
 
 **Planning date:** 2026-08-01
 
@@ -1575,7 +1575,7 @@ release gate.
 - [x] Reuse validation, permission, confirmation, execution, and audit.
 - [x] Return only sanitized function results.
 - [x] Add Gemini Live function proposals behind the provider-neutral adapter.
-- [ ] Add Ollama tool proposals when the selected local model reports tool-call
+- [x] Add Ollama tool proposals when the selected local model reports tool-call
   support.
 - [ ] Fall back to deterministic and JSON proposal paths when a provider model
   does not support native tools.
@@ -1687,6 +1687,46 @@ V7D verification passed with 1,312 tests and 3 optional-environment skips,
 plus repository-wide Ruff, Black, compilation, and diff checks. Manual Gemini
 tool testing and standalone packaging remain intentionally deferred until V7
 and the V8 release gate respectively.
+
+#### V7E: Ollama-Native Tool Proposals - Complete
+
+V7E adds native Ollama tool calling without changing the authority granted to
+a local model. The selected model is checked through Ollama's model-details
+endpoint and enters the native lane only when it reports the `tools`
+capability. That capability result is cached for the lifetime of the selected
+provider. Models without it are handed to the existing constrained JSON
+proposal path; V7F remains responsible for formal fallback reconciliation and
+its complete cross-provider verification.
+
+The Ollama adapter translates only V7A's explicit allowlist into native
+function declarations. Transport-safe function names, raw tool-call objects,
+assistant tool messages, and Ollama request history remain private to the
+adapter. A native call becomes the same bounded `ActionProposal` used by
+Gemini, with application-owned session and turn identity supplied by a new
+short-lived modular turn authority. Unknown functions, malformed arguments,
+unsafe primitive values, excess calls, wrong result ownership, stale turns,
+and replayed proposals fail closed before execution.
+
+`OllamaNativeToolThread` owns one non-streaming proposal exchange away from the
+Qt event loop. It routes accepted calls through the unchanged V7B gateway,
+V7C dispatcher, Phase 8 validation, scoped permission service, trusted local
+confirmation dialog, executor, and audit repository. Multiple provider calls
+still share one arbitration turn, so at most one can execute. The follow-up
+request omits tool declarations to prevent a second action chain, and Ollama
+receives only role-tagged generic `SanitizedActionResult` status and message
+content. If a native action has begun, a later provider failure is never
+retried through another proposal lane.
+
+Plain-text responses from the native decision request and final responses
+after an action use the canonical chat persistence path before speech or
+subtitle derivatives run. Settings changes replace the native provider slot,
+while cancellation and worker cleanup invalidate turn ownership and clear
+proposal replay and pending-confirmation state.
+
+V7E verification passed with 1,325 tests and 3 optional-environment skips,
+plus repository-wide Ruff, Black, compilation, and diff checks. Real Ollama
+model testing and standalone packaging remain intentionally deferred until
+the V7 manual roundup and V8 release gate.
 
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See

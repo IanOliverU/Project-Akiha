@@ -22,8 +22,8 @@ material is separated by purpose.
 
 - [`roadmap/VOICE_INTELLIGENCE_V0_V8.md`](roadmap/VOICE_INTELLIGENCE_V0_V8.md)
   is the single authoritative plan and progress record for Post-Phase 8 Voice
-  Intelligence. V0 through V6 and V7A-V7D are complete; V7E Ollama-native
-  tool proposals are next.
+  Intelligence. V0 through V6 and V7A-V7E are complete; V7F deterministic and
+  constrained JSON fallback hardening is next.
 - [`roadmap/PROJECT_BACKLOG.md`](roadmap/PROJECT_BACKLOG.md) contains deferred
   project work that does not belong to an active phase.
 

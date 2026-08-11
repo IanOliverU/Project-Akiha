@@ -364,6 +364,28 @@ class ChatControllerTest(unittest.TestCase):
             [message.role for message in controller.messages], ["user", "assistant"]
         )
 
+    def test_build_provider_messages_does_not_commit_prospective_turn(self) -> None:
+        controller = ChatController(
+            StaticProvider("unused"),
+            system_prompt="Stay composed.",
+            initial_messages=(ChatMessage(role="user", content="Earlier"),),
+        )
+
+        messages = asyncio.run(controller.build_provider_messages("  Open Spotify  "))
+
+        self.assertEqual(
+            messages,
+            (
+                ChatMessage(role="system", content="Stay composed."),
+                ChatMessage(role="user", content="Earlier"),
+                ChatMessage(role="user", content="Open Spotify"),
+            ),
+        )
+        self.assertEqual(
+            controller.messages,
+            (ChatMessage(role="user", content="Earlier"),),
+        )
+
     def test_system_prompt_can_be_replaced(self) -> None:
         provider = StaticProvider("done")
         controller = ChatController(provider, system_prompt="Old prompt.")
