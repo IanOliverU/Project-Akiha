@@ -86,8 +86,15 @@ def build_default_action_registry() -> ActionRegistry:
                 description=(
                     "Search file names inside an approved root or descendant. "
                     "Use a user-facing root-relative location such as "
-                    "Downloads/Video. Results are presented privately in "
-                    "Akiha's local UI; do not claim filesystem access is denied."
+                    "Downloads/Video or Desktop/Solitude Freak. For an explicit "
+                    "play/open request use result_mode=open_unique; for an "
+                    "explicit request to play any matching file use "
+                    "result_mode=open_any; otherwise use present. Use a title "
+                    "or extension such as Elis or .mp4 as query. Set relaxed "
+                    "to true for voice-spoken media titles so related local "
+                    "candidates can be shown when no exact title exists. Results are "
+                    "handled privately in Akiha's local UI; do not claim "
+                    "filesystem access is denied."
                 ),
                 risk=ActionRisk.READ_ONLY,
                 permission_capability=FILE_SEARCH_CAPABILITY,
@@ -107,6 +114,17 @@ def build_default_action_registry() -> ActionRegistry:
                     ),
                     ActionParameterSpec(
                         name="media_only",
+                        kind=ParameterKind.BOOLEAN,
+                        required=False,
+                    ),
+                    ActionParameterSpec(
+                        name="result_mode",
+                        kind=ParameterKind.STRING,
+                        required=False,
+                        allowed_values=("present", "open_unique", "open_any"),
+                    ),
+                    ActionParameterSpec(
+                        name="relaxed",
                         kind=ParameterKind.BOOLEAN,
                         required=False,
                     ),

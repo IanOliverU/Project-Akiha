@@ -156,6 +156,12 @@ For provider-requested searches, raw bounded matches are emitted only through a
 local Qt signal to the existing action-results UI and ephemeral selection
 store. The provider receives the generic sanitized completion status; filename,
 path, executor metadata, and raw summary fields do not cross that boundary.
+Provider searches also declare a bounded local result mode: present,
+open-unique, or open-any. Both opening modes create a separate typed
+`files.open` request and therefore retain path validation, scoped permission,
+passive-extension policy, and trusted local confirmation. Relaxed title
+matching can broaden only the local candidate list; it never chooses among
+multiple matches for an open-unique request.
 
 ## Local Data
 

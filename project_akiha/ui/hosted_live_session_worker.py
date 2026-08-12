@@ -47,7 +47,7 @@ class HostedLiveSessionThread(QThread):
     session_state_changed_signal = Signal(object)
     capabilities_received_signal = Signal(object)
     action_result_signal = Signal(object)
-    local_action_result_signal = Signal(object)
+    local_action_result_signal = Signal(object, object)
     action_confirmation_requested_signal = Signal(object)
 
     def __init__(
@@ -215,7 +215,9 @@ class HostedLiveSessionThread(QThread):
             dispatcher.complete_local_routing(proposal.session_id, proposal.turn_id)
             result = await dispatcher.dispatch(
                 conversion,
-                on_local_result=self.local_action_result_signal.emit,
+                on_local_result=lambda request, result: (
+                    self.local_action_result_signal.emit(request, result)
+                ),
             )
         else:
             result = SanitizedActionResult(

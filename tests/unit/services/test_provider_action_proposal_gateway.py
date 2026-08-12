@@ -237,6 +237,8 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
                     "root": "Downloads/Video",
                     "query": "avatar",
                     "media_only": True,
+                    "result_mode": "open_unique",
+                    "relaxed": True,
                 },
             )
         )
@@ -248,6 +250,8 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
                 "root": r"C:\Users\Private\Downloads\Video",
                 "query": "avatar",
                 "media_only": True,
+                "result_mode": "open_unique",
+                "relaxed": True,
             },
         )
 

@@ -1791,7 +1791,7 @@ The closure audit also retains the earlier transport-specific coverage for
 Gemini declaration/result ownership, Ollama capability negotiation and native
 calls, constrained JSON parsing, confirmation, cancellation, stale ownership,
 fallback cleanup, and canonical response persistence. V7G automated
-verification passed with 1,348 tests and 3 optional-environment skips, plus
+verification passed with 1,349 tests and 3 optional-environment skips, plus
 repository-wide Ruff, Black, compilation, and diff checks.
 
 The first real Gemini roundup exposed three closure defects now covered by
@@ -1835,6 +1835,16 @@ only the existing generic sanitized action status and never receives filenames,
 paths, executor metadata, or raw summaries. The provider tool description
 explicitly directs Gemini to the private local-results surface instead of
 claiming that approved video search is unavailable.
+
+Provider file search now carries an explicit local result mode. Search-only
+requests present matches without opening them; a named play/open request opens
+only one unique match through the existing confirmation gate; and an explicit
+request for any matching media may select one local result but still requires
+confirmation. Voice-spoken media searches may opt into relaxed token matching
+only when no exact filename substring exists. This turns a combined title such
+as `Leia -Elis-` into two local candidates rather than guessing between the
+real `05 Leia.flac` and `01 -ELIS-.flac` files. Multiple candidates require an
+exact-title follow-up and remain ephemeral.
 
 V7 is ready for one source-run manual provider-tool sign-off. That pass must
 confirm a real Gemini Live tool action and, when a tool-capable local model is

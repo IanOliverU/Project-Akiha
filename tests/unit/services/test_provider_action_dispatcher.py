@@ -136,16 +136,18 @@ class ProviderActionDispatcherTest(unittest.TestCase):
                 metadata={"matches": (match,)},
             )
         )
-        local_results: list[ActionResult] = []
+        local_results: list[tuple[object, ActionResult]] = []
 
         result = asyncio.run(
             self.dispatcher.dispatch(
                 conversion,
-                on_local_result=local_results.append,
+                on_local_result=lambda request, local_result: local_results.append(
+                    (request, local_result)
+                ),
             )
         )
 
-        self.assertEqual(local_results[0].metadata["matches"], (match,))
+        self.assertEqual(local_results[0][1].metadata["matches"], (match,))
         self.assertEqual(result.message, "The approved action completed.")
         self.assertFalse(hasattr(result, "metadata"))
         self.assertNotIn("avatar", repr(result).casefold())
@@ -388,6 +390,8 @@ class ProviderActionDispatcherTest(unittest.TestCase):
                 "root": r"C:\Users\Private\Downloads\Video",
                 "query": "avatar",
                 "media_only": True,
+                "result_mode": "open_unique",
+                "relaxed": True,
             }
         else:
             arguments = {"application_id": "spotify"}

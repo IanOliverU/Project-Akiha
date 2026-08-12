@@ -122,7 +122,7 @@ class ProviderActionDispatcher:
         self,
         conversion: ProposalGatewayResult,
         *,
-        on_local_result: Callable[[ActionResult], None] | None = None,
+        on_local_result: Callable[[ActionRequest, ActionResult], None] | None = None,
     ) -> SanitizedActionResult:
         """Dispatch a proposal and optionally present its raw result locally."""
         decision, request = _require_accepted_conversion(conversion)
@@ -159,7 +159,7 @@ class ProviderActionDispatcher:
             "files.search",
             "directories.search",
         }:
-            on_local_result(result)
+            on_local_result(request, result)
         if result.status is ActionStatus.CONFIRMATION_REQUIRED:
             self._remember_pending(conversion, request)
         return _sanitize_action_result(conversion, result)

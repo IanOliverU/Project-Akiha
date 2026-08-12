@@ -73,6 +73,31 @@ class FileSearchExecutorTest(unittest.TestCase):
             (song.name,),
         )
 
+    def test_relaxed_media_search_returns_related_titles_only_without_exact(
+        self,
+    ) -> None:
+        leia = self.root / "05 Leia.flac"
+        elis = self.root / "01 -ELIS-.flac"
+        unrelated = self.root / "avatar.mp4"
+        for path in (leia, elis, unrelated):
+            path.write_bytes(b"media")
+
+        result = asyncio.run(
+            FileSearchExecutor().execute(
+                self._search_action(
+                    "Leia -Elis-",
+                    media_only=True,
+                    relaxed=True,
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(
+            {match.name for match in result.metadata["matches"]},
+            {leia.name, elis.name},
+        )
+
     def test_enforces_recursion_depth_and_result_limit(self) -> None:
         (self.root / "report-one.txt").write_text("one", encoding="utf-8")
         first_level = self.root / "first"
@@ -146,13 +171,21 @@ class FileSearchExecutorTest(unittest.TestCase):
         self.assertEqual(result.metadata["matches"], ())
         self.assertGreaterEqual(result.metadata["skipped_entries"], 1)
 
-    def _search_action(self, query: str, *, media_only: bool = False):
+    def _search_action(
+        self,
+        query: str,
+        *,
+        media_only: bool = False,
+        relaxed: bool = False,
+    ):
         parameters: dict[str, object] = {
             "root": str(self.root),
             "query": query,
         }
         if media_only:
             parameters["media_only"] = True
+        if relaxed:
+            parameters["relaxed"] = True
         return self.validator.validate(
             ActionRequest(
                 correlation_id="search-1",

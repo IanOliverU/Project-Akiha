@@ -163,6 +163,10 @@ When Gemini requests an approved file or directory search, at most ten matches
 are presented in Akiha's local action-results UI and ephemeral selection store.
 Those names and paths remain local. Gemini receives only a generic action status
 such as completed, denied, or unavailable and cannot read the match metadata.
+An explicit local-media play request may turn one unique result into a separate
+confirmation-gated file-open request. Multiple related titles are shown only
+locally and require the user to name one exact candidate; they are not sent back
+to Gemini and are not written into durable companion memory.
 
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini

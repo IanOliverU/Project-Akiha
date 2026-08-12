@@ -12,7 +12,7 @@ from project_akiha.app.live_transcript_controller import LiveTranscriptControlle
 from project_akiha.app.voice_audio_bridge import RealtimeAudioFrameBridge
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
-from project_akiha.core.actions import ActionResult
+from project_akiha.core.actions import ActionRequest, ActionResult
 from project_akiha.core.events.bus import EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
@@ -48,7 +48,9 @@ class HostedConversationRuntime:
         on_action_confirmation: (
             Callable[[ProviderActionConfirmation], bool] | None
         ) = None,
-        on_local_action_result: Callable[[ActionResult], None] | None = None,
+        on_local_action_result: (
+            Callable[[ActionRequest, ActionResult], None] | None
+        ) = None,
         on_stopped: Callable[[], None] | None = None,
         monotonic_clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -321,10 +323,14 @@ class HostedConversationRuntime:
                 "Gemini Live could not resolve the local action confirmation.",
             )
 
-    def _handle_local_action_result(self, result: ActionResult) -> None:
+    def _handle_local_action_result(
+        self,
+        request: ActionRequest,
+        result: ActionResult,
+    ) -> None:
         callback = self._on_local_action_result
         if callback is not None:
-            callback(result)
+            callback(request, result)
 
     def _handle_interrupted(self, turn_id: str) -> None:
         if self._owns_turn(turn_id):

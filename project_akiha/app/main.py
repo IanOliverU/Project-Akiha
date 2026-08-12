@@ -2518,7 +2518,10 @@ def _run_application() -> int:
         )
         return answer == QMessageBox.StandardButton.Yes
 
-    def present_hosted_local_action_result(result: ActionResult) -> None:
+    def present_hosted_local_action_result(
+        request: ActionRequest,
+        result: ActionResult,
+    ) -> None:
         raw_matches = result.metadata.get("matches")
         if not isinstance(raw_matches, tuple):
             return
@@ -2560,12 +2563,38 @@ def _run_application() -> int:
                 f"I could not find matching {noun} in that approved location.",
             )
             return
+        result_mode = str(request.parameters.get("result_mode", "present"))
+        if result.action_id == FILE_SEARCH_ACTION and (
+            (result_mode == "open_unique" and len(matches) == 1)
+            or (result_mode == "open_any" and matches)
+        ):
+            selected = matches[0]
+            chat_window.append_message(
+                config.personality.character_name,
+                f"I found {selected.name} and will ask before opening it.",
+            )
+            start_action_thread(
+                ActionRequest(
+                    correlation_id=f"hosted-media-open-{uuid4().hex}",
+                    action_id=OPEN_FILE_ACTION,
+                    source="provider_search_selection",
+                    parameters={"path": selected.path},
+                )
+            )
+            return
         lines = [
             f"{index}. {match.name}" for index, match in enumerate(matches, start=1)
         ]
+        follow_up = (
+            "\nPlease name one exact result to open."
+            if result.action_id == FILE_SEARCH_ACTION
+            and result_mode == "open_unique"
+            and len(matches) > 1
+            else ""
+        )
         chat_window.append_message(
             config.personality.character_name,
-            f"I found these matching {noun}:\n" + "\n".join(lines),
+            f"I found these matching {noun}:\n" + "\n".join(lines) + follow_up,
         )
         show_assistant_action_history()
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import subprocess
 import threading
 from collections.abc import Callable
@@ -99,6 +100,7 @@ class FileSearchExecutor:
             root=Path(action.normalized_target),
             query=str(action.parameters["query"]),
             media_only=bool(action.parameters.get("media_only", False)),
+            relaxed=bool(action.parameters.get("relaxed", False)),
             timeout_seconds=action.definition.timeout_seconds,
             action_max_results=action.definition.max_results,
             cancellation_token=cancellation_token,
@@ -110,6 +112,7 @@ class FileSearchExecutor:
         root: Path,
         query: str,
         media_only: bool,
+        relaxed: bool,
         timeout_seconds: int,
         action_max_results: int | None,
         cancellation_token: ActionCancellationToken,
@@ -127,7 +130,9 @@ class FileSearchExecutor:
         )
         deadline = monotonic() + timeout_seconds
         normalized_query = query.casefold()
-        matches: list[FileSearchMatch] = []
+        query_tokens = _filename_query_tokens(query) if relaxed else frozenset()
+        exact_matches: list[FileSearchMatch] = []
+        relaxed_matches: list[FileSearchMatch] = []
         pending_directories: list[tuple[Path, int]] = [(root, 0)]
         skipped_entries = 0
 
@@ -165,33 +170,45 @@ class FileSearchExecutor:
                                 not in _PASSIVE_MEDIA_EXTENSIONS
                             ):
                                 continue
-                            if normalized_query not in entry.name.casefold():
+                            exact = normalized_query in entry.name.casefold()
+                            related = bool(
+                                query_tokens
+                                & _filename_query_tokens(Path(entry.name).stem)
+                            )
+                            if not exact and not (relaxed and related):
                                 continue
                             details = entry.stat(follow_symlinks=False)
                         except OSError:
                             skipped_entries += 1
                             continue
 
-                        matches.append(
-                            FileSearchMatch(
-                                name=entry.name,
-                                path=str(Path(entry.path)),
-                                size_bytes=details.st_size,
-                                modified_at=datetime.fromtimestamp(
-                                    details.st_mtime,
-                                    tz=UTC,
-                                ).isoformat(),
-                            )
+                        match = FileSearchMatch(
+                            name=entry.name,
+                            path=str(Path(entry.path)),
+                            size_bytes=details.st_size,
+                            modified_at=datetime.fromtimestamp(
+                                details.st_mtime,
+                                tz=UTC,
+                            ).isoformat(),
                         )
-                        if len(matches) >= limit:
+                        if exact:
+                            exact_matches.append(match)
+                        elif len(relaxed_matches) < limit:
+                            relaxed_matches.append(match)
+                        if len(exact_matches) >= limit:
                             return _success_result(
-                                matches, skipped_entries, limited=True
+                                exact_matches, skipped_entries, limited=True
                             )
             except OSError:
                 skipped_entries += 1
                 continue
 
-        return _success_result(matches, skipped_entries, limited=False)
+        matches = exact_matches or relaxed_matches
+        return _success_result(
+            matches,
+            skipped_entries,
+            limited=not exact_matches and len(relaxed_matches) >= limit,
+        )
 
 
 class DirectorySearchExecutor:
@@ -759,6 +776,10 @@ def _success_result(
             "skipped_entries": skipped_entries,
         },
     )
+
+
+def _filename_query_tokens(value: str) -> frozenset[str]:
+    return frozenset(re.findall(r"\w+", value.casefold()))
 
 
 def _directory_success_result(
