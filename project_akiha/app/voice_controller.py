@@ -243,6 +243,11 @@ class VoiceController:
     def _handle_listen_requested(self, event: Event) -> None:
         source = event.payload.get("source")
         hosted_live = source == "hosted_live"
+        if (
+            self._operation == _VoiceOperation.INPUT
+            and self.state is VoiceState.LISTENING
+        ):
+            return
         if hosted_live:
             if not self._config.enabled:
                 self._publish_error("voice_disabled", "Voice is disabled.")

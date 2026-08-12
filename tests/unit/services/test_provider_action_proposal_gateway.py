@@ -151,6 +151,106 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
         assert result.request is not None
         self.assertEqual(result.request.parameters, {"path": "System folder"})
 
+    def test_approved_root_relative_directory_resolves_inside_gateway(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open_directory",
+                arguments={"path": "Downloads/Videos"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"path": r"C:\Users\Private\Downloads\Videos"},
+        )
+
+    def test_root_relative_directory_rejects_traversal(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open_directory",
+                arguments={"path": "Downloads/../Windows"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"path": "Downloads/../Windows"},
+        )
+
+    def test_approved_root_relative_passive_file_resolves_for_confirmation(
+        self,
+    ) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open",
+                arguments={"path": "Downloads/Video/example.mp4"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"path": r"C:\Users\Private\Downloads\Video\example.mp4"},
+        )
+
+    def test_approved_search_root_display_name_resolves_locally(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="directories.search",
+                arguments={"root": "Downloads folder", "query": "Video"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"root": r"C:\Users\Private\Downloads", "query": "Video"},
+        )
+
+    def test_approved_descendant_search_root_resolves_locally(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.search",
+                arguments={
+                    "root": "Downloads/Video",
+                    "query": "avatar",
+                    "media_only": True,
+                },
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {
+                "root": r"C:\Users\Private\Downloads\Video",
+                "query": "avatar",
+                "media_only": True,
+            },
+        )
+
     def test_history_is_bounded_and_clear_discards_replay_state(self) -> None:
         for index in range(4):
             self.gateway.convert(

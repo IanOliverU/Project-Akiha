@@ -58,6 +58,21 @@ class VoiceControllerTest(unittest.TestCase):
 
         self.assertEqual(controller.state, VoiceState.IDLE)
 
+    def test_duplicate_listen_while_input_active_is_idempotent(self) -> None:
+        bus = EventBus()
+        events = _subscribe(bus, EventType.VOICE_ERROR_OCCURRED)
+        controller = VoiceController(bus, VoiceConfig(enabled=True))
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "hosted_live"})
+        events.clear()
+
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "talk_interrupt"})
+
+        self.assertEqual(controller.state, VoiceState.LISTENING)
+        self.assertEqual(controller.operation, "input")
+        self.assertFalse(
+            any(event.event_type == EventType.VOICE_ERROR_OCCURRED for event in events)
+        )
+
     def test_transcript_returns_idle_and_publishes_editable_text(self) -> None:
         bus = EventBus()
         transcripts = _subscribe(bus, EventType.VOICE_TRANSCRIPT_READY)

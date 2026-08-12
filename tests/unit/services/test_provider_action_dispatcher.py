@@ -13,6 +13,7 @@ from project_akiha.core.actions import (
     ActionRequestValidator,
     ActionResult,
     ActionStatus,
+    FileSearchMatch,
     PermissionDecision,
     ProtectedPathPolicy,
     build_default_action_registry,
@@ -113,6 +114,41 @@ class ProviderActionDispatcherTest(unittest.TestCase):
 
         self.assertEqual(result.message, "The approved action completed.")
         self.assertFalse(hasattr(result, "metadata"))
+        self.assertNotIn("private", repr(result).casefold())
+
+    def test_search_results_reach_only_local_callback(self) -> None:
+        conversion = self._conversion(action_name="files.search")
+        self.dispatcher.complete_local_routing(
+            self.turn.session_id,
+            self.turn.turn_id,
+        )
+        match = FileSearchMatch(
+            name="avatar.mp4",
+            path=r"C:\Users\Private\Downloads\Video\avatar.mp4",
+            size_bytes=1024,
+            modified_at="2026-08-12T00:00:00+00:00",
+        )
+        self.action_service.results.append(
+            _action_result(
+                conversion,
+                status=ActionStatus.SUCCESS,
+                summary="Found one private local media file.",
+                metadata={"matches": (match,)},
+            )
+        )
+        local_results: list[ActionResult] = []
+
+        result = asyncio.run(
+            self.dispatcher.dispatch(
+                conversion,
+                on_local_result=local_results.append,
+            )
+        )
+
+        self.assertEqual(local_results[0].metadata["matches"], (match,))
+        self.assertEqual(result.message, "The approved action completed.")
+        self.assertFalse(hasattr(result, "metadata"))
+        self.assertNotIn("avatar", repr(result).casefold())
         self.assertNotIn("private", repr(result).casefold())
 
     def test_confirmation_requires_one_separate_trusted_resolution(self) -> None:
@@ -345,11 +381,16 @@ class ProviderActionDispatcherTest(unittest.TestCase):
         )
 
     def _conversion(self, *, action_name: str = "applications.launch"):
-        arguments = (
-            {"path": r"C:\Users\Private\notes.txt"}
-            if action_name == "files.open"
-            else {"application_id": "spotify"}
-        )
+        if action_name == "files.open":
+            arguments = {"path": r"C:\Users\Private\notes.txt"}
+        elif action_name == "files.search":
+            arguments = {
+                "root": r"C:\Users\Private\Downloads\Video",
+                "query": "avatar",
+                "media_only": True,
+            }
+        else:
+            arguments = {"application_id": "spotify"}
         return self.gateway.convert(
             _proposal(
                 self.turn.session_id,

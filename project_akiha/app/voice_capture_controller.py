@@ -99,7 +99,10 @@ class VoiceCaptureController:
         if self._voice_controller.state != VoiceState.LISTENING:
             return
         source = event.payload.get("source")
-        self._capture_source = source if isinstance(source, str) else "chat"
+        requested_source = source if isinstance(source, str) else "chat"
+        if self._capture.is_capturing:
+            return
+        self._capture_source = requested_source
         hosted_live = self._capture_source == "hosted_live"
         if hosted_live:
             self._hosted_speech_detected = False

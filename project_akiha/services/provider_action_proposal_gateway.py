@@ -8,14 +8,18 @@ import threading
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Protocol
 
 from project_akiha.core.actions import (
+    DIRECTORY_SEARCH_ACTION,
     OPEN_DIRECTORY_ACTION,
+    OPEN_FILE_ACTION,
     ActionRequest,
     ActionValidationError,
     ProviderActionToolCatalog,
 )
+from project_akiha.core.actions.registry import FILE_SEARCH_ACTION
 from project_akiha.core.voice_session import ActionProposal, ProposalState
 
 
@@ -186,14 +190,24 @@ class ProviderActionProposalGateway:
         arguments: dict[str, object],
     ) -> dict[str, object]:
         resolved = dict(arguments)
-        if action_id != OPEN_DIRECTORY_ACTION:
+        target_name = {
+            FILE_SEARCH_ACTION: "root",
+            DIRECTORY_SEARCH_ACTION: "root",
+            OPEN_DIRECTORY_ACTION: "path",
+            OPEN_FILE_ACTION: "path",
+        }.get(action_id)
+        if target_name is None:
             return resolved
-        candidate = resolved.get("path")
+        candidate = resolved.get(target_name)
         if not isinstance(candidate, str):
             return resolved
-        local_path = self._directory_aliases.get(_directory_alias_key(candidate))
+        local_path = _resolve_approved_path(
+            candidate,
+            self._directory_aliases,
+            allow_descendant=True,
+        )
         if local_path is not None:
-            resolved["path"] = local_path
+            resolved[target_name] = local_path
         return resolved
 
 
@@ -234,3 +248,31 @@ def _directory_alias_key(value: str) -> str:
     while tokens and tokens[-1] in {"directory", "folder"}:
         tokens.pop()
     return " ".join(tokens)
+
+
+def _resolve_approved_path(
+    value: str,
+    aliases: dict[str, str],
+    *,
+    allow_descendant: bool,
+) -> str | None:
+    exact = aliases.get(_directory_alias_key(value))
+    if exact is not None:
+        return exact
+
+    if not allow_descendant:
+        return None
+    normalized = value.strip().replace("\\", "/")
+    if not normalized or normalized.startswith("/"):
+        return None
+    parts = [part.strip() for part in normalized.split("/")]
+    if len(parts) < 2 or any(not _safe_relative_part(part) for part in parts):
+        return None
+    root = aliases.get(_directory_alias_key(parts[0]))
+    if root is None:
+        return None
+    return str(Path(root).joinpath(*parts[1:]))
+
+
+def _safe_relative_part(value: str) -> bool:
+    return bool(value) and value not in {".", ".."} and ":" not in value

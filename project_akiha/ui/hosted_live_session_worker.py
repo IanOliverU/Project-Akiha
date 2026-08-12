@@ -47,6 +47,7 @@ class HostedLiveSessionThread(QThread):
     session_state_changed_signal = Signal(object)
     capabilities_received_signal = Signal(object)
     action_result_signal = Signal(object)
+    local_action_result_signal = Signal(object)
     action_confirmation_requested_signal = Signal(object)
 
     def __init__(
@@ -212,7 +213,10 @@ class HostedLiveSessionThread(QThread):
             # provider proposal is released only after that local lane is known
             # to have produced no competing action for this turn.
             dispatcher.complete_local_routing(proposal.session_id, proposal.turn_id)
-            result = await dispatcher.dispatch(conversion)
+            result = await dispatcher.dispatch(
+                conversion,
+                on_local_result=self.local_action_result_signal.emit,
+            )
         else:
             result = SanitizedActionResult(
                 session_id=proposal.session_id,

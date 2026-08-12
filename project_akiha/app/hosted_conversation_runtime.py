@@ -12,6 +12,7 @@ from project_akiha.app.live_transcript_controller import LiveTranscriptControlle
 from project_akiha.app.voice_audio_bridge import RealtimeAudioFrameBridge
 from project_akiha.app.voice_controller import VoiceController
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
+from project_akiha.core.actions import ActionResult
 from project_akiha.core.events.bus import EventBus
 from project_akiha.core.events.types import EventType
 from project_akiha.core.state.voice import VoiceState
@@ -47,6 +48,7 @@ class HostedConversationRuntime:
         on_action_confirmation: (
             Callable[[ProviderActionConfirmation], bool] | None
         ) = None,
+        on_local_action_result: Callable[[ActionResult], None] | None = None,
         on_stopped: Callable[[], None] | None = None,
         monotonic_clock: Callable[[], float] = monotonic,
     ) -> None:
@@ -59,6 +61,7 @@ class HostedConversationRuntime:
         self._thread_factory = thread_factory
         self._on_commit = on_commit
         self._on_action_confirmation = on_action_confirmation
+        self._on_local_action_result = on_local_action_result
         self._on_stopped = on_stopped
         self._monotonic_clock = monotonic_clock
         self._thread: HostedLiveSessionThread | None = None
@@ -236,6 +239,7 @@ class HostedConversationRuntime:
         thread.action_confirmation_requested_signal.connect(
             self._handle_action_confirmation
         )
+        thread.local_action_result_signal.connect(self._handle_local_action_result)
         thread.response_interrupted_signal.connect(self._handle_interrupted)
         thread.turn_completed_signal.connect(self._handle_turn_completed)
         thread.failed_signal.connect(self._fail_visible)
@@ -317,6 +321,11 @@ class HostedConversationRuntime:
                 "Gemini Live could not resolve the local action confirmation.",
             )
 
+    def _handle_local_action_result(self, result: ActionResult) -> None:
+        callback = self._on_local_action_result
+        if callback is not None:
+            callback(result)
+
     def _handle_interrupted(self, turn_id: str) -> None:
         if self._owns_turn(turn_id):
             self._release_turn(cancel=True)
@@ -382,12 +391,14 @@ class HostedConversationRuntime:
 
     def _release_turn(self, *, cancel: bool) -> None:
         turn_id = self._turn_id
-        if self._voice_controller.operation == "input":
-            self._event_bus.publish(
-                EventType.VOICE_LISTEN_CANCEL_REQUESTED,
-                {"reason": "hosted_live_stopped"},
-            )
-        elif self._voice_controller.operation == "output":
+        # Capture cancellation is idempotent and must not depend on presentation
+        # state: a stale or interrupted UI state may no longer report "input"
+        # while the Qt microphone owner is still active.
+        self._event_bus.publish(
+            EventType.VOICE_LISTEN_CANCEL_REQUESTED,
+            {"reason": "hosted_live_stopped"},
+        )
+        if self._voice_controller.operation == "output":
             self._event_bus.publish(
                 EventType.VOICE_SPEAK_STOP_REQUESTED,
                 {"reason": "hosted_live_stopped"},

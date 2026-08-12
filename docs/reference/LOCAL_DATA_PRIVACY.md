@@ -154,8 +154,15 @@ audit remains local and provider tools receive no repository access.
 Approved directory display-name aliases are copied into the local proposal
 gateway so a provider can request `Downloads folder` without receiving the
 corresponding absolute Windows path. Alias resolution is application-owned;
-only the resulting local Phase 8 request enters path validation and permission
-evaluation.
+an optional root-relative descendant such as `Downloads/Video` is joined only
+after the approved root is found. Traversal is rejected, and only the resulting
+local Phase 8 request enters path validation, permission evaluation, and any
+required passive-file confirmation.
+
+When Gemini requests an approved file or directory search, at most ten matches
+are presented in Akiha's local action-results UI and ephemeral selection store.
+Those names and paths remain local. Gemini receives only a generic action status
+such as completed, denied, or unavailable and cannot read the match metadata.
 
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini

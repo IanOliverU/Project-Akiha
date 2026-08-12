@@ -147,8 +147,15 @@ standalone verification remains a separate V8 release gate.
 Provider requests to open an approved root use only its user-facing display
 name. The proposal gateway resolves that alias locally from the current
 approved-directory snapshot before constructing the existing path-based Phase
-8 request. Unknown names remain untrusted and fail through normal validation;
-approved absolute paths are never inserted into provider schemas or results.
+8 request. Directory and passive-file actions may include a root-relative
+descendant, such as `Downloads/Video`; traversal segments and unknown roots are
+not resolved. The existing path policy, scoped permission evaluation, target
+availability checks, and passive-file confirmation remain authoritative.
+Approved absolute paths are never inserted into provider schemas or results.
+For provider-requested searches, raw bounded matches are emitted only through a
+local Qt signal to the existing action-results UI and ephemeral selection
+store. The provider receives the generic sanitized completion status; filename,
+path, executor metadata, and raw summary fields do not cross that boundary.
 
 ## Local Data
 

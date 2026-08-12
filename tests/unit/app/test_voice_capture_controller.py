@@ -279,6 +279,37 @@ class VoiceCaptureControllerTest(unittest.TestCase):
         ]
         self.assertEqual(len(renewed), 1)
 
+    def test_duplicate_listen_does_not_replace_active_hosted_capture_owner(
+        self,
+    ) -> None:
+        hosted_end_count: list[bool] = []
+        hosted_failures: list[tuple[str, str]] = []
+        bus, voice, capture, events = _build_controller(
+            config=VoiceConfig(
+                enabled=True,
+                input_provider="disabled",
+                session_provider="gemini_live",
+            ),
+            on_hosted_audio_ended=lambda: hosted_end_count.append(True),
+            on_hosted_audio_failed=lambda code, message: hosted_failures.append(
+                (code, message)
+            ),
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "hosted_live"})
+        capture.trigger_activity(
+            MicrophoneActivity(activity="speaking", level="speech")
+        )
+
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "talk_interrupt"})
+        capture.trigger_timeout()
+
+        self.assertEqual(capture.start_count, 1)
+        self.assertEqual(hosted_end_count, [True])
+        self.assertEqual(hosted_failures, [])
+        self.assertFalse(
+            any(event.event_type == EventType.VOICE_ERROR_OCCURRED for event in events)
+        )
+
     def test_device_error_reports_error(self) -> None:
         bus, voice, capture, events = _build_controller()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)

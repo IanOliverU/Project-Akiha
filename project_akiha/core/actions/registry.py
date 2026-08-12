@@ -83,7 +83,12 @@ def build_default_action_registry() -> ActionRegistry:
         (
             ActionDefinition(
                 action_id=FILE_SEARCH_ACTION,
-                description="Search file names inside an approved directory.",
+                description=(
+                    "Search file names inside an approved root or descendant. "
+                    "Use a user-facing root-relative location such as "
+                    "Downloads/Video. Results are presented privately in "
+                    "Akiha's local UI; do not claim filesystem access is denied."
+                ),
                 risk=ActionRisk.READ_ONLY,
                 permission_capability=FILE_SEARCH_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.NEVER,
@@ -111,7 +116,11 @@ def build_default_action_registry() -> ActionRegistry:
             ),
             ActionDefinition(
                 action_id=DIRECTORY_SEARCH_ACTION,
-                description="Search directory names inside an approved root.",
+                description=(
+                    "Search directory names inside an approved root or "
+                    "descendant using a root-relative location such as "
+                    "Downloads/Compressed. Results remain in Akiha's local UI."
+                ),
                 risk=ActionRisk.READ_ONLY,
                 permission_capability=FILE_SEARCH_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.NEVER,
@@ -140,9 +149,10 @@ def build_default_action_registry() -> ActionRegistry:
             ActionDefinition(
                 action_id=OPEN_DIRECTORY_ACTION,
                 description=(
-                    "Open an approved directory in the file browser by its "
-                    "user-facing name, such as Downloads or Desktop. Do not "
-                    "invent an absolute path."
+                    "Open an approved directory or one of its descendants in "
+                    "the file browser. Use the user-facing root name, such as "
+                    "Downloads, or a root-relative path such as "
+                    "Downloads/Videos. Do not invent an absolute path."
                 ),
                 risk=ActionRisk.USER_VISIBLE,
                 permission_capability=FILE_OPEN_CAPABILITY,
@@ -160,7 +170,11 @@ def build_default_action_registry() -> ActionRegistry:
             ),
             ActionDefinition(
                 action_id=OPEN_FILE_ACTION,
-                description="Open an allowlisted passive file after confirmation.",
+                description=(
+                    "Open an allowlisted passive file after confirmation. Use "
+                    "an approved root-relative path such as "
+                    "Downloads/Video/example.mp4; do not invent an absolute path."
+                ),
                 risk=ActionRisk.SENSITIVE_OPEN,
                 permission_capability=FILE_OPEN_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.ALWAYS,

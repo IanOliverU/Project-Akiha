@@ -1791,7 +1791,7 @@ The closure audit also retains the earlier transport-specific coverage for
 Gemini declaration/result ownership, Ollama capability negotiation and native
 calls, constrained JSON parsing, confirmation, cancellation, stale ownership,
 fallback cleanup, and canonical response persistence. V7G automated
-verification passed with 1,340 tests and 3 optional-environment skips, plus
+verification passed with 1,348 tests and 3 optional-environment skips, plus
 repository-wide Ruff, Black, compilation, and diff checks.
 
 The first real Gemini roundup exposed three closure defects now covered by
@@ -1814,6 +1814,27 @@ in memory across turns, clears it when the selected microphone changes, and
 continues adapting it from ambient frames. Idle-window renewal is also queued
 until the previous Qt audio source has released capture ownership. No raw audio,
 exact level history, or transcript content is retained by this correction.
+
+The final source retest found one microphone-ownership edge case and one
+approved-directory usability gap. A duplicate Talk request while Cloud already
+owned an active capture could overwrite the capture source before Qt rejected
+the second start; the later timeout then followed the wrong local error path.
+Active listen requests are now idempotent, duplicate capture starts cannot
+replace their owner, and hosted shutdown always issues an idempotent microphone
+release even if visible state has already recovered. Provider directory and
+passive-file actions may also use root-relative targets such as
+`Downloads/Video` or `Downloads/Video/example.mp4`. Resolution stays local,
+requires an existing approved root, preserves passive-file confirmation, and
+rejects traversal before the unchanged Phase 8 path and permission checks.
+
+Approved file and directory searches now accept the same root-relative
+descendant form, such as `Downloads/Video`. Search matches are emitted only to
+Akiha's local Qt presentation callback, where the existing bounded results UI
+and ephemeral selection context receive at most ten entries. Gemini receives
+only the existing generic sanitized action status and never receives filenames,
+paths, executor metadata, or raw summaries. The provider tool description
+explicitly directs Gemini to the private local-results surface instead of
+claiming that approved video search is unavailable.
 
 V7 is ready for one source-run manual provider-tool sign-off. That pass must
 confirm a real Gemini Live tool action and, when a tool-capable local model is

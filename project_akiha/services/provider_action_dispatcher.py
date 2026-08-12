@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -120,8 +121,10 @@ class ProviderActionDispatcher:
     async def dispatch(
         self,
         conversion: ProposalGatewayResult,
+        *,
+        on_local_result: Callable[[ActionResult], None] | None = None,
     ) -> SanitizedActionResult:
-        """Dispatch one accepted proposal with confirmation always disabled."""
+        """Dispatch a proposal and optionally present its raw result locally."""
         decision, request = _require_accepted_conversion(conversion)
         if not self._turn_authority.accepts_callback(
             decision.session_id,
@@ -152,6 +155,11 @@ class ProviderActionDispatcher:
             return _arbitration_result(conversion, arbitration.reason)
 
         result = await self._evaluate(request, confirmed=False)
+        if on_local_result is not None and request.action_id in {
+            "files.search",
+            "directories.search",
+        }:
+            on_local_result(result)
         if result.status is ActionStatus.CONFIRMATION_REQUIRED:
             self._remember_pending(conversion, request)
         return _sanitize_action_result(conversion, result)

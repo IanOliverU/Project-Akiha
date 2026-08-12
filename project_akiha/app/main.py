@@ -76,11 +76,14 @@ from project_akiha.core.actions import (
     ActionPermissionPolicy,
     ActionRequest,
     ActionRequestValidator,
+    ActionResult,
     AllowlistedApplicationExecutor,
     ApplicationCatalog,
     CloseAllowlistedApplicationExecutor,
     DirectorySearchExecutor,
+    DirectorySearchMatch,
     FileSearchExecutor,
+    FileSearchMatch,
     OpenDirectoryExecutor,
     OpenFileExecutor,
     ProtectedPathPolicy,
@@ -90,6 +93,8 @@ from project_akiha.core.actions import (
 from project_akiha.core.actions.registry import (
     APPLICATION_CLOSE_CAPABILITY,
     CLOSE_APPLICATION_ACTION,
+    DIRECTORY_SEARCH_ACTION,
+    FILE_SEARCH_ACTION,
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
@@ -2513,6 +2518,57 @@ def _run_application() -> int:
         )
         return answer == QMessageBox.StandardButton.Yes
 
+    def present_hosted_local_action_result(result: ActionResult) -> None:
+        raw_matches = result.metadata.get("matches")
+        if not isinstance(raw_matches, tuple):
+            return
+        if result.action_id == FILE_SEARCH_ACTION:
+            matches = tuple(
+                match for match in raw_matches if isinstance(match, FileSearchMatch)
+            )[:10]
+            assistant_tool_result_store.replace(matches)
+            ephemeral_action_context.record_selection(
+                EphemeralSelectionKind.FILE,
+                len(matches),
+                allowed_verbs=frozenset(("open", "play")),
+            )
+            noun = "media file" if len(matches) == 1 else "media files"
+        elif result.action_id == DIRECTORY_SEARCH_ACTION:
+            matches = tuple(
+                match
+                for match in raw_matches
+                if isinstance(match, DirectorySearchMatch)
+            )[:10]
+            assistant_tool_result_store.replace_directories(matches)
+            ephemeral_action_context.record_selection(
+                EphemeralSelectionKind.DIRECTORY,
+                len(matches),
+                allowed_verbs=frozenset(("open",)),
+            )
+            noun = "directory" if len(matches) == 1 else "directories"
+        else:
+            return
+
+        assistant_action_history_window.update_search_results(
+            matches,
+            summary=f"Found {len(matches)} matching {noun}.",
+        )
+        refresh_assistant_action_history_window()
+        if not matches:
+            chat_window.append_message(
+                config.personality.character_name,
+                f"I could not find matching {noun} in that approved location.",
+            )
+            return
+        lines = [
+            f"{index}. {match.name}" for index, match in enumerate(matches, start=1)
+        ]
+        chat_window.append_message(
+            config.personality.character_name,
+            f"I found these matching {noun}:\n" + "\n".join(lines),
+        )
+        show_assistant_action_history()
+
     hosted_conversation_runtime = HostedConversationRuntime(
         event_bus=event_bus,
         voice_controller=voice_controller,
@@ -2523,6 +2579,7 @@ def _run_application() -> int:
         thread_factory=build_hosted_live_thread,
         on_commit=present_hosted_commit,
         on_action_confirmation=confirm_hosted_action,
+        on_local_action_result=present_hosted_local_action_result,
     )
     conversation_runtime_router = ConversationRuntimeRouter(
         selection_provider=lambda: config.voice.session_provider,
