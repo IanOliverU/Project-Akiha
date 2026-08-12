@@ -1,6 +1,7 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 and V7A-V7F complete - V7G verification next
+**Status:** V0 through V6 complete - V7G automated verification complete;
+real-provider sign-off pending before V7 closure
 
 **Planning date:** 2026-08-01
 
@@ -1773,6 +1774,53 @@ to the V8 release gate.
 Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See
 [Ollama tool calling](https://docs.ollama.com/capabilities/tool-calling).
+
+#### V7G: Final Provider-Tool Verification - Manual Sign-Off Pending
+
+V7G adds a cross-layer closure regression over the real Phase 8 SQLite
+permission and audit repository. The same provider-neutral proposal path is
+exercised with Gemini Live and Ollama-native source identities. A missing grant
+is denied and audited without execution; a scoped application grant permits
+exactly one registered executor call; replay is rejected; and executor
+summaries and metadata remain absent from the provider-safe result. A separate
+composition check proves that an accepted deterministic action claim prevents
+provider execution before either a side effect or provider-origin audit can
+occur.
+
+The closure audit also retains the earlier transport-specific coverage for
+Gemini declaration/result ownership, Ollama capability negotiation and native
+calls, constrained JSON parsing, confirmation, cancellation, stale ownership,
+fallback cleanup, and canonical response persistence. V7G automated
+verification passed with 1,340 tests and 3 optional-environment skips, plus
+repository-wide Ruff, Black, compilation, and diff checks.
+
+The first real Gemini roundup exposed three closure defects now covered by
+regressions. A hosted microphone hard limit no longer destroys the Cloud
+session: detected speech is finalized as the current turn, while an entirely
+idle capture window renews listening without a provider error. Detached Gemini
+tool tasks now consume their result and stop visibly if returning a sanitized
+function result fails, so a provider operation cannot strand the UI in
+`Hearing cloud transcript`. Finally, Gemini and Ollama may propose an approved
+directory by its display name, such as `Downloads folder`; the gateway resolves
+that name locally to the approved path before the unchanged Phase 8 validator
+and permission policy run. Private path values are not added to provider tool
+declarations or provider-visible results.
+
+A second real-microphone pass exposed a false `Listening` state after playback:
+each Cloud turn discarded the previous room-noise calibration, so immediate
+speech could be absorbed into a new fan-noise baseline and never produce an
+endpoint. The Qt capture owner now retains only its scalar noise-floor estimate
+in memory across turns, clears it when the selected microphone changes, and
+continues adapting it from ambient frames. Idle-window renewal is also queued
+until the previous Qt audio source has released capture ownership. No raw audio,
+exact level history, or transcript content is retained by this correction.
+
+V7 is ready for one source-run manual provider-tool sign-off. That pass must
+confirm a real Gemini Live tool action and, when a tool-capable local model is
+available, one real Ollama-native action. Missing permission, trusted local
+confirmation, no duplicate execution, visible audit history, continued voice
+conversation, and clean shutdown are included in the checklist. No standalone
+candidate is built in V7; all packaged verification remains owned by V8.
 
 ### Milestone V8: Hosted Live Release Gate
 

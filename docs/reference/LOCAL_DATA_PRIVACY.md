@@ -146,6 +146,17 @@ conversation excerpts. The provider receives no action result from this JSON
 classifier path. One-shot turn ownership prevents late or duplicate fallback
 output from executing after provider changes, chat reset, or shutdown.
 
+V7G composition verification additionally confirms that Gemini and Ollama
+source identities receive only the same generic sanitized result even when a
+local executor returns private summary or metadata values. The SQLite action
+audit remains local and provider tools receive no repository access.
+
+Approved directory display-name aliases are copied into the local proposal
+gateway so a provider can request `Downloads folder` without receiving the
+corresponding absolute Windows path. Alias resolution is application-owned;
+only the resulting local Phase 8 request enters path validation and permission
+evaluation.
+
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini
 Live in Settings does not contact Google or capture microphone audio. The

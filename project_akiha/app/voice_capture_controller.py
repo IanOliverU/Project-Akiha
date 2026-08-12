@@ -34,6 +34,7 @@ class VoiceCaptureController:
         on_hosted_audio_frame: Callable[[CapturedAudio], None] | None = None,
         on_hosted_audio_ended: Callable[[], None] | None = None,
         on_hosted_audio_failed: Callable[[str, str], None] | None = None,
+        schedule_soon: Callable[[Callable[[], None]], None] | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._voice_controller = voice_controller
@@ -45,7 +46,9 @@ class VoiceCaptureController:
         self._on_hosted_audio_frame = on_hosted_audio_frame
         self._on_hosted_audio_ended = on_hosted_audio_ended
         self._on_hosted_audio_failed = on_hosted_audio_failed
+        self._schedule_soon = schedule_soon or _schedule_soon
         self._capture_source = "chat"
+        self._hosted_speech_detected = False
 
         event_bus.subscribe(
             EventType.VOICE_LISTEN_REQUESTED,
@@ -98,6 +101,8 @@ class VoiceCaptureController:
         source = event.payload.get("source")
         self._capture_source = source if isinstance(source, str) else "chat"
         hosted_live = self._capture_source == "hosted_live"
+        if hosted_live:
+            self._hosted_speech_detected = False
 
         try:
             self._capture.start(
@@ -158,6 +163,7 @@ class VoiceCaptureController:
         capture_source = self._capture_source
         self._capture_source = "chat"
         if capture_source == "hosted_live":
+            self._hosted_speech_detected = False
             callback = self._on_hosted_audio_ended
             if callback is None:
                 self._voice_controller.report_error(
@@ -202,19 +208,22 @@ class VoiceCaptureController:
     def _handle_listen_cancel_requested(self, event: Event) -> None:
         del event
         self._capture_source = "chat"
+        self._hosted_speech_detected = False
         self._capture.cancel()
 
     def _handle_capture_timeout(self) -> None:
         capture_source = self._capture_source
         self._capture_source = "chat"
         if capture_source == "hosted_live":
-            callback = self._on_hosted_audio_failed
-            if callback is not None:
-                callback(
-                    "capture_timeout",
-                    "Gemini Live microphone capture reached its time limit.",
-                )
-                return
+            speech_detected = self._hosted_speech_detected
+            self._hosted_speech_detected = False
+            if speech_detected:
+                callback = self._on_hosted_audio_ended
+                if callback is not None:
+                    callback()
+                    return
+            self._schedule_soon(self._renew_hosted_listening)
+            return
         self._voice_controller.report_error(
             "capture_timeout",
             "Microphone capture reached its time limit.",
@@ -223,6 +232,7 @@ class VoiceCaptureController:
     def _handle_capture_error(self, code: str, message: str) -> None:
         capture_source = self._capture_source
         self._capture_source = "chat"
+        self._hosted_speech_detected = False
         if capture_source == "hosted_live":
             callback = self._on_hosted_audio_failed
             if callback is not None:
@@ -260,6 +270,11 @@ class VoiceCaptureController:
     def _handle_microphone_activity(self, activity: MicrophoneActivity) -> None:
         if self._voice_controller.state != VoiceState.LISTENING:
             return
+        if self._capture_source == "hosted_live" and activity.activity in {
+            "speaking",
+            "pause",
+        }:
+            self._hosted_speech_detected = True
         payload: dict[str, object] = {
             "activity": activity.activity,
             "level": activity.level,
@@ -270,3 +285,19 @@ class VoiceCaptureController:
             EventType.VOICE_MICROPHONE_ACTIVITY_UPDATED,
             payload,
         )
+
+    def _renew_hosted_listening(self) -> None:
+        if (
+            self._voice_controller.state is VoiceState.LISTENING
+            and not self._capture.is_capturing
+        ):
+            self._event_bus.publish(
+                EventType.VOICE_LISTEN_REQUESTED,
+                {"source": "hosted_live", "reason": "idle_window_renewed"},
+            )
+
+
+def _schedule_soon(callback: Callable[[], None]) -> None:
+    from PySide6.QtCore import QTimer
+
+    QTimer.singleShot(0, callback)

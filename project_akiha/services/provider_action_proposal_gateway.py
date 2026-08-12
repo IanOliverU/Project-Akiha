@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
@@ -10,6 +11,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from project_akiha.core.actions import (
+    OPEN_DIRECTORY_ACTION,
     ActionRequest,
     ActionValidationError,
     ProviderActionToolCatalog,
@@ -81,6 +83,7 @@ class ProviderActionProposalGateway:
         self._lock = threading.RLock()
         self._consumed: OrderedDict[tuple[str, str, str], None] = OrderedDict()
         self._decisions: deque[ProposalGatewayDecision] = deque(maxlen=max_records)
+        self._directory_aliases: dict[str, str] = {}
 
     @property
     def decisions(self) -> tuple[ProposalGatewayDecision, ...]:
@@ -131,7 +134,10 @@ class ProviderActionProposalGateway:
                 correlation_id=_correlation_id(proposal),
                 action_id=schema.action_id,
                 source=_provider_source(proposal.source),
-                parameters=proposal.arguments,
+                parameters=self._resolve_local_arguments(
+                    schema.action_id,
+                    proposal.arguments,
+                ),
             )
             decision = _decision(
                 proposal,
@@ -140,6 +146,16 @@ class ProviderActionProposalGateway:
             )
             self._decisions.append(decision)
             return ProposalGatewayResult(decision=decision, request=request)
+
+    def set_directory_aliases(self, aliases: dict[str, str]) -> None:
+        """Replace approved display-name mappings without exposing them upstream."""
+        normalized: dict[str, str] = {}
+        for alias, path in aliases.items():
+            key = _directory_alias_key(alias)
+            if key and isinstance(path, str) and path.strip():
+                normalized[key] = path.strip()
+        with self._lock:
+            self._directory_aliases = normalized
 
     def clear(self) -> None:
         """Discard replay and diagnostic state when its owner shuts down."""
@@ -163,6 +179,22 @@ class ProviderActionProposalGateway:
         decision = _decision(proposal, accepted=False, reason=reason)
         self._decisions.append(decision)
         return ProposalGatewayResult(decision=decision)
+
+    def _resolve_local_arguments(
+        self,
+        action_id: str,
+        arguments: dict[str, object],
+    ) -> dict[str, object]:
+        resolved = dict(arguments)
+        if action_id != OPEN_DIRECTORY_ACTION:
+            return resolved
+        candidate = resolved.get("path")
+        if not isinstance(candidate, str):
+            return resolved
+        local_path = self._directory_aliases.get(_directory_alias_key(candidate))
+        if local_path is not None:
+            resolved["path"] = local_path
+        return resolved
 
 
 def _decision(
@@ -194,3 +226,11 @@ def _provider_source(source: str) -> str:
         return candidate
     digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:24]
     return f"provider.{digest}"
+
+
+def _directory_alias_key(value: str) -> str:
+    normalized = re.sub(r"[\W_]+", " ", value.casefold()).strip()
+    tokens = normalized.split()
+    while tokens and tokens[-1] in {"directory", "folder"}:
+        tokens.pop()
+    return " ".join(tokens)

@@ -115,6 +115,42 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
             ActionFailureCategory.INVALID_PARAMETERS,
         )
 
+    def test_approved_directory_display_name_resolves_only_inside_gateway(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open_directory",
+                arguments={"path": "Downloads folder"},
+            )
+        )
+
+        self.assertTrue(result.decision.accepted)
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"path": r"C:\Users\Private\Downloads"},
+        )
+        self.assertNotIn("private", repr(result).casefold())
+        self.assertNotIn("downloads", repr(self.gateway.decisions).casefold())
+
+    def test_unknown_directory_display_name_remains_untrusted(self) -> None:
+        self.gateway.set_directory_aliases({"downloads": r"C:\Users\Private\Downloads"})
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open_directory",
+                arguments={"path": "System folder"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(result.request.parameters, {"path": "System folder"})
+
     def test_history_is_bounded_and_clear_discards_replay_state(self) -> None:
         for index in range(4):
             self.gateway.convert(

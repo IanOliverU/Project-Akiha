@@ -205,6 +205,52 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
         worker.request_stop()
         self.assertTrue(worker.wait(2_000))
 
+    def test_tool_task_failure_stops_visibly_instead_of_stranding_turn(self) -> None:
+        adapter = _FailingToolResultAdapter()
+        coordinator = VoiceSessionCoordinator(
+            session_id_factory=lambda: "hosted-session-1"
+        )
+        worker = HostedLiveSessionThread(
+            adapter_factory=lambda: adapter,
+            coordinator=coordinator,
+            config_provider=_config,
+            proposal_gateway=ProviderActionProposalGateway(
+                build_default_provider_action_catalog(),
+                coordinator,
+            ),
+            action_dispatcher=ProviderActionDispatcher(
+                _SuccessfulActionService(),
+                coordinator,
+                IntentArbiter(),
+            ),
+        )
+        failures: list[tuple[str, str]] = []
+        worker.failed_signal.connect(
+            lambda code, message: failures.append((code, message))
+        )
+
+        worker.start()
+        self.assertTrue(
+            _wait_until(
+                self.app,
+                lambda: coordinator.snapshot.lifecycle is SessionLifecycle.ACTIVE,
+            )
+        )
+        turn = coordinator.begin_turn(VoiceInputMode.HOSTED_LIVE_CONVERSATION)
+        self.assertTrue(worker.submit_audio(_frame(turn_id=turn.turn_id)))
+
+        self.assertTrue(_wait_until(self.app, lambda: bool(failures)))
+        self.assertTrue(worker.wait(2_000))
+        self.assertEqual(
+            failures,
+            [
+                (
+                    "hosted_tool_operation_failed",
+                    "Gemini Live stopped after an assistant action failed.",
+                )
+            ],
+        )
+
 
 class _Adapter:
     def __init__(self) -> None:
@@ -301,6 +347,12 @@ class _ConfirmationToolAdapter(_ToolAdapter):
                 arguments={"path": r"C:\Users\Private\notes.txt"},
             )
         )
+
+
+class _FailingToolResultAdapter(_ToolAdapter):
+    async def accept_action_result(self, result) -> None:
+        del result
+        raise RuntimeError("private provider result failure")
 
 
 class _SuccessfulActionService:

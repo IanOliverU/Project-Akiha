@@ -217,6 +217,68 @@ class VoiceCaptureControllerTest(unittest.TestCase):
         self.assertEqual(voice.state, VoiceState.IDLE)
         self.assertEqual(_last_error(events)["code"], "capture_timeout")
 
+    def test_hosted_timeout_finalizes_detected_speech_without_ending_session(
+        self,
+    ) -> None:
+        hosted_end_count: list[bool] = []
+        hosted_failures: list[tuple[str, str]] = []
+        bus, voice, capture, events = _build_controller(
+            config=VoiceConfig(
+                enabled=True,
+                input_provider="disabled",
+                session_provider="gemini_live",
+            ),
+            on_hosted_audio_ended=lambda: hosted_end_count.append(True),
+            on_hosted_audio_failed=lambda code, message: hosted_failures.append(
+                (code, message)
+            ),
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "hosted_live"})
+        capture.trigger_activity(
+            MicrophoneActivity(activity="speaking", level="speech")
+        )
+
+        capture.trigger_timeout()
+
+        self.assertEqual(hosted_end_count, [True])
+        self.assertEqual(hosted_failures, [])
+        self.assertEqual(voice.state, VoiceState.LISTENING)
+        self.assertFalse(
+            any(event.event_type == EventType.VOICE_ERROR_OCCURRED for event in events)
+        )
+
+    def test_hosted_idle_timeout_renews_capture_without_provider_failure(self) -> None:
+        hosted_end_count: list[bool] = []
+        hosted_failures: list[tuple[str, str]] = []
+        bus, voice, capture, events = _build_controller(
+            config=VoiceConfig(
+                enabled=True,
+                input_provider="disabled",
+                session_provider="gemini_live",
+            ),
+            on_hosted_audio_ended=lambda: hosted_end_count.append(True),
+            on_hosted_audio_failed=lambda code, message: hosted_failures.append(
+                (code, message)
+            ),
+        )
+        bus.publish(EventType.VOICE_LISTEN_REQUESTED, {"source": "hosted_live"})
+        initial_start_count = capture.start_count
+
+        capture.trigger_timeout()
+
+        self.assertEqual(capture.start_count, initial_start_count + 1)
+        self.assertTrue(capture.is_capturing)
+        self.assertEqual(hosted_end_count, [])
+        self.assertEqual(hosted_failures, [])
+        self.assertEqual(voice.state, VoiceState.LISTENING)
+        renewed = [
+            event
+            for event in events
+            if event.event_type == EventType.VOICE_LISTEN_REQUESTED
+            and event.payload.get("reason") == "idle_window_renewed"
+        ]
+        self.assertEqual(len(renewed), 1)
+
     def test_device_error_reports_error(self) -> None:
         bus, voice, capture, events = _build_controller()
         bus.publish(EventType.VOICE_LISTEN_REQUESTED)
@@ -275,6 +337,7 @@ class _FakeCapture:
     ) -> None:
         self.is_capturing = False
         self.started = False
+        self.start_count = 0
         self.cancelled = False
         self.cancel_count = 0
         self.timeout_seconds = 0
@@ -308,6 +371,7 @@ class _FakeCapture:
         auto_stop_on_silence: bool = False,
     ) -> None:
         self.started = True
+        self.start_count += 1
         if self.start_error is not None:
             raise self.start_error
         self.is_capturing = True
@@ -390,6 +454,7 @@ def _build_controller(
         on_hosted_audio_frame=on_hosted_audio_frame,
         on_hosted_audio_ended=on_hosted_audio_ended,
         on_hosted_audio_failed=on_hosted_audio_failed,
+        schedule_soon=lambda callback: callback(),
     )
     resolved_capture.controller = controller
     return bus, voice, resolved_capture, events

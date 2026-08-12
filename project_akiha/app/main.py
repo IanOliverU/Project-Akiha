@@ -999,6 +999,7 @@ def _run_application() -> int:
                 if Path(directory.root).name
             }
             assistant_action_bridge.set_directory_aliases(aliases)
+            provider_action_gateway.set_directory_aliases(aliases)
         except Exception:
             logger.exception("Could not refresh assistant action aliases.")
 
@@ -2694,6 +2695,10 @@ def _run_application() -> int:
         )
 
     app.aboutToQuit.connect(shutdown_app)
+
+    # Cloud tool calls can arrive before Settings or typed chat has refreshed
+    # the local approved-directory display names.
+    refresh_assistant_action_aliases()
 
     tray_icon = AkihaTrayIcon(
         pet_window=window,

@@ -136,6 +136,20 @@ characters, unallowlisted applications, oversized values, prose, and malformed
 JSON. Multiple recognizable actions produce a fixed local clarification rather
 than provider-selected partial execution.
 
+V7G exercises Gemini and Ollama source identities through one real SQLite
+permission and audit composition path. The closure regression proves missing
+permission cannot execute, one scoped grant permits one executor call, replay
+cannot execute again, deterministic ownership preempts provider dispatch, and
+private executor summaries or metadata do not cross the sanitized-result
+boundary. Real-provider manual sign-off remains required before V7 is closed;
+standalone verification remains a separate V8 release gate.
+
+Provider requests to open an approved root use only its user-facing display
+name. The proposal gateway resolves that alias locally from the current
+approved-directory snapshot before constructing the existing path-based Phase
+8 request. Unknown names remain untrusted and fail through normal validation;
+approved absolute paths are never inserted into provider schemas or results.
+
 ## Local Data
 
 Runtime data stays under `%LOCALAPPDATA%\Akiha\`:

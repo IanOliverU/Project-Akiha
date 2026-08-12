@@ -94,6 +94,7 @@ class QtMicrophoneCapture(QObject):
         self._noise_calibration_bytes = 0
         self._noise_calibration_samples: list[float] = []
         self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
+        self._calibrated_noise_floor_rms: float | None = None
         self._has_speech = False
         self._auto_stop_on_silence = False
         self._endpoint_requested = False
@@ -110,6 +111,8 @@ class QtMicrophoneCapture(QObject):
                 "capture_busy",
                 "Cannot change microphone while capture is active.",
             )
+        if device_name != self._device_name:
+            self._calibrated_noise_floor_rms = None
         self._device_name = device_name
 
     def start(
@@ -186,9 +189,16 @@ class QtMicrophoneCapture(QObject):
         self._silence_bytes = 0
         self._continued_speech_bytes = 0
         self._peak_speech_rms = 0.0
-        self._noise_calibration_bytes = 0
+        calibration_bytes = self._duration_bytes(_NOISE_CALIBRATION_SECONDS)
+        self._noise_calibration_bytes = (
+            calibration_bytes if self._calibrated_noise_floor_rms is not None else 0
+        )
         self._noise_calibration_samples.clear()
-        self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
+        self._noise_floor_rms = (
+            self._calibrated_noise_floor_rms
+            if self._calibrated_noise_floor_rms is not None
+            else _NOISE_FLOOR_DEFAULT_RMS
+        )
         self._has_speech = False
         self._auto_stop_on_silence = auto_stop_on_silence
         self._endpoint_requested = False
@@ -370,6 +380,7 @@ class QtMicrophoneCapture(QObject):
             )
         else:
             self._noise_floor_rms = _NOISE_FLOOR_DEFAULT_RMS
+        self._calibrated_noise_floor_rms = self._noise_floor_rms
 
     def _speech_start_threshold(self) -> float:
         return max(
@@ -492,6 +503,10 @@ class QtMicrophoneCapture(QObject):
             callback("microphone_device_error", detail)
 
     def _cleanup(self) -> None:
+        if self._noise_calibration_bytes >= self._duration_bytes(
+            _NOISE_CALIBRATION_SECONDS
+        ):
+            self._calibrated_noise_floor_rms = self._noise_floor_rms
         self._is_capturing = False
         self._timer.stop()
         self._endpoint_timer.stop()

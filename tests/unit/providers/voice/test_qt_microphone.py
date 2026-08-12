@@ -430,6 +430,38 @@ class QtMicrophoneCaptureTest(unittest.TestCase):
 
         self.assertEqual(silence_events, [True])
 
+    def test_reuses_noise_calibration_for_immediate_next_turn_speech(self) -> None:
+        fixture = _CaptureFixture(chunks=[_pcm_chunk(350, seconds=0.3)])
+        capture = fixture.build()
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            auto_stop_on_silence=True,
+        )
+        fixture.io_device.readyRead.emit()
+        capture.stop()
+
+        fixture.io_device._chunks.extend(
+            [
+                _pcm_chunk(450, seconds=0.3),
+                _pcm_chunk(350, seconds=1.3),
+            ]
+        )
+        silence_events: list[bool] = []
+        capture.start(
+            timeout_seconds=10,
+            on_timeout=lambda: None,
+            on_error=lambda _code, _message: None,
+            on_silence=lambda: silence_events.append(True),
+            silence_timeout_seconds=1.2,
+            auto_stop_on_silence=True,
+        )
+        fixture.io_device.readyRead.emit()
+        fixture.io_device.readyRead.emit()
+
+        self.assertEqual(silence_events, [True])
+
     def test_short_pause_does_not_finish_before_speech_resumes(self) -> None:
         fixture = _CaptureFixture(
             chunks=[

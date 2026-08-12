@@ -133,7 +133,7 @@ class HostedLiveSessionThread(QThread):
             name=f"gemini-action-{proposal.proposal_id}",
         )
         self._action_tasks.add(task)
-        task.add_done_callback(self._action_tasks.discard)
+        task.add_done_callback(self._handle_action_task_done)
 
     def response_interrupted(self, turn_id: str) -> None:
         self.response_interrupted_signal.emit(turn_id)
@@ -257,6 +257,23 @@ class HostedLiveSessionThread(QThread):
     ) -> None:
         await controller.accept_action_result(result)
         self.action_result_signal.emit(result)
+
+    def _handle_action_task_done(self, task: asyncio.Task[None]) -> None:
+        """Fail visibly when a detached provider-tool operation cannot finish."""
+        self._action_tasks.discard(task)
+        if task.cancelled():
+            return
+        try:
+            task.result()
+        except LiveSessionError as error:
+            self._emit_failure_once(str(error.code), str(error))
+            self.request_stop()
+        except Exception:
+            self._emit_failure_once(
+                "hosted_tool_operation_failed",
+                "Gemini Live stopped after an assistant action failed.",
+            )
+            self.request_stop()
 
     def _submit(
         self,

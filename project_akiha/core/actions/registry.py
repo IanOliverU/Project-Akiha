@@ -139,7 +139,11 @@ def build_default_action_registry() -> ActionRegistry:
             ),
             ActionDefinition(
                 action_id=OPEN_DIRECTORY_ACTION,
-                description="Open an approved directory in the file browser.",
+                description=(
+                    "Open an approved directory in the file browser by its "
+                    "user-facing name, such as Downloads or Desktop. Do not "
+                    "invent an absolute path."
+                ),
                 risk=ActionRisk.USER_VISIBLE,
                 permission_capability=FILE_OPEN_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.NEVER,
