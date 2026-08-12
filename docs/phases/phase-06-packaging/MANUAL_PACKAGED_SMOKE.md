@@ -22,22 +22,22 @@ smoke testing. Python 3.14 packaging is currently diagnostic-only because Phase
 Build the standalone package:
 
 ```powershell
-pip install -e ".[package,voice]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v5-local-voice-final
+pip install -e ".[package,voice,live]"
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
 ```
 
 Run the automated packaged smoke:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka-v5-local-voice-final\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
 Then launch the packaged app manually:
 
 ```text
-dist\nuitka-v5-local-voice-final\main.dist\Akiha.exe
+dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe
 ```
 
 ## First-Run Privacy
@@ -103,6 +103,32 @@ manual check is still kept as a human visual confirmation.
 - [ ] A configured standalone VOICEVOX Engine starts in the background.
 - [ ] Quitting Akiha stops only a VOICEVOX process that Akiha started.
 - [ ] An externally started VOICEVOX process remains running after Akiha quits.
+
+## Conversation Lanes
+
+- [ ] Local Modular Talk transcribes, sends, and speaks one turn.
+- [ ] Local Modular Conversation returns to listening after each reply.
+- [ ] Gemini Live starts only after explicit Cloud selection and consent.
+- [ ] Gemini Live shows final user and assistant transcripts in Chat.
+- [ ] Gemini Live plays native audio without an unexpected traceback.
+- [ ] Speaking during Gemini playback interrupts stale output safely.
+- [ ] Gemini Live returns to listening after ordinary replies and tool results.
+- [ ] Ending Cloud Conversation stops microphone and provider ownership.
+- [ ] A Cloud failure remains visible and never silently starts Local Modular.
+
+## Assistant Actions
+
+- [ ] A missing application or path permission is denied and audited.
+- [ ] An approved application such as Discord, Chrome, Spotify, or VS Code opens.
+- [ ] An approved directory and one nested directory open.
+- [ ] A passive local media file requires confirmation before opening.
+- [ ] Spotify search, playback, pause/resume, volume, shuffle, seeking, playlist,
+  and artist-page actions work with a connected Premium account.
+- [ ] Ambiguous local or Spotify results remain visible only in local UI.
+- [ ] `result N` selects the intended local result without exposing its path or
+  Spotify URI to Gemini.
+- [ ] Assistant Action History shows the sanitized result and no credentials,
+  file contents, or unrestricted exception text.
 
 ## Memory Manager
 

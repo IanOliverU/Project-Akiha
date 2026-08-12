@@ -24,6 +24,8 @@ Use this report with
 | Settings window | pending | |
 | Chat window | pending | |
 | Voice | pending | |
+| Conversation lanes | pending | |
+| Assistant actions | pending | |
 | Memory Manager | pending | |
 | Behavior History | pending | |
 | Proactive behavior | pending | |
@@ -39,6 +41,11 @@ Use `pass`, `fail`, or `blocked` for each result.
 - Saved position restored after relaunch: yes/no
 - Privacy notice appeared once and stayed dismissed after relaunch: yes/no
 - Microphone transcription and Japanese voice playback worked: yes/no
+- Local Modular Talk and Conversation worked: yes/no
+- Gemini Live conversation, interruption, and return-to-listening worked: yes/no
+- Packaged application, directory, local-media, and Spotify actions worked: yes/no
+- Missing permission and confirmation behavior remained enforced: yes/no
+- Provider-visible action results remained sanitized: yes/no
 - Japanese deterministic memory fallback produced a pending candidate: yes/no
 - `%LOCALAPPDATA%\Akiha\logs\app.log` had no unexpected failures: yes/no
 - `%LOCALAPPDATA%\Akiha\state\pet_window.json` was written: yes/no

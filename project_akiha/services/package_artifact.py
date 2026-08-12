@@ -21,7 +21,14 @@ _REQUIRED_ARTIFACT_PATHS = (
     "faster_whisper/assets/silero_vad_v6.onnx",
 )
 
-_FORBIDDEN_ARTIFACT_PATHS = ("assets/animations/akiha/Spotify.txt",)
+_FORBIDDEN_FILE_NAMES = {
+    ".env",
+    "credentials.json",
+    "secrets.toml",
+    "spotify.txt",
+}
+_FORBIDDEN_FILE_PREFIXES = (".env.", "client_secret")
+_FORBIDDEN_DATABASE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,13 +52,21 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
                 )
             )
 
-    for forbidden_path in _FORBIDDEN_ARTIFACT_PATHS:
-        candidate = artifact_dir / forbidden_path
-        if candidate.exists():
+    for candidate in artifact_dir.rglob("*"):
+        if not candidate.is_file():
+            continue
+        normalized_name = candidate.name.casefold()
+        is_forbidden_name = normalized_name in _FORBIDDEN_FILE_NAMES
+        is_forbidden_prefix = normalized_name.startswith(_FORBIDDEN_FILE_PREFIXES)
+        is_database = candidate.suffix.casefold() in _FORBIDDEN_DATABASE_SUFFIXES
+        if is_forbidden_name or is_forbidden_prefix or is_database:
             issues.append(
                 PackageArtifactIssue(
                     path=candidate,
-                    message="Private local data must not be included in a package.",
+                    message=(
+                        "Private local data, secrets, or local database files must "
+                        "not be included in a package."
+                    ),
                 )
             )
 

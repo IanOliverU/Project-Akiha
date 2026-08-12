@@ -1,7 +1,8 @@
 # Build And Release Workflow
 
 This document captures the release workflow established in Phase 6 and updated
-for the verified V5 Modular Voice Intelligence standalone package.
+for the verified V5 Modular Voice Intelligence standalone package and the V8
+Hosted Live release gate.
 
 ## Current Verified Candidate
 
@@ -16,6 +17,18 @@ artifact validation, Windows GUI subsystem validation, fresh-data and
 existing-data automated smoke checks, and the complete manual startup, voice,
 provider, conversation, context, action, and graceful-shutdown checklist. See
 `V5_MANUAL_SMOKE_2026-08-08.md` in this folder.
+
+The V5 folder remains the last manually verified fallback until this V8 target
+passes its complete packaged checklist:
+
+```text
+dist/nuitka-v8-hosted-live-candidate/main.dist/Akiha.exe
+```
+
+The V8 candidate passed GUI-subsystem, artifact, fresh-data, existing-data,
+schema, no-visible-console, and log-health automation on 2026-08-13. It remains
+a candidate until the real microphone, audio, Gemini Live, Spotify, assistant
+action, and Tray Quit checklist is signed off.
 
 ## Supported Python
 
@@ -81,10 +94,10 @@ Adds everything needed by the packaging script:
 - Black
 - Nuitka
 
-The current voice-enabled release package also needs the local STT dependency:
+The V8 voice-enabled release package needs both local STT and Gemini Live:
 
 ```powershell
-pip install -e ".[package,voice]"
+pip install -e ".[package,voice,live]"
 ```
 
 ## Source Run
@@ -123,7 +136,7 @@ Run this before the final manual packaged smoke pass:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-v5-local-voice-final\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
@@ -155,14 +168,14 @@ and then force-stop the process.
 
 ## Standalone Package Build
 
-Phase 6 established the standalone-folder artifact. The current V5 candidate
-adds the complete modular voice pipeline while retaining that format. See
+Phase 6 established the standalone-folder artifact. V8 adds hosted-live and
+provider-tool support while retaining that format. See
 `docs/phases/phase-06-packaging/DISTRIBUTION_DECISION.md` for the
 standalone-vs-installer decision.
 
 ```powershell
-pip install -e ".[package,voice]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v5-local-voice-final
+pip install -e ".[package,voice,live]"
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
 ```
 
 Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
@@ -180,9 +193,9 @@ Create the current release-candidate environment with:
 
 ```powershell
 py -3.13 -m venv .venv313
-.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice]"
+.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v5-local-voice-final
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
 ```
 
 The build clears Nuitka's compilation caches, then uses standalone mode,
@@ -209,8 +222,12 @@ compile time for a deterministic artifact.
 The script also validates that the standalone artifact contains the expected
 runtime folders, bundled assets, default config, database migrations, the
 explicitly included PyAV `av.utils` extension, and faster-whisper's packaged
-Silero VAD ONNX model. Both voice dependencies are required by packaged
-microphone input.
+Silero VAD ONNX model. The V8 build also compiles the statically imported
+`google.genai` modules into `Akiha.exe` for Gemini Live; packaged startup and
+the local Gemini setup diagnostic verify their runtime availability. Artifact
+validation rejects environment files, secret files, private Spotify exports,
+and SQLite database files so credentials and `%LOCALAPPDATA%` state cannot
+enter the release folder.
 
 ## Packaged Smoke Test
 
@@ -218,7 +235,7 @@ After a standalone build, run:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka-v5-local-voice-final\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 

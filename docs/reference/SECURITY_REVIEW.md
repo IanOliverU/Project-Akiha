@@ -146,6 +146,13 @@ Spotify, approved-directory, passive-media, local result-selection, and
 continued-conversation checks on 2026-08-13. Standalone verification remains a
 separate V8 release gate.
 
+The V8 build gate compiles the statically imported Gemini SDK modules while
+applying an artifact deny scan across the complete standalone directory. Environment files,
+common secret files, private Spotify exports, and SQLite databases fail the
+build validation. The release process uses isolated fresh and existing-data
+smoke roots and never copies the developer's `%LOCALAPPDATA%\Akiha\` state into
+the candidate.
+
 Provider requests to open an approved root use only its user-facing display
 name. The proposal gateway resolves that alias locally from the current
 approved-directory snapshot before constructing the existing path-based Phase

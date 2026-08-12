@@ -1890,13 +1890,32 @@ remains owned by V8.
 
 ### Milestone V8: Hosted Live Release Gate
 
-- [ ] Run the full automated suite and quality checks.
+- [x] Freeze the clean V7 source baseline and confirm Python 3.13 packaging.
+- [x] Require packaged voice and Gemini Live dependencies explicitly.
+- [x] Reject environment files, common secret files, private exports, and local
+  databases during packaged-artifact validation.
+- [x] Run the full automated suite and quality checks.
+- [x] Run fresh and existing-data source startup and migration smoke checks.
 - [x] Complete the source-run manual Gemini Live and provider-tool roundup.
-- [ ] Reconcile privacy, security, architecture, and release documentation.
-- [ ] Build and validate one standalone candidate.
+- [x] Reconcile privacy, security, architecture, build, and smoke documentation.
+- [x] Build and validate one Python 3.13 standalone candidate.
+- [x] Pass fresh and existing-data automated packaged smoke checks.
 - [ ] Complete packaged microphone, Gemini, provider tools, local fallback,
   actions, and shutdown smoke tests.
 - [ ] Retain only the confirmed replacement package.
+
+V8A through V8E completed on 2026-08-13. The Python 3.13.14 gate passed 1,362
+tests with three optional-environment skips, dependency checks, Ruff, Black,
+compilation, source startup, and fresh/existing-data migration smoke. The V8
+standalone contains 193 files (about 393 MB), uses the Windows GUI subsystem,
+passes required-asset and private-data validation, starts without a console,
+and passes fresh and existing-data packaged smoke with clean logs. The first
+clean build exposed an unnecessarily broad Gemini package-inclusion attempt;
+the final candidate relies on Akiha's static Gemini imports, and the cached
+resume successfully linked 1,309 files. The remaining V8F/V8G gate is the
+real-device packaged pass for visual UI, microphone, speakers, VOICEVOX,
+Gemini credentials, Spotify account operations, confirmation dialogs, and Tray
+Quit. Those checks cannot be certified by offscreen or isolated automation.
 
 ## Approved Architecture Decisions
 

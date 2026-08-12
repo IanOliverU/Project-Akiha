@@ -332,3 +332,13 @@ The notice explains:
 
 Revisit and version the notice again before adding persistent or always-listening
 capture, sync, plugins, file-content ingestion, or broader local commands.
+
+## Packaged Artifact Privacy
+
+Release builds include application code, public default configuration, database
+migrations, UI assets, and required runtime libraries. They do not copy the
+user's `%LOCALAPPDATA%\Akiha\` directory. The artifact validator rejects
+environment files, common secret files, private Spotify exports, and SQLite
+database files anywhere in the standalone folder. Gemini credentials and
+Spotify refresh tokens remain in the current Windows user's DPAPI-protected
+local state and are never embedded in `Akiha.exe` or its adjacent data files.

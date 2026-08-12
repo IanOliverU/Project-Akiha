@@ -59,6 +59,29 @@ class PackageArtifactTest(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("Private local data", issues[0].message)
 
+    def test_rejects_secret_and_local_database_files_anywhere(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            private_dir = artifact_dir / "private"
+            private_dir.mkdir()
+            (private_dir / ".env.production").write_text(
+                "API_KEY=private",
+                encoding="utf-8",
+            )
+            (private_dir / "client_secret.json").write_text(
+                "{}",
+                encoding="utf-8",
+            )
+            (private_dir / "akiha.sqlite3").write_bytes(b"")
+
+            issues = validate_package_artifact(artifact_dir)
+
+        self.assertEqual(len(issues), 3)
+        self.assertTrue(
+            all("must not be included" in issue.message for issue in issues)
+        )
+
 
 def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "assets/animations").mkdir(parents=True)
