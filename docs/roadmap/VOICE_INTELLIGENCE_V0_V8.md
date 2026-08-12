@@ -1791,7 +1791,7 @@ The closure audit also retains the earlier transport-specific coverage for
 Gemini declaration/result ownership, Ollama capability negotiation and native
 calls, constrained JSON parsing, confirmation, cancellation, stale ownership,
 fallback cleanup, and canonical response persistence. V7G automated
-verification passed with 1,349 tests and 3 optional-environment skips, plus
+verification passed with 1,361 tests and 3 optional-environment skips, plus
 repository-wide Ruff, Black, compilation, and diff checks.
 
 The first real Gemini roundup exposed three closure defects now covered by
@@ -1843,8 +1843,39 @@ request for any matching media may select one local result but still requires
 confirmation. Voice-spoken media searches may opt into relaxed token matching
 only when no exact filename substring exists. This turns a combined title such
 as `Leia -Elis-` into two local candidates rather than guessing between the
-real `05 Leia.flac` and `01 -ELIS-.flac` files. Multiple candidates require an
-exact-title follow-up and remain ephemeral.
+real `05 Leia.flac` and `01 -ELIS-.flac` files. Multiple candidates remain
+ephemeral.
+
+Numbered Cloud follow-ups now use an opaque, local-only bridge. Gemini may call
+the existing open-file or open-directory tool with exactly `result 1` through
+`result 10`; it never receives the indexed filename or path. The proposal
+gateway resolves the index against only the latest bounded local result set,
+expires that set after five minutes, and rejects wrong-kind, stale, malformed,
+or out-of-range references through normal validation. A resolved passive file
+still enters the original path validator, scoped permission policy, extension
+policy, and trusted local confirmation. New chat, Clear chat, provider change,
+session shutdown, and replacement search results invalidate the old references.
+
+The final Gemini Spotify retest also closed a provider-argument mismatch. A
+Cloud proposal that combines `title by artist` into one track field is split
+locally, and a slightly damaged artist may trigger one title-only recovery
+without lowering the global match threshold. Ambiguous releases and likely
+trailing transcription noise are presented locally instead of guessed. Gemini
+may select a displayed Spotify candidate only through an opaque `result N`;
+the validated track URI and all candidate metadata remain local. Provider
+identity rules now prohibit claiming that an action succeeded until its
+returned status is successful.
+
+The final source verification completed with repository-wide tests, Ruff,
+Black, compilation, and diff checks. Real Gemini sign-off now needs only this
+short result-reference smoke sequence:
+
+1. Ask for a media search that returns at least two local results.
+2. Say `Play result 1` and confirm that the local file prompt names result 1.
+3. Decline once and confirm that no file opens; repeat and approve once.
+4. Request an out-of-range result and confirm that no action executes.
+5. Start a new chat, repeat the old result reference, and confirm it is stale.
+6. Confirm Cloud listening continues after the action result.
 
 V7 is ready for one source-run manual provider-tool sign-off. That pass must
 confirm a real Gemini Live tool action and, when a tool-capable local model is

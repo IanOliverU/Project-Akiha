@@ -9,6 +9,8 @@ from project_akiha.core.actions import (
     ActionFailureCategory,
     ActionRequestValidator,
     ActionValidationError,
+    DirectorySearchMatch,
+    FileSearchMatch,
     ProtectedPathPolicy,
     build_default_action_registry,
     build_default_provider_action_catalog,
@@ -255,6 +257,165 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
             },
         )
 
+    def test_numbered_file_result_resolves_to_private_local_path(self) -> None:
+        self.gateway.set_file_results(
+            (
+                _file_match("first.mp4"),
+                _file_match("second.mp4"),
+            )
+        )
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open",
+                arguments={"path": "result 2"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {"path": r"C:\Users\Private\Downloads\second.mp4"},
+        )
+        self.assertNotIn("second", repr(result).casefold())
+        self.assertNotIn("private", repr(self.gateway.decisions).casefold())
+
+    def test_numbered_directory_result_uses_only_directory_action(self) -> None:
+        self.gateway.set_directory_results(
+            (
+                DirectorySearchMatch(
+                    name="Video",
+                    path=r"C:\Users\Private\Downloads\Video",
+                    modified_at="2026-08-12T00:00:00+00:00",
+                ),
+            )
+        )
+
+        directory = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open_directory",
+                arguments={"path": "result 1"},
+            )
+        )
+
+        assert directory.request is not None
+        self.assertEqual(
+            directory.request.parameters,
+            {"path": r"C:\Users\Private\Downloads\Video"},
+        )
+
+    def test_provider_track_title_and_artist_are_normalized_locally(self) -> None:
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="spotify.play_track",
+                arguments={
+                    "service": "spotify",
+                    "track_query": "Hanabi by ADO",
+                },
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {
+                "service": "spotify",
+                "track_query": "Hanabi",
+                "artist_query": "ADO",
+            },
+        )
+
+    def test_numbered_spotify_result_resolves_without_provider_path_data(self) -> None:
+        self.gateway.set_spotify_track_results(
+            (
+                {
+                    "service": "spotify",
+                    "track_query": "Hanabi",
+                    "artist_query": "ADO",
+                    "track_name": "Hanabi",
+                    "track_artist": "ADO",
+                    "track_uri": "spotify:track:track1",
+                },
+            )
+        )
+
+        result = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="spotify.play_track",
+                arguments={"service": "spotify", "track_query": "result 1"},
+            )
+        )
+
+        assert result.request is not None
+        self.assertEqual(
+            result.request.parameters,
+            {
+                "service": "spotify",
+                "track_query": "Hanabi",
+                "artist_query": "ADO",
+                "track_name": "Hanabi",
+                "track_artist": "ADO",
+                "track_uri": "spotify:track:track1",
+            },
+        )
+        self.assertNotIn("hanabi", repr(result).casefold())
+        self.assertNotIn("track1", repr(self.gateway.decisions).casefold())
+
+    def test_spotify_result_rejects_unvalidated_uri(self) -> None:
+        with self.assertRaises(ValueError):
+            self.gateway.set_spotify_track_results(
+                (
+                    {
+                        "service": "spotify",
+                        "track_query": "Hanabi",
+                        "track_name": "Hanabi",
+                        "track_uri": "https://example.invalid/track",
+                    },
+                )
+            )
+
+    def test_expired_or_out_of_range_result_reference_remains_untrusted(self) -> None:
+        clock = [10.0]
+        gateway = ProviderActionProposalGateway(
+            build_default_provider_action_catalog(self.registry),
+            self.coordinator,
+            local_result_ttl_seconds=5.0,
+            monotonic_clock=lambda: clock[0],
+        )
+        gateway.set_file_results((_file_match("first.mp4"),))
+
+        out_of_range = gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open",
+                arguments={"path": "result 2"},
+            )
+        )
+        clock[0] = 16.0
+        expired = gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                proposal_id="proposal-2",
+                action_name="files.open",
+                arguments={"path": "result 1"},
+            )
+        )
+
+        assert out_of_range.request is not None
+        assert expired.request is not None
+        self.assertEqual(out_of_range.request.parameters, {"path": "result 2"})
+        self.assertEqual(expired.request.parameters, {"path": "result 1"})
+
     def test_history_is_bounded_and_clear_discards_replay_state(self) -> None:
         for index in range(4):
             self.gateway.convert(
@@ -297,6 +458,15 @@ def _proposal(
         action_name=action_name,
         arguments=arguments or {"application_id": "spotify"},
         state=state,
+    )
+
+
+def _file_match(name: str) -> FileSearchMatch:
+    return FileSearchMatch(
+        name=name,
+        path=rf"C:\Users\Private\Downloads\{name}",
+        size_bytes=1024,
+        modified_at="2026-08-12T00:00:00+00:00",
     )
 
 

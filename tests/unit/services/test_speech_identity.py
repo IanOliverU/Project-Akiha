@@ -24,6 +24,7 @@ class AkihaSpeechIdentityTest(unittest.TestCase):
         self.assertIn("natural Japanese", prompt)
         self.assertIn("formal, polite, refined", prompt)
         self.assertIn("Preserve facts, names, numbers", prompt)
+        self.assertIn("Never claim that an action succeeded", prompt)
         self.assertNotIn("Tsukihime", prompt)
 
     def test_profile_covers_required_scenarios_with_original_samples(self) -> None:

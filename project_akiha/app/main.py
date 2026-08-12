@@ -158,7 +158,7 @@ from project_akiha.integrations.spotify.albums import (
     SpotifyAlbumSelectionStore,
     build_spotify_album_executors,
 )
-from project_akiha.integrations.spotify.client import SpotifyClient
+from project_akiha.integrations.spotify.client import SpotifyCatalogItem, SpotifyClient
 from project_akiha.integrations.spotify.devices import (
     PermissionGatedSpotifyActivator,
     SpotifyDeviceCoordinator,
@@ -778,6 +778,7 @@ def _run_application() -> int:
             updated_config.spotify.auto_launch_desktop_app
         )
         assistant_tool_result_store.clear()
+        provider_action_gateway.clear_local_results()
         ephemeral_action_context.clear()
         intent_arbiter.clear()
         provider_tool_fallback_gate.clear()
@@ -2362,6 +2363,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        provider_action_gateway.clear_local_results()
         spotify_playlist_selection_store.clear()
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
@@ -2384,6 +2386,7 @@ def _run_application() -> int:
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
+        provider_action_gateway.clear_local_results()
         spotify_playlist_selection_store.clear()
         spotify_album_selection_store.clear()
         spotify_artist_selection_store.clear()
@@ -2522,6 +2525,49 @@ def _run_application() -> int:
         request: ActionRequest,
         result: ActionResult,
     ) -> None:
+        track_candidates = result.metadata.get("track_candidates")
+        if request.action_id in {
+            SPOTIFY_PLAY_TRACK_ACTION,
+            SPOTIFY_SEARCH_TRACKS_ACTION,
+        } and isinstance(track_candidates, tuple):
+            candidates = tuple(
+                candidate
+                for candidate in track_candidates
+                if isinstance(candidate, SpotifyCatalogItem)
+            )[:5]
+            try:
+                spotify_track_selection_store.replace(candidates)
+                provider_action_gateway.set_spotify_track_results(
+                    tuple(
+                        _spotify_track_result_parameters(track) for track in candidates
+                    )
+                )
+                ephemeral_action_context.record_selection(
+                    EphemeralSelectionKind.SPOTIFY_TRACK,
+                    len(candidates),
+                    allowed_verbs=frozenset(("play",)),
+                )
+            except ValueError:
+                chat_window.append_error(
+                    "Akiha could not safely present those Spotify tracks."
+                )
+                return
+            if not candidates:
+                return
+            lines = []
+            for index, track in enumerate(candidates, start=1):
+                label = track.display_label
+                if track.album_name:
+                    label = f"{label} [{track.album_name}]"
+                lines.append(f"{index}. {label}")
+            chat_window.append_message(
+                config.personality.character_name,
+                "I found several possible Spotify tracks:\n"
+                + "\n".join(lines)
+                + '\nSay "Play track result 1" with the number you want.',
+            )
+            return
+
         raw_matches = result.metadata.get("matches")
         if not isinstance(raw_matches, tuple):
             return
@@ -2530,6 +2576,7 @@ def _run_application() -> int:
                 match for match in raw_matches if isinstance(match, FileSearchMatch)
             )[:10]
             assistant_tool_result_store.replace(matches)
+            provider_action_gateway.set_file_results(matches)
             ephemeral_action_context.record_selection(
                 EphemeralSelectionKind.FILE,
                 len(matches),
@@ -2543,6 +2590,7 @@ def _run_application() -> int:
                 if isinstance(match, DirectorySearchMatch)
             )[:10]
             assistant_tool_result_store.replace_directories(matches)
+            provider_action_gateway.set_directory_results(matches)
             ephemeral_action_context.record_selection(
                 EphemeralSelectionKind.DIRECTORY,
                 len(matches),
@@ -3062,6 +3110,20 @@ def _stored_messages_to_chat_messages(
     return tuple(
         ChatMessage(role=message.role, content=message.content) for message in messages
     )
+
+
+def _spotify_track_result_parameters(track: SpotifyCatalogItem) -> dict[str, str]:
+    artist = track.artist_names[0] if track.artist_names else ""
+    parameters = {
+        "service": "spotify",
+        "track_query": track.name,
+        "track_name": track.name,
+        "track_uri": track.uri,
+    }
+    if artist:
+        parameters["artist_query"] = artist
+        parameters["track_artist"] = artist
+    return parameters
 
 
 def _populate_chat_window(

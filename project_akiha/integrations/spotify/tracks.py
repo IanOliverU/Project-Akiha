@@ -41,6 +41,12 @@ _TRACK_RESULT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+_SPOKEN_TITLE_KEYS = {
+    "osewa": "usseewa",
+    "usewa": "usseewa",
+    "useewa": "usseewa",
+    "ussewa": "usseewa",
+}
 
 
 class SpotifyTrackSearchExecutor:
@@ -136,8 +142,10 @@ class SpotifyTrackPlaybackExecutor:
 
         selected = _selected_track_from_action(action)
         if selected is None:
-            title = str(action.parameters["track_query"])
-            artist = str(action.parameters.get("artist_query", ""))
+            title, artist = _normalize_track_components(
+                str(action.parameters["track_query"]),
+                str(action.parameters.get("artist_query", "")),
+            )
             try:
                 candidates = await _search_track_candidates(
                     self._client,
@@ -145,13 +153,31 @@ class SpotifyTrackPlaybackExecutor:
                     artist,
                     self._preference_ranker,
                 )
+                selected = _select_track(title, artist, candidates)
+                if selected is None and artist:
+                    title_only = await _search_track_candidates(
+                        self._client,
+                        title,
+                        "",
+                        self._preference_ranker,
+                    )
+                    candidates = _merge_candidates(candidates, title_only)
+                    selected = _select_track(title, artist, candidates)
+                if selected is None and not candidates and not artist:
+                    title_prefix = _spoken_title_prefix(title)
+                    if title_prefix is not None:
+                        candidates = await _search_track_candidates(
+                            self._client,
+                            title_prefix,
+                            "",
+                            self._preference_ranker,
+                        )
             except SpotifyOAuthError:
                 return _unavailable(
                     "Connect Spotify from Settings before searching for tracks."
                 )
             except SpotifyAPIError as error:
                 return _api_failure(error)
-            selected = _select_track(title, artist, candidates)
             if selected is None:
                 if not candidates:
                     return _unavailable(
@@ -388,7 +414,15 @@ def _select_track(
 
     scored: list[tuple[float, float, SpotifyCatalogItem]] = []
     for item in candidates:
-        title_score = SequenceMatcher(None, title_key, _text_key(item.name)).ratio()
+        item_title_key = _text_key(item.name)
+        title_score = max(
+            SequenceMatcher(None, title_key, item_title_key).ratio(),
+            SequenceMatcher(
+                None,
+                _spoken_text_key(title_key),
+                _spoken_text_key(item_title_key),
+            ).ratio(),
+        )
         artist_score = (
             max(
                 (
@@ -417,12 +451,61 @@ def _select_track(
         return best_item
     if len(scored) == 1 and best_score >= 0.76 and best_title_score >= 0.78:
         return best_item
+    if (
+        artist_key
+        and best_title_score >= 0.78
+        and best_score >= 0.83
+        and best_score - second_score >= 0.08
+    ):
+        return best_item
     return None
 
 
 def _text_key(value: str) -> str:
     normalized = unicodedata.normalize("NFKC", value).casefold()
     return " ".join(re.findall(r"\w+", normalized, re.UNICODE))
+
+
+def _spoken_text_key(value: str) -> str:
+    key = re.sub(r"([a-z])\1+", r"\1", _text_key(value))
+    return _SPOKEN_TITLE_KEYS.get(key.replace(" ", ""), key)
+
+
+def _normalize_track_components(title: str, artist: str) -> tuple[str, str]:
+    normalized_title = title.strip().rstrip(".!?").strip()
+    normalized_artist = artist.strip().rstrip(".!?").strip()
+    if normalized_artist:
+        return normalized_title, normalized_artist
+    if "|" in normalized_title:
+        split_title, split_artist = normalized_title.split("|", 1)
+        if split_title.strip() and split_artist.strip():
+            return split_title.strip(), split_artist.strip()
+    parts = re.split(r"\s+by\s+", normalized_title, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) == 2 and all(part.strip() for part in parts):
+        return parts[0].strip(), parts[1].strip()
+    return normalized_title, ""
+
+
+def _spoken_title_prefix(title: str) -> str | None:
+    words = title.split()
+    if len(words) != 2:
+        return None
+    prefix = words[0].strip()
+    return prefix or None
+
+
+def _merge_candidates(
+    *groups: tuple[SpotifyCatalogItem, ...],
+) -> tuple[SpotifyCatalogItem, ...]:
+    merged: list[SpotifyCatalogItem] = []
+    seen: set[str] = set()
+    for group in groups:
+        for item in group:
+            if item.uri in seen:
+                continue
+            seen.add(item.uri)
+            merged.append(item)
+    return tuple(merged[:5])
 
 
 def _is_valid_track(item: SpotifyCatalogItem) -> bool:

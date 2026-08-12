@@ -119,10 +119,20 @@ Usseewa by ADO`, `play Usseewa by ADO on Spotify`, and `/spotify-track Usseewa
 route to Spotify track resolution. Standalone forms such as `search Spotify
 tracks for Usseewa by ADO` or `Look for Kagakushu` show up to five playable
 results in chat. Duplicate releases or uncertain matches require
-`play track result 1`; no AI provider chooses the track.
+`play track result 1`; no AI provider chooses the track. Gemini Live receives
+only that opaque result number. Akiha resolves it against the latest bounded
+local candidate list and never returns candidate names, artist names, album
+metadata, or Spotify URIs to Gemini.
 If a strict title-and-artist search returns nothing, Akiha performs one bounded
-relaxed catalog search before local scoring. A transient missing-device response
-causes one fresh device lookup and one retry, never an unbounded loop.
+relaxed catalog search before local scoring. Provider proposals that combine
+`title by artist` into one field are normalized locally. If speech recognition
+slightly damages the artist, title-only recovery is allowed only when local
+scoring still identifies a strong result. A two-word title with a likely
+trailing transcription error may broaden to local candidates, but never selects
+one automatically. Observed narrow variants such as `Osewa` / `Usewa` are
+normalized to `Usseewa` without globally weakening match thresholds. A
+transient missing-device response causes one fresh device lookup and one retry,
+never an unbounded loop.
 Local-file playback remains available through the approved-directory media
 workflow when the optional tool gateway proposes `play_media`, or when the user
 asks for local music explicitly. Ordinary conversational `play` / `listen to`
@@ -219,7 +229,7 @@ and artist names rather than the user's data.
 - [x] Safe official artist-page opening with intent-preserving ambiguity
   follow-ups.
 - [x] Specific-track search, exact title/artist resolution, bounded ambiguity
-  presentation, and one-track playback.
+  presentation, Cloud-safe numbered follow-up, and one-track playback.
 - [x] Album search, local title/artist resolution, bounded result presentation,
   desktop-first opening, and guarded album-context playback.
 - [x] Personal-plus-catalog playlist search, local ranking, bounded ambiguity

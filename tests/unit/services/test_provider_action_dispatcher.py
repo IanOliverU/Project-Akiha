@@ -26,6 +26,10 @@ from project_akiha.core.voice_session import (
     VoiceProcessingMode,
 )
 from project_akiha.database import SQLiteActionRepository
+from project_akiha.integrations.spotify.client import (
+    SpotifyCatalogItem,
+    SpotifyItemKind,
+)
 from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.intent_arbitration import (
     IntentArbiter,
@@ -153,6 +157,47 @@ class ProviderActionDispatcherTest(unittest.TestCase):
         self.assertNotIn("avatar", repr(result).casefold())
         self.assertNotIn("private", repr(result).casefold())
 
+    def test_ambiguous_spotify_tracks_reach_only_local_callback(self) -> None:
+        conversion = self._conversion(action_name="spotify.play_track")
+        self.dispatcher.complete_local_routing(
+            self.turn.session_id,
+            self.turn.turn_id,
+        )
+        candidate = SpotifyCatalogItem(
+            kind=SpotifyItemKind.TRACK,
+            spotify_id="track1",
+            uri="spotify:track:track1",
+            name="Hanabi",
+            artist_names=("ADO",),
+        )
+        self.action_service.results.append(
+            _action_result(
+                conversion,
+                status=ActionStatus.FAILED,
+                summary="Found a private Spotify candidate.",
+                metadata={"track_candidates": (candidate,)},
+            )
+        )
+        local_results: list[tuple[object, ActionResult]] = []
+
+        result = asyncio.run(
+            self.dispatcher.dispatch(
+                conversion,
+                on_local_result=lambda request, local_result: local_results.append(
+                    (request, local_result)
+                ),
+            )
+        )
+
+        self.assertEqual(
+            local_results[0][1].metadata["track_candidates"],
+            (candidate,),
+        )
+        self.assertEqual(result.status, ActionStatus.FAILED.value)
+        self.assertEqual(result.message, "The approved action failed safely.")
+        self.assertNotIn("hanabi", repr(result).casefold())
+        self.assertNotIn("track1", repr(result).casefold())
+
     def test_confirmation_requires_one_separate_trusted_resolution(self) -> None:
         conversion = self._conversion(action_name="files.open")
         self.dispatcher.complete_local_routing(
@@ -210,6 +255,68 @@ class ProviderActionDispatcherTest(unittest.TestCase):
             [False, True],
         )
         self.assertEqual(self.dispatcher.pending_confirmation_count, 0)
+
+    def test_numbered_file_result_still_requires_trusted_confirmation(self) -> None:
+        match = FileSearchMatch(
+            name="avatar.mp4",
+            path=r"C:\Users\Private\Downloads\Video\avatar.mp4",
+            size_bytes=1024,
+            modified_at="2026-08-12T00:00:00+00:00",
+        )
+        self.gateway.set_file_results((match,))
+        conversion = self.gateway.convert(
+            _proposal(
+                self.turn.session_id,
+                self.turn.turn_id,
+                action_name="files.open",
+                arguments={"path": "result 1"},
+            )
+        )
+        self.dispatcher.complete_local_routing(
+            self.turn.session_id,
+            self.turn.turn_id,
+        )
+        self.action_service.results.extend(
+            (
+                _action_result(
+                    conversion,
+                    status=ActionStatus.CONFIRMATION_REQUIRED,
+                    summary="Confirmation required.",
+                    permission=PermissionDecision.CONFIRMATION_REQUIRED,
+                ),
+                _action_result(
+                    conversion,
+                    status=ActionStatus.SUCCESS,
+                    summary="Opened.",
+                ),
+            )
+        )
+
+        pending = asyncio.run(self.dispatcher.dispatch(conversion))
+        confirmation = self.dispatcher.pending_confirmation(
+            session_id=self.turn.session_id,
+            turn_id=self.turn.turn_id,
+            proposal_id=conversion.decision.proposal_id,
+        )
+        assert confirmation is not None
+        confirmed = asyncio.run(
+            self.dispatcher.resolve_confirmation(
+                session_id=self.turn.session_id,
+                turn_id=self.turn.turn_id,
+                proposal_id=conversion.decision.proposal_id,
+                approved=True,
+            )
+        )
+
+        self.assertEqual(pending.status, ActionStatus.CONFIRMATION_REQUIRED.value)
+        self.assertIn("avatar.mp4", confirmation.prompt)
+        self.assertEqual(confirmed.status, ActionStatus.SUCCESS.value)
+        self.assertNotIn("avatar", repr(pending).casefold())
+        self.assertNotIn("private", repr(confirmed).casefold())
+        self.assertEqual(
+            [confirmed for _, confirmed in self.action_service.calls],
+            [False, True],
+        )
 
     def test_declined_confirmation_never_calls_action_service_again(self) -> None:
         conversion = self._conversion(action_name="files.open")
@@ -392,6 +499,12 @@ class ProviderActionDispatcherTest(unittest.TestCase):
                 "media_only": True,
                 "result_mode": "open_unique",
                 "relaxed": True,
+            }
+        elif action_name == "spotify.play_track":
+            arguments = {
+                "service": "spotify",
+                "track_query": "Hanabi",
+                "artist_query": "ADO",
             }
         else:
             arguments = {"application_id": "spotify"}

@@ -155,10 +155,9 @@ class ProviderActionDispatcher:
             return _arbitration_result(conversion, arbitration.reason)
 
         result = await self._evaluate(request, confirmed=False)
-        if on_local_result is not None and request.action_id in {
-            "files.search",
-            "directories.search",
-        }:
+        if on_local_result is not None and (
+            "matches" in result.metadata or "track_candidates" in result.metadata
+        ):
             on_local_result(request, result)
         if result.status is ActionStatus.CONFIRMATION_REQUIRED:
             self._remember_pending(conversion, request)

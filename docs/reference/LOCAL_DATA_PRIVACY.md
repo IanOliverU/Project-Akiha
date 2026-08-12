@@ -165,8 +165,19 @@ Those names and paths remain local. Gemini receives only a generic action status
 such as completed, denied, or unavailable and cannot read the match metadata.
 An explicit local-media play request may turn one unique result into a separate
 confirmation-gated file-open request. Multiple related titles are shown only
-locally and require the user to name one exact candidate; they are not sent back
-to Gemini and are not written into durable companion memory.
+locally and require either an exact local candidate or an opaque numbered
+follow-up; they are not sent back to Gemini and are not written into durable
+companion memory.
+
+Gemini may refer to one of those local rows only by an opaque number such as
+`result 1`. Akiha keeps no more than ten corresponding paths in memory for five
+minutes. The path is resolved locally and is never included in Gemini's tool
+result, transcript, diagnostics, or companion memory. Replacement searches,
+chat reset, provider change, and session shutdown clear the mapping early.
+The same local-only mapping may retain at most five validated Spotify track
+choices. Gemini receives only `result N`; track names, artist names, albums,
+candidate lists, and Spotify URIs are not returned in the tool result or stored
+as companion memory.
 
 The hosted-audio acknowledgement is stored separately as
 `privacy.hosted_live_notice_version_acknowledged`. Selecting or checking Gemini

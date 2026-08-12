@@ -162,6 +162,17 @@ open-unique, or open-any. Both opening modes create a separate typed
 passive-extension policy, and trusted local confirmation. Relaxed title
 matching can broaden only the local candidate list; it never chooses among
 multiple matches for an open-unique request.
+Numbered Cloud follow-ups contain only an opaque `result N` string. The local
+proposal gateway maps indexes 1 through 10 to its latest in-memory result set,
+which expires after five minutes and is cleared by replacement results, chat
+reset, provider change, hosted shutdown, or application shutdown. The mapping
+is absent from provider schemas, sanitized results, diagnostics, and durable
+memory. Resolution creates the same typed open action and cannot bypass target
+validation, permission checks, passive-file policy, or trusted confirmation.
+Spotify track candidates use the same opaque-reference rule with at most five
+locally retained validated track URIs. Gemini receives neither candidate
+metadata nor a URI, and a numbered selection re-enters the existing typed
+Spotify action validator and playback executor.
 
 ## Local Data
 

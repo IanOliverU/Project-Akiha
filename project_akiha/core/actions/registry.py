@@ -170,7 +170,9 @@ def build_default_action_registry() -> ActionRegistry:
                     "Open an approved directory or one of its descendants in "
                     "the file browser. Use the user-facing root name, such as "
                     "Downloads, or a root-relative path such as "
-                    "Downloads/Videos. Do not invent an absolute path."
+                    "Downloads/Videos. After local numbered directory results, "
+                    "use the opaque path value result 1, result 2, and so on. "
+                    "Do not invent an absolute path."
                 ),
                 risk=ActionRisk.USER_VISIBLE,
                 permission_capability=FILE_OPEN_CAPABILITY,
@@ -191,7 +193,9 @@ def build_default_action_registry() -> ActionRegistry:
                 description=(
                     "Open an allowlisted passive file after confirmation. Use "
                     "an approved root-relative path such as "
-                    "Downloads/Video/example.mp4; do not invent an absolute path."
+                    "Downloads/Video/example.mp4. After local numbered media "
+                    "results, use the opaque path value result 1, result 2, and "
+                    "so on. Never invent an absolute path."
                 ),
                 risk=ActionRisk.SENSITIVE_OPEN,
                 permission_capability=FILE_OPEN_CAPABILITY,
@@ -490,7 +494,12 @@ def build_default_action_registry() -> ActionRegistry:
             ),
             ActionDefinition(
                 action_id=SPOTIFY_SEARCH_TRACKS_ACTION,
-                description="Search for tracks in the bounded Spotify catalog.",
+                description=(
+                    "Search for tracks in the bounded Spotify catalog. Put only "
+                    "the song title in track_query and the performer in "
+                    "artist_query. Present numbered results locally when more "
+                    "than one version matches."
+                ),
                 risk=ActionRisk.READ_ONLY,
                 permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.NEVER,
@@ -520,7 +529,13 @@ def build_default_action_registry() -> ActionRegistry:
             ),
             ActionDefinition(
                 action_id=SPOTIFY_PLAY_TRACK_ACTION,
-                description="Resolve and play one specific Spotify track.",
+                description=(
+                    "Resolve and play one specific Spotify track. Put only the "
+                    "song title in track_query and the performer in artist_query. "
+                    "After local numbered results, use track_query 'result 1' "
+                    "through 'result 5'. Do not claim playback succeeded until "
+                    "the returned action status is success."
+                ),
                 risk=ActionRisk.USER_VISIBLE,
                 permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
                 confirmation_policy=ConfirmationPolicy.NEVER,

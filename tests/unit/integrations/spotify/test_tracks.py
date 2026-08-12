@@ -221,6 +221,118 @@ class SpotifyTrackPlaybackExecutorTest(unittest.TestCase):
         )
         self.assertEqual(client.played, [("desktop-id", "spotify:track:track1")])
 
+    def test_observed_osewa_transcription_matches_usseewa(self) -> None:
+        match = _track("track1", "Usseewa", "ADO")
+        client = _TrackClient((match,))
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Osewa",
+                    "ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(client.played, [("desktop-id", "spotify:track:track1")])
+
+    def test_provider_composite_title_and_artist_are_split_before_search(self) -> None:
+        match = _track("track1", "Hanabi", "ADO")
+        client = _TrackClient(
+            (),
+            search_results={"track:Hanabi artist:ADO": (match,)},
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Hanabi by ADO",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(client.searches, ["track:Hanabi artist:ADO"])
+        self.assertEqual(client.played, [("desktop-id", "spotify:track:track1")])
+
+    def test_misheard_artist_retries_title_only_and_uses_strong_match(self) -> None:
+        match = _track("track1", "Hanabi", "ADO")
+        client = _TrackClient(
+            (),
+            search_results={"track:Hanabi": (match,)},
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Hanabi",
+                    "Aldo",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(
+            client.searches,
+            [
+                "track:Hanabi artist:Aldo",
+                "Hanabi Aldo",
+                "track:Hanabi",
+            ],
+        )
+        self.assertEqual(client.played, [("desktop-id", "spotify:track:track1")])
+
+    def test_extra_spoken_word_broadens_to_candidates_without_guessing(self) -> None:
+        candidates = (
+            _track("track1", "Hanabi", "ADO", album="Single"),
+            _track("track2", "HANABI", "Mr.Children", album="Album"),
+        )
+        client = _TrackClient(
+            (),
+            search_results={"track:Hanabi": candidates},
+        )
+        executor = SpotifyTrackPlaybackExecutor(
+            client,  # type: ignore[arg-type]
+            self.coordinator,  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                _validated(
+                    self.validator,
+                    "spotify.play_track",
+                    "Hanabi Beato",
+                ),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(result.metadata["track_candidates"], candidates)
+        self.assertEqual(client.played, [])
+
     def test_numbered_follow_up_plays_selected_uri_without_search(self) -> None:
         selected = _track("track2", "Usseewa", "ADO", album="Live")
         store = SpotifyTrackSelectionStore()
