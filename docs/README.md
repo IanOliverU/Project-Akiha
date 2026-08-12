@@ -22,8 +22,8 @@ material is separated by purpose.
 
 - [`roadmap/VOICE_INTELLIGENCE_V0_V8.md`](roadmap/VOICE_INTELLIGENCE_V0_V8.md)
   is the single authoritative plan and progress record for Post-Phase 8 Voice
-  Intelligence. V0 through V6 are complete; V7G automated provider-tool
-  verification has passed and real-provider manual sign-off is pending.
+  Intelligence. V0 through V7 are complete; V8 owns the final standalone
+  hosted-live build and packaged smoke gate.
 - [`roadmap/PROJECT_BACKLOG.md`](roadmap/PROJECT_BACKLOG.md) contains deferred
   project work that does not belong to an active phase.
 

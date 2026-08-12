@@ -1,7 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V6 complete - V7G automated verification complete;
-real-provider sign-off pending before V7 closure
+**Status:** V0 through V7 complete - V8 hosted-live release gate pending
 
 **Planning date:** 2026-08-01
 
@@ -1775,7 +1774,7 @@ Ollama officially supports tool calling for compatible models. Its tool calls
 remain proposals and receive no additional authority. See
 [Ollama tool calling](https://docs.ollama.com/capabilities/tool-calling).
 
-#### V7G: Final Provider-Tool Verification - Manual Sign-Off Pending
+#### V7G: Final Provider-Tool Verification - Complete
 
 V7G adds a cross-layer closure regression over the real Phase 8 SQLite
 permission and audit repository. The same provider-neutral proposal path is
@@ -1867,7 +1866,7 @@ identity rules now prohibit claiming that an action succeeded until its
 returned status is successful.
 
 The final source verification completed with repository-wide tests, Ruff,
-Black, compilation, and diff checks. Real Gemini sign-off now needs only this
+Black, compilation, and diff checks. The final real Gemini sign-off used this
 short result-reference smoke sequence:
 
 1. Ask for a media search that returns at least two local results.
@@ -1877,17 +1876,22 @@ short result-reference smoke sequence:
 5. Start a new chat, repeat the old result reference, and confirm it is stale.
 6. Confirm Cloud listening continues after the action result.
 
-V7 is ready for one source-run manual provider-tool sign-off. That pass must
-confirm a real Gemini Live tool action and, when a tool-capable local model is
-available, one real Ollama-native action. Missing permission, trusted local
-confirmation, no duplicate execution, visible audit history, continued voice
-conversation, and clean shutdown are included in the checklist. No standalone
-candidate is built in V7; all packaged verification remains owned by V8.
+The source-run Gemini Live sign-off passed on 2026-08-13. The user confirmed
+approved application launching, Spotify search and playback, approved-root and
+descendant directory access, passive local-media opening, continued multi-turn
+listening after tool results, and bounded local Spotify suggestions for
+ambiguous or imperfectly transcribed track requests. Numbered result selection
+remained local and did not expose candidate metadata to Gemini. Automated
+coverage retains the equivalent Ollama-native source identity and shared
+permission, execution, replay, audit, and sanitized-result boundary; a manual
+Ollama-native pass remains optional until a compatible local model is
+installed. No standalone candidate was built in V7. All packaged verification
+remains owned by V8.
 
 ### Milestone V8: Hosted Live Release Gate
 
 - [ ] Run the full automated suite and quality checks.
-- [ ] Complete the manual Gemini Live and provider-tool roundup.
+- [x] Complete the source-run manual Gemini Live and provider-tool roundup.
 - [ ] Reconcile privacy, security, architecture, and release documentation.
 - [ ] Build and validate one standalone candidate.
 - [ ] Complete packaged microphone, Gemini, provider tools, local fallback,

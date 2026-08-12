@@ -141,8 +141,10 @@ permission and audit composition path. The closure regression proves missing
 permission cannot execute, one scoped grant permits one executor call, replay
 cannot execute again, deterministic ownership preempts provider dispatch, and
 private executor summaries or metadata do not cross the sanitized-result
-boundary. Real-provider manual sign-off remains required before V7 is closed;
-standalone verification remains a separate V8 release gate.
+boundary. The real Gemini Live source sign-off passed approved application,
+Spotify, approved-directory, passive-media, local result-selection, and
+continued-conversation checks on 2026-08-13. Standalone verification remains a
+separate V8 release gate.
 
 Provider requests to open an approved root use only its user-facing display
 name. The proposal gateway resolves that alias locally from the current

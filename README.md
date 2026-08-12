@@ -87,10 +87,13 @@ native proposal path through an ephemeral local turn authority, while keeping
 permission checks, confirmations, execution, and audit entirely application
 owned. V7F now mechanically preserves deterministic-first routing and permits
 only one constrained JSON fallback callback for an owned turn, with compound
-desktop requests clarified locally. V7G source verification now passes across
-the shared Gemini/Ollama permission, execution, sanitization, replay, and audit
-boundary; real-provider manual sign-off remains before V7 closes. Pet
-simulation remains planned after the Voice Intelligence roadmap.
+desktop requests clarified locally. V7G now closes the provider-tool
+milestone: automated verification passes across the shared Gemini/Ollama
+permission, execution, sanitization, replay, and audit boundary, and the real
+Gemini Live source roundup passed application, Spotify, approved-directory,
+local-media, result-selection, and continued-conversation checks. Packaged
+hosted-live verification remains the separate V8 release gate. Pet simulation
+remains planned after the Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -103,7 +106,7 @@ simulation remains planned after the Voice Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 complete; V7G automated provider-tool verification passed and manual sign-off is pending |
+| Post-Phase 8 V6-V8 | In progress | Gemini Live V6 and provider-tool V7 complete; V8 packaged hosted-live release gate remains |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
