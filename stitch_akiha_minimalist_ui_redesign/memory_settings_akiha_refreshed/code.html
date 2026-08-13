@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Memory Settings - SYST3M_OS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "secondary-fixed": "#e1e2ea",
+                "on-secondary-container": "#b6b8c0",
+                "on-surface": "#e8e9ee",
+                "tertiary-fixed-dim": "#dbc839",
+                "tertiary": "#dbc839",
+                "secondary-fixed-dim": "#c4c6ce",
+                "on-primary-fixed-variant": "#4f319c",
+                "primary-container": "#2c303c",
+                "surface-dim": "#1a1d24",
+                "inverse-primary": "#674bb5",
+                "surface-bright": "#22252e",
+                "primary": "#7b7fc4",
+                "primary-fixed": "#e8ddff",
+                "tertiary-fixed": "#f8e454",
+                "secondary-container": "#2c303c",
+                "surface-container": "#22252e",
+                "error": "#ffb4ab",
+                "outline": "#3a3f52",
+                "primary-fixed-dim": "#7b7fc4",
+                "surface-container-lowest": "#1a1d24",
+                "on-tertiary-container": "#3b3500",
+                "tertiary-container": "#af9e00",
+                "surface": "#1a1d24",
+                "outline-variant": "#3a3f52",
+                "surface-container-high": "#22252e",
+                "surface-container-highest": "#2c303c",
+                "error-container": "#93000a",
+                "on-tertiary-fixed-variant": "#504700",
+                "on-secondary-fixed": "#191c22",
+                "on-error": "#690005",
+                "surface-container-low": "#22252e",
+                "inverse-surface": "#e8e9ee",
+                "on-primary-fixed": "#21005e",
+                "surface-tint": "#7b7fc4",
+                "on-secondary-fixed-variant": "#44474d",
+                "surface-variant": "#2c303c",
+                "on-primary": "#1a1d24",
+                "on-error-container": "#ffdad6",
+                "on-tertiary": "#373100",
+                "on-tertiary-fixed": "#201c00",
+                "on-secondary": "#2d3037",
+                "inverse-on-surface": "#2f3035",
+                "background": "#1a1d24",
+                "on-background": "#e8e9ee",
+                "on-primary-container": "#e8e9ee",
+                "on-surface-variant": "#b6b8c0",
+                "secondary": "#c4c6ce"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+        },
+        "spacing": {
+                "margin-page": "32px",
+                "gutter": "24px",
+                "stack-md": "16px",
+                "stack-lg": "32px",
+                "stack-sm": "8px",
+                "container-max": "1024px"
+        },
+        "fontFamily": {
+                "label-md": [
+                        "Inter"
+                ],
+                "headline-lg": [
+                        "Geist"
+                ],
+                "body-md": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Geist"
+                ],
+                "body-lg": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "label-md": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-lg": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-sm": [
+                        "11px",
+                        {
+                                "lineHeight": "14px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "headline-md": [
+                        "20px",
+                        {
+                                "lineHeight": "28px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style type="text/tailwindcss">
+    @layer utilities {
+        .input-inner-shadow {
+            box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.1);
+        }
+    }
+    
+    /* Hide number input spinners for webkit */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }
+</style>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen flex selection:bg-primary selection:text-on-primary">
+<!-- Top App Bar (Mobile Only) -->
+<header class="md:hidden flex justify-between items-center px-margin-page w-full h-16 bg-surface border-b border-outline-variant fixed top-0 z-50">
+<div class="font-headline-md text-headline-md font-bold text-primary tracking-tight">SYST3M_OS</div>
+<div class="flex gap-4">
+<span class="material-symbols-outlined cursor-pointer hover:bg-surface-container-high transition-colors p-2 rounded-full active:opacity-80">settings</span>
+<span class="material-symbols-outlined cursor-pointer hover:bg-surface-container-high transition-colors p-2 rounded-full active:opacity-80">help</span>
+<span class="material-symbols-outlined cursor-pointer hover:bg-surface-container-high transition-colors p-2 rounded-full active:opacity-80">notifications</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">person</span>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Desktop) -->
+<nav class="hidden md:flex flex-col h-screen w-64 bg-surface-container border-r border-outline-variant py-stack-lg px-stack-md gap-stack-sm sticky top-0 shrink-0">
+<!-- Header -->
+<div class="flex items-center gap-4 mb-stack-md px-2">
+<div class="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center border border-outline-variant shrink-0">
+<span class="material-symbols-outlined text-primary" data-weight="fill" style="font-variation-settings: 'FILL' 1;">developer_board</span>
+</div>
+<div class="overflow-hidden">
+<h1 class="font-headline-md text-headline-md text-primary truncate">Settings</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">V2.0.4-beta</p>
+</div>
+</div>
+<!-- Primary Navigation -->
+<div class="flex flex-col gap-1 flex-grow">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">pets</span>
+                Pet
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">psychology</span>
+                AI
+            </a>
+<!-- Active Tab: Memory -->
+<a class="flex items-center gap-3 px-3 py-2 bg-primary-container text-on-primary-container rounded-xl font-bold font-label-md text-label-md active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">memory</span>
+                Memory
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">neurology</span>
+                Behavior
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">bolt</span>
+                Actions
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">music_note</span>
+                Spotify
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">mic</span>
+                Voice
+            </a>
+</div>
+<!-- Footer Navigation & CTA -->
+<div class="flex flex-col gap-1 mt-auto pt-stack-md border-t border-outline-variant">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span>
+                Logs
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all rounded-xl font-label-md text-label-md active:scale-95 duration-150 text-error hover:text-error" href="#">
+<span class="material-symbols-outlined text-sm">restart_alt</span>
+                Reset
+            </a>
+<button class="mt-stack-sm w-full bg-primary text-surface-container-lowest font-label-md text-label-md font-bold py-3 rounded-xl hover:brightness-110 active:scale-95 transition-all">
+                Save Changes
+            </button>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-h-screen pt-16 md:pt-0 max-w-container-max mx-auto w-full">
+<div class="px-margin-page py-stack-lg flex-1">
+<!-- Page Header -->
+<div class="mb-stack-lg flex items-center justify-between">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-2">Memory Configuration</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">Manage how the system stores, approves, and retrieves contextual memories during interactions.</p>
+</div>
+</div>
+<!-- Settings Content -->
+<div class="flex flex-col gap-stack-lg">
+<!-- Memory Control Group -->
+<section class="relative">
+<span class="absolute -top-3 left-4 bg-surface px-2 font-label-sm text-label-sm text-on-surface-variant tracking-wider uppercase z-10">Memory Control</span>
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-stack-md pt-stack-lg flex flex-col gap-stack-md">
+<!-- Setting Item: Memory Enabled -->
+<div class="flex items-center justify-between p-3 rounded-lg bg-background border border-outline-variant hover:border-primary/50 transition-colors">
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface">Memory enabled</span>
+<span class="text-xs text-on-surface-variant mt-1">Allow the system to retain information across sessions.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Setting Item: Approve Memories -->
+<div class="flex items-center justify-between p-3 rounded-lg bg-background border border-outline-variant hover:border-primary/50 transition-colors">
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface">Approve memories</span>
+<span class="text-xs text-on-surface-variant mt-1">Require manual approval before committing new context to long-term storage.</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<!-- Setting Item: Retrieval Limit -->
+<div class="flex items-center justify-between p-3 rounded-lg bg-background border border-outline-variant hover:border-primary/50 transition-colors">
+<div class="flex flex-col pr-8">
+<label class="font-headline-md text-headline-md text-on-surface" for="input-limit">Memory retrieval limit</label>
+<span class="text-xs text-on-surface-variant mt-1">Maximum number of past contexts retrieved per interaction.</span>
+</div>
+<div class="relative shrink-0 w-32">
+<input class="w-full bg-background border border-outline-variant rounded-lg px-3 py-2 text-on-surface font-body-md focus:border-primary focus:ring-2 focus:ring-primary/20 input-inner-shadow transition-all outline-none" id="input-limit" max="20" min="1" type="number" value="5"/>
+<div class="absolute inset-y-0 right-0 flex flex-col border-l border-outline-variant">
+<button class="flex-1 px-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors rounded-tr-lg flex items-center justify-center focus:outline-none" onclick="document.getElementById('input-limit').stepUp()">
+<span class="material-symbols-outlined text-sm">arrow_drop_up</span>
+</button>
+<button class="flex-1 px-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors rounded-br-lg flex items-center justify-center border-t border-outline-variant focus:outline-none" onclick="document.getElementById('input-limit').stepDown()">
+<span class="material-symbols-outlined text-sm">arrow_drop_down</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer Toolbar Actions -->
+<div class="flex flex-wrap gap-3 mt-auto pt-stack-lg border-t border-outline-variant hidden md:flex">
+<button class="py-2 px-4 bg-primary text-surface-container-lowest font-label-md text-label-md rounded-lg hover:brightness-110 transition-all font-bold">
+                Save
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Reset position
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Open logs
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Open data
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Memories
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Behavior history
+            </button>
+<button class="py-2 px-4 bg-transparent border border-outline-variant text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-surface-container transition-colors">
+                Assistant actions
+            </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

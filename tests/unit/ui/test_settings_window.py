@@ -11,7 +11,14 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QTime
-from PySide6.QtWidgets import QApplication, QGroupBox
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDoubleSpinBox,
+    QGroupBox,
+    QSpinBox,
+    QTimeEdit,
+)
 
 import project_akiha.ui.settings_window as settings_window_module
 from project_akiha.config import (
@@ -109,7 +116,41 @@ class SettingsWindowTest(unittest.TestCase):
         }
         self.assertEqual(window.objectName(), "akihaSettingsWindow")
         self.assertEqual(window._tabs.count(), 7)
+        self.assertEqual(
+            [button.text() for button in window._settings_nav_buttons],
+            ["Pet", "AI", "Memory", "Behavior", "Actions", "Spotify", "Voice"],
+        )
+        self.assertTrue(window._settings_nav_buttons[0].isChecked())
+        self.assertTrue(
+            all(not button.icon().isNull() for button in window._settings_nav_buttons)
+        )
+        window._settings_nav_buttons[3].click()
+        self.assertEqual(window._tabs.currentIndex(), 3)
+        self.assertTrue(window._settings_nav_buttons[3].isChecked())
         self.assertEqual(window._save_button.objectName(), "primaryButton")
+        self.assertEqual(window._save_button.text(), "Save Changes")
+        self.assertEqual(window._settings_title.text(), "Akiha")
+        self.assertTrue(
+            all(
+                combo.objectName() == "settingsComboBox"
+                for combo in window.findChildren(QComboBox)
+            )
+        )
+        steppers = (
+            window.findChildren(QSpinBox)
+            + window.findChildren(QDoubleSpinBox)
+            + window.findChildren(QTimeEdit)
+        )
+        self.assertTrue(steppers)
+        self.assertTrue(
+            all(stepper.objectName() == "settingsStepper" for stepper in steppers)
+        )
+        previous_fps = window._fps_input.value()
+        window._fps_input.stepUp()
+        self.assertEqual(window._fps_input.value(), previous_fps + 1)
+        window._fps_input.stepDown()
+        self.assertEqual(window._fps_input.value(), previous_fps)
+        self.assertEqual(window._memory_enabled_input.objectName(), "settingsToggle")
         self.assertIn(AKIHA_PALETTE.window, window.styleSheet())
         self.assertIn(AKIHA_PALETTE.primary, window.styleSheet())
         self.assertTrue(

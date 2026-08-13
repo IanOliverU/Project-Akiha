@@ -5,14 +5,24 @@ from __future__ import annotations
 from math import ceil
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTime, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTime, QUrl, Signal
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QFont,
+    QIcon,
+    QPainter,
+    QPaintEvent,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -24,12 +34,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
-    QTabWidget,
+    QStackedWidget,
     QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from project_akiha import __version__
 from project_akiha.config import (
     AI_PROVIDERS,
     HOSTED_AI_PROVIDERS,
@@ -98,6 +109,51 @@ _HOSTED_PROVIDER_DEFAULTS = {
     "openai-compatible": ("http://127.0.0.1:1234/v1", "local-model"),
 }
 
+_SETTINGS_PAGES = (
+    (
+        "Pet",
+        "Pet Engine Configuration",
+        "Configure Akiha's desktop viewport, animation timing, and presence.",
+        "\ue716",
+    ),
+    (
+        "AI",
+        "AI Configuration",
+        "Choose the provider, processing boundary, and companion identity.",
+        "\ue99a",
+    ),
+    (
+        "Memory",
+        "Memory Configuration",
+        "Control durable memory, approvals, and retrieval limits.",
+        "\ue70c",
+    ),
+    (
+        "Behavior",
+        "Behavior Parameters",
+        "Tune awareness, proactive engagement, schedules, and quiet hours.",
+        "\ueb51",
+    ),
+    (
+        "Actions",
+        "Actions Configuration",
+        "Manage the shallow permissions Akiha uses for everyday desktop tasks.",
+        "\ue945",
+    ),
+    (
+        "Spotify",
+        "Spotify Integration",
+        "Connect playback and control exactly what Akiha may do on Spotify.",
+        "\ue90b",
+    ),
+    (
+        "Voice",
+        "Voice Configuration",
+        "Configure listening, live conversation, speech output, and diagnostics.",
+        "\ue720",
+    ),
+)
+
 
 class SettingsWindow(QWidget):
     """Settings surface for companion, behavior, and voice configuration."""
@@ -144,8 +200,8 @@ class SettingsWindow(QWidget):
 
         self.setWindowTitle("Project Akiha Settings")
         self.setObjectName("akihaSettingsWindow")
-        self.setMinimumSize(640, 560)
-        self.resize(720, 680)
+        self.setMinimumSize(900, 620)
+        self.resize(1120, 760)
         self.setStyleSheet(settings_stylesheet())
 
         self._width_input = _build_spinbox(64, 2000, config.pet_window.width)
@@ -158,10 +214,10 @@ class SettingsWindow(QWidget):
         )
         self._start_x_input = _build_spinbox(-10000, 10000, config.pet_window.start_x)
         self._start_y_input = _build_spinbox(-10000, 10000, config.pet_window.start_y)
-        self._always_on_top_input = QCheckBox()
+        self._always_on_top_input = _ToggleSwitch()
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
         self._manifest_path_input = QLineEdit(config.pet_window.animation_manifest_path)
-        self._ai_provider_input = QComboBox()
+        self._ai_provider_input = _ChevronComboBox()
         self._ai_provider_input.addItems(
             [provider for provider in _AI_PROVIDER_ORDER if provider in AI_PROVIDERS]
         )
@@ -189,7 +245,7 @@ class SettingsWindow(QWidget):
             self._audio_processing_value,
         ):
             boundary_value.setWordWrap(True)
-        self._advanced_ai_settings_input = QCheckBox()
+        self._advanced_ai_settings_input = _ToggleSwitch()
         self._advanced_ai_settings_input.toggled.connect(
             lambda _checked: self._sync_ai_controls(
                 self._ai_provider_input.currentText()
@@ -200,7 +256,7 @@ class SettingsWindow(QWidget):
             600,
             config.ai.request_timeout_seconds,
         )
-        self._assistant_tools_enabled_input = QCheckBox()
+        self._assistant_tools_enabled_input = _ToggleSwitch()
         self._assistant_tools_enabled_input.setChecked(
             config.ai.assistant_tools_enabled
         )
@@ -211,18 +267,18 @@ class SettingsWindow(QWidget):
         self._character_name_input = QLineEdit(config.personality.character_name)
         self._system_prompt_input = QPlainTextEdit(config.personality.system_prompt)
         self._system_prompt_input.setMinimumHeight(96)
-        self._memory_enabled_input = QCheckBox()
+        self._memory_enabled_input = _ToggleSwitch()
         self._memory_enabled_input.setChecked(config.memory.enabled)
-        self._memory_approval_input = QCheckBox()
+        self._memory_approval_input = _ToggleSwitch()
         self._memory_approval_input.setChecked(config.memory.require_approval)
         self._memory_retrieval_limit_input = _build_spinbox(
             1,
             20,
             config.memory.retrieval_limit,
         )
-        self._behavior_enabled_input = QCheckBox()
+        self._behavior_enabled_input = _ToggleSwitch()
         self._behavior_enabled_input.setChecked(config.behavior.enabled)
-        self._proactive_enabled_input = QCheckBox()
+        self._proactive_enabled_input = _ToggleSwitch()
         self._proactive_enabled_input.setChecked(config.behavior.proactive_enabled)
         self._idle_after_input = _build_minutes_spinbox(
             1,
@@ -241,11 +297,11 @@ class SettingsWindow(QWidget):
             1440,
             config.behavior.minimum_seconds_between_notifications,
         )
-        self._allow_notifications_while_away_input = QCheckBox()
+        self._allow_notifications_while_away_input = _ToggleSwitch()
         self._allow_notifications_while_away_input.setChecked(
             config.behavior.allow_notifications_while_away
         )
-        self._scheduled_check_ins_enabled_input = QCheckBox()
+        self._scheduled_check_ins_enabled_input = _ToggleSwitch()
         self._scheduled_check_ins_enabled_input.setChecked(
             config.behavior.scheduled_check_ins_enabled
         )
@@ -254,19 +310,19 @@ class SettingsWindow(QWidget):
             1440,
             config.behavior.scheduled_check_in_interval_seconds,
         )
-        self._quiet_hours_enabled_input = QCheckBox()
+        self._quiet_hours_enabled_input = _ToggleSwitch()
         self._quiet_hours_enabled_input.setChecked(config.behavior.quiet_hours_enabled)
         self._quiet_hours_start_input = _build_time_input(
             config.behavior.quiet_hours_start
         )
         self._quiet_hours_end_input = _build_time_input(config.behavior.quiet_hours_end)
-        self._spotify_enabled_input = QCheckBox()
+        self._spotify_enabled_input = _ToggleSwitch()
         self._spotify_enabled_input.setChecked(config.spotify.enabled)
         self._spotify_client_id_input = QLineEdit(config.spotify.client_id)
         self._spotify_client_id_input.setPlaceholderText("Spotify Client ID")
         self._spotify_redirect_uri_input = QLineEdit(config.spotify.redirect_uri)
         self._spotify_redirect_uri_input.setReadOnly(True)
-        self._spotify_auto_launch_input = QCheckBox()
+        self._spotify_auto_launch_input = _ToggleSwitch()
         self._spotify_auto_launch_input.setChecked(
             config.spotify.auto_launch_desktop_app
         )
@@ -282,9 +338,9 @@ class SettingsWindow(QWidget):
         self._spotify_disconnect_button.clicked.connect(self._disconnect_spotify)
         self._spotify_connection_status = QLabel("Not connected")
         self._spotify_connection_status.setWordWrap(True)
-        self._voice_enabled_input = QCheckBox()
+        self._voice_enabled_input = _ToggleSwitch()
         self._voice_enabled_input.setChecked(config.voice.enabled)
-        self._push_to_talk_enabled_input = QCheckBox()
+        self._push_to_talk_enabled_input = _ToggleSwitch()
         self._push_to_talk_enabled_input.setChecked(config.voice.push_to_talk_enabled)
         self._voice_input_provider_input = _build_combo(
             ("faster-whisper", "disabled"),
@@ -306,7 +362,7 @@ class SettingsWindow(QWidget):
         self._voice_output_device_input = _build_device_combo(
             config.voice.output_device
         )
-        self._voice_output_engine_auto_start_input = QCheckBox()
+        self._voice_output_engine_auto_start_input = _ToggleSwitch()
         self._voice_output_engine_auto_start_input.setChecked(
             config.voice.output_engine_auto_start
         )
@@ -320,44 +376,44 @@ class SettingsWindow(QWidget):
         self._voice_output_engine_browse_button.clicked.connect(
             self._browse_voicevox_engine
         )
-        self._voice_output_engine_stop_on_exit_input = QCheckBox()
+        self._voice_output_engine_stop_on_exit_input = _ToggleSwitch()
         self._voice_output_engine_stop_on_exit_input.setChecked(
             config.voice.output_engine_stop_on_exit
         )
         self._voice_output_engine_status = QLabel("Not managed")
         self._voice_output_engine_status.setWordWrap(True)
-        self._automatic_speech_enabled_input = QCheckBox()
+        self._automatic_speech_enabled_input = _ToggleSwitch()
         self._automatic_speech_enabled_input.setChecked(
             config.voice.automatic_speech_enabled
         )
-        self._proactive_speech_enabled_input = QCheckBox()
+        self._proactive_speech_enabled_input = _ToggleSwitch()
         self._proactive_speech_enabled_input.setChecked(
             config.voice.proactive_speech_enabled
         )
-        self._english_subtitles_enabled_input = QCheckBox()
+        self._english_subtitles_enabled_input = _ToggleSwitch()
         self._english_subtitles_enabled_input.setChecked(
             config.voice.english_subtitles_enabled
         )
         self._english_subtitles_enabled_input.setToolTip(
             "Uses the selected AI provider for an additional translation request."
         )
-        self._export_english_subtitles_enabled_input = QCheckBox()
+        self._export_english_subtitles_enabled_input = _ToggleSwitch()
         self._export_english_subtitles_enabled_input.setChecked(
             config.voice.export_english_subtitles_enabled
         )
-        self._live_transcription_enabled_input = QCheckBox()
+        self._live_transcription_enabled_input = _ToggleSwitch()
         self._live_transcription_enabled_input.setChecked(
             config.voice.live_transcription_enabled
         )
-        self._auto_stop_on_silence_enabled_input = QCheckBox()
+        self._auto_stop_on_silence_enabled_input = _ToggleSwitch()
         self._auto_stop_on_silence_enabled_input.setChecked(
             config.voice.auto_stop_on_silence_enabled
         )
-        self._auto_send_transcript_enabled_input = QCheckBox()
+        self._auto_send_transcript_enabled_input = _ToggleSwitch()
         self._auto_send_transcript_enabled_input.setChecked(
             config.voice.auto_send_transcript_enabled
         )
-        self._voice_silence_timeout_input = QDoubleSpinBox()
+        self._voice_silence_timeout_input = _FluentDoubleSpinBox()
         self._voice_silence_timeout_input.setRange(0.5, 5.0)
         self._voice_silence_timeout_input.setSingleStep(0.1)
         self._voice_silence_timeout_input.setDecimals(1)
@@ -369,7 +425,7 @@ class SettingsWindow(QWidget):
             config.voice.volume_percent,
         )
         self._voice_volume_input.setSuffix("%")
-        self._voice_speaking_rate_input = QDoubleSpinBox()
+        self._voice_speaking_rate_input = _FluentDoubleSpinBox()
         self._voice_speaking_rate_input.setRange(0.5, 2.0)
         self._voice_speaking_rate_input.setSingleStep(0.1)
         self._voice_speaking_rate_input.setDecimals(1)
@@ -392,7 +448,7 @@ class SettingsWindow(QWidget):
             config.voice.local_conversation_idle_timeout_seconds,
         )
         self._voice_conversation_idle_timeout_input.setSuffix(" sec")
-        self._voice_conversation_duration_input = QDoubleSpinBox()
+        self._voice_conversation_duration_input = _FluentDoubleSpinBox()
         self._voice_conversation_duration_input.setRange(1.0, 240.0)
         self._voice_conversation_duration_input.setSingleStep(1.0)
         self._voice_conversation_duration_input.setDecimals(1)
@@ -400,7 +456,7 @@ class SettingsWindow(QWidget):
             config.voice.local_conversation_max_duration_seconds / 60
         )
         self._voice_conversation_duration_input.setSuffix(" min")
-        self._voice_session_provider_input = QComboBox()
+        self._voice_session_provider_input = _ChevronComboBox()
         self._voice_session_provider_input.addItem("Local Modular", "local_modular")
         self._voice_session_provider_input.addItem("Gemini Live", "gemini_live")
         self._set_voice_session_provider(config.voice.session_provider)
@@ -410,7 +466,7 @@ class SettingsWindow(QWidget):
             config.voice.hosted_live_voice_name,
             editable=True,
         )
-        self._hosted_live_duration_input = QComboBox()
+        self._hosted_live_duration_input = _ChevronComboBox()
         for minutes in (5, 10, 15):
             self._hosted_live_duration_input.addItem(
                 f"{minutes} minutes",
@@ -479,61 +535,175 @@ class SettingsWindow(QWidget):
             lambda _enabled: self._sync_voice_engine_controls()
         )
 
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
-        tabs.addTab(self._build_pet_tab(), "Pet")
-        tabs.addTab(self._build_ai_tab(), "AI")
-        tabs.addTab(self._build_memory_tab(), "Memory")
-        tabs.addTab(self._build_behavior_tab(), "Behavior")
-        tabs.addTab(self._build_assistant_actions_tab(), "Actions")
-        tabs.addTab(self._build_spotify_tab(), "Spotify")
-        tabs.addTab(self._build_voice_tab(), "Voice")
-        self._tabs = tabs
+        page_contents = (
+            self._build_pet_tab(),
+            self._build_ai_tab(),
+            self._build_memory_tab(),
+            self._build_behavior_tab(),
+            self._build_assistant_actions_tab(),
+            self._build_spotify_tab(),
+            self._build_voice_tab(),
+        )
+        pages = QStackedWidget()
+        pages.setObjectName("settingsPages")
+        for (_, title, description, _), content in zip(
+            _SETTINGS_PAGES,
+            page_contents,
+            strict=True,
+        ):
+            pages.addWidget(_build_settings_page(title, description, content))
+        self._tabs = pages
         self._sync_ai_controls(config.ai.provider)
         self._sync_voice_controls(config.voice.enabled)
         self._refresh_spotify_connection_status()
 
-        save_button = QPushButton("Save")
+        save_button = QPushButton("Save Changes")
         save_button.setObjectName("primaryButton")
+        save_button.setIcon(
+            _build_fluent_icon(
+                "\ue74e",
+                default_color=AKIHA_PALETTE.window,
+            )
+        )
         save_button.clicked.connect(self._save)
         self._save_button = save_button
 
         reset_position_button = QPushButton("Reset position")
+        reset_position_button.setObjectName("sidebarUtilityButton")
+        reset_position_button.setIcon(_build_fluent_icon("\ue72c"))
         reset_position_button.clicked.connect(self.position_reset_requested.emit)
 
         open_logs_button = QPushButton("Open logs")
+        open_logs_button.setObjectName("sidebarUtilityButton")
+        open_logs_button.setIcon(_build_fluent_icon("\ue8a5"))
         open_logs_button.clicked.connect(self._open_logs)
 
         open_data_button = QPushButton("Open data")
+        open_data_button.setIcon(_build_fluent_icon("\ue8b7"))
         open_data_button.clicked.connect(self._open_data_dir)
 
         memories_button = QPushButton("Memories")
+        memories_button.setIcon(_build_fluent_icon("\ue70c"))
         memories_button.clicked.connect(self.memory_manager_requested.emit)
 
         behavior_history_button = QPushButton("Behavior history")
+        behavior_history_button.setIcon(_build_fluent_icon("\ueb51"))
         behavior_history_button.clicked.connect(self.behavior_history_requested.emit)
 
         assistant_action_history_button = QPushButton("Assistant actions")
+        assistant_action_history_button.setIcon(_build_fluent_icon("\ue945"))
         assistant_action_history_button.clicked.connect(
             self.assistant_action_history_requested.emit
         )
 
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(reset_position_button)
-        button_layout.addWidget(open_logs_button)
-        button_layout.addWidget(open_data_button)
-        button_layout.addWidget(memories_button)
-        button_layout.addWidget(behavior_history_button)
-        button_layout.addWidget(assistant_action_history_button)
-        button_layout.addStretch(1)
+        management_layout = QHBoxLayout()
+        management_layout.setContentsMargins(18, 10, 18, 12)
+        management_layout.setSpacing(8)
+        management_layout.addWidget(open_data_button)
+        management_layout.addWidget(memories_button)
+        management_layout.addWidget(behavior_history_button)
+        management_layout.addWidget(assistant_action_history_button)
+        management_layout.addStretch(1)
+        management_bar = QFrame()
+        management_bar.setObjectName("settingsManagementBar")
+        management_bar.setLayout(management_layout)
 
-        layout = QVBoxLayout()
-        layout.setContentsMargins(18, 18, 18, 16)
-        layout.setSpacing(12)
-        layout.addWidget(tabs)
-        layout.addLayout(button_layout)
+        main_panel = QFrame()
+        main_panel.setObjectName("settingsMainPanel")
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(pages, stretch=1)
+        main_layout.addWidget(management_bar)
+        main_panel.setLayout(main_layout)
+
+        sidebar = self._build_sidebar(
+            pages,
+            open_logs_button=open_logs_button,
+            reset_position_button=reset_position_button,
+            save_button=save_button,
+        )
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(sidebar)
+        layout.addWidget(main_panel, stretch=1)
         self.setLayout(layout)
+
+    def _build_sidebar(
+        self,
+        pages: QStackedWidget,
+        *,
+        open_logs_button: QPushButton,
+        reset_position_button: QPushButton,
+        save_button: QPushButton,
+    ) -> QFrame:
+        sidebar = QFrame()
+        sidebar.setObjectName("settingsSidebar")
+        sidebar.setFixedWidth(232)
+
+        title = QLabel("Akiha")
+        title.setObjectName("settingsTitle")
+        self._settings_title = title
+        version = QLabel(f"VERSION {__version__}")
+        version.setObjectName("settingsVersion")
+        title_text = QVBoxLayout()
+        title_text.setContentsMargins(0, 0, 0, 0)
+        title_text.setSpacing(1)
+        title_text.addWidget(title)
+        title_text.addWidget(version)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(0)
+        header.addLayout(title_text)
+        header.addStretch(1)
+
+        navigation_label = QLabel("CONFIGURATION")
+        navigation_label.setObjectName("settingsSectionLabel")
+
+        navigation_group = QButtonGroup(self)
+        navigation_group.setExclusive(True)
+        navigation_buttons: list[QPushButton] = []
+        for index, (label, _, _, icon_glyph) in enumerate(_SETTINGS_PAGES):
+            button = QPushButton(label)
+            button.setObjectName("settingsNavButton")
+            button.setCheckable(True)
+            button.setAutoExclusive(True)
+            button.setIcon(_build_fluent_icon(icon_glyph))
+            button.setIconSize(QSize(18, 18))
+            button.clicked.connect(
+                lambda _checked=False, page_index=index: pages.setCurrentIndex(
+                    page_index
+                )
+            )
+            navigation_group.addButton(button, index)
+            navigation_buttons.append(button)
+        navigation_buttons[0].setChecked(True)
+        self._settings_navigation_group = navigation_group
+        self._settings_nav_buttons = tuple(navigation_buttons)
+
+        separator = QFrame()
+        separator.setObjectName("settingsSidebarSeparator")
+        separator.setFrameShape(QFrame.Shape.HLine)
+
+        sidebar_layout = QVBoxLayout()
+        sidebar_layout.setContentsMargins(18, 22, 18, 18)
+        sidebar_layout.setSpacing(8)
+        sidebar_layout.addLayout(header)
+        sidebar_layout.addSpacing(20)
+        sidebar_layout.addWidget(navigation_label)
+        for button in navigation_buttons:
+            sidebar_layout.addWidget(button)
+        sidebar_layout.addStretch(1)
+        sidebar_layout.addWidget(separator)
+        sidebar_layout.addWidget(open_logs_button)
+        sidebar_layout.addWidget(reset_position_button)
+        sidebar_layout.addSpacing(4)
+        sidebar_layout.addWidget(save_button)
+        sidebar.setLayout(sidebar_layout)
+        return sidebar
 
     def update_config(self, config: AppConfig) -> None:
         """Refresh controls from the current config."""
@@ -2065,13 +2235,95 @@ class SettingsWindow(QWidget):
 
 
 def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
-    spinbox = QSpinBox()
+    spinbox = _FluentSpinBox()
     spinbox.setRange(minimum, maximum)
     spinbox.setValue(value)
     return spinbox
 
 
-class _ModelComboBox(QComboBox):
+class _ChevronComboBox(QComboBox):
+    """Combo box with an explicit monochrome dropdown affordance."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("settingsComboBox")
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        font = QFont("Segoe Fluent Icons")
+        font.setPixelSize(12)
+        painter.setFont(font)
+        painter.setPen(
+            QColor(AKIHA_PALETTE.muted_text if self.isEnabled() else "#6F7488")
+        )
+        painter.drawText(
+            QRectF(self.width() - 30.0, 0.0, 24.0, float(self.height())),
+            Qt.AlignmentFlag.AlignCenter,
+            "\ue70d",
+        )
+
+
+def _paint_stepper_chevrons(widget: QWidget) -> None:
+    painter = QPainter(widget)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    font = QFont("Segoe Fluent Icons")
+    font.setPixelSize(9)
+    painter.setFont(font)
+    painter.setPen(
+        QColor(AKIHA_PALETTE.muted_text if widget.isEnabled() else "#6F7488")
+    )
+    button_height = widget.height() / 2.0
+    painter.drawText(
+        QRectF(widget.width() - 29.0, 0.0, 28.0, button_height),
+        Qt.AlignmentFlag.AlignCenter,
+        "\ue70e",
+    )
+    painter.drawText(
+        QRectF(widget.width() - 29.0, button_height, 28.0, button_height),
+        Qt.AlignmentFlag.AlignCenter,
+        "\ue70d",
+    )
+
+
+class _FluentSpinBox(QSpinBox):
+    """Integer stepper using the Settings Fluent icon language."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("settingsStepper")
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        _paint_stepper_chevrons(self)
+
+
+class _FluentDoubleSpinBox(QDoubleSpinBox):
+    """Decimal stepper using the Settings Fluent icon language."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("settingsStepper")
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        _paint_stepper_chevrons(self)
+
+
+class _FluentTimeEdit(QTimeEdit):
+    """Time stepper using the Settings Fluent icon language."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("settingsStepper")
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        _paint_stepper_chevrons(self)
+
+
+class _ModelComboBox(_ChevronComboBox):
     """Editable model selector that preserves the previous line-edit API."""
 
     def __init__(self, value: str) -> None:
@@ -2094,6 +2346,113 @@ class _ModelComboBox(QComboBox):
         self.blockSignals(False)
 
 
+def _build_fluent_icon(
+    glyph: str,
+    size: int = 18,
+    *,
+    default_color: str | None = None,
+    selected_color: str | None = None,
+) -> QIcon:
+    """Render a Windows Fluent glyph with deterministic button states."""
+
+    def render(color: str) -> QPixmap:
+        canvas_size = size + 6
+        pixmap = QPixmap(canvas_size, canvas_size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        font = QFont("Segoe Fluent Icons")
+        font.setPixelSize(size)
+        painter.setFont(font)
+        painter.setPen(QColor(color))
+        painter.drawText(
+            pixmap.rect(),
+            Qt.AlignmentFlag.AlignCenter,
+            glyph,
+        )
+        painter.end()
+        return pixmap
+
+    normal = default_color or AKIHA_PALETTE.muted_text
+    selected = selected_color or AKIHA_PALETTE.window
+    icon = QIcon()
+    icon.addPixmap(render(normal), QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addPixmap(render(AKIHA_PALETTE.text), QIcon.Mode.Active, QIcon.State.Off)
+    icon.addPixmap(render("#6F7488"), QIcon.Mode.Disabled, QIcon.State.Off)
+    icon.addPixmap(render(selected), QIcon.Mode.Normal, QIcon.State.On)
+    icon.addPixmap(render(selected), QIcon.Mode.Active, QIcon.State.On)
+    icon.addPixmap(render("#6F7488"), QIcon.Mode.Disabled, QIcon.State.On)
+    return icon
+
+
+class _ToggleSwitch(QCheckBox):
+    """Compact accessible switch used for binary settings."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("settingsToggle")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(self.sizeHint())
+
+    def sizeHint(self) -> QSize:
+        return QSize(42, 22)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+
+        if not self.isEnabled():
+            track_color = QColor("#343742")
+            thumb_color = QColor("#707483")
+        elif self.isChecked():
+            track_color = QColor(AKIHA_PALETTE.primary)
+            thumb_color = QColor(AKIHA_PALETTE.window)
+        else:
+            track_color = QColor(AKIHA_PALETTE.control)
+            thumb_color = QColor(AKIHA_PALETTE.muted_text)
+
+        track = QRectF(1.0, 2.0, 40.0, 18.0)
+        painter.setBrush(track_color)
+        painter.drawRoundedRect(track, 9.0, 9.0)
+
+        if self.hasFocus():
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QColor(AKIHA_PALETTE.highlight))
+            painter.drawRoundedRect(QRectF(0.5, 1.5, 41.0, 19.0), 9.5, 9.5)
+            painter.setPen(Qt.PenStyle.NoPen)
+
+        thumb_center = QPointF(31.0 if self.isChecked() else 11.0, 11.0)
+        painter.setBrush(thumb_color)
+        painter.drawEllipse(thumb_center, 7.0, 7.0)
+
+
+def _build_settings_page(
+    title: str,
+    description: str,
+    content: QWidget,
+) -> QWidget:
+    page = QFrame()
+    page.setObjectName("settingsPage")
+
+    title_label = QLabel(title)
+    title_label.setObjectName("settingsPageTitle")
+    description_label = QLabel(description)
+    description_label.setObjectName("settingsPageDescription")
+    description_label.setWordWrap(True)
+
+    layout = QVBoxLayout()
+    layout.setContentsMargins(28, 24, 28, 18)
+    layout.setSpacing(6)
+    layout.addWidget(title_label)
+    layout.addWidget(description_label)
+    layout.addSpacing(8)
+    layout.addWidget(content, stretch=1)
+    page.setLayout(layout)
+    return page
+
+
 def _looks_like_api_key(value: str) -> bool:
     candidate = value.strip()
     if not candidate:
@@ -2114,7 +2473,7 @@ def _build_combo(
     *,
     editable: bool = False,
 ) -> QComboBox:
-    combo = QComboBox()
+    combo = _ChevronComboBox()
     combo.setEditable(editable)
     combo.addItems(options)
     combo.setCurrentText(value)
@@ -2122,7 +2481,7 @@ def _build_combo(
 
 
 def _build_device_combo(device_name: str) -> QComboBox:
-    combo = QComboBox()
+    combo = _ChevronComboBox()
     combo.setEditable(True)
     combo.addItem("System default", "")
     _set_device_combo_value(combo, device_name)
@@ -2201,7 +2560,7 @@ def _minutes_to_seconds(minutes: int) -> int:
 
 
 def _build_time_input(value: str) -> QTimeEdit:
-    time_input = QTimeEdit()
+    time_input = _FluentTimeEdit()
     time_input.setDisplayFormat("HH:mm")
     time_input.setTime(_parse_qtime(value))
     return time_input

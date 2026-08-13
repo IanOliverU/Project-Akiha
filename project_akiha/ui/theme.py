@@ -42,34 +42,82 @@ def settings_stylesheet() -> str:
     color: {color.text};
     background: transparent;
 }}
-{root} QTabWidget::pane {{
-    border: 1px solid {color.border};
-    border-radius: 8px;
-    background-color: {color.window};
-    top: -1px;
+{root} QFrame#settingsSidebar {{
+    background-color: {color.panel};
+    border-right: 1px solid {color.border};
 }}
-{root} QTabBar::tab {{
-    min-width: 72px;
-    min-height: 36px;
-    padding: 0 12px;
-    margin-right: 2px;
-    border: none;
-    border-radius: 6px 6px 0 0;
-    background: transparent;
-    color: {color.muted_text};
-}}
-{root} QTabBar::tab:selected {{
-    background-color: {color.primary};
-    color: {color.window};
+{root} QLabel#settingsTitle {{
+    color: {color.highlight};
+    font-size: 20px;
     font-weight: 600;
 }}
-{root} QTabBar::tab:hover:!selected {{
-    background-color: {color.panel};
+{root} QLabel#settingsVersion,
+{root} QLabel#settingsSectionLabel {{
+    color: {color.muted_text};
+    font-family: "Cascadia Mono";
+    font-size: 10px;
+    font-weight: 600;
+}}
+{root} QLabel#settingsSectionLabel {{
+    padding: 0 8px 4px 8px;
+}}
+{root} QPushButton#settingsNavButton {{
+    min-height: 40px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 5px;
+    background-color: transparent;
+    color: {color.muted_text};
+    font-weight: 600;
+    text-align: left;
+}}
+{root} QPushButton#settingsNavButton:hover {{
+    background-color: {color.control};
     color: {color.text};
+}}
+{root} QPushButton#settingsNavButton:checked {{
+    background-color: {color.primary};
+    color: {color.window};
+}}
+{root} QFrame#settingsSidebarSeparator {{
+    max-height: 1px;
+    border: none;
+    background-color: {color.border};
+}}
+{root} QPushButton#sidebarUtilityButton {{
+    min-height: 34px;
+    padding: 0 8px;
+    border: none;
+    background-color: transparent;
+    color: {color.muted_text};
+    text-align: left;
+}}
+{root} QPushButton#sidebarUtilityButton:hover {{
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QFrame#settingsMainPanel,
+{root} QFrame#settingsPage {{
+    border: none;
+    background-color: {color.window};
+}}
+{root} QLabel#settingsPageTitle {{
+    color: {color.text};
+    font-size: 24px;
+    font-weight: 600;
+}}
+{root} QLabel#settingsPageDescription {{
+    color: {color.muted_text};
+    font-size: 13px;
+}}
+{root} QFrame#settingsManagementBar {{
+    border: none;
+    border-top: 1px solid {color.border};
+    background-color: {color.panel};
 }}
 {root} QGroupBox#settingsSection {{
     margin-top: 13px;
-    padding: 18px 14px 14px 14px;
+    padding: 20px 16px 16px 16px;
     border: 1px solid {color.border};
     border-radius: 8px;
     background-color: {color.panel};
@@ -81,7 +129,10 @@ def settings_stylesheet() -> str:
     left: 12px;
     padding: 0 5px;
     color: {color.highlight};
-    background-color: {color.panel};
+    background-color: {color.window};
+    font-family: "Cascadia Mono";
+    font-size: 11px;
+    font-weight: 600;
 }}
 {root} QScrollArea {{
     border: none;
@@ -96,10 +147,10 @@ def settings_stylesheet() -> str:
 {root} QSpinBox,
 {root} QDoubleSpinBox,
 {root} QTimeEdit {{
-    min-height: 30px;
-    padding: 0 9px;
+    min-height: 32px;
+    padding: 0 10px;
     border: 1px solid {color.border};
-    border-radius: 5px;
+    border-radius: 4px;
     background-color: {color.control};
     color: {color.text};
     selection-background-color: {color.primary};
@@ -126,8 +177,59 @@ def settings_stylesheet() -> str:
     background-color: #252832;
 }}
 {root} QComboBox::drop-down {{
-    width: 26px;
+    width: 30px;
     border: none;
+}}
+{root} QComboBox {{
+    padding-right: 30px;
+}}
+{root} QComboBox::down-arrow {{
+    width: 0;
+    height: 0;
+    image: none;
+}}
+{root} QSpinBox,
+{root} QDoubleSpinBox,
+{root} QTimeEdit {{
+    padding-right: 30px;
+}}
+{root} QSpinBox::up-button,
+{root} QDoubleSpinBox::up-button,
+{root} QTimeEdit::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 28px;
+    border: none;
+    border-left: 1px solid {color.border};
+    background-color: transparent;
+}}
+{root} QSpinBox::down-button,
+{root} QDoubleSpinBox::down-button,
+{root} QTimeEdit::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 28px;
+    border: none;
+    border-left: 1px solid {color.border};
+    background-color: transparent;
+}}
+{root} QSpinBox::up-button:hover,
+{root} QSpinBox::down-button:hover,
+{root} QDoubleSpinBox::up-button:hover,
+{root} QDoubleSpinBox::down-button:hover,
+{root} QTimeEdit::up-button:hover,
+{root} QTimeEdit::down-button:hover {{
+    background-color: #343846;
+}}
+{root} QSpinBox::up-arrow,
+{root} QSpinBox::down-arrow,
+{root} QDoubleSpinBox::up-arrow,
+{root} QDoubleSpinBox::down-arrow,
+{root} QTimeEdit::up-arrow,
+{root} QTimeEdit::down-arrow {{
+    width: 0;
+    height: 0;
+    image: none;
 }}
 {root} QComboBox QAbstractItemView {{
     border: 1px solid {color.border};
@@ -136,6 +238,23 @@ def settings_stylesheet() -> str:
     selection-background-color: {color.primary};
     selection-color: {color.window};
     outline: none;
+}}
+{root} QListWidget {{
+    padding: 6px;
+    border: 1px solid {color.border};
+    border-radius: 4px;
+    background-color: {color.window};
+    color: {color.text};
+    selection-background-color: {color.primary};
+    selection-color: {color.window};
+    outline: none;
+}}
+{root} QListWidget::item {{
+    min-height: 28px;
+    padding: 3px 6px;
+}}
+{root} QListWidget::item:hover {{
+    background-color: {color.control};
 }}
 {root} QCheckBox {{
     spacing: 9px;
@@ -163,7 +282,7 @@ def settings_stylesheet() -> str:
     min-height: 32px;
     padding: 0 13px;
     border: 1px solid {color.border};
-    border-radius: 6px;
+    border-radius: 4px;
     background-color: {color.control};
     color: {color.text};
 }}
@@ -180,6 +299,7 @@ def settings_stylesheet() -> str:
     background-color: #252832;
 }}
 {root} QPushButton#primaryButton {{
+    min-height: 38px;
     border-color: {color.highlight};
     background-color: {color.primary};
     color: {color.window};
@@ -189,7 +309,7 @@ def settings_stylesheet() -> str:
     background-color: {color.highlight};
 }}
 {root} QScrollBar:vertical {{
-    width: 10px;
+    width: 9px;
     margin: 2px;
     border: none;
     background-color: {color.window};
