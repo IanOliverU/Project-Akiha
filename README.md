@@ -92,8 +92,10 @@ milestone: automated verification passes across the shared Gemini/Ollama
 permission, execution, sanitization, replay, and audit boundary, and the real
 Gemini Live source roundup passed application, Spotify, approved-directory,
 local-media, result-selection, and continued-conversation checks. Packaged
-hosted-live verification remains the separate V8 release gate. Pet simulation
-remains planned after the Voice Intelligence roadmap.
+hosted-live verification is now closed by the final V8 standalone. The package
+passed fresh/existing-data automation and real-device microphone, Gemini Live,
+provider-tool, Spotify, transcript, and graceful-shutdown checks. Pet
+simulation remains planned after the completed Voice Intelligence roadmap.
 
 | Phase | Status | Focus |
 | --- | --- | --- |
@@ -106,7 +108,7 @@ remains planned after the Voice Intelligence roadmap.
 | Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | In progress | V6 and V7 complete; V8 automated standalone validation passed and real-device manual sign-off remains |
+| Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
 | Phase 9 | Planned | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
@@ -474,5 +476,8 @@ Manual packaged smoke checklist:
 
 Manual smoke report template:
 `docs/phases/phase-06-packaging/MANUAL_SMOKE_REPORT_TEMPLATE.md`
+
+Final V8 manual smoke report:
+`docs/phases/phase-06-packaging/V8_MANUAL_SMOKE_2026-08-13.md`
 
 Release notes draft: `docs/phases/phase-06-packaging/RELEASE_NOTES_DRAFT.md`

@@ -1,6 +1,6 @@
 # Voice Intent And Live Conversation Architecture
 
-**Status:** V0 through V7 complete - V8 hosted-live release gate pending
+**Status:** V0 through V8 complete - Voice Intelligence roadmap closed
 
 **Planning date:** 2026-08-01
 
@@ -1900,22 +1900,24 @@ remains owned by V8.
 - [x] Reconcile privacy, security, architecture, build, and smoke documentation.
 - [x] Build and validate one Python 3.13 standalone candidate.
 - [x] Pass fresh and existing-data automated packaged smoke checks.
-- [ ] Complete packaged microphone, Gemini, provider tools, local fallback,
+- [x] Complete packaged microphone, Gemini, provider tools, local fallback,
   actions, and shutdown smoke tests.
-- [ ] Retain only the confirmed replacement package.
+- [x] Retain only the confirmed replacement package.
 
-V8A through V8E completed on 2026-08-13. The Python 3.13.14 gate passed 1,362
+V8A through V8G completed on 2026-08-13. The Python 3.13.14 gate passed 1,372
 tests with three optional-environment skips, dependency checks, Ruff, Black,
 compilation, source startup, and fresh/existing-data migration smoke. The V8
 standalone contains 193 files (about 393 MB), uses the Windows GUI subsystem,
 passes required-asset and private-data validation, starts without a console,
-and passes fresh and existing-data packaged smoke with clean logs. The first
-clean build exposed an unnecessarily broad Gemini package-inclusion attempt;
-the final candidate relies on Akiha's static Gemini imports, and the cached
-resume successfully linked 1,309 files. The remaining V8F/V8G gate is the
-real-device packaged pass for visual UI, microphone, speakers, VOICEVOX,
-Gemini credentials, Spotify account operations, confirmation dialogs, and Tray
-Quit. Those checks cannot be certified by offscreen or isolated automation.
+and passes fresh and existing-data packaged smoke with clean logs. The final
+incremental candidate linked 1,312 files while preserving the previously
+verified Gemini SDK native object. Real-device acceptance confirmed visual UI,
+microphone input, immediate Cloud transcript projection, continuous Gemini
+Live listening, application and approved-directory actions, Spotify commands,
+and graceful Quit. Obsolete candidates, compiler trees, rollback copies, and
+smoke data were removed after acceptance; only `dist/nuitka-v8-final` remains.
+See `docs/phases/phase-06-packaging/V8_MANUAL_SMOKE_2026-08-13.md` for the
+signed-off evidence. This closes the Post-Phase 8 Voice Intelligence roadmap.
 
 ## Approved Architecture Decisions
 

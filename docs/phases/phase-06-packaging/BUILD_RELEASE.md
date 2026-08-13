@@ -1,34 +1,22 @@
 # Build And Release Workflow
 
 This document captures the release workflow established in Phase 6 and updated
-for the verified V5 Modular Voice Intelligence standalone package and the V8
-Hosted Live release gate.
+for the verified V8 Hosted Live standalone package.
 
 ## Current Verified Candidate
 
-The retained candidate is:
-
-```text
-dist/nuitka-v5-local-voice-final/main.dist/Akiha.exe
-```
-
-On 2026-08-08 it passed the clean Python 3.13/Nuitka build gate, packaged
-artifact validation, Windows GUI subsystem validation, fresh-data and
-existing-data automated smoke checks, and the complete manual startup, voice,
-provider, conversation, context, action, and graceful-shutdown checklist. See
-`V5_MANUAL_SMOKE_2026-08-08.md` in this folder.
-
-The V5 folder remains the last manually verified fallback until this V8 target
-passes its complete packaged checklist:
+The retained verified package is:
 
 ```text
 dist/nuitka-v8-final/main.dist/Akiha.exe
 ```
 
-The V8 candidate passed GUI-subsystem, artifact, fresh-data, existing-data,
-schema, no-visible-console, and log-health automation on 2026-08-13. It remains
-a candidate until the real microphone, audio, Gemini Live, Spotify, assistant
-action, and Tray Quit checklist is signed off.
+On 2026-08-13 it passed the Python 3.13/Nuitka build gate, packaged-artifact and
+Windows GUI subsystem validation, fresh-data and existing-data automated smoke,
+and the complete real-device microphone, Gemini Live, local fallback, provider
+tool, Spotify, transcript, and graceful-shutdown checklist. See
+`V8_MANUAL_SMOKE_2026-08-13.md` in this folder. Older executable folders and
+compiler trees were removed after this package was accepted.
 
 ## Supported Python
 
