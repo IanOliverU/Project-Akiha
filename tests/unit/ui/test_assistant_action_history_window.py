@@ -20,6 +20,15 @@ from project_akiha.core.actions import (
 from project_akiha.ui.assistant_action_history_window import (
     AssistantActionHistoryWindow,
 )
+from project_akiha.ui.manager_presentation import (
+    ITEM_ACCENT_ROLE,
+    ITEM_META_ROLE,
+    ITEM_TITLE_ROLE,
+    ActionItemDelegate,
+    ManagerItemDelegate,
+    TechnicalDetailsHighlighter,
+)
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class AssistantActionHistoryWindowTest(unittest.TestCase):
@@ -62,7 +71,7 @@ class AssistantActionHistoryWindowTest(unittest.TestCase):
         self.assertFalse(window._audit_list.item(1).isHidden())
         self.assertEqual(window._status_label.text(), "1 of 2 audit entries")
 
-        window._audit_status_filter.setCurrentText("All statuses")
+        window._audit_status_filter.setCurrentText("Status")
         window._audit_filter.setText("search")
 
         self.assertFalse(window._audit_list.item(0).isHidden())
@@ -74,9 +83,28 @@ class AssistantActionHistoryWindowTest(unittest.TestCase):
 
         details = window._audit_details.toPlainText()
 
-        self.assertIn("Action: files.search", details)
-        self.assertIn("Result: success", details)
+        self.assertEqual(window._audit_fields["Action"].text(), "files.search")
+        self.assertEqual(window._audit_status_badge.text(), "SUCCESS")
+        self.assertIn('"result": "success"', details)
         self.assertNotIn("secret provider content", details)
+
+    def test_presents_action_status_with_semantic_color(self) -> None:
+        window = AssistantActionHistoryWindow()
+        window.update_audits((_audit(8, "files.open", ActionStatus.DENIED),))
+
+        item = window._audit_list.item(0)
+
+        self.assertIsInstance(window._audit_list.itemDelegate(), ManagerItemDelegate)
+        self.assertIsInstance(window._audit_list.itemDelegate(), ActionItemDelegate)
+        self.assertEqual(window._navigation_pane.width(), 360)
+        self.assertEqual(window._audit_filter.objectName(), "managerSearchInput")
+        self.assertEqual(item.data(ITEM_TITLE_ROLE), "files.open")
+        self.assertIn("DENIED", item.data(ITEM_META_ROLE))
+        self.assertEqual(item.data(ITEM_ACCENT_ROLE), AKIHA_PALETTE.error)
+        self.assertIsInstance(
+            window._audit_details_highlighter,
+            TechnicalDetailsHighlighter,
+        )
 
 
 def _audit(audit_id: int, action_id: str, status: ActionStatus) -> ActionAuditEntry:

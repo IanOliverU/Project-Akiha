@@ -13,6 +13,16 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from project_akiha.core.behavior import BehaviorEvent
 from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
+from project_akiha.ui.manager_presentation import (
+    ITEM_ACCENT_ROLE,
+    ITEM_TAGS_ROLE,
+    ITEM_TIMESTAMP_ROLE,
+    ITEM_TITLE_ROLE,
+    BehaviorEventDelegate,
+    ManagerItemDelegate,
+    TechnicalDetailsHighlighter,
+)
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class BehaviorHistoryWindowTest(unittest.TestCase):
@@ -34,10 +44,39 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
 
         self.assertEqual(window._event_list.count(), 2)
         self.assertEqual(window.selected_event_id(), 2)
-        self.assertIn(
-            "proactive.suggestion_delivered", window._details_input.toPlainText()
+        self.assertEqual(
+            window._details_title.text(),
+            "Proactive Suggestion Delivered",
         )
+        self.assertIn('"channel": "tray"', window._details_input.toPlainText())
         self.assertEqual(window._status_label.text(), "2 behavior events")
+
+    def test_presents_behavior_with_semantic_status_metadata(self) -> None:
+        window = BehaviorHistoryWindow()
+        window.update_events(
+            (_event(7, "proactive.suggestion_delivered", {"channel": "tray"}),)
+        )
+
+        item = window._event_list.item(0)
+
+        self.assertIsInstance(window._event_list.itemDelegate(), ManagerItemDelegate)
+        self.assertIsInstance(window._event_list.itemDelegate(), BehaviorEventDelegate)
+        self.assertEqual(window._filter_input.objectName(), "managerSearchInput")
+        self.assertEqual(window._event_list.minimumWidth(), 330)
+        self.assertEqual(item.data(ITEM_TITLE_ROLE), "Proactive Suggestion Delivered")
+        self.assertEqual(
+            item.data(ITEM_TIMESTAMP_ROLE),
+            "2026-07-25 12:00:00",
+        )
+        self.assertEqual(
+            item.data(ITEM_TAGS_ROLE),
+            ("proactive", "delivered"),
+        )
+        self.assertEqual(item.data(ITEM_ACCENT_ROLE), AKIHA_PALETTE.success)
+        self.assertIsInstance(
+            window._details_highlighter,
+            TechnicalDetailsHighlighter,
+        )
 
     def test_filters_events_by_payload_text(self) -> None:
         window = BehaviorHistoryWindow()

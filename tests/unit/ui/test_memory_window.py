@@ -11,7 +11,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from project_akiha.core.memory import MemoryCandidate, MemoryEntry, PendingMemory
+from project_akiha.ui.manager_presentation import (
+    ITEM_ACCENT_ROLE,
+    ITEM_META_ROLE,
+    ITEM_TAGS_ROLE,
+    ITEM_TITLE_ROLE,
+    ManagerItemDelegate,
+    MemoryItemDelegate,
+)
 from project_akiha.ui.memory_window import MemoryEditDialog, MemoryWindow, _parse_tags
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class MemoryWindowTest(unittest.TestCase):
@@ -40,6 +49,25 @@ class MemoryWindowTest(unittest.TestCase):
 
         self.assertFalse(window._memory_list.item(0).isHidden())
         self.assertTrue(window._memory_list.item(1).isHidden())
+
+    def test_presents_memories_as_readable_structured_records(self) -> None:
+        window = MemoryWindow()
+        window.update_memories(
+            (_memory(4, "Refers to the assistant as Akiha.", tags=("identity",)),)
+        )
+
+        item = window._memory_list.item(0)
+
+        self.assertIsInstance(window._memory_list.itemDelegate(), ManagerItemDelegate)
+        self.assertIsInstance(window._memory_list.itemDelegate(), MemoryItemDelegate)
+        self.assertEqual(window._memory_filter_input.objectName(), "managerSearchInput")
+        self.assertEqual(
+            item.data(ITEM_TITLE_ROLE),
+            "Refers to the assistant as Akiha.",
+        )
+        self.assertEqual(item.data(ITEM_META_ROLE), "Imp 3")
+        self.assertEqual(item.data(ITEM_TAGS_ROLE), ("identity",))
+        self.assertEqual(item.data(ITEM_ACCENT_ROLE), AKIHA_PALETTE.highlight)
 
     def test_filters_pending_memories(self) -> None:
         window = MemoryWindow()

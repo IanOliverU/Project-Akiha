@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,6 +23,15 @@ from PySide6.QtWidgets import (
 )
 
 from project_akiha.core.memory import MemoryEntry, PendingMemory
+from project_akiha.ui.fluent_icons import fluent_icon
+from project_akiha.ui.manager_presentation import (
+    ITEM_ACCENT_ROLE,
+    ITEM_META_ROLE,
+    ITEM_TAGS_ROLE,
+    ITEM_TITLE_ROLE,
+    MemoryItemDelegate,
+)
+from project_akiha.ui.theme import AKIHA_PALETTE, memory_window_stylesheet
 
 
 class MemoryWindow(QWidget):
@@ -42,28 +52,58 @@ class MemoryWindow(QWidget):
         super().__init__(parent)
 
         self.setWindowTitle("Akiha Memories")
-        self.setMinimumSize(520, 420)
+        self.setObjectName("akihaMemoryWindow")
+        self.setMinimumSize(760, 500)
+        self.resize(920, 640)
+        self.setStyleSheet(memory_window_stylesheet())
 
         self._status_label = QLabel("No memories loaded.")
+        self._status_label.setObjectName("managerStatus")
         self._memory_filter_input = QLineEdit()
+        self._memory_filter_input.setObjectName("managerSearchInput")
         self._memory_filter_input.setPlaceholderText("Search saved memories")
+        self._memory_filter_input.addAction(
+            fluent_icon("\ue721"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
         self._memory_filter_input.textChanged.connect(self._apply_memory_filter)
         self._memory_list = QListWidget()
+        self._memory_list.setObjectName("memoryCardList")
+        self._memory_list.setItemDelegate(MemoryItemDelegate(self._memory_list))
         self._archived_status_label = QLabel("No archived memories.")
+        self._archived_status_label.setObjectName("managerStatus")
         self._archived_filter_input = QLineEdit()
+        self._archived_filter_input.setObjectName("managerSearchInput")
         self._archived_filter_input.setPlaceholderText("Search archived memories")
+        self._archived_filter_input.addAction(
+            fluent_icon("\ue721"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
         self._archived_filter_input.textChanged.connect(self._apply_archived_filter)
         self._archived_list = QListWidget()
+        self._archived_list.setObjectName("memoryCardList")
+        self._archived_list.setItemDelegate(MemoryItemDelegate(self._archived_list))
         self._pending_status_label = QLabel("No pending memories.")
+        self._pending_status_label.setObjectName("managerStatus")
         self._pending_filter_input = QLineEdit()
+        self._pending_filter_input.setObjectName("managerSearchInput")
         self._pending_filter_input.setPlaceholderText("Search pending memories")
+        self._pending_filter_input.addAction(
+            fluent_icon("\ue721"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
         self._pending_filter_input.textChanged.connect(self._apply_pending_filter)
         self._pending_list = QListWidget()
+        self._pending_list.setObjectName("memoryCardList")
+        self._pending_list.setItemDelegate(MemoryItemDelegate(self._pending_list))
         self._memories: tuple[MemoryEntry, ...] = ()
         self._archived_memories: tuple[MemoryEntry, ...] = ()
         self._pending_memories: tuple[PendingMemory, ...] = ()
 
         tabs = QTabWidget()
+        tabs.setObjectName("managerTabContainer")
+        tabs.tabBar().setObjectName("managerTabs")
+        tabs.setDocumentMode(True)
         tabs.addTab(_wrap_list(self._memory_filter_input, self._memory_list), "Saved")
         tabs.addTab(
             _wrap_list(self._archived_filter_input, self._archived_list), "Archived"
@@ -71,57 +111,151 @@ class MemoryWindow(QWidget):
         tabs.addTab(
             _wrap_list(self._pending_filter_input, self._pending_list), "Pending"
         )
+        tabs.currentChanged.connect(self._sync_action_buttons)
+        self._tabs = tabs
 
         refresh_button = QPushButton("Refresh")
+        refresh_button.setIcon(fluent_icon("\ue72c"))
         refresh_button.clicked.connect(self.refresh_requested.emit)
 
         edit_button = QPushButton("Edit")
+        edit_button.setIcon(fluent_icon("\ue70f"))
         edit_button.clicked.connect(self._request_edit_selected)
 
         archive_button = QPushButton("Archive")
+        archive_button.setIcon(fluent_icon("\ue7b8"))
         archive_button.clicked.connect(self._request_archive_selected)
 
         restore_button = QPushButton("Restore")
+        restore_button.setIcon(fluent_icon("\ue777"))
         restore_button.clicked.connect(self._request_restore_selected)
 
         delete_button = QPushButton("Delete")
+        delete_button.setObjectName("dangerButton")
+        delete_button.setIcon(fluent_icon("\ue74d"))
         delete_button.clicked.connect(self._request_delete_selected)
 
         clear_button = QPushButton("Clear all")
+        clear_button.setObjectName("dangerButton")
+        clear_button.setIcon(fluent_icon("\ue74d"))
         clear_button.clicked.connect(self._request_clear_all)
 
         reflect_button = QPushButton("Reflect")
+        reflect_button.setObjectName("primaryButton")
+        reflect_button.setIcon(fluent_icon("\ue895"))
         reflect_button.clicked.connect(self.reflect_requested.emit)
 
         approve_button = QPushButton("Approve")
+        approve_button.setObjectName("primaryButton")
+        approve_button.setIcon(fluent_icon("\ue73e"))
         approve_button.clicked.connect(self._request_approve_selected)
 
         reject_button = QPushButton("Reject")
+        reject_button.setObjectName("dangerButton")
+        reject_button.setIcon(fluent_icon("\ue711"))
         reject_button.clicked.connect(self._request_reject_selected)
 
         clear_pending_button = QPushButton("Clear pending")
+        clear_pending_button.setObjectName("dangerButton")
+        clear_pending_button.setIcon(fluent_icon("\ue74d"))
         clear_pending_button.clicked.connect(self.clear_pending_requested.emit)
+
+        self._memory_action_buttons = {
+            "refresh": refresh_button,
+            "edit": edit_button,
+            "archive": archive_button,
+            "restore": restore_button,
+            "delete": delete_button,
+            "clear": clear_button,
+            "reflect": reflect_button,
+            "approve": approve_button,
+            "reject": reject_button,
+            "clear_pending": clear_pending_button,
+        }
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(refresh_button)
         button_layout.addWidget(edit_button)
         button_layout.addWidget(archive_button)
         button_layout.addWidget(restore_button)
-        button_layout.addWidget(delete_button)
-        button_layout.addWidget(clear_button)
-        button_layout.addWidget(reflect_button)
         button_layout.addWidget(approve_button)
         button_layout.addWidget(reject_button)
         button_layout.addWidget(clear_pending_button)
-        button_layout.addStretch()
+        button_layout.addStretch(1)
+        button_layout.addWidget(delete_button)
+        button_layout.addWidget(clear_button)
+        button_layout.addWidget(reflect_button)
+
+        title_label = QLabel()
+        title_label.setPixmap(fluent_icon("\ue70c", 20).pixmap(22, 22))
+        title_text = QLabel("Akiha Memories")
+        title_text.setObjectName("managerTitle")
+        close_button = QPushButton()
+        close_button.setObjectName("closeButton")
+        close_button.setIcon(fluent_icon("\ue8bb"))
+        close_button.setToolTip("Close")
+        close_button.clicked.connect(self.close)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(9)
+        title_row.addWidget(title_label)
+        title_row.addWidget(title_text)
+        title_row.addStretch(1)
+
+        stats_row = QHBoxLayout()
+        stats_row.setContentsMargins(0, 0, 0, 0)
+        stats_row.setSpacing(6)
+        memory_dot = QLabel("●")
+        memory_dot.setObjectName("managerStatusDot")
+        archived_dot = QLabel("○")
+        archived_dot.setObjectName("managerStatusDotMuted")
+        stats_row.addWidget(memory_dot)
+        stats_row.addWidget(self._status_label)
+        stats_row.addSpacing(12)
+        stats_row.addWidget(archived_dot)
+        stats_row.addWidget(self._archived_status_label)
+        stats_row.addStretch(1)
+
+        heading_layout = QVBoxLayout()
+        heading_layout.setContentsMargins(0, 0, 0, 0)
+        heading_layout.setSpacing(7)
+        heading_layout.addLayout(title_row)
+        heading_layout.addLayout(stats_row)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(22, 16, 16, 16)
+        header_layout.addLayout(heading_layout)
+        header_layout.addStretch(1)
+        header_layout.addWidget(close_button, 0, Qt.AlignmentFlag.AlignTop)
+        header = QFrame()
+        header.setObjectName("managerHeader")
+        header.setLayout(header_layout)
+
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(16, 10, 16, 10)
+        footer_layout.addLayout(button_layout)
+        footer = QFrame()
+        footer.setObjectName("managerFooter")
+        footer.setLayout(footer_layout)
 
         layout = QVBoxLayout()
-        layout.addWidget(self._status_label)
-        layout.addWidget(self._archived_status_label)
-        layout.addWidget(self._pending_status_label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(header)
         layout.addWidget(tabs)
-        layout.addLayout(button_layout)
+        layout.addWidget(footer)
         self.setLayout(layout)
+        self._sync_action_buttons(0)
+
+    def _sync_action_buttons(self, tab_index: int) -> None:
+        visible_actions = {
+            0: {"refresh", "edit", "archive", "delete", "reflect"},
+            1: {"refresh", "restore"},
+            2: {"refresh", "approve", "reject", "clear_pending"},
+        }.get(tab_index, {"refresh"})
+        for name, button in self._memory_action_buttons.items():
+            button.setVisible(name in visible_actions)
 
     def update_memories(self, memories: tuple[MemoryEntry, ...]) -> None:
         """Replace the visible memory list."""
@@ -130,6 +264,7 @@ class MemoryWindow(QWidget):
         for memory in memories:
             item = QListWidgetItem(_format_memory(memory))
             item.setData(Qt.ItemDataRole.UserRole, memory.id)
+            _present_memory_item(item, memory)
             self._memory_list.addItem(item)
 
         self._apply_memory_filter()
@@ -141,6 +276,7 @@ class MemoryWindow(QWidget):
         for memory in memories:
             item = QListWidgetItem(_format_memory(memory))
             item.setData(Qt.ItemDataRole.UserRole, memory.id)
+            _present_memory_item(item, memory, state="archived")
             self._archived_list.addItem(item)
 
         self._apply_archived_filter()
@@ -154,6 +290,7 @@ class MemoryWindow(QWidget):
         for pending_memory in pending_memories:
             item = QListWidgetItem(_format_pending_memory(pending_memory))
             item.setData(Qt.ItemDataRole.UserRole, pending_memory.id)
+            _present_pending_memory_item(item, pending_memory)
             self._pending_list.addItem(item)
 
         self._apply_pending_filter()
@@ -273,6 +410,7 @@ class MemoryWindow(QWidget):
         self._status_label.setText(
             _format_count_status(visible_count, len(self._memories), "memory")
         )
+        self._tabs.setTabText(0, "Saved")
 
     def _apply_archived_filter(self) -> None:
         query = self._archived_filter_input.text().strip()
@@ -284,6 +422,7 @@ class MemoryWindow(QWidget):
                 "archived memory",
             )
         )
+        self._tabs.setTabText(1, "Archived")
 
     def _apply_pending_filter(self) -> None:
         query = self._pending_filter_input.text().strip()
@@ -295,6 +434,9 @@ class MemoryWindow(QWidget):
                 "pending memory",
             )
         )
+        pending_count = len(self._pending_memories)
+        pending_label = f"Pending {pending_count}" if pending_count else "Pending"
+        self._tabs.setTabText(2, pending_label)
 
 
 class MemoryEditDialog(QDialog):
@@ -363,6 +505,39 @@ def _format_pending_memory(pending_memory: PendingMemory) -> str:
     return f"{prefix}  {candidate.content}{tags}"
 
 
+def _present_memory_item(
+    item: QListWidgetItem,
+    memory: MemoryEntry,
+    *,
+    state: str = "saved",
+) -> None:
+    state_label = "ARCHIVED  ·  " if state == "archived" else ""
+    item.setData(ITEM_TITLE_ROLE, memory.content)
+    item.setData(
+        ITEM_META_ROLE,
+        f"{state_label}Imp {memory.importance}",
+    )
+    item.setData(ITEM_TAGS_ROLE, memory.tags or ("untagged",))
+    item.setData(
+        ITEM_ACCENT_ROLE,
+        "#E0C561" if memory.importance >= 4 else AKIHA_PALETTE.highlight,
+    )
+
+
+def _present_pending_memory_item(
+    item: QListWidgetItem,
+    pending_memory: PendingMemory,
+) -> None:
+    candidate = pending_memory.candidate
+    item.setData(ITEM_TITLE_ROLE, candidate.content)
+    item.setData(
+        ITEM_META_ROLE,
+        f"Pending  ·  Imp {candidate.importance}",
+    )
+    item.setData(ITEM_TAGS_ROLE, candidate.tags or ("untagged",))
+    item.setData(ITEM_ACCENT_ROLE, "#E0C561")
+
+
 def _apply_list_filter(memory_list: QListWidget, query: str) -> int:
     normalized_query = query.casefold()
     visible_count = 0
@@ -404,7 +579,8 @@ def _parse_tags(value: str) -> tuple[str, ...]:
 def _wrap_list(search_input: QLineEdit, memory_list: QListWidget) -> QWidget:
     widget = QWidget()
     layout = QVBoxLayout()
-    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setContentsMargins(16, 12, 16, 12)
+    layout.setSpacing(10)
     layout.addWidget(search_input)
     layout.addWidget(memory_list)
     widget.setLayout(layout)
