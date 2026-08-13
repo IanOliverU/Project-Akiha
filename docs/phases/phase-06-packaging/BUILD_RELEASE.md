@@ -22,7 +22,7 @@ The V5 folder remains the last manually verified fallback until this V8 target
 passes its complete packaged checklist:
 
 ```text
-dist/nuitka-v8-hosted-live-candidate/main.dist/Akiha.exe
+dist/nuitka-v8-final/main.dist/Akiha.exe
 ```
 
 The V8 candidate passed GUI-subsystem, artifact, fresh-data, existing-data,
@@ -136,7 +136,7 @@ Run this before the final manual packaged smoke pass:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-final\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
@@ -175,7 +175,7 @@ standalone-vs-installer decision.
 
 ```powershell
 pip install -e ".[package,voice,live]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
 ```
 
 Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
@@ -195,7 +195,7 @@ Create the current release-candidate environment with:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
 ```
 
 The build clears Nuitka's compilation caches, then uses standalone mode,
@@ -235,7 +235,7 @@ After a standalone build, run:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-final\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 

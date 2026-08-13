@@ -435,14 +435,14 @@ release-candidate standalone builds:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-hosted-live-candidate
+.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
 ```
 
 Automated release readiness for the current standalone package:
 
 ```powershell
 .\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-v8-hosted-live-candidate\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-v8-final\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
