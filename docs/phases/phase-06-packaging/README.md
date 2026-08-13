@@ -219,7 +219,7 @@ acknowledgement is persisted in the local user config.
 
 ```powershell
 pip install -e .[package]
-.\scripts\build_akiha_nuitka.ps1
+.\scripts\build_akiha_nuitka.ps1 -FastBuild -OutputDir dist\nuitka-dev
 ```
 
 Use this command when you want to validate the script and quality gate without

@@ -23,21 +23,23 @@ Build the standalone package:
 
 ```powershell
 pip install -e ".[package,voice,live]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
+.\scripts\build_akiha_nuitka.ps1 `
+  -CleanRelease `
+  -OutputDir dist\nuitka-phase9-final
 ```
 
 Run the automated packaged smoke:
 
 ```powershell
 .\scripts\smoke_packaged_app.ps1 `
-  -ExePath dist\nuitka-v8-final\main.dist\Akiha.exe `
+  -ExePath dist\nuitka-phase9-final\main.dist\Akiha.exe `
   -RunExistingDataPass
 ```
 
 Then launch the packaged app manually:
 
 ```text
-dist\nuitka-v8-final\main.dist\Akiha.exe
+dist\nuitka-phase9-final\main.dist\Akiha.exe
 ```
 
 ## First-Run Privacy

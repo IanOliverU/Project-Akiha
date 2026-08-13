@@ -430,15 +430,30 @@ python -m compileall project_akiha tests
 
 ## Package Build
 
-Nuitka packaging is available through the package extras. Use Python 3.13 for
-release-candidate standalone builds:
+Nuitka packaging is available through the package extras. Use Python 3.13 and
+choose the build mode explicitly. Cached development packages are intended for
+packaged debugging during a phase:
 
 ```powershell
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
+.\scripts\build_akiha_nuitka.ps1 `
+  -FastBuild `
+  -OutputDir dist\nuitka-dev
 ```
+
+Use a clean build only when closing a phase or preparing a release candidate:
+
+```powershell
+.\scripts\build_akiha_nuitka.ps1 `
+  -CleanRelease `
+  -OutputDir dist\nuitka-phase9-final
+```
+
+Development and release builds use separate Nuitka caches. Every invocation
+records stage timings under the output directory's `build-reports` folder, and
+packaged builds also create a Nuitka XML compilation report.
 
 Automated release readiness for the current standalone package:
 

@@ -163,15 +163,36 @@ standalone-vs-installer decision.
 
 ```powershell
 pip install -e ".[package,voice,live]"
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
+.\scripts\build_akiha_nuitka.ps1 `
+  -FastBuild `
+  -OutputDir dist\nuitka-dev
 ```
+
+`-FastBuild` is the normal packaged-development lane. It reuses Nuitka's
+standard development cache and is appropriate for debugging packaged-only
+behavior during a phase. The first build on a machine is still cold, but later
+builds can reuse unchanged C compiler results.
+
+Use a clean build only when closing a phase or preparing a release candidate:
+
+```powershell
+.\scripts\build_akiha_nuitka.ps1 `
+  -CleanRelease `
+  -OutputDir dist\nuitka-phase9-final
+```
+
+The script requires one of these modes for every real package build. It rejects
+commands that provide both modes or neither mode.
 
 Use Python 3.13 for release-candidate packaging. On Python 3.14+, the script
 stops before building because that runtime is currently diagnostic-only for
 Nuitka standalone output:
 
 ```powershell
-.\scripts\build_akiha_nuitka.ps1 -AllowExperimentalPython
+.\scripts\build_akiha_nuitka.ps1 `
+  -FastBuild `
+  -AllowExperimentalPython `
+  -OutputDir dist\nuitka-experimental
 ```
 
 Only use `-AllowExperimentalPython` when investigating packaging behavior, not
@@ -183,12 +204,13 @@ Create the current release-candidate environment with:
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 -OutputDir dist\nuitka-v8-final
+.\scripts\build_akiha_nuitka.ps1 `
+  -CleanRelease `
+  -OutputDir dist\nuitka-phase9-final
 ```
 
-The build clears Nuitka's compilation caches, then uses standalone mode,
-PySide6 plugin support, Zig, attached Windows console mode, and bundled data
-directories for:
+Both modes use standalone mode, PySide6 plugin support, Zig, attached Windows
+console mode, and bundled data directories for:
 
 - `assets`
 - `project_akiha/config`
@@ -202,10 +224,58 @@ normally. It can reuse an existing PowerShell console for diagnostics, which
 avoids a Nuitka 4.1.3/Zig startup failure observed with `disable` mode while
 still passing the no-visible-console smoke check.
 
-The clean-cache release build is intentional. A reused Nuitka 4.1.3 module
-cache produced an executable that passed artifact and subsystem validation but
-failed during compiled code-object loading. Release builds trade the extra
-compile time for a deterministic artifact.
+The build caches are intentionally separated:
+
+- `-FastBuild` uses Nuitka's reusable development cache under
+  `%LOCALAPPDATA%\Nuitka\Nuitka\Cache` by default.
+- `-CleanRelease` uses
+  `%LOCALAPPDATA%\Akiha\BuildCache\Nuitka\release` and applies
+  `--clean-cache=all` only to that release cache.
+
+The clean release lane is intentional. A reused Nuitka 4.1.3 module cache
+produced an executable that passed artifact and subsystem validation but failed
+during compiled code-object loading. Final phase and release builds trade the
+extra compile time for a deterministic artifact without destroying the cache
+used by development builds.
+
+Each command records per-stage and total durations in:
+
+```text
+<output-dir>\build-reports\build-timings-<timestamp>.json
+```
+
+Every real package build also writes Nuitka's dependency and compilation report
+to:
+
+```text
+<output-dir>\build-reports\nuitka-compilation-report-<timestamp>.xml
+```
+
+The console prints the same stage-duration summary after success or failure.
+
+### Cached Build Benchmark
+
+The first measured `-FastBuild` candidate was created on 2026-08-13 with
+Python 3.13.14, Nuitka 4.1.3, Zig 0.16.0, and the reusable development cache:
+
+```text
+dist\nuitka-fast-benchmark\main.dist\Akiha.exe
+```
+
+Results:
+
+- Nuitka availability: 1.277 seconds
+- Nuitka standalone build: 456.267 seconds, or 7 minutes 36 seconds
+- Windows GUI subsystem validation: 0.277 seconds
+- Packaged artifact validation: 0.214 seconds
+- Output: 193 files totaling 393.7 MB
+- Fresh-data packaged smoke: passed
+- Existing-data packaged smoke: passed
+
+The previous clean V8 build took approximately five hours on the same project.
+The measured cached development build was therefore about 39 times faster.
+This benchmark does not weaken the release rule: phase-closing and distributable
+candidates still use `-CleanRelease` and receive the full manual smoke pass.
 
 The script also validates that the standalone artifact contains the expected
 runtime folders, bundled assets, default config, database migrations, the
