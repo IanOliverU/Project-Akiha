@@ -88,6 +88,19 @@ class ChatWindowTest(unittest.TestCase):
             "English subtitle unavailable.",
         )
 
+    def test_replaces_cumulative_streaming_message_in_place(self) -> None:
+        window = ChatWindow()
+
+        window.begin_streaming_message("Akiha")
+        window.replace_streaming_message("Akiha", "Good")
+        window.replace_streaming_message("Akiha", "Good afternoon.")
+        window.finish_streaming_message()
+
+        self.assertEqual(
+            window._history_view.toPlainText(),
+            "Akiha: Good afternoon.",
+        )
+
     def test_sets_presence_text_without_touching_status(self) -> None:
         window = ChatWindow()
         window.set_status("Thinking...")

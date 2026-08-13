@@ -461,6 +461,37 @@ class ChatControllerTest(unittest.TestCase):
         self.assertIsNone(committed.assistant_message)
         self.assertIsNone(controller.latest_assistant_message_id)
 
+    def test_live_turn_memory_can_be_processed_after_fast_persistence(self) -> None:
+        repository = RecordingConversationRepository()
+        memory_pipeline = RecordingMemoryPipeline()
+        controller = ChatController(
+            StaticProvider("unused"),
+            conversation_repository=repository,
+            conversation_id=7,
+            memory_pipeline=memory_pipeline,
+        )
+
+        committed = asyncio.run(
+            controller.commit_canonical_live_turn(
+                "Hello Akiha",
+                "Good afternoon.",
+                process_memory=False,
+            )
+        )
+
+        self.assertEqual(len(repository.saved_messages), 2)
+        self.assertEqual(memory_pipeline.processed_messages, [])
+
+        asyncio.run(controller.process_canonical_live_memory(committed))
+
+        self.assertEqual(len(memory_pipeline.processed_messages), 1)
+        messages, conversation_id = memory_pipeline.processed_messages[0]
+        self.assertEqual(conversation_id, 7)
+        self.assertEqual(
+            messages,
+            (committed.user_message, committed.assistant_message),
+        )
+
     def test_initial_system_messages_are_not_exposed_as_history(self) -> None:
         controller = ChatController(
             StaticProvider("done"),

@@ -159,6 +159,7 @@ class LiveTranscriptController:
         turn_id: str,
         *,
         allow_audio_only: bool = False,
+        process_memory: bool = True,
     ) -> CanonicalLiveChatCommit | None:
         """Commit one completed turn exactly once when canonical finals are ready."""
         with self._lock:
@@ -177,10 +178,17 @@ class LiveTranscriptController:
             self._snapshot = replace(current, committing=True)
 
         try:
-            committed = await self._chat_controller.commit_canonical_live_turn(
-                current.final_user_text,
-                current.final_assistant_text,
-            )
+            if process_memory:
+                committed = await self._chat_controller.commit_canonical_live_turn(
+                    current.final_user_text,
+                    current.final_assistant_text,
+                )
+            else:
+                committed = await self._chat_controller.commit_canonical_live_turn(
+                    current.final_user_text,
+                    current.final_assistant_text,
+                    process_memory=False,
+                )
         except Exception:
             with self._lock:
                 latest = self._snapshot

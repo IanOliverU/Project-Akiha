@@ -284,6 +284,8 @@ class ChatController:
         self,
         user_content: str,
         assistant_content: str | None,
+        *,
+        process_memory: bool = True,
     ) -> CanonicalLiveChatCommit:
         """Persist accepted hosted-live finals without calling a text provider."""
         self._latest_assistant_message_id = None
@@ -297,12 +299,23 @@ class ChatController:
             self._latest_assistant_message_id = (
                 stored_assistant.id if stored_assistant is not None else None
             )
-            await self._process_memory((user_message, assistant_message))
+            if process_memory:
+                await self._process_memory((user_message, assistant_message))
 
         return CanonicalLiveChatCommit(
             user_message=user_message,
             assistant_message=assistant_message,
         )
+
+    async def process_canonical_live_memory(
+        self,
+        commit: CanonicalLiveChatCommit,
+    ) -> None:
+        """Process memory for an already-persisted hosted-live exchange."""
+        assistant_message = commit.assistant_message
+        if assistant_message is None:
+            return
+        await self._process_memory((commit.user_message, assistant_message))
 
     async def stream_user_message(self, content: str) -> AsyncIterator[str]:
         """Append a user message and yield the assistant response in chunks."""

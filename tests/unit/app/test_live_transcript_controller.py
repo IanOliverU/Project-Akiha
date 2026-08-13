@@ -72,6 +72,19 @@ class LiveTranscriptControllerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(committed)
         self.assertEqual(self.chat.calls, [("Hello", None)])
 
+    async def test_hosted_commit_can_defer_memory_processing(self) -> None:
+        self.controller.transcript_revised(_input(0, "Hello", is_final=True))
+        self.controller.assistant_text_revised(_assistant(0, "Hello.", is_final=True))
+        self.controller.turn_completed("turn-1")
+
+        committed = await self.controller.commit_completed_turn(
+            "turn-1",
+            process_memory=False,
+        )
+
+        self.assertIsNotNone(committed)
+        self.assertEqual(self.chat.process_memory_values, [False])
+
     async def test_wrong_stale_and_post_final_revisions_are_rejected(self) -> None:
         self.assertFalse(
             self.controller.transcript_revised(
@@ -166,14 +179,18 @@ class LiveTranscriptControllerTest(unittest.IsolatedAsyncioTestCase):
 class _RecordingChatController:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None]] = []
+        self.process_memory_values: list[bool] = []
         self.fail = False
 
     async def commit_canonical_live_turn(
         self,
         user_content: str,
         assistant_content: str | None,
+        *,
+        process_memory: bool = True,
     ) -> CanonicalLiveChatCommit:
         self.calls.append((user_content, assistant_content))
+        self.process_memory_values.append(process_memory)
         if self.fail:
             raise RuntimeError("storage failed")
         return CanonicalLiveChatCommit(

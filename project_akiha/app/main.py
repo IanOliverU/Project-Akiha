@@ -26,7 +26,9 @@ from project_akiha.app.conversation_runtime_router import (
     ConversationRuntimeRouter,
 )
 from project_akiha.app.hosted_conversation_runtime import HostedConversationRuntime
+from project_akiha.app.hosted_live_chat_presenter import HostedLiveChatPresenter
 from project_akiha.app.live_audio_playback import NativeAudioPlaybackQueue
+from project_akiha.app.live_memory_controller import LiveMemoryProcessingController
 from project_akiha.app.live_transcript_controller import LiveTranscriptController
 from project_akiha.app.local_conversation_session_controller import (
     LocalConversationSessionController,
@@ -631,6 +633,17 @@ def _run_application() -> int:
         surface=chat_window,
         config=config.voice,
         message_id_provider=lambda: chat_controller.latest_assistant_message_id,
+    )
+    hosted_live_chat_presenter = HostedLiveChatPresenter(
+        chat_window,
+        assistant_name=config.personality.character_name,
+        on_assistant_committed=(
+            assistant_translation_controller.translate_assistant_response
+        ),
+    )
+    live_memory_processing_controller = LiveMemoryProcessingController(
+        chat_controller,
+        logger=logger,
     )
     chat_voice_presenter = ChatVoicePresenter(
         event_bus=event_bus,
@@ -2360,6 +2373,7 @@ def _run_application() -> int:
 
         asyncio.run(chat_controller.start_new_conversation())
         assistant_translation_controller.cancel(wait_ms=0)
+        hosted_live_chat_presenter.reset()
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
@@ -2383,6 +2397,7 @@ def _run_application() -> int:
 
         asyncio.run(chat_controller.clear_current_conversation())
         assistant_translation_controller.cancel(wait_ms=0)
+        hosted_live_chat_presenter.reset()
         event_bus.publish(EventType.VOICE_SPEAK_STOP_REQUESTED)
         voice_synthesis_controller.clear_replay()
         assistant_tool_result_store.clear()
@@ -2448,6 +2463,7 @@ def _run_application() -> int:
     )
 
     def present_hosted_input_revision(revision) -> None:
+        hosted_live_chat_presenter.input_revised(revision)
         status = "Hearing cloud transcript..."
         if revision.status is TranscriptStatus.FINAL:
             status = "Cloud transcript accepted."
@@ -2457,6 +2473,7 @@ def _run_application() -> int:
         chat_controller=chat_controller,
         transcript_authority=voice_session_coordinator,
         on_input_revision=present_hosted_input_revision,
+        on_assistant_revision=hosted_live_chat_presenter.assistant_revised,
     )
     hosted_audio_bridge = RealtimeAudioFrameBridge()
     hosted_audio_playback = NativeAudioPlaybackQueue(voice_playback_controller)
@@ -2499,17 +2516,9 @@ def _run_application() -> int:
             action_dispatcher=provider_action_dispatcher,
         )
 
-    def present_hosted_commit(commit) -> None:
-        chat_window.append_message("You", commit.user_message.content)
-        assistant_message = commit.assistant_message
-        if assistant_message is not None:
-            chat_window.append_message(
-                config.personality.character_name,
-                assistant_message.content,
-            )
-            assistant_translation_controller.translate_assistant_response(
-                assistant_message.content
-            )
+    def present_hosted_commit(turn_id: str, commit) -> None:
+        hosted_live_chat_presenter.committed(turn_id, commit)
+        live_memory_processing_controller.process(commit)
 
     def confirm_hosted_action(confirmation: ProviderActionConfirmation) -> bool:
         answer = QMessageBox.question(
@@ -2783,6 +2792,11 @@ def _run_application() -> int:
         translations_stopped = assistant_translation_controller.cancel()
         if not translations_stopped:
             logger.warning("Assistant translation did not stop before shutdown.")
+        live_memory_stopped = live_memory_processing_controller.cancel()
+        if not live_memory_stopped:
+            logger.warning(
+                "Hosted-live memory processing did not stop before shutdown."
+            )
         active_runtime_threads = [
             *active_chat_threads,
             *active_action_threads,
@@ -2812,7 +2826,7 @@ def _run_application() -> int:
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
             "voice_engine_stopped=%s, "
             "ai_discovery_stopped=%s, spotify_authorization_stopped=%s, "
-            "translations_stopped=%s.",
+            "translations_stopped=%s, live_memory_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -2826,6 +2840,7 @@ def _run_application() -> int:
             ai_discovery_stopped,
             spotify_authorization_stopped,
             translations_stopped,
+            live_memory_stopped,
         )
 
     app.aboutToQuit.connect(shutdown_app)
@@ -2883,6 +2898,8 @@ def _run_application() -> int:
         assistant_action_bridge,
         assistant_action_service,
         assistant_translation_controller,
+        hosted_live_chat_presenter,
+        live_memory_processing_controller,
         chat_controller,
         activity_controller,
         activity_tick_timer,

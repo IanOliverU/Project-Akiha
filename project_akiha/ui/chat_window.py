@@ -217,12 +217,41 @@ class ChatWindow(QWidget):
         self._history_view.append(
             f'<span class="{_speaker_class(speaker)}">{escape(speaker)}</span>: '
         )
+        self._streaming_block_number = self._history_view.document().blockCount() - 1
 
     def append_stream_delta(self, content: str) -> None:
         """Append incremental plain text to the current message."""
         self._history_view.moveCursor(QTextCursor.MoveOperation.End)
         self._history_view.insertPlainText(content)
         self._history_view.ensureCursorVisible()
+
+    def replace_streaming_message(self, speaker: str, content: str) -> None:
+        """Replace the current streaming block with one cumulative revision."""
+        block_number = getattr(self, "_streaming_block_number", None)
+        if block_number is None:
+            self.begin_streaming_message(speaker)
+            block_number = self._streaming_block_number
+        block = self._history_view.document().findBlockByNumber(block_number)
+        if not block.isValid():
+            self.begin_streaming_message(speaker)
+            block = self._history_view.document().findBlockByNumber(
+                self._streaming_block_number
+            )
+        cursor = QTextCursor(block)
+        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.StartOfBlock,
+            QTextCursor.MoveMode.KeepAnchor,
+        )
+        cursor.insertHtml(
+            f'<span class="{_speaker_class(speaker)}">{escape(speaker)}</span>: '
+            f"{escape(content)}"
+        )
+        self._history_view.ensureCursorVisible()
+
+    def finish_streaming_message(self) -> None:
+        """Release the current streaming block after its final revision."""
+        self._streaming_block_number = None
 
     def append_error(self, content: str) -> None:
         """Append an error-style message to the transcript."""

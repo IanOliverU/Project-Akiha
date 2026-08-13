@@ -44,7 +44,7 @@ class HostedConversationRuntime:
         audio_bridge: RealtimeAudioFrameBridge,
         playback: NativeAudioPlaybackQueue,
         thread_factory: Callable[[], HostedLiveSessionThread],
-        on_commit: Callable[[CanonicalLiveChatCommit], None],
+        on_commit: Callable[[str, CanonicalLiveChatCommit], None],
         on_action_confirmation: (
             Callable[[ProviderActionConfirmation], bool] | None
         ) = None,
@@ -345,6 +345,7 @@ class HostedConversationRuntime:
                 self._transcripts.commit_completed_turn(
                     turn_id,
                     allow_audio_only=True,
+                    process_memory=False,
                 )
             )
         except Exception:
@@ -354,7 +355,7 @@ class HostedConversationRuntime:
             )
             return
         if commit is not None:
-            self._on_commit(commit)
+            self._on_commit(turn_id, commit)
         else:
             # Never let a missing provider transcript strand the next live
             # turn. Partials remain ephemeral when no canonical final exists.
