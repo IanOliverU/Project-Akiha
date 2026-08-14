@@ -1,6 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** Planned - gameplay and asset research pending
+**Status:** In progress - Phase 9A gameplay and asset specification drafted;
+reaction-matrix approval pending
 
 ## Phase Goal
 
@@ -12,7 +13,7 @@ language or AI-provider output.
 
 Pet state is structured, language-neutral application data.
 
-- Hunger, attention, affection, energy, XP, level, and currency are stored as
+- Satiety, attention, affection, energy, XP, level, and currency are stored as
   typed values.
 - Time decay and care actions modify those values through explicit domain
   rules.
@@ -87,16 +88,212 @@ that are actually available.
 - Decide the intended pressure level for decay, attention requests, rewards,
   and recovery.
 - Inventory existing idle, walk, sleep, mood, listening, and speaking assets.
-- Define the minimum reaction matrix for hunger, low energy, attention,
+- Define the minimum reaction matrix for low satiety, low energy, attention,
   affection, feeding, resting, and spending time together.
 - Define a fallback order for missing assets: dedicated animation, static pose,
   mood indicator plus voice, then the existing idle presentation.
 - Record frame dimensions, transparency, frame rate, direction, loop behavior,
   offsets, naming, and preview requirements for future assets.
 
+## Phase 9A: Gameplay And Asset Specification
+
+Phase 9A started on 2026-08-14. Its purpose is to lock the care-loop behavior
+before database, service, or UI implementation begins.
+
+### Product Direction
+
+Phase 9 uses one gentle companion-care profile. It borrows the readable care
+loop of traditional virtual pets and the modular state, interaction, and asset
+separation demonstrated by VPet, without copying a punitive maintenance model
+or requiring hundreds of animations.
+
+- Care should reward regular interaction without demanding constant attention.
+- Akiha remains recoverable after any absence.
+- There is no difficulty selector in Phase 9.
+- Missing artwork degrades presentation, never mechanics or saved state.
+- Pet status is shown in a dedicated compact care surface, not permanently
+  overlaid on the desktop character.
+- Daily care controls do not turn the Settings window into a gameplay screen.
+
+Research references:
+
+- [VPet repository and architecture](https://github.com/LorisYounger/VPet)
+- [VPet English overview](https://github.com/LorisYounger/VPet/blob/main/README_en.md)
+- [Official Tamagotchi manuals](https://tamagotchi-official.com/manual/)
+
+### Canonical State Semantics
+
+All bounded wellbeing values use `0..100`, where a higher value is healthier.
+The canonical model therefore uses `satiety` rather than an ambiguous `hunger`
+number whose direction would be easy to misuse.
+
+| Value | Meaning | Initial | Gentle decay |
+|---|---|---:|---:|
+| `satiety` | `0` empty, `100` well fed | 80 | -1 per 45 minutes |
+| `energy` | `0` exhausted, `100` rested | 80 | -1 per 60 minutes |
+| `attention` | `0` needs company, `100` content | 70 | -1 per 90 minutes |
+| `affection` | long-term bond, not an immediate need | 50 | no time decay |
+| `xp` | validated progression total | 0 | no decay |
+| `level` | derived from XP thresholds | 1 | no decay |
+| `currency` | earned now, spent only in Phase 10 | 0 | no decay |
+
+The rates are initial implementation constants, not user-facing advanced
+settings. Phase 9D manual testing may tune them once, but must preserve the
+gentle profile and migration compatibility.
+
+Wellbeing thresholds are edge-triggered:
+
+| Band | Range | Meaning |
+|---|---:|---|
+| Stable | 51-100 | No care request |
+| Low | 26-50 | Subtle status and optional low-urgency reminder |
+| Critical | 0-25 | Clear care need, still fully recoverable |
+
+Crossing a boundary emits one structured transition. Remaining in the same
+band does not repeat history or notifications. Returning above a boundary
+re-arms that transition for a future crossing.
+
+### Time And Absence Policy
+
+- Runtime decay is computed from elapsed UTC time through an injected clock.
+- The service may evaluate once per minute but applies elapsed time rather than
+  assuming every timer tick arrives on schedule.
+- Offline decay is capped at 12 hours per launch.
+- Clock rollback produces zero elapsed decay and a diagnostic outcome.
+- Startup applies one atomic catch-up transition and may propose at most one
+  highest-priority care notification.
+- Closing and reopening the app cannot apply the same elapsed interval twice.
+
+### Explicit Care Actions
+
+Phase 9 exposes three typed actions. Their exact values are intentionally easy
+to understand and test:
+
+| Care action | State effect | Presentation target |
+|---|---|---|
+| `feed` | `satiety +25` | eating reaction when available |
+| `rest` | `energy +25` | resting/sleepy cue |
+| `spend_time` | `attention +20`, `affection +1` | attentive reaction |
+
+All values clamp at `100`. An action that changes no state produces no reward.
+Care remains available at the floor; reward cooldowns must never prevent
+recovery.
+
+### Progression And Anti-Farming
+
+- A reward-eligible care action grants 5 XP and 2 currency.
+- Each care-action kind has a 30-minute reward cooldown.
+- At most 12 care reward grants are allowed in a rolling 24-hour window.
+- A validated completed conversation may grant 1 XP at most once per 10
+  minutes, capped at 12 grants per rolling 24 hours.
+- Empty, cancelled, failed, or provider-only text does not create an
+  interaction reward.
+- Repeated clicks, dragging, animation commands, assistant actions, and
+  proactive messages do not grant progression.
+- Level thresholds are derived from XP and finalized with the Phase 9F tests;
+  currency spending remains unavailable until Phase 10.
+
+Conversation rewards originate from a typed `conversation_completed` event
+after a valid turn is persisted. They never inspect message wording, language,
+sentiment, translation, or provider output.
+
+### Attention-Seeking Policy
+
+Pet care requests reuse the existing notification policy, quiet hours,
+away-state rules, and global cooldown. They do not create a second delivery
+system.
+
+- Low-band transitions request low urgency.
+- Critical-band transitions request normal urgency.
+- Only the highest-priority unmet need may be surfaced after startup.
+- Suppressed notifications remain suppressed; pet state never bypasses policy.
+- Recovery and future re-crossing are required before the same threshold can
+  request attention again.
+
+### Runtime Reaction Priority
+
+Pet reactions are read-only consumers of committed pet-state events. Runtime
+presentation priority is:
+
+1. Voice listening, thinking, speaking, muted, or error state.
+2. Direct user manipulation such as dragging or an explicit walk/sleep action.
+3. A short explicit care-action reaction.
+4. A threshold-driven need cue.
+5. Background activity mood and idle presentation.
+
+A lower-priority pet reaction never interrupts voice, dragging, or a direct
+user animation command.
+
+### Current Asset Inventory
+
+| Asset | Technical shape | Phase 9 readiness |
+|---|---|---|
+| `standing/000.png` | 100x100 transparent PNG | Active universal fallback |
+| `walking/Akiha-Walking.png` | 800x100 strip, 8 frames at 100x100 | Active; displayed at 8 fps and flipped for left movement |
+| `Akiha.gif` | 256x256, 25 frames, 80 ms/frame, 2 seconds | Feeding candidate; not wired into the manifest yet |
+| `idle/000.png` | 885x1777 alpha-capable PNG | Inactive source candidate |
+| `dragging/000.png` | 885x1777 alpha-capable PNG | Inactive source candidate |
+| `source-chroma.png` | 885x1777 RGB source | Not runtime-ready |
+| Other walking sources | 1280x1280 and 6400x256 PNGs | Retained source variants; inactive |
+
+The current manifest supports `idle`, `walking`, `dragging`, and `sleeping`.
+Idle, dragging, and sleeping currently resolve to the standing fallback. Mood
+cues already provide attention, waiting, checking-in, resting, sleepy,
+listening, thinking, speaking, muted, and error presentation without requiring
+new sprite sets.
+
+### Minimum Reaction Matrix
+
+| Trigger | Structured cue | Current presentation | Future preferred asset |
+|---|---|---|---|
+| Fed | `care.feed.completed` | attentive cue plus standing | adapted eating GIF |
+| Rested | `care.rest.completed` | resting/sleepy cue plus sleeping fallback | dedicated rest loop |
+| Time together | `care.spend_time.completed` | attention cue plus standing | reserved happy/attentive pose |
+| Low satiety | `pet.need.satiety.low` | checking-in cue plus policy-gated line | hungry pose |
+| Low energy | `pet.need.energy.low` | sleepy cue; sleeping only when otherwise idle | tired pose or loop |
+| Low attention | `pet.need.attention.low` | waiting/checking-in cue | attention pose |
+| Affection increased | `pet.affection.increased` | brief attention cue | reserved warm reaction |
+| Level increased | `pet.level.increased` | checking-in cue | level-up reaction |
+
+Every row uses this fallback order:
+
+```text
+dedicated animation
+    -> compatible static pose
+        -> procedural mood cue plus optional local voice line
+            -> standing/idle presentation
+```
+
+### Future Asset Contract
+
+New Phase 9 assets should provide:
+
+- transparent PNG frames or a transparent filmstrip
+- a stable canvas and consistent foot/ground anchor across frames
+- frame dimensions, count, playback ticks, loop/one-shot behavior, scale, and
+  offsets in the animation manifest
+- explicit direction behavior for movement assets
+- a preview image or GIF for review
+- no baked-in background color
+- no requirement that gameplay wait for the asset to exist
+
+The preferred future canvas is 256x256, but the manifest remains authoritative
+and the runtime must not hard-code that size.
+
+### Phase 9A Approval Gate
+
+Phase 9B may begin after the owner confirms:
+
+- the gentle pressure profile
+- positive wellbeing semantics and `satiety` naming
+- the three explicit care actions
+- non-punitive neglect and 12-hour offline cap
+- progression limits
+- the minimum reaction and fallback matrix
+
 ## Planned Scope
 
-- Persistent hunger, attention or affection, and energy statistics.
+- Persistent satiety, attention, affection, and energy statistics.
 - Bounded time decay, including elapsed time while the app was closed.
 - Explicit care actions such as feeding, resting, and spending time together.
 - XP, levels, and currency accrual from validated interactions.
@@ -115,7 +312,7 @@ that are actually available.
 
 ## Preliminary Checklist
 
-- [ ] Complete gameplay and asset-readiness research.
+- [x] Complete gameplay and asset-readiness research.
 - [ ] Approve the minimum reaction and animation-fallback matrix.
 - [ ] Define typed pet-state models and invariants.
 - [ ] Define decay, offline elapsed-time, and clock rules.
