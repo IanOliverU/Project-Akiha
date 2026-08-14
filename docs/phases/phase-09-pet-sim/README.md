@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A through 9D complete; Phase 9E progression
-and anti-farming next
+**Status:** In progress - Phases 9A through 9E complete; Phase 9F pet status
+and care UI next
 
 ## Phase Goal
 
@@ -75,7 +75,8 @@ and are not an accidental consequence of clamp logic.
 Phase 8 reserves migration `0008` for assistant-action permissions and audit
 history. The first Phase 9 migration is therefore `0009`. Pet-state and
 pet-history tables may be introduced together in that migration when their
-schema is finalized.
+schema is finalized. Migration `0010` adds the restart-safe reward ledger used
+for cooldowns, rolling caps, and conversation-event deduplication.
 
 ## Research And Asset Readiness
 
@@ -190,8 +191,8 @@ recovery.
   interaction reward.
 - Repeated clicks, dragging, animation commands, assistant actions, and
   proactive messages do not grant progression.
-- Level thresholds are derived from XP and finalized with the Phase 9F tests;
-  currency spending remains unavailable until Phase 10.
+- Level thresholds use cumulative triangular 25-XP steps and are finalized by
+  the Phase 9E tests; currency spending remains unavailable until Phase 10.
 
 Conversation rewards originate from a typed `conversation_completed` event
 after a valid turn is persisted. They never inspect message wording, language,
@@ -540,6 +541,74 @@ buttons, voice commands, provider tools, or reaction events.
 - The complete suite passes with 1,426 tests and 3 optional-provider skips.
 - Ruff, Black verification, Python compilation, and diff checks pass.
 
+## Phase 9E: Progression And Anti-Farming
+
+Phase 9E was completed on 2026-08-14. It adds restart-safe XP, levels, and
+currency accrual while keeping care recovery independent from reward
+eligibility.
+
+### Level And Reward Rules
+
+Level is derived from XP and cannot be assigned independently. The cumulative
+thresholds begin at 0, 25, 75, 150, and 250 XP for levels 1 through 5. Each
+later level requires 25 more XP than the previous step.
+
+- An eligible changed care action grants 5 XP and 2 currency.
+- Each care kind has an independent 30-minute reward cooldown.
+- Care rewards share a rolling cap of 12 grants per 24 hours.
+- A typed `conversation_completed` event grants 1 XP and no currency at most
+  once per 10 minutes.
+- Conversation rewards have a separate rolling cap of 12 grants per 24 hours.
+- A conversation event UUID can receive a reward only once, permanently.
+- Fully capped care remains a no-op and grants nothing.
+- Cooldowns and caps suppress only progression; they never block a valid care
+  action or recovery from the floor.
+- Clock rollback cannot bypass cooldowns because future-dated durable grants
+  remain inside the conservative eligibility window.
+
+### Durable Reward Ledger
+
+Migration `0010_pet_rewards.sql` introduces `pet_reward_grants` with closed
+reward kinds, constrained XP and currency amounts, optional event UUIDs only
+for conversation rewards, and a unique event index.
+
+The SQLite repository commits pet state, typed state history, and an optional
+reward grant in one transaction. It mechanically rejects progression changes
+without a grant and verifies that XP, derived level, and currency exactly match
+the attached grant. A duplicate event UUID rolls back the entire state and
+history transaction.
+
+The service reloads recent grants for every compare-and-swap retry, so two
+concurrent care requests preserve both care effects while only the eligible
+request receives progression. The ledger remains authoritative after service
+or application restart.
+
+### Typed Interaction Boundary
+
+`PetStateService.apply_interaction_event` accepts only a validated
+`PetInteractionEvent`. The event contains a UUID, the closed
+`conversation_completed` kind, and an aware timestamp. It contains no message,
+translation, sentiment, provider response, or arbitrary payload.
+
+Phase 9E provides this service capability but does not yet wire chat runtime
+events into it. UI and runtime integration remain deliberate later-phase work,
+preventing incomplete, cancelled, failed, or provider-only turns from being
+rewarded accidentally.
+
+### Phase 9E Verification
+
+- Pure tests cover the level curve, exact cooldown edges, separate care and
+  conversation caps, per-action care cooldowns, no-op denial, duplicate event
+  denial, and clock rollback behavior.
+- Migration and repository tests cover fresh and existing databases, durable
+  reward lookup, progression-to-grant validation, and atomic duplicate-event
+  rollback.
+- Service tests cover rewarded care, restart-safe cooldowns, concurrent care,
+  conversation cooldowns, event deduplication, and rejection of untyped input
+  before state initialization.
+- The complete suite passes with 1,446 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
+
 ## Planned Scope
 
 - Persistent satiety, attention, affection, and energy statistics.
@@ -571,7 +640,7 @@ buttons, voice commands, provider tools, or reaction events.
 - [x] Add SQLite pet-state and history migrations.
 - [x] Implement repository and pet-state service boundaries.
 - [x] Add explicit care actions.
-- [ ] Add XP, levels, and currency accrual.
+- [x] Add XP, levels, and currency accrual.
 - [ ] Add pet status and care UI.
 - [ ] Integrate structured pet events with mood and proactive behavior.
 - [ ] Add voice and animation reactions.
@@ -582,7 +651,7 @@ buttons, voice commands, provider tools, or reaction events.
 
 - [x] Provider response text cannot mutate pet state without a typed event.
 - [x] Care mutations reject invalid typed values.
-- [ ] Interaction mutations reject invalid typed values.
+- [x] Interaction mutations reject invalid typed values.
 - [x] Decay clamps at the floor and does not duplicate floor events.
 - [x] A care action recovers a statistic from its floor.
 - [ ] Voice and animation reactions originate from structured state events,

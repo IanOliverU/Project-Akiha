@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from project_akiha.core.pet import (
     DEFAULT_DECAY_POLICY,
+    REWARD_ROLLING_WINDOW,
     CareAction,
     DecayMode,
     PetCareEvaluation,
     PetDecayOutcome,
     PetDecayPolicy,
+    PetInteractionEvaluation,
+    PetInteractionEvent,
     PetMutationKind,
     PetState,
     PetStateConflictError,
@@ -20,7 +24,9 @@ from project_akiha.core.pet import (
     PetStateRecord,
     PetStateRepository,
     apply_care_action,
+    evaluate_care_reward,
     evaluate_elapsed_decay,
+    evaluate_interaction_reward,
 )
 
 
@@ -95,6 +101,20 @@ class PetStateService:
             await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
             return await self._apply_care_action_locked(action, now)
 
+    async def apply_interaction_event(
+        self,
+        event: PetInteractionEvent,
+    ) -> PetInteractionEvaluation:
+        """Reward one approved structured interaction without reading dialogue."""
+        if not isinstance(event, PetInteractionEvent):
+            raise TypeError("event must be a PetInteractionEvent value.")
+        async with self._lock:
+            now = self._current_time()
+            if self._record is None:
+                await self._initialize_locked(now)
+            await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
+            return await self._apply_interaction_event_locked(event, now)
+
     async def _initialize_locked(self, now: datetime) -> PetStateEvaluation:
         self._record = await self._repository.load_or_create(
             self._initial_state,
@@ -156,24 +176,45 @@ class PetStateService:
         action: CareAction,
         now: datetime,
     ) -> PetCareEvaluation:
+        await self._refresh_record_locked(now)
         record = _require_record(self._record)
         mutation_kind = _care_mutation_kind(action)
 
         for attempt in range(2):
             outcome = apply_care_action(record.state, action)
+            recent_grants = await self._repository.get_reward_grants(
+                now - REWARD_ROLLING_WINDOW
+            )
+            reward_outcome = evaluate_care_reward(
+                record.state.progression,
+                action,
+                care_changed=outcome.changed,
+                recent_grants=recent_grants,
+                granted_at=now,
+            )
             if not outcome.changed:
                 self._record = record
-                return PetCareEvaluation(record=record, care_outcome=outcome)
+                return PetCareEvaluation(
+                    record=record,
+                    care_outcome=outcome,
+                    reward_outcome=reward_outcome,
+                )
+
+            current_state = replace(
+                outcome.current_state,
+                progression=reward_outcome.current_progression,
+            )
 
             try:
                 record = await self._repository.save_transition(
                     expected_revision=record.revision,
                     previous_state=record.state,
-                    current_state=outcome.current_state,
+                    current_state=current_state,
                     evaluated_at=now,
                     mutation_kind=mutation_kind,
                     band_transitions=outcome.band_transitions,
                     record_history=True,
+                    reward_grant=reward_outcome.grant,
                 )
             except PetStateConflictError:
                 if attempt == 1:
@@ -190,9 +231,86 @@ class PetStateService:
                 continue
 
             self._record = record
-            return PetCareEvaluation(record=record, care_outcome=outcome)
+            return PetCareEvaluation(
+                record=record,
+                care_outcome=outcome,
+                reward_outcome=reward_outcome,
+            )
 
         raise RuntimeError("Pet care exhausted its conflict retry.")
+
+    async def _apply_interaction_event_locked(
+        self,
+        event: PetInteractionEvent,
+        now: datetime,
+    ) -> PetInteractionEvaluation:
+        await self._refresh_record_locked(now)
+        record = _require_record(self._record)
+
+        for attempt in range(2):
+            existing_grant = await self._repository.find_reward_grant(event.event_id)
+            recent_grants = await self._repository.get_reward_grants(
+                now - REWARD_ROLLING_WINDOW
+            )
+            reward_outcome = evaluate_interaction_reward(
+                record.state.progression,
+                event,
+                event_already_rewarded=existing_grant is not None,
+                recent_grants=recent_grants,
+                granted_at=now,
+            )
+            if not reward_outcome.granted:
+                self._record = record
+                return PetInteractionEvaluation(
+                    record=record,
+                    event=event,
+                    reward_outcome=reward_outcome,
+                )
+
+            current_state = replace(
+                record.state,
+                progression=reward_outcome.current_progression,
+            )
+            try:
+                record = await self._repository.save_transition(
+                    expected_revision=record.revision,
+                    previous_state=record.state,
+                    current_state=current_state,
+                    evaluated_at=now,
+                    mutation_kind=PetMutationKind.INTERACTION_CONVERSATION,
+                    record_history=True,
+                    reward_grant=reward_outcome.grant,
+                )
+            except PetStateConflictError:
+                if attempt == 1:
+                    raise
+                reloaded = await self._repository.load()
+                if reloaded is None:
+                    reloaded = await self._repository.load_or_create(
+                        self._initial_state,
+                        now,
+                    )
+                self._record = reloaded
+                await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
+                record = _require_record(self._record)
+                continue
+
+            self._record = record
+            return PetInteractionEvaluation(
+                record=record,
+                event=event,
+                reward_outcome=reward_outcome,
+            )
+
+        raise RuntimeError("Pet interaction reward exhausted its conflict retry.")
+
+    async def _refresh_record_locked(self, now: datetime) -> None:
+        current = _require_record(self._record)
+        latest = await self._repository.load()
+        if latest is None or latest.revision == current.revision:
+            return
+        self._record = latest
+        await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
 
     def _current_time(self) -> datetime:
         value = self._clock.now()

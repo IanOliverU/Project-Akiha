@@ -55,13 +55,14 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("assistant_action_audit", table_names)
         self.assertIn("pet_state", table_names)
         self.assertIn("pet_state_history", table_names)
+        self.assertIn("pet_reward_grants", table_names)
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
         self.assertIn("embedding_json", memory_columns)
         self.assertIn("english_translation", message_columns)
         self.assertEqual(
             versions,
-            [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,)],
+            [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,)],
         )
 
     def test_applies_assistant_action_migration_to_existing_database(self) -> None:
@@ -149,6 +150,48 @@ class DatabaseMigratorTest(unittest.TestCase):
         )
         self.assertIn("pet_state", tables)
         self.assertIn("pet_state_history", tables)
+
+    def test_applies_pet_reward_migration_to_existing_database(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations_dir = root / "migrations"
+            migrations_dir.mkdir()
+            project_root = Path(__file__).resolve().parents[3]
+            source_dir = project_root / "project_akiha" / "database" / "migrations"
+            for source in sorted(source_dir.glob("000[1-9]_*.sql")):
+                shutil.copy2(source, migrations_dir / source.name)
+
+            database_path = root / "akiha.sqlite3"
+            migrator = DatabaseMigrator(
+                database_path,
+                migrations_dir=migrations_dir,
+            )
+            migrator.apply_pending()
+            shutil.copy2(
+                source_dir / "0010_pet_rewards.sql",
+                migrations_dir / "0010_pet_rewards.sql",
+            )
+            migrator.apply_pending()
+
+            connection = sqlite3.connect(database_path)
+            try:
+                versions = connection.execute(
+                    "SELECT version FROM schema_version ORDER BY version"
+                ).fetchall()
+                tables = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            finally:
+                connection.close()
+
+        self.assertEqual(
+            versions,
+            [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,)],
+        )
+        self.assertIn("pet_reward_grants", tables)
 
     def test_logs_migration_sql_failure_before_reraising(self) -> None:
         with TemporaryDirectory() as directory:

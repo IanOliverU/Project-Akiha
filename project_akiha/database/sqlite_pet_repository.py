@@ -8,6 +8,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from project_akiha.core.pet import (
     PetBandTransition,
@@ -15,12 +16,15 @@ from project_akiha.core.pet import (
     PetMutationKind,
     PetNeed,
     PetProgression,
+    PetRewardGrant,
+    PetRewardKind,
     PetState,
     PetStateConflictError,
     PetStateHistoryEntry,
     PetStateRecord,
     PetWellbeing,
     WellbeingBand,
+    level_for_xp,
 )
 from project_akiha.database.migrator import DatabaseMigrator
 
@@ -60,6 +64,7 @@ class SQLitePetStateRepository:
         mutation_kind: PetMutationKind,
         band_transitions: tuple[PetBandTransition, ...] = (),
         record_history: bool,
+        reward_grant: PetRewardGrant | None = None,
     ) -> PetStateRecord:
         """Commit one compare-and-swap state transition and optional history."""
         if type(expected_revision) is not int:
@@ -80,6 +85,16 @@ class SQLitePetStateRepository:
             )
         if not isinstance(record_history, bool):
             raise TypeError("record_history must be a boolean.")
+        if reward_grant is not None and not isinstance(
+            reward_grant,
+            PetRewardGrant,
+        ):
+            raise TypeError("reward_grant must be a PetRewardGrant or None.")
+        _validate_progression_transition(
+            previous_state,
+            current_state,
+            reward_grant,
+        )
 
         return await asyncio.to_thread(
             self._save_transition,
@@ -90,6 +105,7 @@ class SQLitePetStateRepository:
             mutation_kind,
             band_transitions,
             record_history,
+            reward_grant,
         )
 
     async def get_recent_history(
@@ -102,6 +118,23 @@ class SQLitePetStateRepository:
         if limit <= 0:
             raise ValueError("pet-state history limit must be greater than zero.")
         return await asyncio.to_thread(self._get_recent_history, limit)
+
+    async def get_reward_grants(
+        self,
+        since: datetime,
+    ) -> tuple[PetRewardGrant, ...]:
+        """Return reward grants on or after one timezone-aware boundary."""
+        normalized_time = _normalize_datetime(since, "since")
+        return await asyncio.to_thread(self._get_reward_grants, normalized_time)
+
+    async def find_reward_grant(
+        self,
+        event_id: UUID,
+    ) -> PetRewardGrant | None:
+        """Return the grant assigned to one structured event when present."""
+        if not isinstance(event_id, UUID):
+            raise TypeError("event_id must be a UUID.")
+        return await asyncio.to_thread(self._find_reward_grant, event_id)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
@@ -178,6 +211,7 @@ class SQLitePetStateRepository:
         mutation_kind: PetMutationKind,
         band_transitions: tuple[PetBandTransition, ...],
         record_history: bool,
+        reward_grant: PetRewardGrant | None,
     ) -> PetStateRecord:
         timestamp = _timestamp(evaluated_at)
         next_revision = expected_revision + 1
@@ -232,6 +266,8 @@ class SQLitePetStateRepository:
                     band_transitions=band_transitions,
                     created_at=timestamp,
                 )
+            if reward_grant is not None:
+                _insert_reward_grant(connection, reward_grant)
             row = _select_state(connection)
             connection.commit()
             return _record_from_row(_require_row(row))
@@ -265,6 +301,48 @@ class SQLitePetStateRepository:
         finally:
             connection.close()
         return tuple(_history_from_row(row) for row in rows)
+
+    def _get_reward_grants(
+        self,
+        since: datetime,
+    ) -> tuple[PetRewardGrant, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT reward_kind,
+                       event_id,
+                       xp_awarded,
+                       currency_awarded,
+                       granted_at
+                FROM pet_reward_grants
+                WHERE granted_at >= ?
+                ORDER BY granted_at DESC, id DESC
+                """,
+                (_timestamp(since),),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_reward_from_row(row) for row in rows)
+
+    def _find_reward_grant(self, event_id: UUID) -> PetRewardGrant | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT reward_kind,
+                       event_id,
+                       xp_awarded,
+                       currency_awarded,
+                       granted_at
+                FROM pet_reward_grants
+                WHERE event_id = ?
+                """,
+                (str(event_id),),
+            ).fetchone()
+        finally:
+            connection.close()
+        return _reward_from_row(row) if row is not None else None
 
 
 def _select_state(connection: sqlite3.Connection) -> sqlite3.Row | None:
@@ -313,6 +391,17 @@ def _history_from_row(row: sqlite3.Row) -> PetStateHistoryEntry:
     )
 
 
+def _reward_from_row(row: sqlite3.Row) -> PetRewardGrant:
+    event_id = row["event_id"]
+    return PetRewardGrant(
+        kind=PetRewardKind(str(row["reward_kind"])),
+        event_id=UUID(str(event_id)) if event_id is not None else None,
+        xp_awarded=int(row["xp_awarded"]),
+        currency_awarded=int(row["currency_awarded"]),
+        granted_at=_datetime_from_text(row["granted_at"]),
+    )
+
+
 def _insert_history(
     connection: sqlite3.Connection,
     *,
@@ -342,6 +431,31 @@ def _insert_history(
             _state_to_json(current_state),
             _transitions_to_json(band_transitions),
             created_at,
+        ),
+    )
+
+
+def _insert_reward_grant(
+    connection: sqlite3.Connection,
+    grant: PetRewardGrant,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO pet_reward_grants(
+            reward_kind,
+            event_id,
+            xp_awarded,
+            currency_awarded,
+            granted_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            grant.kind.value,
+            str(grant.event_id) if grant.event_id is not None else None,
+            grant.xp_awarded,
+            grant.currency_awarded,
+            _timestamp(grant.granted_at.astimezone(UTC)),
         ),
     )
 
@@ -476,6 +590,28 @@ def _transitions_from_json(value: str) -> tuple[PetBandTransition, ...]:
 def _require_state(value: object, label: str) -> None:
     if not isinstance(value, PetState):
         raise TypeError(f"{label} must be a PetState value.")
+
+
+def _validate_progression_transition(
+    previous_state: PetState,
+    current_state: PetState,
+    reward_grant: PetRewardGrant | None,
+) -> None:
+    previous = previous_state.progression
+    current = current_state.progression
+    if reward_grant is None:
+        if current != previous:
+            raise ValueError("progression cannot change without a reward grant.")
+        return
+
+    expected_xp = previous.xp + reward_grant.xp_awarded
+    expected = PetProgression(
+        xp=expected_xp,
+        level=level_for_xp(expected_xp),
+        currency=previous.currency + reward_grant.currency_awarded,
+    )
+    if current != expected:
+        raise ValueError("progression must match the attached reward grant.")
 
 
 def _normalize_datetime(value: datetime, label: str) -> datetime:

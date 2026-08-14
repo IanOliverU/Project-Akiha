@@ -8,10 +8,14 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 from project_akiha.core.pet import (
     DecayMode,
     PetMutationKind,
+    PetProgression,
+    PetRewardGrant,
+    PetRewardKind,
     PetState,
     PetStateConflictError,
     evaluate_elapsed_decay,
@@ -160,6 +164,166 @@ class SQLitePetStateRepositoryTest(unittest.IsolatedAsyncioTestCase):
             )
         with self.assertRaises(TypeError):
             await self._repository.get_recent_history(True)
+
+    async def test_reward_grant_commits_with_matching_progression(self) -> None:
+        initial = PetState(progression=PetProgression(xp=20, level=1, currency=0))
+        record = await self._repository.load_or_create(initial, self._started_at)
+        grant = PetRewardGrant(
+            kind=PetRewardKind.CARE_FEED,
+            event_id=None,
+            xp_awarded=5,
+            currency_awarded=2,
+            granted_at=self._started_at,
+        )
+        current = replace(
+            record.state,
+            progression=PetProgression(xp=25, level=2, currency=2),
+        )
+
+        saved = await self._repository.save_transition(
+            expected_revision=record.revision,
+            previous_state=record.state,
+            current_state=current,
+            evaluated_at=self._started_at,
+            mutation_kind=PetMutationKind.CARE_FEED,
+            record_history=True,
+            reward_grant=grant,
+        )
+        grants = await self._repository.get_reward_grants(
+            self._started_at - timedelta(seconds=1)
+        )
+
+        self.assertEqual(saved.state.progression, current.progression)
+        self.assertEqual(grants, (grant,))
+
+    async def test_event_reward_lookup_survives_repository_restart(self) -> None:
+        record = await self._repository.load_or_create(
+            PetState.initial(),
+            self._started_at,
+        )
+        event_id = uuid4()
+        grant = PetRewardGrant(
+            kind=PetRewardKind.CONVERSATION_COMPLETED,
+            event_id=event_id,
+            xp_awarded=1,
+            currency_awarded=0,
+            granted_at=self._started_at,
+        )
+        current = replace(
+            record.state,
+            progression=PetProgression(xp=1, level=1, currency=0),
+        )
+        await self._repository.save_transition(
+            expected_revision=record.revision,
+            previous_state=record.state,
+            current_state=current,
+            evaluated_at=self._started_at,
+            mutation_kind=PetMutationKind.INTERACTION_CONVERSATION,
+            record_history=True,
+            reward_grant=grant,
+        )
+
+        restarted = SQLitePetStateRepository(self._database_path)
+
+        self.assertEqual(await restarted.find_reward_grant(event_id), grant)
+
+    async def test_repository_rejects_unbacked_or_mismatched_progression(self) -> None:
+        record = await self._repository.load_or_create(
+            PetState.initial(),
+            self._started_at,
+        )
+        current = replace(
+            record.state,
+            progression=PetProgression(xp=5, level=1, currency=2),
+        )
+        grant = PetRewardGrant(
+            kind=PetRewardKind.CARE_FEED,
+            event_id=None,
+            xp_awarded=5,
+            currency_awarded=2,
+            granted_at=self._started_at,
+        )
+
+        with self.assertRaises(ValueError):
+            await self._repository.save_transition(
+                expected_revision=record.revision,
+                previous_state=record.state,
+                current_state=current,
+                evaluated_at=self._started_at,
+                mutation_kind=PetMutationKind.CARE_FEED,
+                record_history=True,
+            )
+
+        mismatched = replace(
+            current,
+            progression=PetProgression(xp=6, level=1, currency=2),
+        )
+        with self.assertRaises(ValueError):
+            await self._repository.save_transition(
+                expected_revision=record.revision,
+                previous_state=record.state,
+                current_state=mismatched,
+                evaluated_at=self._started_at,
+                mutation_kind=PetMutationKind.CARE_FEED,
+                record_history=True,
+                reward_grant=grant,
+            )
+
+    async def test_duplicate_event_rolls_back_state_and_history_atomically(
+        self,
+    ) -> None:
+        record = await self._repository.load_or_create(
+            PetState.initial(),
+            self._started_at,
+        )
+        event_id = uuid4()
+        first_grant = PetRewardGrant(
+            kind=PetRewardKind.CONVERSATION_COMPLETED,
+            event_id=event_id,
+            xp_awarded=1,
+            currency_awarded=0,
+            granted_at=self._started_at,
+        )
+        first_state = replace(
+            record.state,
+            progression=PetProgression(xp=1, level=1, currency=0),
+        )
+        first = await self._repository.save_transition(
+            expected_revision=record.revision,
+            previous_state=record.state,
+            current_state=first_state,
+            evaluated_at=self._started_at,
+            mutation_kind=PetMutationKind.INTERACTION_CONVERSATION,
+            record_history=True,
+            reward_grant=first_grant,
+        )
+        duplicate_grant = PetRewardGrant(
+            kind=PetRewardKind.CONVERSATION_COMPLETED,
+            event_id=event_id,
+            xp_awarded=1,
+            currency_awarded=0,
+            granted_at=self._started_at + timedelta(minutes=10),
+        )
+        duplicate_state = replace(
+            first.state,
+            progression=PetProgression(xp=2, level=1, currency=0),
+        )
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            await self._repository.save_transition(
+                expected_revision=first.revision,
+                previous_state=first.state,
+                current_state=duplicate_state,
+                evaluated_at=self._started_at + timedelta(minutes=10),
+                mutation_kind=PetMutationKind.INTERACTION_CONVERSATION,
+                record_history=True,
+                reward_grant=duplicate_grant,
+            )
+
+        persisted = await self._repository.load()
+        history = await self._repository.get_recent_history(10)
+        self.assertEqual(persisted, first)
+        self.assertEqual(len(history), 2)
 
 
 if __name__ == "__main__":

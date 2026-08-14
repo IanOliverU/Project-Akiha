@@ -52,6 +52,7 @@ class PetStateModelTest(unittest.TestCase):
         invalid_factories = (
             lambda: PetProgression(xp=-1),
             lambda: PetProgression(level=0),
+            lambda: PetProgression(xp=25, level=1),
             lambda: PetProgression(currency=True),
             lambda: PetDecayProgress(attention_seconds=-1),
             lambda: PetDecayProgress(energy_seconds=False),

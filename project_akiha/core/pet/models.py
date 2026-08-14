@@ -5,10 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from math import isqrt
 from uuid import UUID
 
 _MINIMUM_WELLBEING = 0
 _MAXIMUM_WELLBEING = 100
+LEVEL_STEP_XP = 25
+CARE_REWARD_XP = 5
+CARE_REWARD_CURRENCY = 2
+CONVERSATION_REWARD_XP = 1
 
 
 class WellbeingBand(StrEnum):
@@ -65,6 +70,26 @@ class PetMutationKind(StrEnum):
     CARE_FEED = "care_feed"
     CARE_REST = "care_rest"
     CARE_SPEND_TIME = "care_spend_time"
+    INTERACTION_CONVERSATION = "interaction_conversation"
+
+
+class PetRewardKind(StrEnum):
+    """Typed reward sources tracked by the durable anti-farming ledger."""
+
+    CARE_FEED = "care_feed"
+    CARE_REST = "care_rest"
+    CARE_SPEND_TIME = "care_spend_time"
+    CONVERSATION_COMPLETED = "conversation_completed"
+
+
+class PetRewardDecision(StrEnum):
+    """Bounded result of one deterministic reward eligibility evaluation."""
+
+    GRANTED = "granted"
+    NO_STATE_CHANGE = "no_state_change"
+    COOLDOWN = "cooldown"
+    DAILY_CAP = "daily_cap"
+    DUPLICATE_EVENT = "duplicate_event"
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +134,8 @@ class PetProgression:
         _require_nonnegative_int(self.xp, "xp")
         _require_positive_int(self.level, "level")
         _require_nonnegative_int(self.currency, "currency")
+        if self.level != level_for_xp(self.xp):
+            raise ValueError("level must match the progression XP threshold.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,6 +323,81 @@ class PetCareOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class PetRewardGrant:
+    """One immutable reward accepted by the durable anti-farming ledger."""
+
+    kind: PetRewardKind
+    event_id: UUID | None
+    xp_awarded: int
+    currency_awarded: int
+    granted_at: datetime
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, PetRewardKind):
+            raise TypeError("reward kind must be a PetRewardKind value.")
+        if self.event_id is not None and not isinstance(self.event_id, UUID):
+            raise TypeError("reward event_id must be a UUID or None.")
+        if self.kind is PetRewardKind.CONVERSATION_COMPLETED:
+            if self.event_id is None:
+                raise ValueError("conversation rewards require an event_id.")
+        elif self.event_id is not None:
+            raise ValueError("care rewards cannot carry an event_id.")
+        _require_nonnegative_int(self.xp_awarded, "reward XP")
+        _require_nonnegative_int(self.currency_awarded, "reward currency")
+        if self.xp_awarded == 0 and self.currency_awarded == 0:
+            raise ValueError("a reward must grant XP or currency.")
+        if self.kind is PetRewardKind.CONVERSATION_COMPLETED:
+            if self.xp_awarded != CONVERSATION_REWARD_XP or self.currency_awarded != 0:
+                raise ValueError("conversation rewards must grant exactly 1 XP.")
+        elif (
+            self.xp_awarded != CARE_REWARD_XP
+            or self.currency_awarded != CARE_REWARD_CURRENCY
+        ):
+            raise ValueError("care rewards must grant exactly 5 XP and 2 currency.")
+        _require_aware_datetime(self.granted_at, "reward granted_at")
+
+
+@dataclass(frozen=True, slots=True)
+class PetRewardOutcome:
+    """Progression result and eligibility decision for one reward attempt."""
+
+    kind: PetRewardKind
+    decision: PetRewardDecision
+    previous_progression: PetProgression
+    current_progression: PetProgression
+    grant: PetRewardGrant | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, PetRewardKind):
+            raise TypeError("reward outcome kind must be a PetRewardKind value.")
+        if not isinstance(self.decision, PetRewardDecision):
+            raise TypeError(
+                "reward outcome decision must be a PetRewardDecision value."
+            )
+        if not isinstance(self.previous_progression, PetProgression) or not isinstance(
+            self.current_progression, PetProgression
+        ):
+            raise TypeError("reward outcome progression must be PetProgression values.")
+        if self.decision is PetRewardDecision.GRANTED:
+            if not isinstance(self.grant, PetRewardGrant):
+                raise ValueError("a granted reward outcome requires a grant.")
+            if self.grant.kind is not self.kind:
+                raise ValueError("reward outcome and grant kinds must match.")
+            if self.current_progression == self.previous_progression:
+                raise ValueError("a granted reward must change progression.")
+        else:
+            if self.grant is not None:
+                raise ValueError("a denied reward outcome cannot contain a grant.")
+            if self.current_progression != self.previous_progression:
+                raise ValueError("a denied reward outcome cannot change progression.")
+
+    @property
+    def granted(self) -> bool:
+        """Return whether this attempt created a durable reward grant."""
+        return self.decision is PetRewardDecision.GRANTED
+
+
+@dataclass(frozen=True, slots=True)
 class PetStateRecord:
     """Revisioned persisted pet state and its elapsed-time baseline."""
 
@@ -367,14 +469,45 @@ class PetCareEvaluation:
 
     record: PetStateRecord
     care_outcome: PetCareOutcome
+    reward_outcome: PetRewardOutcome
 
     def __post_init__(self) -> None:
         if not isinstance(self.record, PetStateRecord):
             raise TypeError("care evaluation record must be a PetStateRecord value.")
         if not isinstance(self.care_outcome, PetCareOutcome):
             raise TypeError("care evaluation outcome must be a PetCareOutcome value.")
-        if self.record.state != self.care_outcome.current_state:
-            raise ValueError("care evaluation record must contain the outcome state.")
+        if not isinstance(self.reward_outcome, PetRewardOutcome):
+            raise TypeError("care reward outcome must be a PetRewardOutcome value.")
+        if self.record.state.wellbeing != self.care_outcome.current_state.wellbeing:
+            raise ValueError("care evaluation record must contain care wellbeing.")
+        if (
+            self.record.state.decay_progress
+            != self.care_outcome.current_state.decay_progress
+        ):
+            raise ValueError(
+                "care evaluation record must preserve care decay progress."
+            )
+        if self.record.state.progression != self.reward_outcome.current_progression:
+            raise ValueError("care evaluation record must contain reward progression.")
+
+
+@dataclass(frozen=True, slots=True)
+class PetInteractionEvaluation:
+    """Service result for one approved structured interaction event."""
+
+    record: PetStateRecord
+    event: PetInteractionEvent
+    reward_outcome: PetRewardOutcome
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.record, PetStateRecord):
+            raise TypeError("interaction record must be a PetStateRecord value.")
+        if not isinstance(self.event, PetInteractionEvent):
+            raise TypeError("interaction event must be a PetInteractionEvent value.")
+        if not isinstance(self.reward_outcome, PetRewardOutcome):
+            raise TypeError("interaction reward must be a PetRewardOutcome value.")
+        if self.record.state.progression != self.reward_outcome.current_progression:
+            raise ValueError("interaction record must contain reward progression.")
 
 
 def wellbeing_band(value: int) -> WellbeingBand:
@@ -385,6 +518,20 @@ def wellbeing_band(value: int) -> WellbeingBand:
     if value <= 50:
         return WellbeingBand.LOW
     return WellbeingBand.STABLE
+
+
+def level_for_xp(xp: int) -> int:
+    """Derive a level from cumulative triangular 25-XP thresholds."""
+    _require_nonnegative_int(xp, "XP")
+    completed_steps = (isqrt(25 + (8 * xp)) - 5) // 10
+    return completed_steps + 1
+
+
+def xp_required_for_level(level: int) -> int:
+    """Return cumulative XP required to reach one positive level."""
+    _require_positive_int(level, "level")
+    completed_steps = level - 1
+    return LEVEL_STEP_XP * completed_steps * (completed_steps + 1) // 2
 
 
 def _band_rank(band: WellbeingBand) -> int:

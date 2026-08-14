@@ -7,11 +7,15 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 from project_akiha.core.pet import (
     CareAction,
     DecayStatus,
+    PetInteractionEvent,
+    PetInteractionKind,
     PetMutationKind,
+    PetRewardDecision,
     PetState,
     PetWellbeing,
 )
@@ -137,7 +141,7 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.record.revision, 1)
         self.assertEqual(persisted, first.record)
 
-    async def test_care_actions_commit_typed_history_without_progression(self) -> None:
+    async def test_care_actions_commit_typed_history_and_progression(self) -> None:
         service = PetStateService(self._repository, self._clock)
         await service.initialize()
 
@@ -150,10 +154,12 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rested.record.state.wellbeing.energy, 100)
         self.assertEqual(together.record.state.wellbeing.attention, 90)
         self.assertEqual(together.record.state.wellbeing.affection, 51)
-        self.assertEqual(
-            together.record.state.progression,
-            PetState.initial().progression,
-        )
+        self.assertEqual(together.record.state.progression.xp, 15)
+        self.assertEqual(together.record.state.progression.currency, 6)
+        self.assertEqual(together.record.state.progression.level, 1)
+        self.assertTrue(fed.reward_outcome.granted)
+        self.assertTrue(rested.reward_outcome.granted)
+        self.assertTrue(together.reward_outcome.granted)
         self.assertEqual(
             tuple(entry.mutation_kind for entry in history[:3]),
             (
@@ -205,6 +211,10 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
         for action in CareAction:
             result = await service.apply_care_action(action)
             self.assertFalse(result.care_outcome.changed)
+            self.assertIs(
+                result.reward_outcome.decision,
+                PetRewardDecision.NO_STATE_CHANGE,
+            )
             self.assertEqual(result.record, initialized.record)
 
         history = await self._repository.get_recent_history(10)
@@ -247,8 +257,81 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(persisted)
         self.assertEqual(persisted.state.wellbeing.satiety, 90)
+        self.assertEqual(persisted.state.progression.xp, 5)
+        self.assertEqual(persisted.state.progression.currency, 2)
         self.assertEqual(persisted.revision, 2)
         self.assertEqual({first.record.revision, second.record.revision}, {1, 2})
+        self.assertEqual(
+            {first.reward_outcome.decision, second.reward_outcome.decision},
+            {PetRewardDecision.GRANTED, PetRewardDecision.COOLDOWN},
+        )
+
+    async def test_care_cooldown_survives_service_restart(self) -> None:
+        initial = PetState(wellbeing=PetWellbeing(satiety=20))
+        first_service = PetStateService(
+            self._repository,
+            self._clock,
+            initial_state=initial,
+        )
+        await first_service.initialize()
+        first = await first_service.apply_care_action(CareAction.FEED)
+
+        restarted_repository = SQLitePetStateRepository(self._database_path)
+        restarted_service = PetStateService(restarted_repository, self._clock)
+        second = await restarted_service.apply_care_action(CareAction.FEED)
+
+        self.assertTrue(first.reward_outcome.granted)
+        self.assertEqual(second.record.state.wellbeing.satiety, 70)
+        self.assertIs(second.reward_outcome.decision, PetRewardDecision.COOLDOWN)
+        self.assertEqual(second.record.state.progression.xp, 5)
+        self.assertEqual(second.record.state.progression.currency, 2)
+
+    async def test_conversation_rewards_deduplicate_and_respect_cooldown(self) -> None:
+        service = PetStateService(self._repository, self._clock)
+        first_event = _conversation_event(self._clock.now())
+        first = await service.apply_interaction_event(first_event)
+        duplicate = await service.apply_interaction_event(first_event)
+        second_event = _conversation_event(self._clock.now())
+        cooldown = await service.apply_interaction_event(second_event)
+        self._clock.advance(timedelta(minutes=10))
+        second = await service.apply_interaction_event(second_event)
+
+        self.assertTrue(first.reward_outcome.granted)
+        self.assertIs(
+            duplicate.reward_outcome.decision,
+            PetRewardDecision.DUPLICATE_EVENT,
+        )
+        self.assertIs(cooldown.reward_outcome.decision, PetRewardDecision.COOLDOWN)
+        self.assertTrue(second.reward_outcome.granted)
+        self.assertEqual(second.record.state.progression.xp, 2)
+        self.assertEqual(second.record.state.progression.currency, 0)
+
+    async def test_cross_service_duplicate_returns_current_durable_state(self) -> None:
+        first_service = PetStateService(self._repository, self._clock)
+        second_service = PetStateService(self._repository, self._clock)
+        await first_service.initialize()
+        await second_service.initialize()
+        event = _conversation_event(self._clock.now())
+
+        granted = await first_service.apply_interaction_event(event)
+        duplicate = await second_service.apply_interaction_event(event)
+
+        self.assertTrue(granted.reward_outcome.granted)
+        self.assertIs(
+            duplicate.reward_outcome.decision,
+            PetRewardDecision.DUPLICATE_EVENT,
+        )
+        self.assertEqual(duplicate.record, granted.record)
+
+    async def test_untyped_interaction_is_rejected_before_initialization(self) -> None:
+        service = PetStateService(self._repository, self._clock)
+
+        with self.assertRaises(TypeError):
+            await service.apply_interaction_event(  # type: ignore[arg-type]
+                "conversation completed"
+            )
+
+        self.assertIsNone(await self._repository.load())
 
     async def test_untyped_care_is_rejected_before_state_initialization(self) -> None:
         service = PetStateService(self._repository, self._clock)
@@ -271,7 +354,13 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             public_callables,
-            {"apply_care_action", "evaluate_runtime", "initialize", "snapshot"},
+            {
+                "apply_care_action",
+                "apply_interaction_event",
+                "evaluate_runtime",
+                "initialize",
+                "snapshot",
+            },
         )
 
     async def test_clock_must_return_an_aware_datetime(self) -> None:
@@ -293,6 +382,14 @@ class _FakeClock:
 
     def advance(self, elapsed: timedelta) -> None:
         self._current += elapsed
+
+
+def _conversation_event(occurred_at: datetime) -> PetInteractionEvent:
+    return PetInteractionEvent(
+        event_id=uuid4(),
+        kind=PetInteractionKind.CONVERSATION_COMPLETED,
+        occurred_at=occurred_at,
+    )
 
 
 if __name__ == "__main__":
