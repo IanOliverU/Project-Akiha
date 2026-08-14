@@ -26,7 +26,7 @@ class SettingsTest(unittest.TestCase):
 
         self.assertEqual(config.pet_window.width, 180)
         self.assertEqual(config.pet_window.height, 220)
-        self.assertEqual(config.pet_window.frames_per_second, 24)
+        self.assertEqual(config.pet_window.frames_per_second, 30)
         self.assertEqual(config.ai.provider, "mock")
         self.assertEqual(
             config.ai.hosted_base_url,

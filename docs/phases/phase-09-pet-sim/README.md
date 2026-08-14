@@ -707,10 +707,14 @@ at the loop boundary.
 - `scripts/recolor_sprite_frames.py` now remaps every visible generated color
   to the nearest color that exists in the approved standing sprite while
   preserving frame geometry and alpha.
-- The corrected runtime frames live under `idle/palette-v2`; the original
-  owner-approved prototype remains intact for comparison.
-- The active loop order is `000 -> 001 -> 003 -> 002 -> 000`, so each boundary
-  changes one motion axis instead of jumping diagonally.
+- The corrected runtime keyframes live under `idle/palette-v2`; the active
+  `idle/palette-v3` loop expands them into 32 palette-safe in-between frames.
+- The active clip advances on every render tick. Fresh installs default to 30
+  FPS, producing a roughly 1.07-second loop without long holds or abrupt pose
+  changes. Existing users can select 30 FPS under Pet settings.
+- `scripts/tween_sprite_animation.py` regenerates the loop deterministically
+  from the approved keyframes and original standing-sprite palette. It preserves
+  transparent RGBA output and does not introduce a new character design.
 - The loop duration is approximately 1.17 seconds at the default 24 FPS,
   replacing the rushed 0.67-second prototype cycle.
 

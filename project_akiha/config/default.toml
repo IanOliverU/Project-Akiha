@@ -1,7 +1,7 @@
 [pet_window]
 width = 180
 height = 220
-frames_per_second = 24
+frames_per_second = 30
 start_x = 120
 start_y = 120
 always_on_top = true

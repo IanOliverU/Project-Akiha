@@ -53,7 +53,7 @@ class PetWindowConfig:
 
     width: int = 180
     height: int = 220
-    frames_per_second: int = 24
+    frames_per_second: int = 30
     start_x: int = 120
     start_y: int = 120
     always_on_top: bool = True
