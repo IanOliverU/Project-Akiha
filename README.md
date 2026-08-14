@@ -109,7 +109,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
-| Phase 9 | In progress; 9A-9B complete | Pet statistics, care actions, progression, and attention behavior |
+| Phase 9 | In progress; 9A-9C complete | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
 ## Tech Stack
@@ -329,8 +329,10 @@ stored state but never determines it through keyword or sentiment parsing.
 Phase 9A approved the gameplay pressure, care-loop behavior, reaction matrix,
 asset contract, and fallback policy. Phase 9B adds immutable pet-state models,
 validated invariants, typed interaction inputs, partial decay progress, and
-pure clock-independent elapsed-time rules. Phase 9C adds persistence and the
-sole pet-state service mutation boundary.
+pure clock-independent elapsed-time rules. Phase 9C adds migration `0009`, a
+revisioned SQLite repository, atomic typed history, bounded startup catch-up,
+and the sole injected-clock pet-state service mutation boundary. Phase 9D will
+add explicit care actions and recovery rules.
 
 Details: `docs/phases/phase-09-pet-sim/README.md`
 

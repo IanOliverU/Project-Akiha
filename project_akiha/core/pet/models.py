@@ -56,6 +56,14 @@ class DecayStatus(StrEnum):
     CLOCK_ROLLBACK = "clock_rollback"
 
 
+class PetMutationKind(StrEnum):
+    """Typed causes that may be persisted in pet-state history."""
+
+    INITIALIZED = "initialized"
+    RUNTIME_DECAY = "runtime_decay"
+    OFFLINE_CATCH_UP = "offline_catch_up"
+
+
 @dataclass(frozen=True, slots=True)
 class PetWellbeing:
     """Positive wellbeing values where a higher number is healthier."""
@@ -256,6 +264,72 @@ class PetDecayOutcome:
         return self.previous_state.wellbeing != self.current_state.wellbeing
 
 
+@dataclass(frozen=True, slots=True)
+class PetStateRecord:
+    """Revisioned persisted pet state and its elapsed-time baseline."""
+
+    state: PetState
+    revision: int
+    evaluated_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, PetState):
+            raise TypeError("pet-state record state must be a PetState value.")
+        _require_nonnegative_int(self.revision, "pet-state revision")
+        _require_aware_datetime(self.evaluated_at, "pet-state evaluated_at")
+        _require_aware_datetime(self.created_at, "pet-state created_at")
+        _require_aware_datetime(self.updated_at, "pet-state updated_at")
+
+
+@dataclass(frozen=True, slots=True)
+class PetStateHistoryEntry:
+    """One typed, local-only record of a committed pet-state transition."""
+
+    id: int
+    revision: int
+    mutation_kind: PetMutationKind
+    previous_state: PetState | None
+    current_state: PetState
+    band_transitions: tuple[PetBandTransition, ...]
+    created_at: datetime
+
+    def __post_init__(self) -> None:
+        _require_positive_int(self.id, "pet-state history id")
+        _require_nonnegative_int(self.revision, "pet-state history revision")
+        if not isinstance(self.mutation_kind, PetMutationKind):
+            raise TypeError("history mutation_kind must be a PetMutationKind value.")
+        if self.previous_state is not None and not isinstance(
+            self.previous_state, PetState
+        ):
+            raise TypeError("history previous_state must be a PetState or None.")
+        if not isinstance(self.current_state, PetState):
+            raise TypeError("history current_state must be a PetState value.")
+        if any(
+            not isinstance(transition, PetBandTransition)
+            for transition in self.band_transitions
+        ):
+            raise TypeError("history transitions must be PetBandTransition values.")
+        _require_aware_datetime(self.created_at, "pet-state history created_at")
+
+
+@dataclass(frozen=True, slots=True)
+class PetStateEvaluation:
+    """Service result containing the durable record and pure decay outcome."""
+
+    record: PetStateRecord
+    decay_outcome: PetDecayOutcome
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.record, PetStateRecord):
+            raise TypeError("evaluation record must be a PetStateRecord value.")
+        if not isinstance(self.decay_outcome, PetDecayOutcome):
+            raise TypeError("evaluation outcome must be a PetDecayOutcome value.")
+        if self.record.state != self.decay_outcome.current_state:
+            raise ValueError("evaluation record must contain the outcome state.")
+
+
 def wellbeing_band(value: int) -> WellbeingBand:
     """Return the approved edge-inclusive band for a wellbeing value."""
     _require_bounded_int(value, "wellbeing value")
@@ -297,3 +371,10 @@ def _require_positive_int(value: int, label: str) -> None:
 def _require_exact_int(value: int, label: str) -> None:
     if type(value) is not int:
         raise TypeError(f"{label} must be an integer.")
+
+
+def _require_aware_datetime(value: datetime, label: str) -> None:
+    if not isinstance(value, datetime):
+        raise TypeError(f"{label} must be a datetime.")
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{label} must be timezone-aware.")

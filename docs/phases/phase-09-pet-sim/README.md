@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A and 9B complete; Phase 9C persistence and
-service boundary next
+**Status:** In progress - Phases 9A through 9C complete; Phase 9D explicit care
+actions next
 
 ## Phase Goal
 
@@ -415,9 +415,9 @@ an external service.
   bands emits one adjacent transition per crossed edge so later consumers can
   select the highest-priority result without parsing values or dialogue.
 
-Phase 9B does not publish application events or write SQLite. Phase 9C will own
-the repository schema, atomic persistence, injected-clock orchestration, and
-the sole `PetStateService` mutation boundary.
+Phase 9B does not publish application events or write SQLite. Phase 9C owns the
+repository schema, atomic persistence, injected-clock orchestration, and the
+sole `PetStateService` mutation boundary.
 
 ### Phase 9B Verification
 
@@ -425,6 +425,66 @@ the sole `PetStateService` mutation boundary.
   edges, partial intervals, offline capping, rollback, floors, and deterministic
   evaluation.
 - The complete suite passes with 1,398 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
+
+## Phase 9C: Persistence And Pet-State Service
+
+Phase 9C was completed on 2026-08-14. It adds the durable pet-state aggregate
+without starting runtime timers or exposing care controls before their rules
+are implemented.
+
+### SQLite Migration And Repository
+
+Migration `0009_pet_state.sql` introduces one constrained singleton
+`pet_state` row and append-only `pet_state_history` records.
+
+- SQLite checks enforce bounded wellbeing, nonnegative progression and decay
+  remainders, a positive level, and nonnegative revisions.
+- `SQLitePetStateRepository` creates the initial aggregate and its typed
+  initialization history atomically.
+- Every later write uses a compare-and-swap revision and verifies the complete
+  expected previous state before committing.
+- State, its elapsed-time baseline, and optional history are committed in one
+  transaction. A stale writer raises `PetStateConflictError` rather than
+  overwriting newer state.
+- History JSON is serialized only from validated pet domain objects and is
+  decoded back through the same invariants. Dialogue, provider output, file
+  contents, and arbitrary payloads are not accepted.
+- Partial elapsed-time progress advances the durable baseline without adding
+  noisy history. Initialization and visible wellbeing changes remain
+  reviewable history entries.
+
+### Sole Service Boundary
+
+`PetStateService` owns elapsed-time orchestration through an injected
+timezone-aware clock.
+
+- Startup loads or creates state and applies one bounded offline catch-up.
+- Runtime evaluations calculate elapsed UTC time from the last committed
+  baseline instead of assuming timer callbacks arrive on schedule.
+- Clock rollback applies no state and does not move the durable baseline.
+- In-process evaluations are serialized; a database revision conflict reloads
+  current state and retries once.
+- Floor evaluations may advance their timestamp but never duplicate history
+  or threshold transitions.
+- The public Phase 9C surface is limited to `initialize`, `snapshot`, and
+  `evaluate_runtime`. It has no text, sentiment, prompt, generic patch, care,
+  or progression mutation method.
+
+Phase 9C deliberately does not wire a timer into the application runtime.
+Phase 9D will add typed care actions and their recovery rules before UI or
+event consumers can request pet-state mutations.
+
+### Phase 9C Verification
+
+- Fresh migration and Phase 8-to-Phase 9 upgrade paths are tested.
+- Repository tests cover singleton creation, typed history round-trips,
+  revision conflicts, state mismatch rejection, partial progress, and schema
+  constraints.
+- Service tests cover offline capping, runtime remainder accumulation, clock
+  rollback, floor history suppression, concurrent stale-writer recovery, and
+  the absence of a provider-text mutation surface.
+- The complete suite passes with 1,413 tests and 3 optional-provider skips.
 - Ruff, Black verification, Python compilation, and diff checks pass.
 
 ## Planned Scope
@@ -455,8 +515,8 @@ the sole `PetStateService` mutation boundary.
 - [x] Approve the minimum reaction and animation-fallback matrix.
 - [x] Define typed pet-state models and invariants.
 - [x] Define decay, offline elapsed-time, and clock-independent rules.
-- [ ] Add SQLite pet-state and history migrations.
-- [ ] Implement repository and pet-state service boundaries.
+- [x] Add SQLite pet-state and history migrations.
+- [x] Implement repository and pet-state service boundaries.
 - [ ] Add explicit care actions.
 - [ ] Add XP, levels, and currency accrual.
 - [ ] Add pet status and care UI.
@@ -467,11 +527,11 @@ the sole `PetStateService` mutation boundary.
 
 ## Required Boundary Tests
 
-- [ ] Provider response text cannot mutate pet state without a typed event.
+- [x] Provider response text cannot mutate pet state without a typed event.
 - [ ] Care and interaction mutations reject invalid typed values.
 - [x] Decay clamps at the floor and does not duplicate floor events.
 - [ ] A care action recovers a statistic from its floor.
 - [ ] Voice and animation reactions originate from structured state events,
   never dialogue parsing.
-- [ ] Migration `0009` applies cleanly to both fresh and existing databases
+- [x] Migration `0009` applies cleanly to both fresh and existing databases
   after the Phase 8 migration.
