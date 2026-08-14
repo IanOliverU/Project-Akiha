@@ -1,6 +1,6 @@
 {
-  "status": "prototype_owner_review_required",
-  "source": "docs/phases/phase-09-pet-sim/prototypes/attentive-v1/sheet-transparent.png",
+  "status": "prototype_owner_approved",
+  "source": "docs/phases/phase-09-pet-sim/prototypes/idle-v1/sheet-transparent.png",
   "reference": "assets/animations/akiha/standing/000.png",
   "source_dimensions": [
     1254,
@@ -101,6 +101,6 @@
     "uniform_dimensions": true,
     "transparent_corners": true,
     "no_output_edge_touch": true,
-    "owner_identity_and_motion_review": false
+    "owner_identity_and_motion_review": true
   }
 }

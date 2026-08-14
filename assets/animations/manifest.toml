@@ -1,6 +1,11 @@
 [animations.idle]
-frames = ["akiha/standing/000.png"]
-ticks_per_frame = 24
+frames = [
+    "akiha/idle/generated-v1/000.png",
+    "akiha/idle/generated-v1/001.png",
+    "akiha/idle/generated-v1/002.png",
+    "akiha/idle/generated-v1/003.png",
+]
+ticks_per_frame = 4
 x_offset = 0
 y_offset = 0
 scale_percent = 100

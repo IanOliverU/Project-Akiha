@@ -1,7 +1,6 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phase 9A gameplay and asset specification drafted;
-reaction-matrix approval pending
+**Status:** In progress - Phase 9A complete; Phase 9B pet-state foundation next
 
 ## Phase Goal
 
@@ -297,20 +296,22 @@ contract above before integration.
 
 #### First Reference-Guided Prototype
 
-`attentive-v1` is a four-frame, reserved happy/attentive reaction generated
-from the active standing sprite. It is a review candidate for
-`care.spend_time.completed`, not an active runtime animation.
+`idle-v1` is a four-frame, restrained idle reaction generated from the active
+standing sprite. The owner approved it as Akiha's first animated idle on
+2026-08-14. Its normalized frames are active through the animation manifest at
+approximately six frames per second while the original standing sprite remains
+available as a universal fallback.
 
-- [Animated preview](prototypes/attentive-v1/animation.gif)
-- [Enlarged contact sheet](prototypes/attentive-v1/review-contact-sheet.png)
-- [Normalized filmstrip](prototypes/attentive-v1/filmstrip.png)
-- [Pipeline and QC metadata](prototypes/attentive-v1/pipeline-meta.json)
-- [Generation prompt](prototypes/attentive-v1/prompt-used.txt)
+- [Animated preview](prototypes/idle-v1/animation.gif)
+- [Enlarged contact sheet](prototypes/idle-v1/review-contact-sheet.png)
+- [Normalized filmstrip](prototypes/idle-v1/filmstrip.png)
+- [Pipeline and QC metadata](prototypes/idle-v1/pipeline-meta.json)
+- [Generation prompt](prototypes/idle-v1/prompt-used.txt)
 
 The generated frames passed format, dimension, transparency, and output-edge
-checks. Identity, motion, and character-fit approval remain deliberately
-manual. The prototype is stored under Phase 9 documentation so clean release
-builds do not package unapproved artwork.
+checks. The complete generation bundle remains under Phase 9 documentation so
+clean release builds package only the four approved runtime frames rather than
+raw or review artwork.
 
 ### Minimum Reaction Matrix
 
@@ -354,14 +355,20 @@ remains authoritative and the runtime must not hard-code either size.
 
 ### Phase 9A Approval Gate
 
-Phase 9B may begin after the owner confirms:
+Phase 9A was approved and closed by the owner on 2026-08-14. The completed
+gate confirms:
 
-- the gentle pressure profile
-- positive wellbeing semantics and `satiety` naming
-- the three explicit care actions
-- non-punitive neglect and 12-hour offline cap
-- progression limits
-- the minimum reaction and fallback matrix
+- [x] The gentle pressure profile.
+- [x] Positive wellbeing semantics and `satiety` naming.
+- [x] The three explicit care actions.
+- [x] Non-punitive neglect and the 12-hour offline cap.
+- [x] Progression and anti-farming limits.
+- [x] The minimum reaction and animation-fallback matrix.
+- [x] The 100x100 compatibility asset contract and first animated idle.
+
+Phase 9B is authorized to begin with typed pet-state models, invariants, and
+clock-independent domain rules. Additional reaction artwork remains
+incremental and does not block the gameplay foundation.
 
 ## Planned Scope
 
@@ -387,8 +394,8 @@ Phase 9B may begin after the owner confirms:
 - [x] Complete gameplay and asset-readiness research.
 - [x] Define the Akiha sprite asset contract.
 - [x] Produce the first reference-guided Phase 9 animation prototype.
-- [ ] Review the first reference-guided Phase 9 animation prototype.
-- [ ] Approve the minimum reaction and animation-fallback matrix.
+- [x] Review and activate the first reference-guided idle prototype.
+- [x] Approve the minimum reaction and animation-fallback matrix.
 - [ ] Define typed pet-state models and invariants.
 - [ ] Define decay, offline elapsed-time, and clock rules.
 - [ ] Add SQLite pet-state and history migrations.

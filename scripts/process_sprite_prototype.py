@@ -22,6 +22,7 @@ def process_sprite_grid(
     columns: int,
     canvas_size: int,
     frame_duration_ms: int,
+    owner_approved: bool = False,
 ) -> dict[str, object]:
     """Export aligned frames and return their QC metadata."""
     if rows <= 0 or columns <= 0 or canvas_size <= 0:
@@ -93,7 +94,11 @@ def process_sprite_grid(
     _make_review_contact_sheet(frames).save(output_dir / "review-contact-sheet.png")
 
     metadata: dict[str, object] = {
-        "status": "prototype_owner_review_required",
+        "status": (
+            "prototype_owner_approved"
+            if owner_approved
+            else "prototype_owner_review_required"
+        ),
         "source": input_path.as_posix(),
         "reference": reference_path.as_posix(),
         "source_dimensions": [source.width, source.height],
@@ -118,7 +123,7 @@ def process_sprite_grid(
             "no_output_edge_touch": not any(
                 record["output_edge_touch"] for record in frame_records
             ),
-            "owner_identity_and_motion_review": False,
+            "owner_identity_and_motion_review": owner_approved,
         },
     }
     (output_dir / "pipeline-meta.json").write_text(
@@ -294,6 +299,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--columns", type=int, default=2)
     parser.add_argument("--canvas-size", type=int, default=100)
     parser.add_argument("--frame-duration-ms", type=int, default=180)
+    parser.add_argument("--owner-approved", action="store_true")
     return parser.parse_args()
 
 
@@ -308,6 +314,7 @@ def main() -> None:
         columns=args.columns,
         canvas_size=args.canvas_size,
         frame_duration_ms=args.frame_duration_ms,
+        owner_approved=args.owner_approved,
     )
     print(json.dumps(metadata["checks"], indent=2))
 
