@@ -8,7 +8,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.core.pet import DecayStatus, PetState, PetWellbeing
+from project_akiha.core.pet import (
+    CareAction,
+    DecayStatus,
+    PetMutationKind,
+    PetState,
+    PetWellbeing,
+)
 from project_akiha.database import SQLitePetStateRepository
 from project_akiha.services.pet_state import PetStateService
 
@@ -131,6 +137,127 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.record.revision, 1)
         self.assertEqual(persisted, first.record)
 
+    async def test_care_actions_commit_typed_history_without_progression(self) -> None:
+        service = PetStateService(self._repository, self._clock)
+        await service.initialize()
+
+        fed = await service.apply_care_action(CareAction.FEED)
+        rested = await service.apply_care_action(CareAction.REST)
+        together = await service.apply_care_action(CareAction.SPEND_TIME)
+        history = await self._repository.get_recent_history(10)
+
+        self.assertEqual(fed.record.state.wellbeing.satiety, 100)
+        self.assertEqual(rested.record.state.wellbeing.energy, 100)
+        self.assertEqual(together.record.state.wellbeing.attention, 90)
+        self.assertEqual(together.record.state.wellbeing.affection, 51)
+        self.assertEqual(
+            together.record.state.progression,
+            PetState.initial().progression,
+        )
+        self.assertEqual(
+            tuple(entry.mutation_kind for entry in history[:3]),
+            (
+                PetMutationKind.CARE_SPEND_TIME,
+                PetMutationKind.CARE_REST,
+                PetMutationKind.CARE_FEED,
+            ),
+        )
+
+    async def test_care_recovers_floor_state_and_persists_recovery(self) -> None:
+        floor_state = PetState(
+            wellbeing=PetWellbeing(
+                satiety=0,
+                energy=0,
+                attention=0,
+                affection=0,
+            )
+        )
+        service = PetStateService(
+            self._repository,
+            self._clock,
+            initial_state=floor_state,
+        )
+        await service.initialize()
+
+        result = await service.apply_care_action(CareAction.FEED)
+        reloaded = await self._repository.load()
+
+        self.assertEqual(result.record.state.wellbeing.satiety, 25)
+        self.assertEqual(reloaded, result.record)
+        self.assertEqual(result.record.revision, 1)
+
+    async def test_fully_capped_care_does_not_write_history_or_revision(self) -> None:
+        capped_state = PetState(
+            wellbeing=PetWellbeing(
+                satiety=100,
+                energy=100,
+                attention=100,
+                affection=100,
+            )
+        )
+        service = PetStateService(
+            self._repository,
+            self._clock,
+            initial_state=capped_state,
+        )
+        initialized = await service.initialize()
+
+        for action in CareAction:
+            result = await service.apply_care_action(action)
+            self.assertFalse(result.care_outcome.changed)
+            self.assertEqual(result.record, initialized.record)
+
+        history = await self._repository.get_recent_history(10)
+        self.assertEqual(len(history), 1)
+
+    async def test_care_settles_elapsed_decay_before_applying_recovery(self) -> None:
+        service = PetStateService(self._repository, self._clock)
+        await service.initialize()
+        self._clock.advance(timedelta(minutes=45))
+
+        result = await service.apply_care_action(CareAction.FEED)
+        history = await self._repository.get_recent_history(10)
+
+        self.assertEqual(result.care_outcome.previous_state.wellbeing.satiety, 79)
+        self.assertEqual(result.record.state.wellbeing.satiety, 100)
+        self.assertEqual(result.record.revision, 2)
+        self.assertEqual(history[0].mutation_kind, PetMutationKind.CARE_FEED)
+        self.assertEqual(history[1].mutation_kind, PetMutationKind.RUNTIME_DECAY)
+
+    async def test_concurrent_care_actions_preserve_both_user_intents(self) -> None:
+        initial = PetState(wellbeing=PetWellbeing(satiety=40))
+        first_service = PetStateService(
+            self._repository,
+            self._clock,
+            initial_state=initial,
+        )
+        second_service = PetStateService(
+            self._repository,
+            self._clock,
+            initial_state=initial,
+        )
+        await first_service.initialize()
+        await second_service.initialize()
+
+        first, second = await asyncio.gather(
+            first_service.apply_care_action(CareAction.FEED),
+            second_service.apply_care_action(CareAction.FEED),
+        )
+        persisted = await self._repository.load()
+
+        self.assertIsNotNone(persisted)
+        self.assertEqual(persisted.state.wellbeing.satiety, 90)
+        self.assertEqual(persisted.revision, 2)
+        self.assertEqual({first.record.revision, second.record.revision}, {1, 2})
+
+    async def test_untyped_care_is_rejected_before_state_initialization(self) -> None:
+        service = PetStateService(self._repository, self._clock)
+
+        with self.assertRaises(TypeError):
+            await service.apply_care_action("feed")  # type: ignore[arg-type]
+
+        self.assertIsNone(await self._repository.load())
+
     async def test_public_service_surface_has_no_text_or_generic_patch_input(
         self,
     ) -> None:
@@ -144,7 +271,7 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             public_callables,
-            {"evaluate_runtime", "initialize", "snapshot"},
+            {"apply_care_action", "evaluate_runtime", "initialize", "snapshot"},
         )
 
     async def test_clock_must_return_an_aware_datetime(self) -> None:

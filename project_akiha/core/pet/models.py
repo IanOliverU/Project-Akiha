@@ -62,6 +62,9 @@ class PetMutationKind(StrEnum):
     INITIALIZED = "initialized"
     RUNTIME_DECAY = "runtime_decay"
     OFFLINE_CATCH_UP = "offline_catch_up"
+    CARE_FEED = "care_feed"
+    CARE_REST = "care_rest"
+    CARE_SPEND_TIME = "care_spend_time"
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,6 +268,34 @@ class PetDecayOutcome:
 
 
 @dataclass(frozen=True, slots=True)
+class PetCareOutcome:
+    """Deterministic result of one explicit typed care action."""
+
+    action: CareAction
+    previous_state: PetState
+    current_state: PetState
+    band_transitions: tuple[PetBandTransition, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.action, CareAction):
+            raise TypeError("care outcome action must be a CareAction value.")
+        if not isinstance(self.previous_state, PetState) or not isinstance(
+            self.current_state, PetState
+        ):
+            raise TypeError("care outcome states must be PetState values.")
+        if any(
+            not isinstance(transition, PetBandTransition)
+            for transition in self.band_transitions
+        ):
+            raise TypeError("care transitions must be PetBandTransition values.")
+
+    @property
+    def changed(self) -> bool:
+        """Return whether the action changed any validated pet-state value."""
+        return self.previous_state != self.current_state
+
+
+@dataclass(frozen=True, slots=True)
 class PetStateRecord:
     """Revisioned persisted pet state and its elapsed-time baseline."""
 
@@ -328,6 +359,22 @@ class PetStateEvaluation:
             raise TypeError("evaluation outcome must be a PetDecayOutcome value.")
         if self.record.state != self.decay_outcome.current_state:
             raise ValueError("evaluation record must contain the outcome state.")
+
+
+@dataclass(frozen=True, slots=True)
+class PetCareEvaluation:
+    """Service result containing the durable record and pure care outcome."""
+
+    record: PetStateRecord
+    care_outcome: PetCareOutcome
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.record, PetStateRecord):
+            raise TypeError("care evaluation record must be a PetStateRecord value.")
+        if not isinstance(self.care_outcome, PetCareOutcome):
+            raise TypeError("care evaluation outcome must be a PetCareOutcome value.")
+        if self.record.state != self.care_outcome.current_state:
+            raise ValueError("care evaluation record must contain the outcome state.")
 
 
 def wellbeing_band(value: int) -> WellbeingBand:

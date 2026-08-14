@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A through 9C complete; Phase 9D explicit care
-actions next
+**Status:** In progress - Phases 9A through 9D complete; Phase 9E progression
+and anti-farming next
 
 ## Phase Goal
 
@@ -472,8 +472,8 @@ timezone-aware clock.
   or progression mutation method.
 
 Phase 9C deliberately does not wire a timer into the application runtime.
-Phase 9D will add typed care actions and their recovery rules before UI or
-event consumers can request pet-state mutations.
+Phase 9D adds typed care actions and their recovery rules before UI or event
+consumers can request pet-state mutations.
 
 ### Phase 9C Verification
 
@@ -485,6 +485,59 @@ event consumers can request pet-state mutations.
   rollback, floor history suppression, concurrent stale-writer recovery, and
   the absence of a provider-text mutation surface.
 - The complete suite passes with 1,413 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
+
+## Phase 9D: Explicit Care Actions And Recovery
+
+Phase 9D was completed on 2026-08-14. It adds the three approved care actions
+as pure domain rules and exposes them only through the typed pet-state service
+boundary.
+
+### Pure Care Rules
+
+`apply_care_action` accepts only a validated `PetState` and `CareAction`.
+
+- `feed` restores 25 satiety.
+- `rest` restores 25 energy.
+- `spend_time` restores 20 attention and 1 affection.
+- Every value clamps at 100.
+- Care preserves XP, level, currency, and accumulated decay progress.
+- Recovery threshold transitions are calculated from structured values for
+  the affected immediate need only.
+- A fully capped action is a true no-op with no hidden state change.
+- Every care action remains effective at the floor; neglect cannot prevent
+  recovery.
+
+The pure rule accepts no dialogue, prompt, provider response, translation,
+sentiment, or arbitrary payload.
+
+### Service And History Boundary
+
+`PetStateService.apply_care_action` validates the typed action before loading
+or creating state. Under its existing mutation lock it then:
+
+1. Settles elapsed runtime decay at the current injected UTC clock value.
+2. Applies the pure care rule to the resulting durable state.
+3. Commits a compare-and-swap transition with a specific `care_feed`,
+   `care_rest`, or `care_spend_time` history kind.
+
+No-op care does not advance the revision or add history. Revision conflicts
+reload current state, settle any remaining elapsed time, and retry the care
+intent once so concurrent valid user actions are not silently lost.
+
+Phase 9D does not award XP or currency. Reward eligibility, cooldowns, daily
+caps, and level derivation belong to Phase 9E. It also does not yet expose care
+buttons, voice commands, provider tools, or reaction events.
+
+### Phase 9D Verification
+
+- Pure-rule tests cover all approved effects, caps, floor recovery, threshold
+  recovery, preserved progression and remainders, no-op behavior, and rejection
+  of text or untyped actions.
+- Service tests cover typed history, durable floor recovery, capped no-ops,
+  elapsed-decay ordering, concurrent care preservation, and rejection before
+  state initialization.
+- The complete suite passes with 1,426 tests and 3 optional-provider skips.
 - Ruff, Black verification, Python compilation, and diff checks pass.
 
 ## Planned Scope
@@ -517,7 +570,7 @@ event consumers can request pet-state mutations.
 - [x] Define decay, offline elapsed-time, and clock-independent rules.
 - [x] Add SQLite pet-state and history migrations.
 - [x] Implement repository and pet-state service boundaries.
-- [ ] Add explicit care actions.
+- [x] Add explicit care actions.
 - [ ] Add XP, levels, and currency accrual.
 - [ ] Add pet status and care UI.
 - [ ] Integrate structured pet events with mood and proactive behavior.
@@ -528,9 +581,10 @@ event consumers can request pet-state mutations.
 ## Required Boundary Tests
 
 - [x] Provider response text cannot mutate pet state without a typed event.
-- [ ] Care and interaction mutations reject invalid typed values.
+- [x] Care mutations reject invalid typed values.
+- [ ] Interaction mutations reject invalid typed values.
 - [x] Decay clamps at the floor and does not duplicate floor events.
-- [ ] A care action recovers a statistic from its floor.
+- [x] A care action recovers a statistic from its floor.
 - [ ] Voice and animation reactions originate from structured state events,
   never dialogue parsing.
 - [x] Migration `0009` applies cleanly to both fresh and existing databases

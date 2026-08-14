@@ -8,7 +8,9 @@ from typing import Protocol
 
 from project_akiha.core.pet import (
     DEFAULT_DECAY_POLICY,
+    CareAction,
     DecayMode,
+    PetCareEvaluation,
     PetDecayOutcome,
     PetDecayPolicy,
     PetMutationKind,
@@ -17,6 +19,7 @@ from project_akiha.core.pet import (
     PetStateEvaluation,
     PetStateRecord,
     PetStateRepository,
+    apply_care_action,
     evaluate_elapsed_decay,
 )
 
@@ -81,6 +84,17 @@ class PetStateService:
                 await self._initialize_locked(now)
             return await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
 
+    async def apply_care_action(self, action: CareAction) -> PetCareEvaluation:
+        """Settle elapsed decay, then commit one explicit typed care action."""
+        if not isinstance(action, CareAction):
+            raise TypeError("action must be a CareAction value.")
+        async with self._lock:
+            now = self._current_time()
+            if self._record is None:
+                await self._initialize_locked(now)
+            await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
+            return await self._apply_care_action_locked(action, now)
+
     async def _initialize_locked(self, now: datetime) -> PetStateEvaluation:
         self._record = await self._repository.load_or_create(
             self._initial_state,
@@ -137,6 +151,49 @@ class PetStateService:
 
         raise RuntimeError("Pet-state evaluation exhausted its conflict retry.")
 
+    async def _apply_care_action_locked(
+        self,
+        action: CareAction,
+        now: datetime,
+    ) -> PetCareEvaluation:
+        record = _require_record(self._record)
+        mutation_kind = _care_mutation_kind(action)
+
+        for attempt in range(2):
+            outcome = apply_care_action(record.state, action)
+            if not outcome.changed:
+                self._record = record
+                return PetCareEvaluation(record=record, care_outcome=outcome)
+
+            try:
+                record = await self._repository.save_transition(
+                    expected_revision=record.revision,
+                    previous_state=record.state,
+                    current_state=outcome.current_state,
+                    evaluated_at=now,
+                    mutation_kind=mutation_kind,
+                    band_transitions=outcome.band_transitions,
+                    record_history=True,
+                )
+            except PetStateConflictError:
+                if attempt == 1:
+                    raise
+                reloaded = await self._repository.load()
+                if reloaded is None:
+                    reloaded = await self._repository.load_or_create(
+                        self._initial_state,
+                        now,
+                    )
+                self._record = reloaded
+                await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
+                record = _require_record(self._record)
+                continue
+
+            self._record = record
+            return PetCareEvaluation(record=record, care_outcome=outcome)
+
+        raise RuntimeError("Pet care exhausted its conflict retry.")
+
     def _current_time(self) -> datetime:
         value = self._clock.now()
         if not isinstance(value, datetime):
@@ -152,6 +209,16 @@ def _mutation_kind_for(mode: DecayMode) -> PetMutationKind:
     if mode is DecayMode.OFFLINE_CATCH_UP:
         return PetMutationKind.OFFLINE_CATCH_UP
     raise TypeError("mode must be a DecayMode value.")
+
+
+def _care_mutation_kind(action: CareAction) -> PetMutationKind:
+    if action is CareAction.FEED:
+        return PetMutationKind.CARE_FEED
+    if action is CareAction.REST:
+        return PetMutationKind.CARE_REST
+    if action is CareAction.SPEND_TIME:
+        return PetMutationKind.CARE_SPEND_TIME
+    raise TypeError("action must be a CareAction value.")
 
 
 def _unchanged_evaluation(

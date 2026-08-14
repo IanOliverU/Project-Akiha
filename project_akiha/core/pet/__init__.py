@@ -1,10 +1,13 @@
 """Typed pet-state foundation and language-neutral domain rules."""
 
+from project_akiha.core.pet.care import apply_care_action
 from project_akiha.core.pet.models import (
     CareAction,
     DecayMode,
     DecayStatus,
     PetBandTransition,
+    PetCareEvaluation,
+    PetCareOutcome,
     PetDecayOutcome,
     PetDecayPolicy,
     PetDecayProgress,
@@ -37,6 +40,8 @@ __all__ = [
     "DecayMode",
     "DecayStatus",
     "PetBandTransition",
+    "PetCareEvaluation",
+    "PetCareOutcome",
     "PetDecayOutcome",
     "PetDecayPolicy",
     "PetDecayProgress",
@@ -53,6 +58,7 @@ __all__ = [
     "PetStateRepository",
     "PetWellbeing",
     "WellbeingBand",
+    "apply_care_action",
     "collect_band_transitions",
     "evaluate_elapsed_decay",
     "wellbeing_band",
