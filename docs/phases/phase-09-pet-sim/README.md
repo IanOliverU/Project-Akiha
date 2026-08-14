@@ -1,6 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phase 9A complete; Phase 9B pet-state foundation next
+**Status:** In progress - Phases 9A and 9B complete; Phase 9C persistence and
+service boundary next
 
 ## Phase Goal
 
@@ -366,9 +367,65 @@ gate confirms:
 - [x] The minimum reaction and animation-fallback matrix.
 - [x] The 100x100 compatibility asset contract and first animated idle.
 
-Phase 9B is authorized to begin with typed pet-state models, invariants, and
-clock-independent domain rules. Additional reaction artwork remains
-incremental and does not block the gameplay foundation.
+This gate authorized Phase 9B to proceed with typed pet-state models,
+invariants, and clock-independent domain rules. Additional reaction artwork
+remains incremental and does not block the gameplay foundation.
+
+## Phase 9B: Pet-State Foundation
+
+Phase 9B was completed on 2026-08-14. It establishes a framework-free domain
+package under `project_akiha.core.pet` before persistence, timers, services, or
+UI are introduced.
+
+### Implemented Contracts
+
+- `PetWellbeing` validates `satiety`, `energy`, `attention`, and `affection` as
+  exact integers in the inclusive `0..100` range.
+- `PetProgression` validates nonnegative XP and currency plus a positive level;
+  level-threshold derivation remains deferred to the progression module.
+- `PetDecayProgress` carries unconsumed elapsed seconds independently for each
+  decaying need, allowing short evaluations to accumulate deterministically.
+- `PetState` owns wellbeing, progression, and decay progress as one immutable
+  aggregate with the approved gentle-profile initial values.
+- `CareAction` is a closed enum containing only `feed`, `rest`, and
+  `spend_time`.
+- `PetInteractionEvent` accepts only a UUID, a typed interaction kind, and an
+  aware timestamp. It has no dialogue, prompt, translation, sentiment, or
+  arbitrary payload field.
+- `WellbeingBand` and `PetBandTransition` represent exact, adjacent threshold
+  edges for stable, low, and critical state changes.
+
+### Pure Decay Rules
+
+`evaluate_elapsed_decay` accepts a validated state, a `timedelta`, an explicit
+runtime/offline mode, and a typed decay policy. It never reads a clock or calls
+an external service.
+
+- Satiety decays once per 45 accumulated minutes.
+- Energy decays once per 60 accumulated minutes.
+- Attention decays once per 90 accumulated minutes.
+- Affection and progression do not decay.
+- Offline catch-up is capped at 12 hours; runtime elapsed evaluation is not
+  silently capped.
+- Negative elapsed time returns a bounded clock-rollback outcome and applies no
+  state change.
+- Values clamp at zero. Once a need reaches zero, excess elapsed progress is
+  discarded so future care cannot be followed by hidden immediate decay.
+- Remaining in the same wellbeing band emits no transition. Crossing multiple
+  bands emits one adjacent transition per crossed edge so later consumers can
+  select the highest-priority result without parsing values or dialogue.
+
+Phase 9B does not publish application events or write SQLite. Phase 9C will own
+the repository schema, atomic persistence, injected-clock orchestration, and
+the sole `PetStateService` mutation boundary.
+
+### Phase 9B Verification
+
+- 23 focused pet-domain tests cover invariants, type rejection, threshold
+  edges, partial intervals, offline capping, rollback, floors, and deterministic
+  evaluation.
+- The complete suite passes with 1,398 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
 
 ## Planned Scope
 
@@ -396,8 +453,8 @@ incremental and does not block the gameplay foundation.
 - [x] Produce the first reference-guided Phase 9 animation prototype.
 - [x] Review and activate the first reference-guided idle prototype.
 - [x] Approve the minimum reaction and animation-fallback matrix.
-- [ ] Define typed pet-state models and invariants.
-- [ ] Define decay, offline elapsed-time, and clock rules.
+- [x] Define typed pet-state models and invariants.
+- [x] Define decay, offline elapsed-time, and clock-independent rules.
 - [ ] Add SQLite pet-state and history migrations.
 - [ ] Implement repository and pet-state service boundaries.
 - [ ] Add explicit care actions.
@@ -412,7 +469,7 @@ incremental and does not block the gameplay foundation.
 
 - [ ] Provider response text cannot mutate pet state without a typed event.
 - [ ] Care and interaction mutations reject invalid typed values.
-- [ ] Decay clamps at the floor and does not duplicate floor events.
+- [x] Decay clamps at the floor and does not duplicate floor events.
 - [ ] A care action recovers a statistic from its floor.
 - [ ] Voice and animation reactions originate from structured state events,
   never dialogue parsing.
