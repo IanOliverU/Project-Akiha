@@ -1,0 +1,106 @@
+{
+  "status": "prototype_owner_review_required",
+  "source": "docs/phases/phase-09-pet-sim/prototypes/attentive-v1/sheet-transparent.png",
+  "reference": "assets/animations/akiha/standing/000.png",
+  "source_dimensions": [
+    1254,
+    1254
+  ],
+  "source_grid": {
+    "rows": 2,
+    "columns": 2
+  },
+  "runtime_canvas": [
+    100,
+    100
+  ],
+  "frame_count": 4,
+  "frame_duration_ms": 180,
+  "alignment": "bottom_center_reference_feet",
+  "scale_strategy": "shared_preserve",
+  "safe_margin": 2,
+  "shared_scale": 0.19958,
+  "reference_bbox": [
+    25,
+    0,
+    75,
+    97
+  ],
+  "frames": [
+    {
+      "index": 0,
+      "path": "frame-000.png",
+      "source_bbox": [
+        198,
+        67,
+        443,
+        543
+      ],
+      "output_bbox": [
+        26,
+        2,
+        75,
+        97
+      ],
+      "output_edge_touch": false
+    },
+    {
+      "index": 1,
+      "path": "frame-001.png",
+      "source_bbox": [
+        167,
+        67,
+        413,
+        543
+      ],
+      "output_bbox": [
+        26,
+        2,
+        75,
+        97
+      ],
+      "output_edge_touch": false
+    },
+    {
+      "index": 2,
+      "path": "frame-002.png",
+      "source_bbox": [
+        198,
+        50,
+        443,
+        526
+      ],
+      "output_bbox": [
+        26,
+        2,
+        75,
+        97
+      ],
+      "output_edge_touch": false
+    },
+    {
+      "index": 3,
+      "path": "frame-003.png",
+      "source_bbox": [
+        167,
+        50,
+        413,
+        526
+      ],
+      "output_bbox": [
+        26,
+        2,
+        75,
+        97
+      ],
+      "output_edge_touch": false
+    }
+  ],
+  "checks": {
+    "rgba": true,
+    "uniform_dimensions": true,
+    "transparent_corners": true,
+    "no_output_edge_touch": true,
+    "owner_identity_and_motion_review": false
+  }
+}

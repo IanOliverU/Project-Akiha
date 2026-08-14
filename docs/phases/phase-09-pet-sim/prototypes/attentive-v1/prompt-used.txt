@@ -1,0 +1,7 @@
+Use case: stylized-concept
+Asset type: production prototype sprite animation sheet for a Windows desktop companion
+Primary request: Create a 2x2 grid containing exactly four sequential frames of a very subtle, gentle attentive/happy reaction for the same chibi Akiha character shown in the reference. The loop reads neutral attention, slight upward head movement, restrained small smile with a tiny body bounce, then settling toward neutral.
+Reference: assets/animations/akiha/standing/000.png is the strict identity, costume, palette, proportion, pixel-art, and camera-scale reference.
+Composition: one complete full-body character per equal cell, identical camera distance and standing-equivalent scale, stable bottom-centered feet line, and safe padding.
+Background: flat #FF00FF chroma key with no shadows, gradients, texture, floor, labels, or separators.
+Constraints: preserve long dark hair, blue eyes, blue-and-white school uniform, dark shoes, silhouette, face, proportions, and palette. No redesign, props, text, watermark, rotation, zoom, mirror, or clipping.

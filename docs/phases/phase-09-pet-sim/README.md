@@ -242,6 +242,76 @@ cues already provide attention, waiting, checking-in, resting, sleepy,
 listening, thinking, speaking, muted, and error presentation without requiring
 new sprite sets.
 
+### Akiha Sprite Asset Contract
+
+Phase 9 animation prototypes use the active `standing/000.png` sprite as the
+canonical identity and style reference. Generated artwork is an offline asset
+input only; no image-generation dependency is added to the Akiha runtime.
+
+The current compatibility profile is:
+
+| Property | Requirement |
+|---|---|
+| Runtime canvas | 100x100 pixels per frame |
+| Pixel format | RGBA PNG with transparent background |
+| Subject anchor | Bottom-center with a stable feet/ground line |
+| Scale | One shared character scale across every frame and action |
+| Padding | Consistent transparent padding; no body part touches an edge |
+| Identity | Preserve silhouette, hair, face, uniform, palette, and proportions |
+| Motion | One coherent action per generated sheet |
+| Direction | Generate one side when mirroring is visually valid; declare otherwise |
+| Delivery | Individual frames, preview GIF, manifest metadata, and QC summary |
+
+Raw generation may use a larger working grid for better image quality, but the
+accepted Phase 9 compatibility export is normalized deterministically to a
+100x100 transparent frame. Frames must be aligned and scaled as one animation;
+per-frame resizing is not allowed to hide generation drift.
+
+The pet window may use a different configured width and height. Runtime
+rendering remains responsible for adapting the canonical frames with preserved
+aspect ratio. Assets must never be stretched to the configured window shape or
+generated separately for each window size.
+
+Reference-guided prototype production follows this offline pipeline:
+
+```text
+standing/000.png identity reference
+    -> one-action multi-row generation grid
+        -> chroma/background cleanup
+            -> transparent frame extraction
+                -> shared-scale and feet alignment
+                    -> 100x100 compatibility export
+                        -> visual and automated QC
+                            -> owner review before manifest activation
+```
+
+Prototype output stays outside the active animation manifest until owner
+approval. A prototype must be rejected or regenerated when it has identity
+drift, inconsistent scale, clipped pixels, colored background residue, an
+unstable ground anchor, empty frames, or incoherent motion.
+
+[Agent Sprite Forge](https://github.com/0x0funky/agent-sprite-forge) is an
+optional reference workflow for generation and local post-processing. Its
+generated output is not trusted automatically and must pass the Akiha-specific
+contract above before integration.
+
+#### First Reference-Guided Prototype
+
+`attentive-v1` is a four-frame, reserved happy/attentive reaction generated
+from the active standing sprite. It is a review candidate for
+`care.spend_time.completed`, not an active runtime animation.
+
+- [Animated preview](prototypes/attentive-v1/animation.gif)
+- [Enlarged contact sheet](prototypes/attentive-v1/review-contact-sheet.png)
+- [Normalized filmstrip](prototypes/attentive-v1/filmstrip.png)
+- [Pipeline and QC metadata](prototypes/attentive-v1/pipeline-meta.json)
+- [Generation prompt](prototypes/attentive-v1/prompt-used.txt)
+
+The generated frames passed format, dimension, transparency, and output-edge
+checks. Identity, motion, and character-fit approval remain deliberately
+manual. The prototype is stored under Phase 9 documentation so clean release
+builds do not package unapproved artwork.
+
 ### Minimum Reaction Matrix
 
 | Trigger | Structured cue | Current presentation | Future preferred asset |
@@ -277,8 +347,10 @@ New Phase 9 assets should provide:
 - no baked-in background color
 - no requirement that gameplay wait for the asset to exist
 
-The preferred future canvas is 256x256, but the manifest remains authoritative
-and the runtime must not hard-code that size.
+The preferred future visual-evolution canvas is 256x256. It is a separate
+profile that must be adopted across compatible actions together; it must not be
+mixed casually with the current 100x100 compatibility profile. The manifest
+remains authoritative and the runtime must not hard-code either size.
 
 ### Phase 9A Approval Gate
 
@@ -313,6 +385,9 @@ Phase 9B may begin after the owner confirms:
 ## Preliminary Checklist
 
 - [x] Complete gameplay and asset-readiness research.
+- [x] Define the Akiha sprite asset contract.
+- [x] Produce the first reference-guided Phase 9 animation prototype.
+- [ ] Review the first reference-guided Phase 9 animation prototype.
 - [ ] Approve the minimum reaction and animation-fallback matrix.
 - [ ] Define typed pet-state models and invariants.
 - [ ] Define decay, offline elapsed-time, and clock rules.

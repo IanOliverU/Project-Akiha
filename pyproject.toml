@@ -24,6 +24,9 @@ package = [
     "ruff>=0.8",
     "nuitka>=2.5",
 ]
+asset-tools = [
+    "Pillow>=10.0",
+]
 
 [project.scripts]
 akiha = "project_akiha.app.main:main"
