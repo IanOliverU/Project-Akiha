@@ -476,6 +476,135 @@ def behavior_history_stylesheet() -> str:
     return manager_window_stylesheet("akihaBehaviorHistoryWindow")
 
 
+def pet_care_stylesheet() -> str:
+    """Return the scoped stylesheet for the compact pet-care surface."""
+    color = AKIHA_PALETTE
+    root = "QWidget#akihaPetCareWindow"
+    return f"""
+{root} {{
+    background-color: {color.window};
+    color: {color.text};
+    font-family: "Segoe UI";
+    font-size: 13px;
+}}
+{root} QLabel {{
+    color: {color.text};
+    background: transparent;
+}}
+{root} QFrame#careHeader {{
+    min-height: 72px;
+    border: none;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.control};
+}}
+{root} QFrame#careBody {{
+    border: none;
+    background-color: {color.window};
+}}
+{root} QLabel#careTitle {{
+    color: {color.text};
+    font-size: 18px;
+    font-weight: 600;
+}}
+{root} QLabel#careSummary,
+{root} QLabel#careMeta {{
+    color: {color.muted_text};
+    font-size: 12px;
+}}
+{root} QLabel#careLevel {{
+    color: {color.highlight};
+    font-size: 20px;
+    font-weight: 600;
+}}
+{root} QLabel#careCurrency {{
+    color: {color.speaking};
+    font-weight: 600;
+}}
+{root} QLabel#careSectionTitle,
+{root} QLabel#careNeedLabel {{
+    color: {color.text};
+    font-weight: 600;
+}}
+{root} QLabel#careNeedValue {{
+    color: {color.speaking};
+    font-family: "Cascadia Mono";
+    font-weight: 600;
+}}
+{root} QLabel#careNotice {{
+    min-height: 30px;
+    color: {color.muted_text};
+}}
+{root} QLabel#careNotice[semantic="error"] {{
+    color: {color.error};
+}}
+{root} QFrame#careProgressionPanel,
+{root} QFrame#careNeedRow {{
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.panel};
+}}
+{root} QProgressBar {{
+    min-height: 8px;
+    max-height: 8px;
+    border: none;
+    border-radius: 4px;
+    background-color: {color.control};
+}}
+{root} QProgressBar::chunk {{
+    border-radius: 4px;
+    background-color: {color.primary};
+}}
+{root} QProgressBar#careXpBar::chunk {{
+    background-color: {color.highlight};
+}}
+{root} QProgressBar#careNeedBar[semantic="low"]::chunk {{
+    background-color: #D4B967;
+}}
+{root} QProgressBar#careNeedBar[semantic="critical"]::chunk {{
+    background-color: {color.error};
+}}
+{root} QPushButton {{
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid {color.border};
+    border-radius: 5px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QPushButton:hover {{
+    border-color: {color.highlight};
+    background-color: #353946;
+}}
+{root} QPushButton:pressed {{
+    background-color: {color.panel};
+}}
+{root} QPushButton:disabled {{
+    color: #6F7488;
+    border-color: #343847;
+    background-color: #252832;
+}}
+{root} QPushButton#careActionButton {{
+    min-height: 40px;
+}}
+{root} QPushButton#careIconButton {{
+    min-width: 32px;
+    max-width: 32px;
+    padding: 0;
+    border: none;
+    background-color: transparent;
+}}
+{root} QPushButton#careIconButton:hover {{
+    background-color: {color.panel};
+}}
+{root} QToolTip {{
+    border: 1px solid {color.border};
+    padding: 5px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+"""
+
+
 def manager_window_stylesheet(object_name: str) -> str:
     """Return the shared technical-modal stylesheet."""
     root = f"QWidget#{object_name}"

@@ -12,6 +12,7 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 
 
 class ProactiveController:
@@ -36,6 +37,45 @@ class ProactiveController:
     ) -> ProactiveSuggestion | None:
         """Evaluate an activity snapshot and publish any allowed suggestion."""
         suggestion = self._suggestion_engine.evaluate_activity(snapshot, now)
+        if suggestion is not None:
+            self._publish_suggestion(suggestion)
+        return suggestion
+
+    def evaluate_pet_transitions(
+        self,
+        transitions: tuple[PetBandTransition, ...],
+        activity: ActivitySnapshot,
+        now: datetime | None = None,
+    ) -> ProactiveSuggestion | None:
+        """Publish typed pet edges and at most one policy-gated suggestion."""
+        if not isinstance(transitions, tuple) or any(
+            not isinstance(transition, PetBandTransition) for transition in transitions
+        ):
+            raise TypeError("transitions must be a tuple of PetBandTransition values.")
+        if not isinstance(activity, ActivitySnapshot):
+            raise TypeError("activity must be an ActivitySnapshot value.")
+        if not transitions:
+            return None
+
+        selected = _select_pet_transition(transitions)
+        for transition in transitions:
+            kind = f"pet_need_{transition.need.value}_{transition.current_band.value}"
+            self._event_bus.publish(
+                EventType.PET_NEED_BAND_CHANGED,
+                {
+                    "kind": kind,
+                    "need": transition.need.value,
+                    "previous_band": transition.previous_band.value,
+                    "current_band": transition.current_band.value,
+                    "selected": transition is selected,
+                },
+            )
+
+        suggestion = self._suggestion_engine.evaluate_pet_transition(
+            selected,
+            activity,
+            now,
+        )
         if suggestion is not None:
             self._publish_suggestion(suggestion)
         return suggestion
@@ -90,3 +130,34 @@ def _snapshot_from_payload(payload: dict[str, object]) -> ActivitySnapshot | Non
         last_activity_at=parsed_last_activity_at,
         source=source,
     )
+
+
+def _select_pet_transition(
+    transitions: tuple[PetBandTransition, ...],
+) -> PetBandTransition:
+    band_rank = {
+        WellbeingBand.CRITICAL: 0,
+        WellbeingBand.LOW: 1,
+        WellbeingBand.STABLE: 2,
+    }
+    need_rank = {
+        PetNeed.SATIETY: 0,
+        PetNeed.ENERGY: 1,
+        PetNeed.ATTENTION: 2,
+    }
+
+    def priority(transition: PetBandTransition) -> tuple[int, int, int]:
+        recovering = (
+            band_rank[transition.current_band] > band_rank[transition.previous_band]
+        )
+        return (
+            1 if recovering else 0,
+            (
+                -band_rank[transition.current_band]
+                if recovering
+                else band_rank[transition.current_band]
+            ),
+            need_rank[transition.need],
+        )
+
+    return min(transitions, key=priority)

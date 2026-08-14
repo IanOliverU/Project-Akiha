@@ -138,6 +138,12 @@ from project_akiha.core.memory.extraction import (
     HeuristicMemoryExtractor,
     MemoryExtractor,
 )
+from project_akiha.core.pet import (
+    CareAction,
+    PetCareEvaluation,
+    PetStateEvaluation,
+    PetStateRecord,
+)
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.voice_session import (
@@ -155,6 +161,7 @@ from project_akiha.database import (
     SQLiteBehaviorRepository,
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
+    SQLitePetStateRepository,
 )
 from project_akiha.integrations.spotify.albums import (
     SpotifyAlbumSelectionStore,
@@ -253,6 +260,7 @@ from project_akiha.services.intent_arbitration import (
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.pet_state import PetStateService, SystemPetClock
 from project_akiha.services.privacy_notice import (
     acknowledge_current_privacy_notice,
     privacy_notice_required,
@@ -307,6 +315,11 @@ from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.ollama_tool_worker import OllamaNativeToolThread
+from project_akiha.ui.pet_care_window import PetCareWindow
+from project_akiha.ui.pet_care_worker import (
+    PetCareThread,
+    PetRuntimeEvaluationThread,
+)
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
@@ -465,6 +478,9 @@ def _run_application() -> int:
     )
     conversation_repository = SQLiteConversationRepository(paths.database_path)
     memory_repository = SQLiteMemoryRepository(paths.database_path)
+    pet_state_repository = SQLitePetStateRepository(paths.database_path)
+    pet_state_service = PetStateService(pet_state_repository, SystemPetClock())
+    startup_pet_evaluation = asyncio.run(pet_state_service.initialize())
     ai_provider = _build_ai_provider(config.ai, logger, credential_store)
     ollama_native_provider = (
         ai_provider if isinstance(ai_provider, OllamaProvider) else None
@@ -731,6 +747,7 @@ def _run_application() -> int:
     memory_window = MemoryWindow()
     behavior_history_window = BehaviorHistoryWindow()
     assistant_action_history_window = AssistantActionHistoryWindow()
+    pet_care_window = PetCareWindow()
     _populate_chat_window(
         chat_window=chat_window,
         messages=recent_messages,
@@ -740,6 +757,8 @@ def _run_application() -> int:
     active_chat_threads: list[ChatResponseThread] = []
     interrupted_chat_threads: list[ChatResponseThread] = []
     active_action_threads: list[AssistantActionThread] = []
+    active_pet_care_threads: list[PetCareThread] = []
+    active_pet_runtime_threads: list[PetRuntimeEvaluationThread] = []
     active_tool_threads: list[
         AssistantToolProposalThread
         | AssistantMediaSearchThread
@@ -896,6 +915,67 @@ def _run_application() -> int:
         settings_window.show()
         settings_window.raise_()
         settings_window.activateWindow()
+
+    def cleanup_pet_care_thread(thread: PetCareThread) -> None:
+        if thread in active_pet_care_threads:
+            active_pet_care_threads.remove(thread)
+        thread.deleteLater()
+        if not active_pet_care_threads:
+            pet_care_window.set_busy(False)
+
+    def handle_pet_care_snapshot(record: object) -> None:
+        if not isinstance(record, PetStateRecord):
+            logger.error("Pet care worker returned an invalid snapshot.")
+            pet_care_window.set_notice(
+                "Care status could not be refreshed.",
+                error=True,
+            )
+            return
+        pet_care_window.update_record(record)
+        pet_care_window.set_notice("Care status refreshed.")
+
+    def handle_pet_care_result(evaluation: object) -> None:
+        if not isinstance(evaluation, PetCareEvaluation):
+            logger.error("Pet care worker returned an invalid care result.")
+            pet_care_window.set_notice(
+                "The care action could not be completed.",
+                error=True,
+            )
+            return
+        proactive_controller.evaluate_pet_transitions(
+            evaluation.care_outcome.band_transitions,
+            activity_controller.snapshot,
+        )
+        pet_care_window.show_care_result(evaluation)
+
+    def handle_pet_care_failure(detail: str) -> None:
+        logger.error("Pet care operation failed: %s", detail)
+        pet_care_window.set_notice(
+            "Akiha's care status could not be updated.",
+            error=True,
+        )
+
+    def start_pet_care_operation(action: CareAction | None = None) -> None:
+        if active_pet_care_threads or active_pet_runtime_threads:
+            return
+        pet_care_window.set_busy(True)
+        thread = PetCareThread(pet_state_service, action)
+        active_pet_care_threads.append(thread)
+        thread.snapshot_ready.connect(handle_pet_care_snapshot)
+        thread.care_ready.connect(handle_pet_care_result)
+        thread.failed.connect(handle_pet_care_failure)
+        thread.finished.connect(lambda current=thread: cleanup_pet_care_thread(current))
+        thread.start()
+
+    def show_pet_care(event: Event | None = None) -> None:
+        del event
+        pet_care_window.show()
+        pet_care_window.raise_()
+        pet_care_window.activateWindow()
+        start_pet_care_operation()
+
+    pet_care_window.refresh_requested.connect(start_pet_care_operation)
+    pet_care_window.care_action_requested.connect(start_pet_care_operation)
 
     def refresh_memory_window() -> None:
         memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
@@ -2755,6 +2835,7 @@ def _run_application() -> int:
     )
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
+    event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, show_pet_care)
     event_bus.subscribe(
         EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, show_behavior_history
     )
@@ -2780,6 +2861,7 @@ def _run_application() -> int:
     def shutdown_app() -> None:
         provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
+        pet_runtime_tick_timer.stop()
         voice_endpoint_controller.cancel()
         conversation_runtime_router.close()
         push_to_talk_session_controller.close()
@@ -2801,6 +2883,8 @@ def _run_application() -> int:
             *active_chat_threads,
             *active_action_threads,
             *active_tool_threads,
+            *active_pet_care_threads,
+            *active_pet_runtime_threads,
         ]
         try:
             streaming_voice_output_controller.cancel()
@@ -2876,6 +2960,7 @@ def _run_application() -> int:
     )
     tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
+    tray_icon.pet_care_requested.connect(show_pet_care)
     tray_icon.show()
     if privacy_notice_required(config.privacy):
         QTimer.singleShot(0, privacy_notice.show)
@@ -2891,6 +2976,46 @@ def _run_application() -> int:
         event_bus=event_bus,
         speech_controller=assistant_speech_controller,
     )
+
+    def cleanup_pet_runtime_thread(thread: PetRuntimeEvaluationThread) -> None:
+        if thread in active_pet_runtime_threads:
+            active_pet_runtime_threads.remove(thread)
+        thread.deleteLater()
+
+    def handle_pet_runtime_evaluation(evaluation: object) -> None:
+        if not isinstance(evaluation, PetStateEvaluation):
+            logger.error("Pet runtime worker returned an invalid evaluation.")
+            return
+        proactive_controller.evaluate_pet_transitions(
+            evaluation.decay_outcome.band_transitions,
+            activity_controller.snapshot,
+        )
+        if pet_care_window.isVisible():
+            pet_care_window.update_record(evaluation.record)
+
+    def handle_pet_runtime_failure(detail: str) -> None:
+        logger.error("Pet runtime evaluation failed: %s", detail)
+
+    def evaluate_pet_runtime() -> None:
+        if active_pet_care_threads or active_pet_runtime_threads:
+            return
+        thread = PetRuntimeEvaluationThread(pet_state_service)
+        active_pet_runtime_threads.append(thread)
+        thread.evaluated.connect(handle_pet_runtime_evaluation)
+        thread.failed.connect(handle_pet_runtime_failure)
+        thread.finished.connect(
+            lambda current=thread: cleanup_pet_runtime_thread(current)
+        )
+        thread.start()
+
+    pet_runtime_tick_timer = QTimer()
+    pet_runtime_tick_timer.setInterval(60_000)
+    pet_runtime_tick_timer.timeout.connect(evaluate_pet_runtime)
+    pet_runtime_tick_timer.start()
+    proactive_controller.evaluate_pet_transitions(
+        startup_pet_evaluation.decay_outcome.band_transitions,
+        activity_controller.snapshot,
+    )
     app._akiha_services = (
         assistant_speech_controller,
         action_repository,
@@ -2905,6 +3030,8 @@ def _run_application() -> int:
         activity_tick_timer,
         active_chat_threads,
         active_action_threads,
+        active_pet_care_threads,
+        active_pet_runtime_threads,
         active_tool_threads,
         assistant_tool_gateway,
         assistant_tool_result_store,
@@ -2922,6 +3049,10 @@ def _run_application() -> int:
         mood_controller,
         notification_policy,
         pet_controller,
+        pet_care_window,
+        pet_runtime_tick_timer,
+        pet_state_repository,
+        pet_state_service,
         presence_mapper,
         privacy_notice,
         proactive_controller,

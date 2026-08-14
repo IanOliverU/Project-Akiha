@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 from project_akiha.core.behavior.activity import ActivitySnapshot, ActivityState
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 
 
 class CompanionMood(StrEnum):
@@ -81,6 +82,29 @@ class MoodEngine:
         """Update mood when the user wakes Akiha."""
         return self._transition_to(CompanionMood.ATTENTIVE, "wake_requested", now)
 
+    def observe_pet_need_transition(
+        self,
+        transition: PetBandTransition,
+        now: datetime | None = None,
+    ) -> MoodSnapshot:
+        """Reflect one selected structured pet-need transition in mood."""
+        if not isinstance(transition, PetBandTransition):
+            raise TypeError("transition must be a PetBandTransition value.")
+
+        reason = f"pet_need_{transition.need.value}_{transition.current_band.value}"
+        if _is_recovery(transition):
+            return self._transition_to(CompanionMood.ATTENTIVE, reason, now)
+        if transition.need is PetNeed.ENERGY:
+            return self._transition_to(CompanionMood.SLEEPY, reason, now)
+        if transition.need is PetNeed.ATTENTION:
+            mood = (
+                CompanionMood.CHECKING_IN
+                if transition.current_band is WellbeingBand.CRITICAL
+                else CompanionMood.WAITING
+            )
+            return self._transition_to(mood, reason, now)
+        return self._transition_to(CompanionMood.CHECKING_IN, reason, now)
+
     def observe_delivery_result(
         self,
         *,
@@ -109,3 +133,12 @@ class MoodEngine:
 
 def _now() -> datetime:
     return datetime.now(tz=UTC)
+
+
+def _is_recovery(transition: PetBandTransition) -> bool:
+    ranks = {
+        WellbeingBand.CRITICAL: 0,
+        WellbeingBand.LOW: 1,
+        WellbeingBand.STABLE: 2,
+    }
+    return ranks[transition.current_band] > ranks[transition.previous_band]

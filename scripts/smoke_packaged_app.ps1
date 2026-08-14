@@ -35,6 +35,9 @@ expected_tables = {
     "conversations",
     "memories",
     "messages",
+    "pet_reward_grants",
+    "pet_state",
+    "pet_state_history",
     "schema_version",
 }
 

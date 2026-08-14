@@ -15,6 +15,7 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 
 
 class ProactiveControllerTest(unittest.TestCase):
@@ -72,6 +73,48 @@ class ProactiveControllerTest(unittest.TestCase):
         self.assertIsNotNone(suggestion)
         self.assertEqual(len(suggestions), 1)
 
+    def test_pet_transitions_publish_typed_edges_and_one_priority_suggestion(
+        self,
+    ) -> None:
+        bus = EventBus()
+        edges: list[Event] = []
+        suggestions: list[Event] = []
+        bus.subscribe(EventType.PET_NEED_BAND_CHANGED, edges.append)
+        bus.subscribe(EventType.PROACTIVE_SUGGESTION_READY, suggestions.append)
+        controller = ProactiveController(bus, _engine(proactive_enabled=True))
+        transitions = (
+            _transition(
+                PetNeed.ATTENTION,
+                WellbeingBand.STABLE,
+                WellbeingBand.LOW,
+            ),
+            _transition(
+                PetNeed.ENERGY,
+                WellbeingBand.LOW,
+                WellbeingBand.CRITICAL,
+            ),
+        )
+
+        suggestion = controller.evaluate_pet_transitions(
+            transitions,
+            _activity(ActivityState.ACTIVE).snapshot,
+            now=_now(),
+        )
+
+        self.assertIsNotNone(suggestion)
+        self.assertEqual(len(edges), 2)
+        self.assertEqual([event.payload["selected"] for event in edges], [False, True])
+        self.assertEqual(suggestions[0].payload["kind"], "pet_need_energy_critical")
+
+    def test_pet_transition_input_must_be_typed(self) -> None:
+        controller = ProactiveController(EventBus(), _engine(proactive_enabled=True))
+
+        with self.assertRaises(TypeError):
+            controller.evaluate_pet_transitions(  # type: ignore[arg-type]
+                ("pet.need.satiety.low",),
+                _activity(ActivityState.ACTIVE).snapshot,
+            )
+
 
 def _engine(proactive_enabled: bool) -> ProactiveSuggestionEngine:
     return ProactiveSuggestionEngine(
@@ -104,6 +147,18 @@ class _ActivityFixture:
 
 def _activity(state: ActivityState) -> _ActivityFixture:
     return _ActivityFixture(state)
+
+
+def _transition(
+    need: PetNeed,
+    previous_band: WellbeingBand,
+    current_band: WellbeingBand,
+) -> PetBandTransition:
+    return PetBandTransition(
+        need=need,
+        previous_band=previous_band,
+        current_band=current_band,
+    )
 
 
 if __name__ == "__main__":

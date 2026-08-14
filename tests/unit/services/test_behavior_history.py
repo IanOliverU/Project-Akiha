@@ -46,6 +46,24 @@ class BehaviorHistoryRecorderTest(unittest.TestCase):
 
         self.assertEqual(repository.records, ())
 
+    def test_records_structured_pet_need_edges_without_dialogue(self) -> None:
+        bus = EventBus()
+        repository = _RecordingRepository()
+        BehaviorHistoryRecorder(bus, repository)
+
+        bus.publish(
+            EventType.PET_NEED_BAND_CHANGED,
+            {
+                "need": "satiety",
+                "previous_band": "stable",
+                "current_band": "low",
+                "selected": True,
+            },
+        )
+
+        self.assertEqual(repository.records[0].event_type, "pet.need_band_changed")
+        self.assertNotIn("message", repository.records[0].payload)
+
     def test_logs_repository_failures(self) -> None:
         bus = EventBus()
         repository = _FailingRepository()

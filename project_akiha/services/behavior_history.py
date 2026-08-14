@@ -28,6 +28,7 @@ class BehaviorHistoryRecorder:
 
     _recorded_event_types = frozenset(
         {
+            EventType.PET_NEED_BAND_CHANGED,
             EventType.PROACTIVE_SUGGESTION_READY,
             EventType.PROACTIVE_SUGGESTION_DELIVERED,
         }

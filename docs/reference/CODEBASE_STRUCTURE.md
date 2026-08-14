@@ -58,3 +58,15 @@ split between `app/conversation_runtime_router.py`,
 in `ui/hosted_live_session_worker.py`; it owns no provider-selection policy.
 This keeps Local Modular and Hosted Live as explicit sibling lanes rather than
 allowing either provider to invoke the other as a fallback.
+
+Pet simulation rules remain under `core/pet/`, revisioned persistence remains
+in `database/sqlite_pet_repository.py`, and `services/pet_state.py` is the sole
+mutation boundary. `ui/pet_care_window.py` presents validated snapshots and
+emits only typed care requests; `ui/pet_care_worker.py` performs the Qt/async
+handoff. Neither UI module accepts dialogue or provider output as pet state.
+The composition root settles runtime decay through a non-overlapping one-minute
+worker. `app/proactive_controller.py` publishes validated need-band edges,
+selects one deterministic priority cue, and reuses the existing notification
+policy and delivery pipeline; `app/mood_controller.py` consumes only the
+selected typed edge. Dialogue and provider modules have no reference to the
+pet-state service or this mutation path.

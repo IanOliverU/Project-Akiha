@@ -13,6 +13,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
     """Tray icon with basic Phase 1 window controls."""
 
     behavior_history_requested = Signal()
+    pet_care_requested = Signal()
 
     def __init__(
         self,
@@ -47,6 +48,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         chat_action = QAction("Chat", menu)
         chat_action.triggered.connect(self._show_chat)
         menu.addAction(chat_action)
+
+        care_action = QAction("Care", menu)
+        care_action.triggered.connect(self.pet_care_requested.emit)
+        menu.addAction(care_action)
 
         settings_action = QAction("Settings", menu)
         settings_action.triggered.connect(self._show_settings)

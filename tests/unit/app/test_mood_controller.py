@@ -11,6 +11,7 @@ from project_akiha.config import VoiceConfig
 from project_akiha.core.behavior import MoodEngine
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet import PetNeed, WellbeingBand
 
 
 class MoodControllerTest(unittest.TestCase):
@@ -53,6 +54,32 @@ class MoodControllerTest(unittest.TestCase):
 
         self.assertEqual(received[-1].payload["mood"], "checking_in")
         self.assertEqual(received[-1].payload["reason"], "chat_visible")
+
+    def test_pet_need_delivery_preserves_structured_need_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+        bus.publish(
+            EventType.PET_NEED_BAND_CHANGED,
+            _pet_need_payload(
+                PetNeed.ENERGY,
+                WellbeingBand.STABLE,
+                WellbeingBand.LOW,
+                selected=True,
+            ),
+        )
+
+        bus.publish(
+            EventType.PROACTIVE_SUGGESTION_DELIVERED,
+            {
+                "kind": "pet_need_energy_low",
+                "delivered": True,
+                "reason": "chat_visible",
+            },
+        )
+
+        self.assertEqual(received[-1].payload["mood"], "sleepy")
 
     def test_sleep_and_wake_events_update_mood(self) -> None:
         bus = EventBus()
@@ -151,6 +178,43 @@ class MoodControllerTest(unittest.TestCase):
 
         self.assertEqual(len(received), 1)
 
+    def test_selected_pet_need_transition_updates_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(
+            EventType.PET_NEED_BAND_CHANGED,
+            _pet_need_payload(
+                PetNeed.ENERGY,
+                WellbeingBand.STABLE,
+                WellbeingBand.LOW,
+                selected=True,
+            ),
+        )
+
+        self.assertEqual(received[-1].payload["mood"], "sleepy")
+        self.assertEqual(received[-1].payload["reason"], "pet_need_energy_low")
+
+    def test_unselected_pet_need_transition_does_not_replace_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(
+            EventType.PET_NEED_BAND_CHANGED,
+            _pet_need_payload(
+                PetNeed.SATIETY,
+                WellbeingBand.STABLE,
+                WellbeingBand.LOW,
+                selected=False,
+            ),
+        )
+
+        self.assertEqual(len(received), 1)
+
     def test_voice_controller_events_restore_companion_mood(self) -> None:
         bus = EventBus()
         received: list[Event] = []
@@ -175,6 +239,21 @@ def _activity_payload(state: str) -> dict[str, object]:
         "idle_seconds": 300,
         "last_activity_at": _now().isoformat(),
         "source": "test",
+    }
+
+
+def _pet_need_payload(
+    need: PetNeed,
+    previous_band: WellbeingBand,
+    current_band: WellbeingBand,
+    *,
+    selected: bool,
+) -> dict[str, object]:
+    return {
+        "need": need.value,
+        "previous_band": previous_band.value,
+        "current_band": current_band.value,
+        "selected": selected,
     }
 
 

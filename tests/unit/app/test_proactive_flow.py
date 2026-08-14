@@ -11,6 +11,8 @@ from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.config import BehaviorConfig
 from project_akiha.core.behavior import (
+    ActivitySnapshot,
+    ActivityState,
     CompanionMood,
     CompanionPresenceMapper,
     MoodEngine,
@@ -20,6 +22,7 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 from project_akiha.services.behavior_history import BehaviorHistoryRecorder
 
 _IDLE_MESSAGE = "You've been quiet for a bit. Want to stretch or take a short pause?"
@@ -108,6 +111,48 @@ class ProactiveFlowTest(unittest.TestCase):
         )
         self.assertEqual(repository.records[-1].payload["channel"], "tray_message")
 
+    def test_structured_pet_need_flows_to_mood_delivery_and_history(self) -> None:
+        bus = EventBus()
+        config = BehaviorConfig(
+            proactive_enabled=True,
+            quiet_hours_enabled=False,
+        )
+        surface = _Surface(chat_visible=True, tray_available=True)
+        repository = _RecordingBehaviorRepository()
+        mood_events: list[Event] = []
+        controller = ProactiveController(
+            bus,
+            ProactiveSuggestionEngine(NotificationPolicy(config)),
+        )
+        MoodController(bus, MoodEngine(initial_time=_start()))
+        BehaviorHistoryRecorder(bus, repository)
+        ProactiveDeliveryController(bus, ProactiveDeliveryService(), surface)
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, mood_events.append)
+
+        controller.evaluate_pet_transitions(
+            (
+                PetBandTransition(
+                    need=PetNeed.ENERGY,
+                    previous_band=WellbeingBand.STABLE,
+                    current_band=WellbeingBand.LOW,
+                ),
+            ),
+            _activity_snapshot(ActivityState.ACTIVE),
+            now=_start(),
+        )
+
+        self.assertEqual(mood_events[-1].payload["mood"], "sleepy")
+        self.assertEqual(surface.chat_suggestions[0][0], "pet_need_energy_low")
+        self.assertEqual(
+            [record.event_type for record in repository.records],
+            [
+                "pet.need_band_changed",
+                "proactive.suggestion_ready",
+                "proactive.suggestion_delivered",
+            ],
+        )
+        self.assertNotIn("dialogue", repository.records[0].payload)
+
 
 class _Surface:
     def __init__(
@@ -185,6 +230,15 @@ def _mood_from_payload(payload: dict[str, object]):
 
 def _start() -> datetime:
     return datetime(2026, 7, 24, 10, 0, tzinfo=UTC)
+
+
+def _activity_snapshot(state: ActivityState) -> ActivitySnapshot:
+    return ActivitySnapshot(
+        state=state,
+        idle_seconds=0,
+        last_activity_at=_start(),
+        source="test",
+    )
 
 
 if __name__ == "__main__":

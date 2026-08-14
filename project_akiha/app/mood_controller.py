@@ -13,6 +13,7 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 from project_akiha.core.state.voice import VoiceState
 
 
@@ -55,6 +56,10 @@ class MoodController:
         )
         event_bus.subscribe(EventType.PET_SLEEP_REQUESTED, self._handle_sleep_requested)
         event_bus.subscribe(
+            EventType.PET_NEED_BAND_CHANGED,
+            self._handle_pet_need_band_changed,
+        )
+        event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
             self._handle_voice_state_changed,
         )
@@ -75,6 +80,9 @@ class MoodController:
         self._publish_if_changed(self._mood_engine.observe_activity(snapshot))
 
     def _handle_suggestion_delivered(self, event: Event) -> None:
+        kind = event.payload.get("kind")
+        if isinstance(kind, str) and kind.startswith("pet_need_"):
+            return
         delivered = event.payload.get("delivered")
         reason = event.payload.get("reason")
         if not isinstance(delivered, bool) or not isinstance(reason, str):
@@ -89,6 +97,16 @@ class MoodController:
     def _handle_sleep_requested(self, event: Event) -> None:
         del event
         self._publish_if_changed(self._mood_engine.observe_sleep_requested())
+
+    def _handle_pet_need_band_changed(self, event: Event) -> None:
+        if event.payload.get("selected") is not True:
+            return
+        transition = _pet_transition_from_payload(event.payload)
+        if transition is None:
+            return
+        self._publish_if_changed(
+            self._mood_engine.observe_pet_need_transition(transition)
+        )
 
     def _handle_interaction(self, event: Event) -> None:
         source = self._interaction_sources[event.event_type]
@@ -171,3 +189,24 @@ def _activity_from_payload(payload: dict[str, object]) -> ActivitySnapshot | Non
         last_activity_at=parsed_last_activity_at,
         source=source,
     )
+
+
+def _pet_transition_from_payload(
+    payload: dict[str, object],
+) -> PetBandTransition | None:
+    need_value = payload.get("need")
+    previous_band_value = payload.get("previous_band")
+    current_band_value = payload.get("current_band")
+    if not all(
+        isinstance(value, str)
+        for value in (need_value, previous_band_value, current_band_value)
+    ):
+        return None
+    try:
+        return PetBandTransition(
+            need=PetNeed(need_value),
+            previous_band=WellbeingBand(previous_band_value),
+            current_band=WellbeingBand(current_band_value),
+        )
+    except (TypeError, ValueError):
+        return None

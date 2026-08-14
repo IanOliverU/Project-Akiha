@@ -109,7 +109,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
-| Phase 9 | In progress; 9A-9E complete | Pet statistics, care actions, progression, and attention behavior |
+| Phase 9 | In progress; 9A-9G complete | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
 ## Tech Stack
@@ -335,8 +335,15 @@ and the sole injected-clock pet-state service mutation boundary. Phase 9D adds
 pure typed care actions, durable floor recovery, capped no-op handling, and
 specific care history records. Phase 9E adds restart-safe reward history,
 typed conversation-event rewards, XP-derived levels, currency accrual,
-cooldowns, rolling daily caps, and duplicate-event protection. Phase 9F will
-add the pet status and care UI.
+cooldowns, rolling daily caps, and duplicate-event protection. Phase 9F adds a
+compact `Akiha Care` window with persisted need bars, level and currency
+progress, and typed Feed, Rest, and Spend time controls available from the pet
+and tray menus. Phase 9G settles runtime decay once per minute off the Qt UI
+thread, emits only typed need-band transitions, maps the selected transition to
+mood, and routes at most one edge-triggered check-in through the existing
+quiet-hours, away-state, and cooldown policy. The active idle loop also uses a
+reference-locked palette and continuous frame order to remove color drift and
+the visible loop restart.
 
 Details: `docs/phases/phase-09-pet-sim/README.md`
 

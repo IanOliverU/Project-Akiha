@@ -12,6 +12,7 @@ from project_akiha.core.behavior import (
     NotificationPolicy,
     ProactiveSuggestionEngine,
 )
+from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
 
 
 class ProactiveSuggestionEngineTest(unittest.TestCase):
@@ -54,6 +55,55 @@ class ProactiveSuggestionEngineTest(unittest.TestCase):
         self.assertIsNotNone(first)
         self.assertIsNone(second)
 
+    def test_low_pet_need_uses_existing_notification_policy(self) -> None:
+        engine = _engine(proactive_enabled=True)
+
+        suggestion = engine.evaluate_pet_transition(
+            _transition(
+                PetNeed.SATIETY,
+                WellbeingBand.STABLE,
+                WellbeingBand.LOW,
+            ),
+            _activity(ActivityState.ACTIVE),
+            _now(),
+        )
+
+        self.assertIsNotNone(suggestion)
+        self.assertEqual(suggestion.kind, "pet_need_satiety_low")
+        self.assertEqual(suggestion.urgency.value, "low")
+
+    def test_critical_pet_need_has_normal_urgency(self) -> None:
+        engine = _engine(proactive_enabled=True)
+
+        suggestion = engine.evaluate_pet_transition(
+            _transition(
+                PetNeed.ENERGY,
+                WellbeingBand.LOW,
+                WellbeingBand.CRITICAL,
+            ),
+            _activity(ActivityState.ACTIVE),
+            _now(),
+        )
+
+        self.assertIsNotNone(suggestion)
+        self.assertEqual(suggestion.kind, "pet_need_energy_critical")
+        self.assertEqual(suggestion.urgency.value, "normal")
+
+    def test_pet_need_recovery_never_requests_notification(self) -> None:
+        engine = _engine(proactive_enabled=True)
+
+        suggestion = engine.evaluate_pet_transition(
+            _transition(
+                PetNeed.ATTENTION,
+                WellbeingBand.CRITICAL,
+                WellbeingBand.LOW,
+            ),
+            _activity(ActivityState.ACTIVE),
+            _now(),
+        )
+
+        self.assertIsNone(suggestion)
+
 
 def _engine(
     *,
@@ -80,6 +130,18 @@ def _activity(state: ActivityState) -> ActivitySnapshot:
         idle_seconds=300,
         last_activity_at=_now() - timedelta(seconds=300),
         source="test",
+    )
+
+
+def _transition(
+    need: PetNeed,
+    previous_band: WellbeingBand,
+    current_band: WellbeingBand,
+) -> PetBandTransition:
+    return PetBandTransition(
+        need=need,
+        previous_band=previous_band,
+        current_band=current_band,
     )
 
 

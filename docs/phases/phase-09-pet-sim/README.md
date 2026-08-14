@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A through 9E complete; Phase 9F pet status
-and care UI next
+**Status:** In progress - Phases 9A through 9G complete; structured voice and
+animation reactions next
 
 ## Phase Goal
 
@@ -609,6 +609,124 @@ rewarded accidentally.
 - The complete suite passes with 1,446 tests and 3 optional-provider skips.
 - Ruff, Black verification, Python compilation, and diff checks pass.
 
+## Phase 9F: Pet Status And Care UI
+
+Phase 9F was completed on 2026-08-14. It exposes the existing durable pet-state
+service through a dedicated compact `Akiha Care` window without moving gameplay
+controls into Settings or placing permanent stat bars over the desktop pet.
+
+### Care Surface
+
+- The care window shows satiety, energy, attention, and affection on bounded
+  `0..100` progress bars.
+- Stable, low, and critical values use distinct semantic colors while retaining
+  the approved Akiha interface palette.
+- Level, progress within the current XP step, and accrued currency are visible.
+- Currency remains display-only until the Phase 10 shop and inventory system.
+- `Feed`, `Rest`, and `Spend time` emit only their corresponding closed
+  `CareAction` enum values.
+- The surface reports completed care, no-op state, reward cooldown, daily cap,
+  and sanitized failure outcomes without exposing repository details.
+- Care is available from both the pet context menu and the system tray menu.
+
+### Runtime Boundary
+
+The composition root now constructs `SQLitePetStateRepository` and
+`PetStateService` and initializes them once during startup. This applies the
+bounded offline catch-up policy before the first care-window refresh. UI reads
+and care actions run through a short-lived `PetCareThread`, keeping SQLite work
+off the Qt UI thread and preventing overlapping button mutations.
+
+`PetCareWindow` owns presentation only. It has no repository reference and no
+method that accepts dialogue, provider output, arbitrary action names, or raw
+state values. AI providers remain structurally unable to mutate pet state.
+
+Phase 9F deliberately does not add the one-minute runtime evaluation timer,
+conversation reward wiring, proactive delivery, or voice and animation
+reactions. Those integrations require structured application events and remain
+the next Phase 9 work.
+
+### Phase 9F Verification
+
+- UI tests cover need bands, XP-step presentation, currency, summaries, typed
+  care signals, busy-state overlap prevention, and invalid record rejection.
+- Worker tests cover snapshot selection, typed care forwarding, and rejection
+  of arbitrary care strings.
+- Pet and tray tests cover both `Care` entry points.
+- Source startup smoke passes with isolated fresh local data and a clean log.
+- Source and packaged smoke scripts now require the pet state, history, and
+  reward-ledger tables.
+- The complete suite passes with 1,455 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
+
+## Phase 9G: Structured Mood And Proactive Integration
+
+Phase 9G was completed on 2026-08-14. It connects durable pet-state outcomes to
+the existing behavior pipeline without allowing dialogue, transcripts, or AI
+provider output to become pet-state inputs.
+
+### Runtime Evaluation
+
+- A dedicated Qt worker calls `PetStateService.evaluate_runtime` once per
+  minute so elapsed decay and SQLite work do not block the desktop pet UI.
+- Runtime evaluation and explicit care operations cannot overlap in the
+  composition root.
+- Startup offline catch-up, runtime decay, and care recovery all feed the same
+  typed transition bridge.
+- The care window refreshes from completed runtime evaluations only while it is
+  visible.
+
+### Structured Behavior Events
+
+- Only validated `PetBandTransition` values may publish
+  `pet.need_band_changed`; there is no text-input or provider-input method.
+- Every crossed edge is recorded locally, while one deterministic priority
+  selector marks the strongest current cue for mood presentation.
+- Critical edges outrank low edges. Downward edges outrank recovery edges, and
+  a multi-edge recovery selects the final healthiest band.
+- Low energy maps to sleepy, low attention maps to waiting, critical attention
+  and satiety map to checking in, and recovery maps to attentive.
+
+### Proactive Guardrails
+
+- Only a downward edge into low or critical can request a pet check-in.
+- At most one unmet need is surfaced from a batch of simultaneous transitions.
+- Low needs use low urgency and critical needs use normal urgency.
+- Check-ins pass through the existing proactive-enabled setting, quiet hours,
+  away-state rule, and shared notification cooldown before delivery.
+- Remaining in the same band produces no new edge and therefore no repeated
+  pet notification. Recovery produces no notification.
+
+### Idle Sprite Correction
+
+The first idle prototype revealed two presentation issues during owner review:
+generated skin, hair, uniform, and sock colors drifted lighter than the active
+standing sprite, and the original frame order created a visible diagonal jump
+at the loop boundary.
+
+- `scripts/recolor_sprite_frames.py` now remaps every visible generated color
+  to the nearest color that exists in the approved standing sprite while
+  preserving frame geometry and alpha.
+- The corrected runtime frames live under `idle/palette-v2`; the original
+  owner-approved prototype remains intact for comparison.
+- The active loop order is `000 -> 001 -> 003 -> 002 -> 000`, so each boundary
+  changes one motion axis instead of jumping diagonally.
+- The loop duration is approximately 1.17 seconds at the default 24 FPS,
+  replacing the rushed 0.67-second prototype cycle.
+
+### Phase 9G Verification
+
+- Pure and controller tests cover low and critical urgency, recovery silence,
+  typed input rejection, deterministic multi-need priority, mood mapping, and
+  preservation of need mood after delivery.
+- Integration coverage follows one typed low-energy edge through mood,
+  behavior history, policy-gated chat delivery, and sanitized event payloads.
+- Worker tests cover background elapsed-time evaluation.
+- Palette tests verify transparent pixels remain transparent and visible output
+  colors come from the reference palette.
+- The complete suite passes with 1,467 tests and 3 optional-provider skips.
+- Ruff, Black verification, Python compilation, and diff checks pass.
+
 ## Planned Scope
 
 - Persistent satiety, attention, affection, and energy statistics.
@@ -641,8 +759,8 @@ rewarded accidentally.
 - [x] Implement repository and pet-state service boundaries.
 - [x] Add explicit care actions.
 - [x] Add XP, levels, and currency accrual.
-- [ ] Add pet status and care UI.
-- [ ] Integrate structured pet events with mood and proactive behavior.
+- [x] Add pet status and care UI.
+- [x] Integrate structured pet events with mood and proactive behavior.
 - [ ] Add voice and animation reactions.
 - [ ] Add settings, diagnostics, and reset behavior.
 - [ ] Add automated and manual verification.

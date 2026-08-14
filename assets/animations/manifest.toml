@@ -1,11 +1,11 @@
 [animations.idle]
 frames = [
-    "akiha/idle/generated-v1/000.png",
-    "akiha/idle/generated-v1/001.png",
-    "akiha/idle/generated-v1/002.png",
-    "akiha/idle/generated-v1/003.png",
+    "akiha/idle/palette-v2/000.png",
+    "akiha/idle/palette-v2/001.png",
+    "akiha/idle/palette-v2/003.png",
+    "akiha/idle/palette-v2/002.png",
 ]
-ticks_per_frame = 4
+ticks_per_frame = 7
 x_offset = 0
 y_offset = 0
 scale_percent = 100

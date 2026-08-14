@@ -141,6 +141,23 @@ class PetWindowTest(unittest.TestCase):
 
         self.assertEqual(event_count, 1)
 
+    def test_context_menu_care_action_publishes_request(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+        event_count = 0
+
+        def record_event(event: Event) -> None:
+            nonlocal event_count
+            del event
+            event_count += 1
+
+        event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, record_event)
+
+        menu = self._window._build_context_menu()
+        _trigger_action(menu, "Care")
+
+        self.assertEqual(event_count, 1)
+
     def test_context_menu_quit_action_publishes_request(self) -> None:
         event_bus = EventBus()
         self._window = self._make_window(event_bus)
