@@ -759,12 +759,10 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         playback_controller=voice_playback_controller,
         service=speech_output_service,
-        # GPT-SoVITS is CPU-heavy on the supported fallback runtime. Keeping
-        # one inference active avoids two model passes competing for the same
-        # CPU and improves time-to-first-audio.
-        maximum_concurrent_synthesis=(
-            1 if config.voice.output_provider == "gpt-sovits" else 2
-        ),
+        # GPT-SoVITS is CPU-heavy, but serial synthesis leaves audible gaps
+        # between response segments. Keep the next segment synthesizing while
+        # the current segment plays; playback remains strictly ordered.
+        maximum_concurrent_synthesis=2,
         on_response_spoken=voice_synthesis_controller.remember_spoken_text,
     )
     voice_capture_controller = VoiceCaptureController(
