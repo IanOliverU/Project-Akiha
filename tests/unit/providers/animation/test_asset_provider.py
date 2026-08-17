@@ -27,6 +27,7 @@ class AssetAnimationProviderTest(unittest.TestCase):
                 "ticks_per_frame = 3\n"
                 "x_offset = -4\n"
                 "y_offset = 2\n"
+                "frame_offsets = [[0, 0], [1, -1]]\n"
                 "scale_percent = 125\n",
                 encoding="utf-8",
             )
@@ -37,8 +38,8 @@ class AssetAnimationProviderTest(unittest.TestCase):
         self.assertEqual(provider.available_states(), frozenset({AnimationState.IDLE}))
         self.assertEqual(frame.state, AnimationState.IDLE)
         self.assertEqual(frame.frame_index, 1)
-        self.assertEqual(frame.x_offset, -4)
-        self.assertEqual(frame.y_offset, 2)
+        self.assertEqual(frame.x_offset, -3)
+        self.assertEqual(frame.y_offset, 1)
         self.assertEqual(frame.scale_percent, 125)
         self.assertEqual(frame.image_path, manifest_path.parent / "idle" / "001.png")
 
@@ -168,6 +169,34 @@ class AssetAnimationProviderTest(unittest.TestCase):
             )
 
             with self.assertRaises(AnimationManifestError):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_frame_offsets_that_do_not_match_frame_count(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                "frame_offsets = [[0, 0], [0, -1]]\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "frame count"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_non_integer_frame_offsets(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                'frame_offsets = [[0, "up"]]\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "integer"):
                 AssetAnimationProvider.from_manifest(manifest_path)
 
     def test_rejects_missing_frame_image(self) -> None:

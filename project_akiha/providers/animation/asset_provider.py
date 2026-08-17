@@ -26,11 +26,15 @@ class AnimationClip:
     y_offset: int = 0
     scale_percent: int = 100
     source_rects: tuple[tuple[int, int, int, int] | None, ...] = ()
+    frame_offsets: tuple[tuple[int, int], ...] = ()
 
     def frame_for(self, frame_number: int) -> AnimationFrame:
         """Return the frame represented by the global clock tick."""
         frame_index = (frame_number // self.ticks_per_frame) % len(self.frame_paths)
         source_rect = self.source_rects[frame_index] if self.source_rects else None
+        frame_x_offset, frame_y_offset = (
+            self.frame_offsets[frame_index] if self.frame_offsets else (0, 0)
+        )
         source_x, source_y, source_width, source_height = source_rect or (
             0,
             0,
@@ -40,8 +44,8 @@ class AnimationClip:
         return AnimationFrame(
             state=self.state,
             frame_index=frame_index,
-            x_offset=self.x_offset,
-            y_offset=self.y_offset,
+            x_offset=self.x_offset + frame_x_offset,
+            y_offset=self.y_offset + frame_y_offset,
             scale_percent=self.scale_percent,
             image_path=self.frame_paths[frame_index],
             source_x=source_x,
@@ -147,6 +151,12 @@ def _parse_clip(
             f"Animation {state_name} scale_percent must be a positive integer."
         )
 
+    frame_offsets = _parse_frame_offsets(
+        state_name=state_name,
+        value=state_data.get("frame_offsets"),
+        frame_count=len(frame_paths),
+    )
+
     return AnimationClip(
         state=_parse_state(state_name),
         frame_paths=frame_paths,
@@ -155,7 +165,37 @@ def _parse_clip(
         y_offset=y_offset,
         scale_percent=scale_percent,
         source_rects=source_rects,
+        frame_offsets=frame_offsets,
     )
+
+
+def _parse_frame_offsets(
+    *,
+    state_name: str,
+    value: Any,
+    frame_count: int,
+) -> tuple[tuple[int, int], ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list) or len(value) != frame_count:
+        raise AnimationManifestError(
+            f"Animation {state_name} frame_offsets must match its frame count."
+        )
+
+    offsets: list[tuple[int, int]] = []
+    for offset in value:
+        if (
+            not isinstance(offset, list)
+            or len(offset) != 2
+            or any(type(component) is not int for component in offset)
+        ):
+            message = (
+                f"Animation {state_name} frame_offsets must contain "
+                "integer [x, y] pairs."
+            )
+            raise AnimationManifestError(message)
+        offsets.append((offset[0], offset[1]))
+    return tuple(offsets)
 
 
 def _parse_frame_sources(

@@ -341,9 +341,9 @@ progress, and typed Feed, Rest, and Spend time controls available from the pet
 and tray menus. Phase 9G settles runtime decay once per minute off the Qt UI
 thread, emits only typed need-band transitions, maps the selected transition to
 mood, and routes at most one edge-triggered check-in through the existing
-quiet-hours, away-state, and cooldown policy. The active idle loop now uses 32
-palette-locked in-between frames at a 30 FPS fresh-install default, removing the
-long pose holds, color drift, and visible loop restart.
+quiet-hours, away-state, and cooldown policy. The active idle loop references
+only the authoritative standing sprite and applies restrained integer-pixel
+motion; nearest-neighbor rendering preserves its original hard pixel edges.
 
 Details: `docs/phases/phase-09-pet-sim/README.md`
 

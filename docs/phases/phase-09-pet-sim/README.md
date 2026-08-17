@@ -699,24 +699,25 @@ provider output to become pet-state inputs.
 
 ### Idle Sprite Correction
 
-The first idle prototype revealed two presentation issues during owner review:
-generated skin, hair, uniform, and sock colors drifted lighter than the active
-standing sprite, and the original frame order created a visible diagonal jump
-at the loop boundary.
+Owner review rejected the generated idle prototypes because palette matching
+alone could not preserve canonical line art, shading, alpha edges, facial
+details, or silhouette. The runtime contract is now deliberately stricter:
 
-- `scripts/recolor_sprite_frames.py` now remaps every visible generated color
-  to the nearest color that exists in the approved standing sprite while
-  preserving frame geometry and alpha.
-- The corrected runtime keyframes live under `idle/palette-v2`; the active
-  `idle/palette-v3` loop expands them into 32 palette-safe in-between frames.
-- The active clip advances on every render tick. Fresh installs default to 30
-  FPS, producing a roughly 1.07-second loop without long holds or abrupt pose
-  changes. Existing users can select 30 FPS under Pet settings.
-- `scripts/tween_sprite_animation.py` regenerates the loop deterministically
-  from the approved keyframes and original standing-sprite palette. It preserves
-  transparent RGBA output and does not introduce a new character design.
-- The loop duration is approximately 1.17 seconds at the default 24 FPS,
-  replacing the rushed 0.67-second prototype cycle.
+- `assets/animations/akiha/standing/000.png` is the authoritative Akiha sprite.
+- Every active idle pose references that exact file. No generated, recolored,
+  blended, redrawn, or interpolated bitmap participates in idle rendering.
+- A 16-pose manifest sequence applies only integer screen-pixel Y offsets to
+  create a restrained breathing motion. The cycle lasts 1.6 seconds at the
+  fresh-install 30 FPS default and does not scale or deform the source image.
+- Sprite enlargement uses Qt nearest-neighbor transformation rather than
+  smooth filtering, preserving the source's hard pixel edges.
+- Contract tests pin the canonical image to `100x100` RGBA, 27 visible colors,
+  binary transparency, and its reviewed SHA-256 fingerprint. They also verify
+  that every runtime idle pose resolves to the canonical image at 100% scale.
+- The generated prototype directories remain non-runtime reference material
+  only and must not be restored to the active manifest.
+- Visual acceptance remains pending owner review and is not implied by the
+  automated contract checks.
 
 ### Phase 9G Verification
 
@@ -726,9 +727,8 @@ at the loop boundary.
 - Integration coverage follows one typed low-energy edge through mood,
   behavior history, policy-gated chat delivery, and sanitized event payloads.
 - Worker tests cover background elapsed-time evaluation.
-- Palette tests verify transparent pixels remain transparent and visible output
-  colors come from the reference palette.
-- The complete suite passes with 1,467 tests and 3 optional-provider skips.
+- Canonical idle contract tests verify image identity, dimensions, palette,
+  binary transparency, frame source paths, scale, and integer offsets.
 - Ruff, Black verification, Python compilation, and diff checks pass.
 
 ## Planned Scope

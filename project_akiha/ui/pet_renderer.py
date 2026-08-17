@@ -10,6 +10,8 @@ from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QTransform
 
 from project_akiha.providers.animation.base import AnimationFrame
 
+_SPRITE_TRANSFORMATION_MODE = Qt.TransformationMode.FastTransformation
+
 
 class PetRenderer(Protocol):
     """Paint a pet animation frame onto a Qt painter."""
@@ -91,7 +93,7 @@ class SpritePetRenderer:
         scaled_pixmap = pixmap.scaled(
             target_size,
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+            _SPRITE_TRANSFORMATION_MODE,
         )
         target_rect = QRectF(painter.viewport())
         image_rect = QRectF(scaled_pixmap.rect())

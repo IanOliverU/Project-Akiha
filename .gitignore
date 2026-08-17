@@ -17,6 +17,7 @@ nuitka-crash-report.xml
 
 build/
 dist/
+artifacts/review/
 
 # Personal Spotify listening exports must stay local and out of release assets.
 assets/animations/akiha/Spotify.txt
