@@ -80,15 +80,15 @@ stored fields rather than infer state by parsing Japanese or English dialogue.
 
 - **Speech-to-text:** start with a local Whisper-compatible provider such as
   `faster-whisper`.
-- **Text-to-speech:** start with the local VOICEVOX HTTP engine and a
-  user-selected installed Japanese speaker.
+- **Text-to-speech:** use the local GPT-SoVITS HTTP API with the prepared Akiha
+  reference voice.
 - **Future providers:** Kokoro, Piper-compatible engines, cloud services, and a
   properly licensed custom Akiha voice can be added behind the same provider
   interfaces later.
 
-VOICEVOX is a temporary Japanese voice backend, not Akiha's final voice. Phase
-7B supplies character identity through wording and delivery guidance so the
-temporary sound still belongs to a coherent companion.
+GPT-SoVITS supplies the current Akiha voice identity through the prepared
+reference recordings. Phase 7B supplies character identity through wording and
+delivery guidance so speech remains consistent with the companion.
 
 ## Phase 7A: Voice Plumbing
 
@@ -131,7 +131,7 @@ Suggested configuration includes:
 ### Speech Output
 
 - [x] Add a text-to-speech orchestration service.
-- [x] Add a VOICEVOX local HTTP provider adapter.
+- [x] Add a GPT-SoVITS local HTTP provider adapter.
 - [x] Add provider health and speaker discovery checks.
 - [x] Add audio synthesis and playback support.
 - [x] Add stop-speaking and replay controls.
@@ -231,15 +231,13 @@ Foundation note, 2026-07-29:
   worker and discard any late provider result.
 - Encoded synthesized audio stays on a direct playback callback path and is
   never published through `EventBus` or written to technical logs.
-- `VoiceVoxProvider` checks `/version`, discovers talk-capable styles through
-  `/speakers`, creates an `/audio_query`, applies the configured speaking rate,
-  and sends that query to `/synthesis`.
-- VOICEVOX uses the configured local endpoint and timeout with no additional
-  HTTP dependency. Invalid JSON, malformed speaker data, HTTP failures, empty
-  audio, and non-WAV responses become stable provider diagnostics.
-- HTTP errors do not echo request URLs because VOICEVOX places spoken text in
-  the audio-query URL. The text and generated WAV remain outside application
-  events and technical logs.
+- `GptSoVitsProvider` sends text, language, reference-audio, and synthesis
+  controls to the local `/tts` endpoint and validates the returned WAV.
+- GPT-SoVITS uses the configured local endpoint and timeout with no additional
+  HTTP dependency. Invalid JSON, HTTP failures, empty audio, and non-WAV
+  responses become stable provider diagnostics.
+- Reference audio and generated WAV data remain outside application events and
+  technical logs.
 - `QtAudioPlayback` sends synthesized WAV bytes to `QMediaPlayer` through an
   open in-memory `QBuffer`; no temporary voice file is created.
 - `QAudioOutput` applies the configured output device and volume. Playback
@@ -285,10 +283,10 @@ Foundation note, 2026-07-29:
 - Voice Settings now includes provider health, microphone, and Japanese output
   tests. The microphone test uses the real capture and faster-whisper pipeline
   but discards recognized words and publishes only non-content success
-  metadata. The output test uses the configured VOICEVOX speaker, playback
-  device, volume, and speaking rate.
+  metadata. The output test uses the configured GPT-SoVITS reference voice,
+  playback device, volume, and speaking rate.
 - Provider health checks run off the Qt UI thread and report STT and TTS status
-  independently. Missing dependencies, unavailable VOICEVOX, capture failures,
+  independently. Missing dependencies, unavailable GPT-SoVITS, capture failures,
   synthesis failures, and playback failures remain recoverable.
 - Saving Voice settings applies them immediately and persists them for future
   launches. Voice remains opt-in for fresh installs because its local STT and
@@ -312,8 +310,8 @@ Foundation note, 2026-07-29:
 - [x] Source app starts normally with no voice backend installed.
 - [x] Voice can be enabled and disabled without restarting the app.
 - [x] Push-to-talk captures a short phrase and places the transcript in chat.
-- [x] A temporary Japanese TTS phrase can be synthesized and played when
-  VOICEVOX is available.
+- [x] A Japanese TTS phrase can be synthesized and played when GPT-SoVITS is
+  available.
 - [x] Missing backend and audio-device failures are visible but do not crash the
   app.
 - [x] Listening, thinking, and speaking states appear and return to the prior
@@ -424,27 +422,25 @@ Avoid:
   Akiha-like.
 - [x] Unit tests, Ruff, Black, source smoke, and the Phase 7 manual smoke pass.
 
-### Managed VOICEVOX Engine
+### Managed GPT-SoVITS API
 
-- [x] Add a default-off setting to start a standalone VOICEVOX Engine with
-  Project Akiha.
-- [x] Support a configured executable path and conservative local
-  auto-discovery through the standard Windows VOICEVOX installation,
-  `VOICEVOX_ENGINE_PATH`, or known project-local folders.
-- [x] Launch the engine without a visible console window and use the configured
+- [x] Add managed startup for the isolated GPT-SoVITS runtime with Project
+  Akiha.
+- [x] Resolve the project-local runtime or the explicit GPT-SoVITS environment
+  overrides `AKIHA_GPT_SOVITS_SOURCE` and `AKIHA_GPT_SOVITS_PYTHON`.
+- [x] Launch the API without a visible console window and use the configured
   local host and port.
-- [x] Never stop a VOICEVOX Engine process that Project Akiha did not launch.
+- [x] Never stop a GPT-SoVITS process that Project Akiha did not launch.
 - [x] Add a configurable stop-on-exit policy for the managed process.
 - [x] Display launch, running, external, missing, and failure states in Voice
   settings.
-- [x] Reject automatic process launch for non-local VOICEVOX URLs.
+- [x] Reject automatic process launch for non-local GPT-SoVITS URLs.
 - [x] Cover launch ownership, discovery, timeout cleanup, settings persistence,
   and shutdown integration with automated tests.
 
-To enable management, select **Start VOICEVOX automatically** in Voice
-settings and browse to the standalone engine's `run.exe`. This is not the
-VOICEVOX editor executable. Project Akiha does not download or install the
-engine.
+To enable management, select **Start local TTS automatically** in Voice
+settings. Project Akiha starts the project-local GPT-SoVITS API and does not
+require a third-party desktop application to remain open.
 
 ## Manual Phase 7 Smoke
 
@@ -460,7 +456,7 @@ engine.
   speaking.
 - [x] Enable silence endpointing and confirm a pause stops the recording.
 - [x] Enable final-transcript auto-send and confirm interim text is never sent.
-- [x] Generate a mock-provider response and hear it through VOICEVOX.
+- [x] Generate a mock-provider response and hear it through GPT-SoVITS.
 - [x] Enable English subtitles with a non-mock AI provider and confirm a
   separate English line appears without delaying Japanese speech.
 - [x] Stop or fail a translation request and confirm the Japanese response
@@ -472,14 +468,14 @@ engine.
   assistant messages.
 - [x] Stop playback and start another response.
 - [x] Disable automatic speech and confirm chat still works.
-- [x] Stop VOICEVOX and confirm the app reports the failure without crashing.
+- [x] Stop GPT-SoVITS and confirm the app reports the failure without crashing.
 - [x] Confirm listening, thinking, speaking, muted, and error states.
 - [x] Confirm quiet hours and mute prevent unsolicited speech.
 - [x] Quit while listening and while speaking; confirm the process exits cleanly.
 - [x] Re-run relevant packaged smoke with all voice providers treated as
   optional dependencies.
-- [x] Close the VOICEVOX editor, configure the standalone engine executable,
-  enable automatic start, and confirm Akiha starts speaking without the editor.
+- [x] Close any external GPT-SoVITS process, enable automatic start, and
+  confirm Akiha starts speaking through the managed API.
 - [x] Quit Akiha with stop-on-exit enabled and confirm the managed engine exits.
 - [x] Start the standalone engine outside Akiha and confirm quitting Akiha does
   not stop that external process.
@@ -491,7 +487,7 @@ existing-data packaged smoke on 2026-07-30. The final source gate passed 585
 unit tests before the closure audit and 597 afterward, plus Ruff, Black,
 compilation, and isolated source smoke. Runtime logs
 confirmed managed engine cleanup, and a real external-engine ownership probe
-confirmed that shutdown leaves externally started VOICEVOX processes running.
+confirmed that shutdown leaves externally started GPT-SoVITS processes running.
 The final package explicitly includes and validates both PyAV's `av.utils`
 extension and faster-whisper's Silero VAD ONNX model, which packaged microphone
 input requires.

@@ -82,12 +82,11 @@ class UserConfigStoreTest(unittest.TestCase):
                         input_model="medium",
                         input_language="ja",
                         input_device='USB "Microphone"',
-                        output_provider="voicevox",
-                        output_base_url="http://localhost:50021",
-                        output_voice_id="14",
+                        output_provider="gpt-sovits",
+                        output_base_url="http://localhost:9880",
+                        output_voice_id="akiha",
                         output_device="Desktop speakers",
                         output_engine_auto_start=True,
-                        output_engine_path='C:\\VOICEVOX "Engine"\\run.exe',
                         output_engine_stop_on_exit=False,
                         automatic_speech_enabled=True,
                         proactive_speech_enabled=True,
@@ -164,15 +163,11 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.voice.input_model, "medium")
         self.assertEqual(config.voice.input_language, "ja")
         self.assertEqual(config.voice.input_device, 'USB "Microphone"')
-        self.assertEqual(config.voice.output_provider, "voicevox")
-        self.assertEqual(config.voice.output_base_url, "http://localhost:50021")
-        self.assertEqual(config.voice.output_voice_id, "14")
+        self.assertEqual(config.voice.output_provider, "gpt-sovits")
+        self.assertEqual(config.voice.output_base_url, "http://localhost:9880")
+        self.assertEqual(config.voice.output_voice_id, "akiha")
         self.assertEqual(config.voice.output_device, "Desktop speakers")
         self.assertTrue(config.voice.output_engine_auto_start)
-        self.assertEqual(
-            config.voice.output_engine_path,
-            'C:\\VOICEVOX "Engine"\\run.exe',
-        )
         self.assertFalse(config.voice.output_engine_stop_on_exit)
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertTrue(config.voice.proactive_speech_enabled)

@@ -17,15 +17,15 @@ class UnavailableVoiceOutputProviderTest(unittest.TestCase):
     """Verify the fallback exposes no accidental synthesis path."""
 
     def test_health_reports_unavailable_detail(self) -> None:
-        provider = UnavailableVoiceOutputProvider("VOICEVOX is offline.")
+        provider = UnavailableVoiceOutputProvider("GPT-SoVITS is offline.")
 
         health = asyncio.run(provider.health())
 
         self.assertEqual(health.status, VoiceProviderStatus.UNAVAILABLE)
-        self.assertEqual(health.detail, "VOICEVOX is offline.")
+        self.assertEqual(health.detail, "GPT-SoVITS is offline.")
 
     def test_synthesis_raises_stable_provider_error(self) -> None:
-        provider = UnavailableVoiceOutputProvider("VOICEVOX is offline.")
+        provider = UnavailableVoiceOutputProvider("GPT-SoVITS is offline.")
 
         with self.assertRaises(VoiceProviderError) as captured:
             asyncio.run(provider.synthesize(SpeechSynthesisRequest("Test.")))

@@ -526,12 +526,11 @@ class SettingsWindowTest(unittest.TestCase):
             window._voice_input_model_input.setText("medium")
             window._voice_input_language_input.setCurrentText("ja")
             window._voice_input_device_input.setCurrentText("USB microphone")
-            window._voice_output_provider_input.setCurrentText("voicevox")
-            window._voice_output_base_url_input.setText("http://localhost:50021")
-            window._voice_output_voice_id_input.setText("14")
+            window._voice_output_provider_input.setCurrentText("gpt-sovits")
+            window._voice_output_base_url_input.setText("http://localhost:9880")
+            window._voice_output_voice_id_input.setText("akiha")
             window._voice_output_device_input.setCurrentText("Desktop speakers")
             window._voice_output_engine_auto_start_input.setChecked(True)
-            window._voice_output_engine_path_input.setText("C:/VOICEVOX Engine/run.exe")
             window._voice_output_engine_stop_on_exit_input.setChecked(False)
             window._voice_volume_input.setValue(75)
             window._voice_speaking_rate_input.setValue(1.2)
@@ -556,15 +555,11 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(voice.input_model, "medium")
         self.assertEqual(voice.input_language, "ja")
         self.assertEqual(voice.input_device, "USB microphone")
-        self.assertEqual(voice.output_provider, "voicevox")
-        self.assertEqual(voice.output_base_url, "http://localhost:50021")
-        self.assertEqual(voice.output_voice_id, "14")
+        self.assertEqual(voice.output_provider, "gpt-sovits")
+        self.assertEqual(voice.output_base_url, "http://localhost:9880")
+        self.assertEqual(voice.output_voice_id, "akiha")
         self.assertEqual(voice.output_device, "Desktop speakers")
         self.assertTrue(voice.output_engine_auto_start)
-        self.assertEqual(
-            voice.output_engine_path,
-            "C:/VOICEVOX Engine/run.exe",
-        )
         self.assertFalse(voice.output_engine_stop_on_exit)
         self.assertEqual(voice.volume_percent, 75)
         self.assertEqual(voice.speaking_rate, 1.2)
@@ -638,15 +633,13 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertTrue(window._export_english_subtitles_enabled_input.isEnabled())
         self.assertTrue(window._live_transcription_enabled_input.isEnabled())
         self.assertTrue(window._voice_output_base_url_input.isEnabled())
-        window._voice_output_provider_input.setCurrentText("voicevox")
+        window._voice_output_provider_input.setCurrentText("gpt-sovits")
         self.assertTrue(window._voice_output_engine_auto_start_input.isEnabled())
         self.assertTrue(window._voice_session_provider_input.isEnabled())
         self.assertFalse(window._hosted_live_model_input.isEnabled())
         window._set_voice_session_provider("gemini_live")
         self.assertTrue(window._hosted_live_model_input.isEnabled())
-        self.assertFalse(window._voice_output_engine_path_input.isEnabled())
         window._voice_output_engine_auto_start_input.setChecked(True)
-        self.assertTrue(window._voice_output_engine_path_input.isEnabled())
 
     def test_voice_diagnostic_actions_and_results_are_presented(self) -> None:
         with TemporaryDirectory() as directory:
@@ -670,14 +663,14 @@ class SettingsWindowTest(unittest.TestCase):
                 "available",
                 "Whisper ready.",
                 "unavailable",
-                "VOICEVOX is not running.",
+                "GPT-SoVITS is not running.",
             )
             window.set_voice_diagnostic_status("Needs attention.", True)
             window.set_voice_test_active("microphone", True)
 
         self.assertEqual(requested, ["health", "microphone", "output"])
         self.assertIn("Whisper ready.", window._voice_input_health.text())
-        self.assertIn("VOICEVOX is not running.", window._voice_output_health.text())
+        self.assertIn("GPT-SoVITS is not running.", window._voice_output_health.text())
         self.assertEqual(window._voice_diagnostic_status.text(), "Needs attention.")
         self.assertEqual(
             window._voice_microphone_test_button.text(),

@@ -109,6 +109,6 @@ endpoint. Depending on the active feature, that request can contain:
 - conversation-summary context;
 - memory extraction or summarization instructions.
 
-VOICEVOX audio and raw microphone recordings are not sent through the AI
+GPT-SoVITS audio and raw microphone recordings are not sent through the AI
 provider. Recognized speech becomes ordinary chat text only after the user
 submits it.

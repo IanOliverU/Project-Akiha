@@ -185,7 +185,7 @@ class VoiceSynthesisControllerTest(unittest.TestCase):
         _request_speech(bus)
         threads[0].synthesis_failed.emit(
             "provider_unavailable",
-            "VOICEVOX is offline.",
+            "GPT-SoVITS is offline.",
         )
 
         self.assertEqual(voice.state, VoiceState.IDLE)

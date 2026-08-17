@@ -354,7 +354,7 @@ class SettingsWindow(QWidget):
         )
         self._voice_input_device_input = _build_device_combo(config.voice.input_device)
         self._voice_output_provider_input = _build_combo(
-            ("gpt-sovits", "voicevox", "disabled"),
+            ("gpt-sovits", "disabled"),
             config.voice.output_provider,
         )
         self._voice_output_base_url_input = QLineEdit(config.voice.output_base_url)
@@ -374,16 +374,6 @@ class SettingsWindow(QWidget):
         self._voice_output_engine_auto_start_input = _ToggleSwitch()
         self._voice_output_engine_auto_start_input.setChecked(
             config.voice.output_engine_auto_start
-        )
-        self._voice_output_engine_path_input = QLineEdit(
-            config.voice.output_engine_path
-        )
-        self._voice_output_engine_path_input.setPlaceholderText(
-            "Auto-detect or select standalone run.exe"
-        )
-        self._voice_output_engine_browse_button = QPushButton("Browse")
-        self._voice_output_engine_browse_button.clicked.connect(
-            self._browse_voicevox_engine
         )
         self._voice_output_engine_stop_on_exit_input = _ToggleSwitch()
         self._voice_output_engine_stop_on_exit_input.setChecked(
@@ -536,9 +526,6 @@ class SettingsWindow(QWidget):
         self._voice_enabled_input.toggled.connect(self._sync_voice_controls)
         self._voice_session_provider_input.currentIndexChanged.connect(
             lambda _index: self._sync_hosted_live_controls()
-        )
-        self._voice_output_provider_input.currentTextChanged.connect(
-            lambda _provider: self._sync_voice_engine_controls()
         )
         self._voice_output_engine_auto_start_input.toggled.connect(
             lambda _enabled: self._sync_voice_engine_controls()
@@ -798,7 +785,6 @@ class SettingsWindow(QWidget):
         self._voice_output_engine_auto_start_input.setChecked(
             config.voice.output_engine_auto_start
         )
-        self._voice_output_engine_path_input.setText(config.voice.output_engine_path)
         self._voice_output_engine_stop_on_exit_input.setChecked(
             config.voice.output_engine_stop_on_exit
         )
@@ -1246,10 +1232,6 @@ class SettingsWindow(QWidget):
             self._voice_output_engine_auto_start_input,
         )
         speaking_layout.addRow(
-            "Local TTS executable (legacy VOICEVOX)",
-            self._build_voicevox_engine_path_row(),
-        )
-        speaking_layout.addRow(
             "Stop managed engine on quit",
             self._voice_output_engine_stop_on_exit_input,
         )
@@ -1531,25 +1513,6 @@ class SettingsWindow(QWidget):
         if selected_path:
             self._manifest_path_input.setText(selected_path)
 
-    def _build_voicevox_engine_path_row(self) -> QWidget:
-        row = QWidget()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._voice_output_engine_path_input)
-        layout.addWidget(self._voice_output_engine_browse_button)
-        row.setLayout(layout)
-        return row
-
-    def _browse_voicevox_engine(self) -> None:
-        selected_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select standalone VOICEVOX Engine",
-            self._voice_output_engine_path_input.text(),
-            "Executable files (*.exe);;All files (*)",
-        )
-        if selected_path:
-            self._voice_output_engine_path_input.setText(selected_path)
-
     def _save(self) -> bool:
         if not self._validate_ai_inputs():
             return False
@@ -1648,7 +1611,6 @@ class SettingsWindow(QWidget):
                 output_engine_auto_start=(
                     self._voice_output_engine_auto_start_input.isChecked()
                 ),
-                output_engine_path=self._voice_output_engine_path_input.text(),
                 output_engine_stop_on_exit=(
                     self._voice_output_engine_stop_on_exit_input.isChecked()
                 ),
@@ -2127,8 +2089,6 @@ class SettingsWindow(QWidget):
             self._voice_output_prompt_text_input,
             self._voice_output_device_input,
             self._voice_output_engine_auto_start_input,
-            self._voice_output_engine_path_input,
-            self._voice_output_engine_browse_button,
             self._voice_output_engine_stop_on_exit_input,
             self._automatic_speech_enabled_input,
             self._proactive_speech_enabled_input,
@@ -2240,14 +2200,12 @@ class SettingsWindow(QWidget):
     def _sync_voice_engine_controls(self) -> None:
         provider_enabled = (
             self._voice_enabled_input.isChecked()
-            and self._voice_output_provider_input.currentText() == "voicevox"
+            and self._voice_output_provider_input.currentText() == "gpt-sovits"
         )
         self._voice_output_engine_auto_start_input.setEnabled(provider_enabled)
         manager_enabled = (
             provider_enabled and self._voice_output_engine_auto_start_input.isChecked()
         )
-        self._voice_output_engine_path_input.setEnabled(manager_enabled)
-        self._voice_output_engine_browse_button.setEnabled(manager_enabled)
         self._voice_output_engine_stop_on_exit_input.setEnabled(manager_enabled)
 
     def _open_logs(self) -> None:

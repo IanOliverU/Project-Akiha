@@ -27,12 +27,6 @@ from project_akiha.providers.voice.gpt_sovits import (
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 from project_akiha.providers.voice.qt_playback import QtAudioPlayback
 from project_akiha.providers.voice.unavailable import UnavailableVoiceOutputProvider
-from project_akiha.providers.voice.voicevox import (
-    UrllibVoiceVoxTransport,
-    VoiceVoxProvider,
-    VoiceVoxTransport,
-    VoiceVoxTransportError,
-)
 
 __all__ = [
     "AudioPlayback",
@@ -58,8 +52,4 @@ __all__ = [
     "GptSoVitsTransportError",
     "UrllibGptSoVitsTransport",
     "UnavailableVoiceOutputProvider",
-    "UrllibVoiceVoxTransport",
-    "VoiceVoxProvider",
-    "VoiceVoxTransport",
-    "VoiceVoxTransportError",
 ]

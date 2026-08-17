@@ -214,7 +214,6 @@ from project_akiha.providers.voice import (
     QtAudioPlayback,
     QtMicrophoneCapture,
     UnavailableVoiceOutputProvider,
-    VoiceVoxProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.assistant_action_bridge import (
@@ -295,7 +294,6 @@ from project_akiha.services.transcript_export import (
     write_chat_transcript,
 )
 from project_akiha.services.voice_diagnostics import VoiceDiagnosticsService
-from project_akiha.services.voicevox_engine_manager import VoiceVoxEngineManager
 from project_akiha.services.window_placement import (
     ScreenBounds,
     WindowSize,
@@ -339,24 +337,6 @@ _AI_KEY_ENVIRONMENT_VARIABLES = {
     "grok": "XAI_API_KEY",
     "openai-compatible": "AKIHA_AI_API_KEY",
 }
-
-
-class _ShutdownableVoiceEngine(Protocol):
-    def shutdown(self) -> bool:
-        """Stop the owned local engine."""
-
-
-class _ManagedVoiceEngineCoordinator:
-    """Stop both supported local engines without touching external processes."""
-
-    def __init__(self, *managers: _ShutdownableVoiceEngine) -> None:
-        self._managers = managers
-
-    def shutdown(self) -> bool:
-        stopped = True
-        for manager in self._managers:
-            stopped = manager.shutdown() and stopped
-        return stopped
 
 
 class _ChatErrorSurface(Protocol):
@@ -632,18 +612,11 @@ def _run_application() -> int:
     settings_window.hosted_live_privacy_acknowledged.connect(
         acknowledge_hosted_live_privacy_notice
     )
-    voicevox_engine_manager = VoiceVoxEngineManager(paths.project_root)
     gpt_sovits_engine_manager = GptSoVitsEngineManager(paths.project_root)
 
     def apply_voice_engine_config(voice_config: VoiceConfig) -> None:
-        if voice_config.output_provider == "gpt-sovits":
-            voicevox_engine_manager.stop()
-            status = gpt_sovits_engine_manager.apply_config(voice_config)
-            status_label = "GPT-SoVITS"
-        else:
-            gpt_sovits_engine_manager.stop()
-            status = voicevox_engine_manager.apply_config(voice_config)
-            status_label = "VOICEVOX"
+        status = gpt_sovits_engine_manager.apply_config(voice_config)
+        status_label = "GPT-SoVITS"
         settings_window.set_voice_engine_status(status.detail, status.is_error)
         logger.info("%s engine management state: %s.", status_label, status.state)
         if status.state == "starting":
@@ -657,21 +630,14 @@ def _run_application() -> int:
                     return
                 if config.voice.output_provider != expected_provider:
                     return
-                manager = (
-                    gpt_sovits_engine_manager
-                    if config.voice.output_provider == "gpt-sovits"
-                    else voicevox_engine_manager
-                )
-                refreshed = manager.refresh_status(expected_url)
+                refreshed = gpt_sovits_engine_manager.refresh_status(expected_url)
                 settings_window.set_voice_engine_status(
                     refreshed.detail,
                     refreshed.is_error,
                 )
                 logger.info(
                     "%s engine management state: %s.",
-                    "GPT-SoVITS"
-                    if config.voice.output_provider == "gpt-sovits"
-                    else "VOICEVOX",
+                    "GPT-SoVITS",
                     refreshed.state,
                 )
                 if refreshed.state == "starting" and refresh_attempts < 20:
@@ -2958,10 +2924,7 @@ def _run_application() -> int:
             voice_transcription=voice_transcription_controller,
             voice_synthesis=voice_synthesis_controller,
             voice_playback=voice_playback_controller,
-            voice_engine=_ManagedVoiceEngineCoordinator(
-                voicevox_engine_manager,
-                gpt_sovits_engine_manager,
-            ),
+            voice_engine=gpt_sovits_engine_manager,
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
@@ -3307,9 +3270,8 @@ def _build_speech_output_service(
             )
         )
     return SpeechOutputService(
-        VoiceVoxProvider(
-            base_url=voice_config.output_base_url,
-            timeout_seconds=float(voice_config.request_timeout_seconds),
+        UnavailableVoiceOutputProvider(
+            "No supported local speech output provider is configured."
         )
     )
 

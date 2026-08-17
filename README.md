@@ -39,7 +39,7 @@ Akiha is intended to become a personal desktop companion that can:
 ## Current Status
 
 Phases 1 through 8 are complete. Akiha now supports local microphone capture,
-faster-whisper STT, provider-neutral TTS orchestration, local VOICEVOX playback,
+faster-whisper STT, provider-neutral TTS orchestration, local GPT-SoVITS playback,
 automatic reply speech, and a minimal speech identity. Chat can switch between
 mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
 OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
@@ -53,7 +53,7 @@ artist/track/album/playlist workflows, Liked Songs and favorite mixes, and
 ephemeral local preference ranking. Post-Phase 8 Voice Intelligence milestones
 V0 through V5 are complete: Akiha now owns a provider-neutral, pipelined local
 voice coordinator with rolling recognition, contextual intent correction,
-streamed VOICEVOX speech, interruption, and bounded multi-turn Conversation
+streamed GPT-SoVITS speech, interruption, and bounded multi-turn Conversation
 Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
 data smoke checks and the complete manual voice, provider, conversation,
 context, action, and shutdown checklist. V6 is complete: V6A established
@@ -279,9 +279,9 @@ one speech engine.
 - Push-to-talk input through a local Whisper-compatible provider.
 - Optional live transcription, silence endpointing, and final-transcript
   auto-send.
-- Temporary Japanese speech through a local VOICEVOX provider.
-- Optional background launch and owned-process shutdown for a configured
-  standalone VOICEVOX Engine.
+- Japanese speech through the local GPT-SoVITS Akiha voice provider.
+- Optional background launch and owned-process shutdown for the managed
+  GPT-SoVITS API.
 - Replaceable speech-to-text and text-to-speech provider interfaces.
 - Listening, thinking, speaking, muted, and error states.
 - Voice settings, diagnostics, device selection, and failure recovery.
@@ -425,9 +425,9 @@ Start Akiha:
 python -m project_akiha.app.main
 ```
 
-To run speech without keeping the VOICEVOX editor open, open **Settings >
-Voice**, enable **Start VOICEVOX automatically**, and select the standalone
-VOICEVOX Engine `run.exe`. Akiha only stops an engine process that it started.
+To run speech, open **Settings > Voice**, select **GPT-SoVITS**, and enable
+automatic local TTS startup. Project Akiha starts and stops its managed
+GPT-SoVITS API process without requiring a third-party desktop application.
 
 After installation, the console script is also available:
 

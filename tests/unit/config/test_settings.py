@@ -122,9 +122,9 @@ class SettingsTest(unittest.TestCase):
                 'input_model = "medium"\n'
                 'input_language = "ja"\n'
                 'input_device = "Test microphone"\n'
-                'output_provider = "voicevox"\n'
-                'output_base_url = "http://localhost:50021"\n'
-                'output_voice_id = "14"\n'
+                'output_provider = "gpt-sovits"\n'
+                'output_base_url = "http://localhost:9880"\n'
+                'output_voice_id = "akiha"\n'
                 'output_device = "Test speakers"\n'
                 "automatic_speech_enabled = true\n"
                 "proactive_speech_enabled = true\n"
@@ -183,9 +183,9 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.input_model, "medium")
         self.assertEqual(config.voice.input_language, "ja")
         self.assertEqual(config.voice.input_device, "Test microphone")
-        self.assertEqual(config.voice.output_provider, "voicevox")
-        self.assertEqual(config.voice.output_base_url, "http://localhost:50021")
-        self.assertEqual(config.voice.output_voice_id, "14")
+        self.assertEqual(config.voice.output_provider, "gpt-sovits")
+        self.assertEqual(config.voice.output_base_url, "http://localhost:9880")
+        self.assertEqual(config.voice.output_voice_id, "akiha")
         self.assertEqual(config.voice.output_device, "Test speakers")
         self.assertTrue(config.voice.automatic_speech_enabled)
         self.assertTrue(config.voice.proactive_speech_enabled)
@@ -207,6 +207,20 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.hosted_live_max_duration_seconds, 300)
         self.assertFalse(config.voice.input_enabled)
         self.assertTrue(config.voice.output_enabled)
+
+    def test_migrates_legacy_voicevox_settings_to_gpt_sovits(self) -> None:
+        with TemporaryDirectory() as directory:
+            config_path = Path(directory) / "user_config.toml"
+            config_path.write_text(
+                '[voice]\noutput_provider = "voicevox"\n'
+                'output_engine_path = "C:/VOICEVOX Engine/run.exe"\n',
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path)
+
+        self.assertEqual(config.voice.output_provider, "gpt-sovits")
+        self.assertEqual(config.voice.output_base_url, "http://127.0.0.1:9880")
 
     def test_user_config_accepts_utf8_bom(self) -> None:
         with TemporaryDirectory() as directory:
@@ -329,10 +343,10 @@ class SettingsTest(unittest.TestCase):
 
     def test_voice_config_rejects_invalid_output_url(self) -> None:
         with self.assertRaises(ValueError):
-            VoiceConfig(output_base_url="file:///voicevox")
+            VoiceConfig(output_base_url="file:///tts")
 
         with self.assertRaises(ValueError):
-            VoiceConfig(output_base_url="http:///voicevox")
+            VoiceConfig(output_base_url="http:///tts")
 
     def test_spotify_defaults_are_disabled_and_loopback_only(self) -> None:
         config = load_config()
@@ -352,10 +366,6 @@ class SettingsTest(unittest.TestCase):
     def test_spotify_rejects_arbitrary_redirect_uri(self) -> None:
         with self.assertRaises(ValueError):
             SpotifyConfig(redirect_uri="https://example.test/callback")
-
-    def test_voice_config_rejects_multiline_engine_path(self) -> None:
-        with self.assertRaisesRegex(ValueError, "single line"):
-            VoiceConfig(output_engine_path="C:/VOICEVOX\nrun.exe")
 
     def test_voice_config_rejects_invalid_playback_values(self) -> None:
         with self.assertRaises(ValueError):

@@ -73,7 +73,7 @@ class SpeechOutputServiceTest(unittest.TestCase):
 
     def test_preserves_stable_provider_error(self) -> None:
         service = SpeechOutputService(
-            _Provider(error=VoiceProviderError("http_failed", "VOICEVOX failed."))
+            _Provider(error=VoiceProviderError("http_failed", "GPT-SoVITS failed."))
         )
 
         with self.assertRaises(SpeechOutputServiceError) as captured:

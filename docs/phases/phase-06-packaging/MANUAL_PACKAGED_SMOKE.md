@@ -102,9 +102,9 @@ manual check is still kept as a human visual confirmation.
 - [ ] Automatic reply speech works when enabled.
 - [ ] Stop voice interrupts playback without crashing.
 - [ ] Listening, thinking, speaking, muted, and error states remain coherent.
-- [ ] A configured standalone VOICEVOX Engine starts in the background.
-- [ ] Quitting Akiha stops only a VOICEVOX process that Akiha started.
-- [ ] An externally started VOICEVOX process remains running after Akiha quits.
+- [ ] The managed GPT-SoVITS API starts in the background.
+- [ ] Quitting Akiha stops only a GPT-SoVITS process that Akiha started.
+- [ ] An externally started GPT-SoVITS process remains running after Akiha quits.
 
 ## Conversation Lanes
 

@@ -31,30 +31,6 @@ class MainVoiceServicesTest(unittest.TestCase):
             VoiceProviderStatus.AVAILABLE,
         )
 
-    def test_voicevox_settings_are_passed_to_provider(self) -> None:
-        provider = _AvailableProvider()
-
-        with patch(
-            "project_akiha.app.main.VoiceVoxProvider",
-            return_value=provider,
-        ) as provider_factory:
-            service = _build_speech_output_service(
-                VoiceConfig(
-                    output_provider="voicevox",
-                    output_base_url="http://localhost:50100",
-                    request_timeout_seconds=17,
-                )
-            )
-
-        provider_factory.assert_called_once_with(
-            base_url="http://localhost:50100",
-            timeout_seconds=17.0,
-        )
-        self.assertEqual(
-            asyncio.run(service.health()).status,
-            VoiceProviderStatus.AVAILABLE,
-        )
-
     def test_disabled_output_uses_unavailable_provider(self) -> None:
         service = _build_speech_output_service(VoiceConfig(output_provider="disabled"))
 

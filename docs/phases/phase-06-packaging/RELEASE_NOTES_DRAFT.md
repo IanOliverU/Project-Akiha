@@ -29,7 +29,7 @@ check-ins, optional local voice, and diagnostics.
 - Local diagnostics: logs, startup diagnostics summary, and Settings actions to
   open logs/data folders.
 - Local push-to-talk transcription through faster-whisper.
-- Local Japanese synthesis through VOICEVOX with optional managed engine
+- Local Japanese synthesis through GPT-SoVITS with optional managed API
   startup and owned-process shutdown.
 - Live transcription, silence endpointing, final-transcript auto-send,
   automatic reply speech, stop, and replay controls.
@@ -92,11 +92,12 @@ gate. It no longer waits for Voice Intent and Live Conversation integration.
   tray setups. The pet right-click menu provides fallback access to critical
   controls, including Behavior History and Quit.
 - Ollama is not bundled.
-- faster-whisper models and VOICEVOX are separately installed local
+- faster-whisper models and GPT-SoVITS are separately installed local
   dependencies.
 - Hosted providers require the user's own API key and may impose quotas or
   charges.
-- The Japanese VOICEVOX speaker is temporary; custom voice training is deferred.
+- The Akiha GPT-SoVITS reference voice is local project data and custom voice
+  training remains outside this release.
 - There is no always-listening wake word or background microphone capture.
 - The 2D model and animation assets are functional but still planned for later
   refinement.

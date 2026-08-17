@@ -33,14 +33,14 @@ class VoiceDiagnosticsControllerTest(unittest.TestCase):
                 ),
                 output_health=VoiceProviderHealth(
                     VoiceProviderStatus.AVAILABLE,
-                    "VOICEVOX ready.",
+                    "GPT-SoVITS ready.",
                 ),
             )
         )
 
         self.assertEqual(
             surface.health,
-            ("available", "Whisper ready.", "available", "VOICEVOX ready."),
+            ("available", "Whisper ready.", "available", "GPT-SoVITS ready."),
         )
         self.assertEqual(surface.statuses[-1], ("Voice providers are ready.", False))
 
@@ -56,7 +56,7 @@ class VoiceDiagnosticsControllerTest(unittest.TestCase):
                 ),
                 output_health=VoiceProviderHealth(
                     VoiceProviderStatus.AVAILABLE,
-                    "VOICEVOX ready.",
+                    "GPT-SoVITS ready.",
                 ),
             )
         )

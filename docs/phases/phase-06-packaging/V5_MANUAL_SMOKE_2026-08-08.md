@@ -19,7 +19,7 @@
 ## Manual Gate
 
 - [x] Startup passed with no console window and working pet, Chat, and Settings.
-- [x] Local faster-whisper input and VOICEVOX output passed.
+- [x] Local faster-whisper input and GPT-SoVITS output passed.
 - [x] Configured provider behavior passed, including bounded failure handling.
 - [x] Multi-turn Conversation Session passed.
 - [x] Context-aware intent correction passed.

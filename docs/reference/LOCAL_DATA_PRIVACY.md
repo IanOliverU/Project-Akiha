@@ -82,10 +82,10 @@ The Post-Phase 8 Voice Intent and Live Conversation architecture preserves
 three explicit processing modes:
 
 - **Fully Local Modular:** microphone audio, transcription, Ollama/local LLM
-  generation, speech rendering, and VOICEVOX playback remain local.
+  generation, GPT-SoVITS speech rendering, and playback remain local.
 - **Hybrid API Modular:** microphone audio and transcription remain local; the
   accepted transcript and bounded conversation context are sent to the
-  explicitly selected hosted text provider; VOICEVOX playback remains local.
+  explicitly selected hosted text provider; GPT-SoVITS playback remains local.
 - **Hosted Live:** microphone audio is streamed to the explicitly selected
   realtime provider and its native audio may be played locally.
 
@@ -110,7 +110,7 @@ Gemini Live setup now has these additional boundaries:
 - provider-reported token usage may be shown as privacy-safe support data, but
   Akiha will not promise a fixed per-minute cost
 - local push-to-talk, local Conversation Session, Ollama, faster-whisper, and
-  VOICEVOX will remain available without Gemini Live
+  GPT-SoVITS remains available without Gemini Live.
 
 `Start conversation` routes only to the lane visibly selected in Settings.
 Direct cloud PCM frames bypass faster-whisper, while the ordinary `Talk` path
@@ -227,10 +227,10 @@ print private chat, memory, or config contents.
 
 Phase 7 microphone input is push-to-talk only.
 
-The optional standalone VOICEVOX Engine executable path is stored in
-`user_config.toml`. Automatic engine management is disabled by default, only
-supports local HTTP endpoints, does not download an engine, and never stops an
-external VOICEVOX process that Project Akiha did not launch.
+The managed GPT-SoVITS runtime is stored in the project-local isolated
+environment and source directory. Project Akiha starts it only for the local
+GPT-SoVITS provider, does not require a third-party desktop application, and
+never stops an external GPT-SoVITS process that Project Akiha did not launch.
 
 - The microphone opens only after the user requests listening.
 - PCM audio remains in memory and is discarded after transcription,
@@ -316,7 +316,7 @@ changes.
 The notice explains:
 
 - push-to-talk microphone behavior and temporary raw audio
-- local processing through faster-whisper, VOICEVOX, and Ollama
+- local processing through faster-whisper, GPT-SoVITS, and Ollama
 - hosted-provider transmission of chat text and relevant context
 - optional hosted-live transmission of microphone audio with a separate
   versioned acknowledgement and visible active-session state

@@ -259,7 +259,6 @@ class VoiceConfig:
     output_prompt_text: str = ""
     output_device: str = ""
     output_engine_auto_start: bool = False
-    output_engine_path: str = ""
     output_engine_stop_on_exit: bool = True
     automatic_speech_enabled: bool = False
     proactive_speech_enabled: bool = False
@@ -289,12 +288,10 @@ class VoiceConfig:
             raise ValueError(message)
         if self.output_provider not in {
             "disabled",
-            "voicevox",
             "gpt-sovits",
         }:
             message = (
-                "voice.output_provider must be 'disabled', 'voicevox', "
-                "or 'gpt-sovits'."
+                "voice.output_provider must be 'disabled' or 'gpt-sovits'."
             )
             raise ValueError(message)
         if not self.input_model.strip():
@@ -309,9 +306,6 @@ class VoiceConfig:
             raise ValueError("voice.output_reference_dir must be a single line.")
         if "\n" in self.output_prompt_text or "\r" in self.output_prompt_text:
             raise ValueError("voice.output_prompt_text must be a single line.")
-        if "\n" in self.output_engine_path or "\r" in self.output_engine_path:
-            raise ValueError("voice.output_engine_path must be a single line.")
-
         parsed_output_url = urlparse(self.output_base_url)
         if parsed_output_url.scheme not in {"http", "https"}:
             raise ValueError("voice.output_base_url must use http or https.")
@@ -469,12 +463,18 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     voice_data = data.get("voice", {})
     if not isinstance(voice_data, dict):
         raise ValueError("voice config must be a TOML table.")
-    if voice_data.get("output_provider") == "akiha-chatterbox":
-        # Preserve existing user configurations from the experimental voice
-        # phase while making GPT-SoVITS the permanent local voice backend.
+    legacy_voice_provider = voice_data.get("output_provider")
+    if legacy_voice_provider in {"akiha-chatterbox", "voicevox"}:
+        # Preserve existing user configurations while making GPT-SoVITS the
+        # permanent local voice backend.
         voice_data = dict(voice_data)
         voice_data["output_provider"] = "gpt-sovits"
         voice_data["output_base_url"] = "http://127.0.0.1:9880"
+    if "output_engine_path" in voice_data:
+        # The old path selected a standalone VOICEVOX executable. GPT-SoVITS
+        # resolves its managed runtime from the project and environment.
+        voice_data = dict(voice_data)
+        voice_data.pop("output_engine_path", None)
 
     spotify_data = data.get("spotify", {})
     if not isinstance(spotify_data, dict):

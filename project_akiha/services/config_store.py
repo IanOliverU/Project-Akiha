@@ -64,7 +64,6 @@ def _serialize_config(config: AppConfig) -> str:
     voice_output_reference_dir = _escape_toml_string(voice.output_reference_dir)
     voice_output_prompt_text = _escape_toml_string(voice.output_prompt_text)
     voice_output_device = _escape_toml_string(voice.output_device)
-    voice_output_engine_path = _escape_toml_string(voice.output_engine_path)
     voice_session_provider = _escape_toml_string(voice.session_provider)
     hosted_live_model = _escape_toml_string(voice.hosted_live_model)
     hosted_live_voice_name = _escape_toml_string(voice.hosted_live_voice_name)
@@ -136,7 +135,6 @@ def _serialize_config(config: AppConfig) -> str:
         f'output_device = "{voice_output_device}"\n'
         "output_engine_auto_start = "
         f"{str(voice.output_engine_auto_start).lower()}\n"
-        f'output_engine_path = "{voice_output_engine_path}"\n'
         "output_engine_stop_on_exit = "
         f"{str(voice.output_engine_stop_on_exit).lower()}\n"
         "automatic_speech_enabled = "

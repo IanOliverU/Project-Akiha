@@ -22,10 +22,10 @@ The milestone must support two first-class provider choices behind the same
 contracts, with three explicit processing modes:
 
 - **Fully Local Modular:** local microphone processing, local STT, an Ollama or
-  other configured local LLM, Akiha speech rendering, and local VOICEVOX
+  other configured local LLM, Akiha speech rendering, and local GPT-SoVITS
   playback.
 - **Hybrid API Modular:** local microphone processing, local STT, an explicitly
-  selected hosted text API, Akiha speech rendering, and local VOICEVOX
+  selected hosted text API, Akiha speech rendering, and local GPT-SoVITS
   playback.
 - **Hosted Live:** an explicitly selected realtime provider such as Gemini
   Live, which may receive microphone audio and return native audio.
@@ -57,7 +57,7 @@ Phase 7 already provides:
 - confidence-aware final transcript handling
 - automatic final transcript submission when confidence permits
 - provider-neutral STT and TTS service boundaries
-- local VOICEVOX synthesis and in-memory playback
+- local GPT-SoVITS synthesis and in-memory playback
 - listening, thinking, speaking, muted, and error visual states
 - Japanese canonical assistant responses with derived English subtitles
 - speech-only identity styling with safe fallback
@@ -108,7 +108,7 @@ own the turn and reject stale events after interruption.
 
 - [x] Keep push-to-talk as the default voice experience.
 - [x] Add an optional user-started multi-turn Conversation Session.
-- [x] Keep a complete local modular path using local STT and VOICEVOX.
+- [x] Keep a complete local modular path using local STT and GPT-SoVITS.
 - [x] Add Gemini Live only as an optional provider adapter.
 - [x] Make provider-neutral contracts reusable by future realtime providers.
 - [x] Show stable partial transcripts with lower repeated STT work.
@@ -204,7 +204,7 @@ reopens the microphone after completed local playback and repeats until the
 user selects End conversation.
 
 The first local implementation is coordinated half-duplex. Microphone capture
-pauses during Akiha's playback to avoid transcribing VOICEVOX through speakers.
+pauses during Akiha's playback to avoid transcribing GPT-SoVITS through speakers.
 The user can click Talk while she is speaking to interrupt and begin a new
 turn. Automatic speech-based interruption is deferred until echo cancellation
 is reliable.
@@ -229,7 +229,7 @@ key is embedded in the application or repository. A future public distribution
 must reassess direct client authentication and whether a token broker is
 appropriate.
 
-Gemini native audio will not sound identical to the selected VOICEVOX speaker.
+Gemini native audio will not sound identical to the selected GPT-SoVITS voice.
 Settings must label this tradeoff clearly. Users who prioritize the temporary
 Akiha voice can remain on a Modular Voice path.
 
@@ -296,7 +296,7 @@ Qt microphone -> Audio Capture Adapter -> bounded Audio Frame Bus
                          stable response segmenter
                                      |
                   identity renderer and selected speech output
-                         VOICEVOX or hosted native audio
+                         GPT-SoVITS or hosted native audio
                                      |
                              ordered playback
 ```
@@ -445,7 +445,7 @@ The evaluation must prove or reject all of these points:
 - Python 3.13 and Windows compatibility in the current environment.
 - A Qt microphone input bridge without creating a competing audio owner.
 - A Qt/audio-output bridge that preserves current device selection and stop.
-- A custom VOICEVOX output adapter with ordered segments and cancellation.
+- A custom GPT-SoVITS output adapter with ordered segments and cancellation.
 - Ollama/local-LLM streaming through the provider-neutral response contract.
 - Existing hosted text providers through the same modular response contract.
 - Gemini Live adapter feasibility without Gemini event types entering UI or
@@ -666,7 +666,7 @@ streamed provider text
     -> canonical response accumulator
     -> sentence/clause stability detector
     -> speech-only identity renderer
-    -> ordered VOICEVOX synthesis workers
+    -> ordered GPT-SoVITS synthesis workers
     -> ordered playback queue
 ```
 
@@ -694,7 +694,7 @@ translation may be considered later if it can preserve stable ordering.
 
 - The accepted final STT result is the canonical user message.
 - The completed provider response is the canonical assistant message.
-- VOICEVOX text and audio are derived output.
+- GPT-SoVITS text and audio are derived output.
 - English subtitles are derived output.
 
 ### Gemini Live Lane
@@ -833,7 +833,7 @@ Diagnostics must not include:
 | Local STT unavailable | Keep the final recording unsent; offer diagnostics. |
 | Low-confidence final | Place editable text in Chat and require Send. |
 | Provider generation fails | Preserve the user message and restore controls. |
-| VOICEVOX fails | Keep the complete assistant text visible without speech. |
+| GPT-SoVITS fails | Keep the complete assistant text visible without speech. |
 | Playback fails | Stop queued audio and leave Chat usable. |
 | Gemini Live connection fails | End cloud capture visibly; do not silently switch providers. |
 | Gemini session expires | Attempt bounded documented resumption or end cleanly. |
@@ -931,7 +931,7 @@ Source verification should cover:
 - fan-noise endpoint behavior
 - local partial transcript speed and final correction
 - low-confidence manual review
-- local streamed VOICEVOX response ordering
+- local streamed GPT-SoVITS response ordering
 - interruption while thinking and speaking
 - local Conversation Session turn cycling
 - Gemini Live start, conversation, interruption, and explicit end
@@ -960,7 +960,7 @@ V6 begins.
   ownership.
 - [x] Validate rolling local transcript revisions rather than relying only on
   completed VAD segments.
-- [x] Validate VOICEVOX segment synthesis, ordered playback, and cancellation.
+- [x] Validate GPT-SoVITS segment synthesis, ordered playback, and cancellation.
 - [x] Validate Ollama/local and hosted text providers through the same response
   event contract.
 - [x] Validate typed action isolation with fake allow/deny results.
@@ -1225,7 +1225,7 @@ latency remains a release-gate measurement rather than a documentation claim.
   interruption, and Conversation Session manual checks.
 - [x] Build and validate a Local Voice Intelligence standalone candidate.
 - [x] Complete packaged microphone, faster-whisper, Ollama, one configured
-  hosted text provider when available, VOICEVOX, actions, and graceful-
+  hosted text provider when available, GPT-SoVITS, actions, and graceful-
   shutdown smoke tests.
 - [x] Record measured latency baselines and remaining local limitations.
 
@@ -1233,7 +1233,7 @@ latency remains a release-gate measurement rather than a documentation claim.
 
 The 2026-08-08 source-application roundup confirmed push-to-talk, local
 Conversation Session turn cycling, automatic action-turn resume, contextual
-Spotify controls, natural command phrasing, streamed VOICEVOX output,
+Spotify controls, natural command phrasing, streamed GPT-SoVITS output,
 interruption, and fan-noise endpoint behavior. Contextual correction also
 resolved bounded pronunciation and transcription errors without bypassing the
 typed action gateway, while ambiguous requests remained clarification-first.
@@ -1255,7 +1255,7 @@ Remaining local limitations are explicit:
 - uncommon free-form paraphrases outside deterministic coverage need the
   optional bounded provider-proposal path;
 - response time still varies with Whisper model size, CPU load, provider
-  latency, response length, VOICEVOX synthesis, and audio-device conditions;
+  latency, response length, GPT-SoVITS synthesis, and audio-device conditions;
 - the configured idle and total session limits remain intentional resource and
   privacy bounds rather than an always-open microphone mode.
 
@@ -1507,13 +1507,13 @@ References:
 #### V6G: Local Fallback
 
 - [x] Preserve push-to-talk, Local Conversation, Ollama, hosted text, and
-  VOICEVOX as explicit independent choices.
+  GPT-SoVITS as explicit independent choices.
 - [x] Never silently send local audio or text to Gemini after a failure.
 
 V6G added an explicit `ConversationRuntimeRouter` that starts exactly the lane
 selected in Voice Settings. The existing Talk path remains Local Modular:
 microphone frames go to faster-whisper, accepted text goes to the separately
-selected local or hosted text provider, and optional speech goes to VOICEVOX.
+selected local or hosted text provider, and optional speech goes to GPT-SoVITS.
 The Start conversation control now selects either that existing Local Modular
 session or Gemini Live. The chat surface visibly labels the active lane as
 `Local` or `Cloud` and shows its elapsed time.
@@ -1533,7 +1533,7 @@ and clears its resources without starting Local Modular or sending transcript
 text through a different provider. Changing the selected lane in Settings ends
 an active conversation first; starting the newly selected lane remains a
 separate visible user action. Typed chat, Settings, tray/pet controls, local
-push-to-talk, Ollama, hosted text APIs, and VOICEVOX remain independent.
+push-to-talk, Ollama, hosted text APIs, and GPT-SoVITS remain independent.
 
 This checkpoint added deterministic lane-selection, failed-start, direct-audio,
 Qt worker lifecycle, shutdown, voice/system-config, visible-label, and barge-in
@@ -1998,7 +1998,7 @@ The V0 probes demonstrated that Akiha's existing services could provide:
 - one Qt microphone and one Qt playback owner;
 - rolling transcript revisions with one authoritative final;
 - shared local and hosted text-provider response contracts;
-- concurrent VOICEVOX synthesis with canonical playback order;
+- concurrent GPT-SoVITS synthesis with canonical playback order;
 - typed action validation, permission, execution, and audit isolation; and
 - turn-scoped cancellation that rejects late callbacks.
 

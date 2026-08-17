@@ -27,7 +27,7 @@ class PrivacyNoticeDialog(QDialog):
             "<p><b>Microphone:</b> Akiha records only after you start "
             "push-to-talk or a microphone test. Raw microphone audio is "
             "temporary and is not retained.</p>"
-            "<p><b>Local processing:</b> faster-whisper, VOICEVOX, and Ollama "
+            "<p><b>Local processing:</b> faster-whisper, GPT-SoVITS, and Ollama "
             "stay on this PC when selected.</p>"
             "<p><b>Hosted processing:</b> When you select a hosted AI provider, "
             "chat messages and relevant context are sent to that provider. "

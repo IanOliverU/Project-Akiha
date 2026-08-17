@@ -20,7 +20,7 @@ from project_akiha.providers.voice.base import (
 )
 
 _COMMAND_HOTWORDS = (
-    "Akiha Spotify Discord Chrome Visual Studio Code VS Code VLC VOICEVOX"
+    "Akiha Spotify Discord Chrome Visual Studio Code VS Code VLC GPT-SoVITS"
 )
 
 
