@@ -354,11 +354,20 @@ class SettingsWindow(QWidget):
         )
         self._voice_input_device_input = _build_device_combo(config.voice.input_device)
         self._voice_output_provider_input = _build_combo(
-            ("voicevox", "disabled"),
+            ("gpt-sovits", "voicevox", "disabled"),
             config.voice.output_provider,
         )
         self._voice_output_base_url_input = QLineEdit(config.voice.output_base_url)
         self._voice_output_voice_id_input = QLineEdit(config.voice.output_voice_id)
+        self._voice_output_reference_dir_input = QLineEdit(
+            config.voice.output_reference_dir
+        )
+        self._voice_output_prompt_text_input = QLineEdit(
+            config.voice.output_prompt_text
+        )
+        self._voice_output_prompt_text_input.setPlaceholderText(
+            "Japanese transcript of the selected reference WAV"
+        )
         self._voice_output_device_input = _build_device_combo(
             config.voice.output_device
         )
@@ -780,6 +789,8 @@ class SettingsWindow(QWidget):
         self._voice_output_provider_input.setCurrentText(config.voice.output_provider)
         self._voice_output_base_url_input.setText(config.voice.output_base_url)
         self._voice_output_voice_id_input.setText(config.voice.output_voice_id)
+        self._voice_output_reference_dir_input.setText(config.voice.output_reference_dir)
+        self._voice_output_prompt_text_input.setText(config.voice.output_prompt_text)
         _set_device_combo_value(
             self._voice_output_device_input,
             config.voice.output_device,
@@ -873,7 +884,7 @@ class SettingsWindow(QWidget):
         self._voice_microphone_activity.setText(status.strip() or "Not active")
 
     def set_voice_engine_status(self, status: str, is_error: bool = False) -> None:
-        """Display the managed VOICEVOX Engine lifecycle status."""
+        """Display the managed local TTS lifecycle status."""
         self._voice_output_engine_status.setText(status.strip() or "Not managed")
         color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
         self._voice_output_engine_status.setStyleSheet(f"color: {color};")
@@ -1211,23 +1222,31 @@ class SettingsWindow(QWidget):
             self._voice_output_provider_input,
         )
         speaking_layout.addRow(
-            "VOICEVOX URL",
+            "Local TTS API URL",
             self._voice_output_base_url_input,
         )
         speaking_layout.addRow(
-            "VOICEVOX speaker ID",
+            "Voice ID / profile",
             self._voice_output_voice_id_input,
+        )
+        speaking_layout.addRow(
+            "Akiha reference directory",
+            self._voice_output_reference_dir_input,
+        )
+        speaking_layout.addRow(
+            "Reference transcript (GPT-SoVITS)",
+            self._voice_output_prompt_text_input,
         )
         speaking_layout.addRow(
             "Speakers",
             self._voice_output_device_input,
         )
         speaking_layout.addRow(
-            "Start VOICEVOX automatically",
+            "Start local TTS automatically",
             self._voice_output_engine_auto_start_input,
         )
         speaking_layout.addRow(
-            "VOICEVOX Engine executable",
+            "Local TTS executable (legacy VOICEVOX)",
             self._build_voicevox_engine_path_row(),
         )
         speaking_layout.addRow(
@@ -1623,6 +1642,8 @@ class SettingsWindow(QWidget):
                 output_provider=self._voice_output_provider_input.currentText(),
                 output_base_url=self._voice_output_base_url_input.text(),
                 output_voice_id=self._voice_output_voice_id_input.text(),
+                output_reference_dir=self._voice_output_reference_dir_input.text(),
+                output_prompt_text=self._voice_output_prompt_text_input.text(),
                 output_device=_selected_device_name(self._voice_output_device_input),
                 output_engine_auto_start=(
                     self._voice_output_engine_auto_start_input.isChecked()
@@ -2102,6 +2123,8 @@ class SettingsWindow(QWidget):
             self._voice_output_provider_input,
             self._voice_output_base_url_input,
             self._voice_output_voice_id_input,
+            self._voice_output_reference_dir_input,
+            self._voice_output_prompt_text_input,
             self._voice_output_device_input,
             self._voice_output_engine_auto_start_input,
             self._voice_output_engine_path_input,

@@ -204,6 +204,28 @@ class EphemeralActionContextTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.context.record_application("powershell")
 
+    def test_builds_sanitized_intent_context_snapshot(self) -> None:
+        self.context.record_successful_action("spotify.play")
+        self.context.record_application("spotify")
+        self.context.record_directory(r"C:\Users\Akiha\Music")
+
+        snapshot = self.context.intent_context_snapshot()
+
+        self.assertEqual(snapshot.recent_action_id, "spotify.play")
+        self.assertEqual(snapshot.recent_application_id, "spotify")
+        self.assertTrue(snapshot.has_recent_spotify_activity)
+        self.assertTrue(snapshot.has_recent_directory)
+        self.assertNotIn("Music", snapshot.render_for_provider())
+
+    def test_successful_action_context_expires(self) -> None:
+        self.context.record_successful_action("applications.launch")
+        self.now += 31.0
+
+        snapshot = self.context.intent_context_snapshot()
+
+        self.assertEqual(snapshot.recent_action_id, "")
+        self.assertFalse(snapshot.has_action_context)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -61,6 +61,8 @@ def _serialize_config(config: AppConfig) -> str:
     voice_output_provider = _escape_toml_string(voice.output_provider)
     voice_output_base_url = _escape_toml_string(voice.output_base_url)
     voice_output_voice_id = _escape_toml_string(voice.output_voice_id)
+    voice_output_reference_dir = _escape_toml_string(voice.output_reference_dir)
+    voice_output_prompt_text = _escape_toml_string(voice.output_prompt_text)
     voice_output_device = _escape_toml_string(voice.output_device)
     voice_output_engine_path = _escape_toml_string(voice.output_engine_path)
     voice_session_provider = _escape_toml_string(voice.session_provider)
@@ -129,6 +131,8 @@ def _serialize_config(config: AppConfig) -> str:
         f'output_provider = "{voice_output_provider}"\n'
         f'output_base_url = "{voice_output_base_url}"\n'
         f'output_voice_id = "{voice_output_voice_id}"\n'
+        f'output_reference_dir = "{voice_output_reference_dir}"\n'
+        f'output_prompt_text = "{voice_output_prompt_text}"\n'
         f'output_device = "{voice_output_device}"\n'
         "output_engine_auto_start = "
         f"{str(voice.output_engine_auto_start).lower()}\n"

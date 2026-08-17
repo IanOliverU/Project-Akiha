@@ -252,9 +252,11 @@ class VoiceConfig:
     input_model: str = "small"
     input_language: str = "auto"
     input_device: str = ""
-    output_provider: str = "voicevox"
-    output_base_url: str = "http://127.0.0.1:50021"
-    output_voice_id: str = "0"
+    output_provider: str = "gpt-sovits"
+    output_base_url: str = "http://127.0.0.1:9880"
+    output_voice_id: str = "akiha"
+    output_reference_dir: str = "AKIHA VOICE"
+    output_prompt_text: str = ""
     output_device: str = ""
     output_engine_auto_start: bool = False
     output_engine_path: str = ""
@@ -285,8 +287,15 @@ class VoiceConfig:
                 "voice.input_provider must be either 'disabled' or " "'faster-whisper'."
             )
             raise ValueError(message)
-        if self.output_provider not in {"disabled", "voicevox"}:
-            message = "voice.output_provider must be either 'disabled' or 'voicevox'."
+        if self.output_provider not in {
+            "disabled",
+            "voicevox",
+            "gpt-sovits",
+        }:
+            message = (
+                "voice.output_provider must be 'disabled', 'voicevox', "
+                "or 'gpt-sovits'."
+            )
             raise ValueError(message)
         if not self.input_model.strip():
             raise ValueError("voice.input_model cannot be empty.")
@@ -294,6 +303,12 @@ class VoiceConfig:
             raise ValueError("voice.input_language cannot be empty.")
         if not self.output_voice_id.strip():
             raise ValueError("voice.output_voice_id cannot be empty.")
+        if not self.output_reference_dir.strip():
+            raise ValueError("voice.output_reference_dir cannot be empty.")
+        if "\n" in self.output_reference_dir or "\r" in self.output_reference_dir:
+            raise ValueError("voice.output_reference_dir must be a single line.")
+        if "\n" in self.output_prompt_text or "\r" in self.output_prompt_text:
+            raise ValueError("voice.output_prompt_text must be a single line.")
         if "\n" in self.output_engine_path or "\r" in self.output_engine_path:
             raise ValueError("voice.output_engine_path must be a single line.")
 
@@ -454,6 +469,12 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     voice_data = data.get("voice", {})
     if not isinstance(voice_data, dict):
         raise ValueError("voice config must be a TOML table.")
+    if voice_data.get("output_provider") == "akiha-chatterbox":
+        # Preserve existing user configurations from the experimental voice
+        # phase while making GPT-SoVITS the permanent local voice backend.
+        voice_data = dict(voice_data)
+        voice_data["output_provider"] = "gpt-sovits"
+        voice_data["output_base_url"] = "http://127.0.0.1:9880"
 
     spotify_data = data.get("spotify", {})
     if not isinstance(spotify_data, dict):

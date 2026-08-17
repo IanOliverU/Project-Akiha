@@ -18,6 +18,14 @@ nuitka-crash-report.xml
 build/
 dist/
 artifacts/review/
+artifacts/voice/
+
+# Original extracted reference recordings stay local and read-only.
+AKIHA VOICE/
+
+# GPT-SoVITS is installed as an isolated local runtime, not as project code.
+.gpt-sovits-venv/
+.gpt-sovits-src/
 
 # Personal Spotify listening exports must stay local and out of release assets.
 assets/animations/akiha/Spotify.txt

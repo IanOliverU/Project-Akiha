@@ -21,6 +21,7 @@ from project_akiha.core.actions.registry import (
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
+from project_akiha.services.intent_context import IntentContextSnapshot
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 
 _REFERENCE_PREFIX_PATTERN = re.compile(
@@ -251,6 +252,46 @@ class EphemeralActionContext:
     def record_spotify_activity(self) -> None:
         self._spotify_expires_at = self._expires_at()
 
+    def record_successful_action(self, action_id: str) -> None:
+        """Retain only a validated action label for bounded follow-up context."""
+        if not re.fullmatch(r"[a-z][a-z0-9_.-]{1,79}", action_id):
+            raise ValueError("successful action ID is invalid.")
+        self._recent_action_id = action_id
+        self._recent_action_expires_at = self._expires_at()
+        if action_id.startswith("spotify."):
+            self.record_spotify_activity()
+
+    def intent_context_snapshot(self) -> IntentContextSnapshot:
+        """Return coarse, expiring context suitable for intent interpretation."""
+        now = self._now()
+        recent_action_id = self._recent_action_id
+        if self._recent_action_expires_at <= now:
+            recent_action_id = ""
+            self._recent_action_id = ""
+            self._recent_action_expires_at = 0.0
+
+        recent_application_id = self._application_id
+        if self._application_expires_at <= now:
+            recent_application_id = ""
+
+        has_recent_spotify_activity = self._spotify_expires_at > now
+        if not has_recent_spotify_activity:
+            self._spotify_expires_at = 0.0
+
+        return IntentContextSnapshot(
+            recent_action_id=recent_action_id,
+            recent_application_id=recent_application_id,
+            has_recent_spotify_activity=has_recent_spotify_activity,
+            has_recent_directory=self.current_directory is not None,
+        )
+
+    def clear_spotify_activity(self) -> None:
+        """Discard transient Spotify context after Spotify is closed."""
+        self._spotify_expires_at = 0.0
+        if self._recent_action_id.startswith("spotify."):
+            self._recent_action_id = ""
+            self._recent_action_expires_at = 0.0
+
     def resolve(self, text: str) -> EphemeralReferenceResolution | None:
         """Resolve one explicit local reference, never arbitrary conversation."""
         normalized = self._normalize(text)
@@ -322,6 +363,8 @@ class EphemeralActionContext:
         """Discard every transient reference without touching durable memory."""
         self._selection: _SelectionState | None = None
         self._selected: _SelectedState | None = None
+        self._recent_action_id = ""
+        self._recent_action_expires_at = 0.0
         self._directory_path = ""
         self._directory_expires_at = 0.0
         self._application_id = ""

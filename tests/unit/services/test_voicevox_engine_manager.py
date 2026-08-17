@@ -233,6 +233,8 @@ class _ProcessFactory:
 def _managed_config(**overrides: object) -> VoiceConfig:
     values: dict[str, object] = {
         "enabled": True,
+        "output_provider": "voicevox",
+        "output_base_url": "http://127.0.0.1:50021",
         "output_engine_auto_start": True,
     }
     values.update(overrides)

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import sys
 import traceback
+import wave
 from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
@@ -208,6 +210,7 @@ from project_akiha.providers.live import (
 )
 from project_akiha.providers.voice import (
     FasterWhisperProvider,
+    GptSoVitsProvider,
     QtAudioPlayback,
     QtMicrophoneCapture,
     UnavailableVoiceOutputProvider,
@@ -252,6 +255,7 @@ from project_akiha.services.ephemeral_action_context import (
     EphemeralSelectionReference,
 )
 from project_akiha.services.event_logger import EventLogger
+from project_akiha.services.gpt_sovits_engine_manager import GptSoVitsEngineManager
 from project_akiha.services.intent_arbitration import (
     IntentArbiter,
     IntentProposal,
@@ -335,6 +339,24 @@ _AI_KEY_ENVIRONMENT_VARIABLES = {
     "grok": "XAI_API_KEY",
     "openai-compatible": "AKIHA_AI_API_KEY",
 }
+
+
+class _ShutdownableVoiceEngine(Protocol):
+    def shutdown(self) -> bool:
+        """Stop the owned local engine."""
+
+
+class _ManagedVoiceEngineCoordinator:
+    """Stop both supported local engines without touching external processes."""
+
+    def __init__(self, *managers: _ShutdownableVoiceEngine) -> None:
+        self._managers = managers
+
+    def shutdown(self) -> bool:
+        stopped = True
+        for manager in self._managers:
+            stopped = manager.shutdown() and stopped
+        return stopped
 
 
 class _ChatErrorSurface(Protocol):
@@ -611,30 +633,54 @@ def _run_application() -> int:
         acknowledge_hosted_live_privacy_notice
     )
     voicevox_engine_manager = VoiceVoxEngineManager(paths.project_root)
+    gpt_sovits_engine_manager = GptSoVitsEngineManager(paths.project_root)
 
-    def apply_voicevox_engine_config(voice_config: VoiceConfig) -> None:
-        status = voicevox_engine_manager.apply_config(voice_config)
+    def apply_voice_engine_config(voice_config: VoiceConfig) -> None:
+        if voice_config.output_provider == "gpt-sovits":
+            voicevox_engine_manager.stop()
+            status = gpt_sovits_engine_manager.apply_config(voice_config)
+            status_label = "GPT-SoVITS"
+        else:
+            gpt_sovits_engine_manager.stop()
+            status = voicevox_engine_manager.apply_config(voice_config)
+            status_label = "VOICEVOX"
         settings_window.set_voice_engine_status(status.detail, status.is_error)
-        logger.info("VOICEVOX Engine management state: %s.", status.state)
+        logger.info("%s engine management state: %s.", status_label, status.state)
         if status.state == "starting":
             expected_url = voice_config.output_base_url
+            expected_provider = voice_config.output_provider
+            refresh_attempts = 0
 
-            def refresh_voicevox_engine_status() -> None:
+            def refresh_voice_engine_status() -> None:
+                nonlocal refresh_attempts
                 if config.voice.output_base_url != expected_url:
                     return
-                refreshed = voicevox_engine_manager.refresh_status(expected_url)
+                if config.voice.output_provider != expected_provider:
+                    return
+                manager = (
+                    gpt_sovits_engine_manager
+                    if config.voice.output_provider == "gpt-sovits"
+                    else voicevox_engine_manager
+                )
+                refreshed = manager.refresh_status(expected_url)
                 settings_window.set_voice_engine_status(
                     refreshed.detail,
                     refreshed.is_error,
                 )
                 logger.info(
-                    "VOICEVOX Engine management state: %s.",
+                    "%s engine management state: %s.",
+                    "GPT-SoVITS"
+                    if config.voice.output_provider == "gpt-sovits"
+                    else "VOICEVOX",
                     refreshed.state,
                 )
+                if refreshed.state == "starting" and refresh_attempts < 20:
+                    refresh_attempts += 1
+                    QTimer.singleShot(3_000, refresh_voice_engine_status)
 
-            QTimer.singleShot(3_000, refresh_voicevox_engine_status)
+            QTimer.singleShot(3_000, refresh_voice_engine_status)
 
-    apply_voicevox_engine_config(config.voice)
+    apply_voice_engine_config(config.voice)
     chat_window = ChatWindow()
     chat_window.set_voice_conversation_lane(
         "cloud" if config.voice.session_provider == "gemini_live" else "local",
@@ -697,7 +743,11 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         playback=audio_playback,
     )
-    speech_output_service = _build_speech_output_service(config.voice)
+    speech_output_service = _build_speech_output_service(
+        config.voice,
+        project_root=paths.project_root,
+        model_dir=paths.model_dir,
+    )
     voice_synthesis_controller = VoiceSynthesisController(
         event_bus=event_bus,
         voice_controller=voice_controller,
@@ -709,6 +759,12 @@ def _run_application() -> int:
         voice_controller=voice_controller,
         playback_controller=voice_playback_controller,
         service=speech_output_service,
+        # GPT-SoVITS is CPU-heavy on the supported fallback runtime. Keeping
+        # one inference active avoids two model passes competing for the same
+        # CPU and improves time-to-first-audio.
+        maximum_concurrent_synthesis=(
+            1 if config.voice.output_provider == "gpt-sovits" else 2
+        ),
         on_response_spoken=voice_synthesis_controller.remember_spoken_text,
     )
     voice_capture_controller = VoiceCaptureController(
@@ -840,12 +896,16 @@ def _run_application() -> int:
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
         assistant_speech_controller.apply_config(updated_config.voice)
-        apply_voicevox_engine_config(updated_config.voice)
+        apply_voice_engine_config(updated_config.voice)
         speech_input_service = _build_speech_input_service(
             updated_config.voice,
             paths.model_dir,
         )
-        speech_output_service = _build_speech_output_service(updated_config.voice)
+        speech_output_service = _build_speech_output_service(
+            updated_config.voice,
+            project_root=paths.project_root,
+            model_dir=paths.model_dir,
+        )
         voice_transcription_controller.apply_service(
             speech_input_service,
             updated_config.voice,
@@ -2900,7 +2960,10 @@ def _run_application() -> int:
             voice_transcription=voice_transcription_controller,
             voice_synthesis=voice_synthesis_controller,
             voice_playback=voice_playback_controller,
-            voice_engine=voicevox_engine_manager,
+            voice_engine=_ManagedVoiceEngineCoordinator(
+                voicevox_engine_manager,
+                gpt_sovits_engine_manager,
+            ),
         )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
@@ -3219,10 +3282,31 @@ def _build_speech_input_service(
     )
 
 
-def _build_speech_output_service(voice_config: VoiceConfig) -> SpeechOutputService:
+def _build_speech_output_service(
+    voice_config: VoiceConfig,
+    *,
+    project_root: Path | None = None,
+    model_dir: Path | None = None,
+) -> SpeechOutputService:
     if voice_config.output_provider == "disabled":
         return SpeechOutputService(
             UnavailableVoiceOutputProvider("Speech output is disabled.")
+        )
+    if voice_config.output_provider == "gpt-sovits":
+        resolved_root = project_root or Path(__file__).resolve().parents[2]
+        reference_dir = resolved_root / voice_config.output_reference_dir
+        reference_audio, prompt_text = _resolve_gpt_sovits_prompt(
+            resolved_root,
+            reference_dir,
+            voice_config.output_prompt_text,
+        )
+        return SpeechOutputService(
+            GptSoVitsProvider(
+                api_url=voice_config.output_base_url,
+                reference_audio_path=reference_audio,
+                prompt_text=prompt_text,
+                timeout_seconds=float(voice_config.request_timeout_seconds),
+            )
         )
     return SpeechOutputService(
         VoiceVoxProvider(
@@ -3230,6 +3314,50 @@ def _build_speech_output_service(voice_config: VoiceConfig) -> SpeechOutputServi
             timeout_seconds=float(voice_config.request_timeout_seconds),
         )
     )
+
+
+def _resolve_gpt_sovits_prompt(
+    project_root: Path,
+    reference_dir: Path,
+    configured_prompt: str,
+) -> tuple[Path | None, str]:
+    """Use a prepared valid reference/transcript pair when available."""
+    manifest_path = (
+        project_root
+        / "artifacts"
+        / "voice"
+        / "gpt-sovits"
+        / "akiha-dataset"
+        / "manifest.jsonl"
+    )
+    if manifest_path.is_file():
+        for line in manifest_path.read_text(encoding="utf-8").splitlines():
+            try:
+                entry = json.loads(line)
+                audio_path = Path(str(entry.get("audio", "")))
+                text = str(entry.get("text", "")).strip()
+                if (
+                    audio_path.is_file()
+                    and text
+                    and _is_gpt_sovits_reference(audio_path)
+                ):
+                    return audio_path, configured_prompt.strip() or text
+            except (OSError, TypeError, ValueError, wave.Error):
+                continue
+
+    for audio_path in sorted(reference_dir.glob("*.wav")):
+        if _is_gpt_sovits_reference(audio_path):
+            return audio_path, configured_prompt.strip()
+    return None, configured_prompt.strip()
+
+
+def _is_gpt_sovits_reference(audio_path: Path) -> bool:
+    try:
+        with wave.open(str(audio_path), "rb") as wav_file:
+            duration = wav_file.getnframes() / wav_file.getframerate()
+    except (OSError, wave.Error, ZeroDivisionError):
+        return False
+    return 3.0 <= duration <= 10.0
 
 
 def _build_conversation_summarizer(

@@ -18,6 +18,12 @@ from project_akiha.providers.voice.base import (
     VoiceTranscript,
 )
 from project_akiha.providers.voice.faster_whisper import FasterWhisperProvider
+from project_akiha.providers.voice.gpt_sovits import (
+    GptSoVitsProvider,
+    GptSoVitsTransport,
+    GptSoVitsTransportError,
+    UrllibGptSoVitsTransport,
+)
 from project_akiha.providers.voice.qt_microphone import QtMicrophoneCapture
 from project_akiha.providers.voice.qt_playback import QtAudioPlayback
 from project_akiha.providers.voice.unavailable import UnavailableVoiceOutputProvider
@@ -47,6 +53,10 @@ __all__ = [
     "QtMicrophoneCapture",
     "QtAudioPlayback",
     "FasterWhisperProvider",
+    "GptSoVitsProvider",
+    "GptSoVitsTransport",
+    "GptSoVitsTransportError",
+    "UrllibGptSoVitsTransport",
     "UnavailableVoiceOutputProvider",
     "UrllibVoiceVoxTransport",
     "VoiceVoxProvider",
