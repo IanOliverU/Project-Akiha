@@ -719,6 +719,24 @@ details, or silhouette. The runtime contract is now deliberately stricter:
 - Visual acceptance remains pending owner review and is not implied by the
   automated contract checks.
 
+### Experimental 60 FPS Canonical Idle
+
+`assets/animations/manifest.idle-60fps-experiment.toml` is a separate timing
+experiment. It does not replace or modify the approved default manifest.
+
+- The timeline contains exactly 600 render ticks and declares a required 60
+  FPS playback rate, yielding a nominal 10-second loop.
+- Variable frame durations describe three restrained breathing cycles across
+  those ticks. Every pose references the same canonical standing PNG and uses
+  only integer Y offsets of `0`, `-1`, or `-2` display pixels.
+- The Qt frame scheduler distributes 16 ms and 17 ms intervals so every 60
+  callbacks total exactly 1,000 nominal milliseconds. A 600-tick cycle therefore
+  totals 10,000 nominal milliseconds without fractional-millisecond drift.
+- Test it by selecting the experimental manifest under Akiha > Pet > Animation
+  manifest, setting FPS to `60`, saving, and observing the desktop pet.
+- The experiment adds no image assets and remains visually unapproved until the
+  owner completes a manual review.
+
 ### Phase 9G Verification
 
 - Pure and controller tests cover low and critical urgency, recovery silence,

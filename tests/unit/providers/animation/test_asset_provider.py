@@ -199,6 +199,40 @@ class AssetAnimationProviderTest(unittest.TestCase):
             with self.assertRaisesRegex(AnimationManifestError, "integer"):
                 AssetAnimationProvider.from_manifest(manifest_path)
 
+    def test_uses_variable_frame_durations_for_one_cycle(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            _touch(Path(directory) / "idle" / "001.png")
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png", "idle/001.png"]\n'
+                "frame_durations = [2, 3]\n",
+                encoding="utf-8",
+            )
+
+            provider = AssetAnimationProvider.from_manifest(manifest_path)
+            frame_indexes = tuple(
+                provider.frame_for(AnimationState.IDLE, frame_number).frame_index
+                for frame_number in range(6)
+            )
+
+        self.assertEqual(frame_indexes, (0, 0, 1, 1, 1, 0))
+
+    def test_rejects_invalid_variable_frame_durations(self) -> None:
+        with TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "manifest.toml"
+            _touch(Path(directory) / "idle" / "000.png")
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle/000.png"]\n'
+                "frame_durations = [0]\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "positive integer"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
     def test_rejects_missing_frame_image(self) -> None:
         with TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "manifest.toml"

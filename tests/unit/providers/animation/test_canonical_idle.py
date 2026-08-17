@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from project_akiha.providers.animation import AssetAnimationProvider
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 _CANONICAL_PATH = _PROJECT_ROOT / "assets/animations/akiha/standing/000.png"
 _MANIFEST_PATH = _PROJECT_ROOT / "assets/animations/manifest.toml"
+_EXPERIMENT_MANIFEST_PATH = (
+    _PROJECT_ROOT / "assets/animations/manifest.idle-60fps-experiment.toml"
+)
 _CANONICAL_SHA256 = "b74a30f8a198658a09478d12b98fe66cc075ab775bb7d7239b65bb5676c4cf81"
 _EXPECTED_OFFSETS = (
     (0, 0),
@@ -68,6 +72,31 @@ class CanonicalIdleContractTest(unittest.TestCase):
         self.assertTrue(all(frame.image_path == _CANONICAL_PATH for frame in frames))
         self.assertTrue(all(frame.scale_percent == 100 for frame in frames))
         self.assertTrue(all(frame.source_width is None for frame in frames))
+
+    def test_experimental_timeline_is_canonical_600_ticks_at_60_fps(self) -> None:
+        manifest = tomllib.loads(_EXPERIMENT_MANIFEST_PATH.read_text("utf-8"))
+        experiment = manifest["experiment"]
+        durations = manifest["animations"]["idle"]["frame_durations"]
+        provider = AssetAnimationProvider.from_manifest(_EXPERIMENT_MANIFEST_PATH)
+
+        frames = tuple(
+            provider.frame_for(AnimationState.IDLE, frame_number=tick)
+            for tick in range(600)
+        )
+        loop_start = provider.frame_for(AnimationState.IDLE, frame_number=600)
+
+        self.assertEqual(experiment["required_frames_per_second"], 60)
+        self.assertEqual(experiment["cycle_ticks"], 600)
+        self.assertEqual(sum(durations), 600)
+        self.assertEqual(600 / 60, 10)
+        self.assertTrue(all(frame.image_path == _CANONICAL_PATH for frame in frames))
+        self.assertTrue(all(frame.scale_percent == 100 for frame in frames))
+        self.assertEqual(
+            {(frame.x_offset, frame.y_offset) for frame in frames},
+            {(0, 0), (0, -1), (0, -2)},
+        )
+        self.assertEqual(loop_start.frame_index, frames[0].frame_index)
+        self.assertEqual(loop_start.image_path, _CANONICAL_PATH)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,65 @@
+[experiment]
+name = "Canonical idle 60 FPS / 10 second test"
+required_frames_per_second = 60
+cycle_ticks = 600
+
+[animations.idle]
+frames = [
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+    "akiha/standing/000.png",
+]
+frame_offsets = [
+    [0, 0],
+    [0, -1],
+    [0, -2],
+    [0, -1],
+    [0, 0],
+    [0, -1],
+    [0, -2],
+    [0, -1],
+    [0, 0],
+    [0, -1],
+    [0, -2],
+    [0, -1],
+    [0, 0],
+]
+frame_durations = [90, 30, 20, 30, 130, 30, 20, 30, 110, 30, 20, 30, 30]
+ticks_per_frame = 1
+x_offset = 0
+y_offset = 0
+scale_percent = 100
+
+[animations.dragging]
+frames = ["akiha/standing/000.png"]
+ticks_per_frame = 60
+x_offset = 0
+y_offset = 0
+scale_percent = 100
+
+[animations.walking]
+filmstrip = "akiha/walking/Akiha-Walking.png"
+frame_width = 100
+frame_height = 100
+frame_count = 8
+ticks_per_frame = 7
+x_offset = 0
+y_offset = 0
+scale_percent = 100
+
+[animations.sleeping]
+frames = ["akiha/standing/000.png"]
+ticks_per_frame = 60
+x_offset = 0
+y_offset = 0
+scale_percent = 100

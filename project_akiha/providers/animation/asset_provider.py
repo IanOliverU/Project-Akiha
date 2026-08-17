@@ -27,10 +27,11 @@ class AnimationClip:
     scale_percent: int = 100
     source_rects: tuple[tuple[int, int, int, int] | None, ...] = ()
     frame_offsets: tuple[tuple[int, int], ...] = ()
+    frame_durations: tuple[int, ...] = ()
 
     def frame_for(self, frame_number: int) -> AnimationFrame:
         """Return the frame represented by the global clock tick."""
-        frame_index = (frame_number // self.ticks_per_frame) % len(self.frame_paths)
+        frame_index = self._frame_index(frame_number)
         source_rect = self.source_rects[frame_index] if self.source_rects else None
         frame_x_offset, frame_y_offset = (
             self.frame_offsets[frame_index] if self.frame_offsets else (0, 0)
@@ -53,6 +54,18 @@ class AnimationClip:
             source_width=source_width,
             source_height=source_height,
         )
+
+    def _frame_index(self, frame_number: int) -> int:
+        if not self.frame_durations:
+            return (frame_number // self.ticks_per_frame) % len(self.frame_paths)
+
+        cycle_tick = frame_number % sum(self.frame_durations)
+        elapsed_ticks = 0
+        for frame_index, duration in enumerate(self.frame_durations):
+            elapsed_ticks += duration
+            if cycle_tick < elapsed_ticks:
+                return frame_index
+        raise AssertionError("Animation duration lookup exceeded its cycle.")
 
 
 class AssetAnimationProvider:
@@ -156,6 +169,11 @@ def _parse_clip(
         value=state_data.get("frame_offsets"),
         frame_count=len(frame_paths),
     )
+    frame_durations = _parse_frame_durations(
+        state_name=state_name,
+        value=state_data.get("frame_durations"),
+        frame_count=len(frame_paths),
+    )
 
     return AnimationClip(
         state=_parse_state(state_name),
@@ -166,6 +184,7 @@ def _parse_clip(
         scale_percent=scale_percent,
         source_rects=source_rects,
         frame_offsets=frame_offsets,
+        frame_durations=frame_durations,
     )
 
 
@@ -196,6 +215,26 @@ def _parse_frame_offsets(
             raise AnimationManifestError(message)
         offsets.append((offset[0], offset[1]))
     return tuple(offsets)
+
+
+def _parse_frame_durations(
+    *,
+    state_name: str,
+    value: Any,
+    frame_count: int,
+) -> tuple[int, ...]:
+    if value is None:
+        return ()
+    if (
+        not isinstance(value, list)
+        or len(value) != frame_count
+        or any(type(duration) is not int or duration <= 0 for duration in value)
+    ):
+        raise AnimationManifestError(
+            f"Animation {state_name} frame_durations must contain one "
+            "positive integer per frame."
+        )
+    return tuple(value)
 
 
 def _parse_frame_sources(

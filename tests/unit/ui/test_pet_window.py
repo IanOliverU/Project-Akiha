@@ -18,6 +18,7 @@ from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation.base import AnimationFrame
 from project_akiha.ui.pet_window import (
     PetWindow,
+    _frame_interval_pattern_ms,
     _listening_pulse,
     _mood_visual_color,
     _speaking_wave_heights,
@@ -123,6 +124,26 @@ class PetWindowTest(unittest.TestCase):
         self.assertNotEqual(initial, quarter_cycle)
         self.assertTrue(all(5 <= height <= 16 for height in initial))
         self.assertTrue(all(5 <= height <= 16 for height in quarter_cycle))
+
+    def test_sixty_fps_interval_pattern_is_one_nominal_second(self) -> None:
+        intervals = _frame_interval_pattern_ms(60)
+
+        self.assertEqual(len(intervals), 60)
+        self.assertEqual(sum(intervals), 1_000)
+        self.assertEqual(set(intervals), {16, 17})
+
+    def test_frame_advance_cycles_through_precise_interval_pattern(self) -> None:
+        self._window = self._make_window()
+        self._window.apply_config(
+            PetWindowConfig(always_on_top=False, frames_per_second=60)
+        )
+        self._window._timer.stop()
+
+        for _ in range(60):
+            self._window._advance_frame()
+
+        self.assertEqual(self._window._frame_number, 60)
+        self.assertEqual(self._window._frame_interval_index, 0)
 
     def test_context_menu_behavior_history_action_publishes_request(self) -> None:
         event_bus = EventBus()

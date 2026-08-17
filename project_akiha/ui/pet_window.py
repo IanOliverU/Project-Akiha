@@ -55,6 +55,8 @@ class PetWindow(QWidget):
         self._current_state = AnimationState.IDLE
         self._drag_offset: QPoint | None = None
         self._frame_number = 0
+        self._frame_interval_index = 0
+        self._frame_intervals = _frame_interval_pattern_ms(config.frames_per_second)
         self._walk_direction = 1
         self._current_mood = CompanionMood.CALM
         self._mood_visual_mapper = MoodVisualCueMapper()
@@ -67,8 +69,9 @@ class PetWindow(QWidget):
         self.setWindowFlags(self._build_window_flags(config))
 
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self._advance_frame)
-        self._timer.start(1000 // config.frames_per_second)
+        self._timer.start(self._frame_intervals[0])
         self._event_bus.subscribe(EventType.STATE_CHANGED, self._handle_state_changed)
         self._event_bus.subscribe(
             EventType.MOOD_STATE_CHANGED,
@@ -80,7 +83,9 @@ class PetWindow(QWidget):
         was_visible = self.isVisible()
         self._config = config
         self.setFixedSize(config.width, config.height)
-        self._timer.setInterval(1000 // config.frames_per_second)
+        self._frame_interval_index = 0
+        self._frame_intervals = _frame_interval_pattern_ms(config.frames_per_second)
+        self._timer.setInterval(self._frame_intervals[0])
         self.setWindowFlags(self._build_window_flags(config))
         if was_visible:
             self.show()
@@ -209,6 +214,10 @@ class PetWindow(QWidget):
         if self._current_state == AnimationState.WALKING:
             self._advance_walking_position()
         self.update()
+        self._frame_interval_index = (self._frame_interval_index + 1) % len(
+            self._frame_intervals
+        )
+        self._timer.setInterval(self._frame_intervals[self._frame_interval_index])
 
     def _advance_walking_position(self) -> None:
         screen = self.screen()
@@ -399,6 +408,17 @@ class PetWindow(QWidget):
             painter.drawText(bubble_rect, Qt.AlignmentFlag.AlignCenter, "!")
 
         painter.restore()
+
+
+def _frame_interval_pattern_ms(frames_per_second: int) -> tuple[int, ...]:
+    """Distribute whole-millisecond intervals across one exact nominal second."""
+    if frames_per_second <= 0 or frames_per_second > 1_000:
+        raise ValueError("frames_per_second must be between 1 and 1000.")
+    return tuple(
+        ((frame_index + 1) * 1_000) // frames_per_second
+        - (frame_index * 1_000) // frames_per_second
+        for frame_index in range(frames_per_second)
+    )
 
 
 def _mood_visual_color(cue: MoodVisualCue) -> QColor:
