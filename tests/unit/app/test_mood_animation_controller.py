@@ -38,6 +38,29 @@ class MoodAnimationControllerTest(unittest.TestCase):
 
         self.assertEqual(sleep_requests, [])
 
+    def test_low_energy_pet_cue_requests_sleep_from_idle(self) -> None:
+        bus = EventBus()
+        sleep_requests: list[Event] = []
+        bus.subscribe(EventType.PET_SLEEP_REQUESTED, sleep_requests.append)
+        MoodAnimationController(bus, MoodAnimationMapper())
+
+        bus.publish(
+            EventType.MOOD_STATE_CHANGED,
+            _mood("sleepy", reason="pet_need_energy_low"),
+        )
+
+        self.assertEqual(len(sleep_requests), 1)
+
+    def test_unrelated_sleepy_cue_does_not_force_sleep(self) -> None:
+        bus = EventBus()
+        sleep_requests: list[Event] = []
+        bus.subscribe(EventType.PET_SLEEP_REQUESTED, sleep_requests.append)
+        MoodAnimationController(bus, MoodAnimationMapper())
+
+        bus.publish(EventType.MOOD_STATE_CHANGED, _mood("sleepy"))
+
+        self.assertEqual(sleep_requests, [])
+
     def test_mood_driven_sleep_wakes_when_mood_becomes_attentive(self) -> None:
         bus = EventBus()
         wake_requests: list[Event] = []

@@ -17,6 +17,22 @@ _PROACTIVE_SCENARIO_BY_KIND = {
     "scheduled_check_in": "Proactive",
     "self_care_reminder": "Reminder",
 }
+_PET_NEED_SPEECH_LINES = {
+    "pet_need_satiety_low": "少しお腹が空いてきました。お手すきの時にお願いします。",
+    "pet_need_satiety_critical": (
+        "申し上げにくいのですが、そろそろ食事をお願いできますか。"
+    ),
+    "pet_need_energy_low": "少し疲れてきました。休める時に休ませてください。",
+    "pet_need_energy_critical": "だいぶ疲れてしまいました。少し休ませていただきます。",
+    "pet_need_attention_low": "お手すきでしたら、少しお話ししませんか。",
+    "pet_need_attention_critical": "少し寂しく感じています。お時間をいただけますか。",
+}
+_PET_CARE_SPEECH_LINES = {
+    "feed": "ありがとうございます。これで少し落ち着きました。",
+    "rest": "承知しました。少し休ませていただきます。",
+    "spend_time": "ご一緒できて嬉しく思います。",
+}
+_PET_LEVEL_SPEECH_LINE = "積み重ねが形になりました。これからもよろしくお願いします。"
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,8 +122,18 @@ def proactive_speech_line(
     profile: AkihaSpeechIdentityProfile = AKIHA_SPEECH_IDENTITY,
 ) -> str | None:
     """Return an original Japanese line for a supported proactive event."""
+    pet_need_line = _PET_NEED_SPEECH_LINES.get(kind)
+    if pet_need_line is not None:
+        return pet_need_line
     scenario = _PROACTIVE_SCENARIO_BY_KIND.get(kind)
     return profile.sample_phrase(scenario) if scenario is not None else None
+
+
+def pet_care_speech_line(action: str, *, level_increased: bool = False) -> str | None:
+    """Return a bounded local line for one validated care completion."""
+    if level_increased:
+        return _PET_LEVEL_SPEECH_LINE
+    return _PET_CARE_SPEECH_LINES.get(action)
 
 
 class AkihaSpeechStyleService:

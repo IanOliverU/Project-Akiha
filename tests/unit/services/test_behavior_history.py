@@ -64,6 +64,25 @@ class BehaviorHistoryRecorderTest(unittest.TestCase):
         self.assertEqual(repository.records[0].event_type, "pet.need_band_changed")
         self.assertNotIn("message", repository.records[0].payload)
 
+    def test_records_sanitized_structured_pet_reactions(self) -> None:
+        bus = EventBus()
+        repository = _RecordingRepository()
+        BehaviorHistoryRecorder(bus, repository)
+
+        bus.publish(
+            EventType.PET_CARE_COMPLETED,
+            {
+                "kind": "pet_care_feed_completed",
+                "action": "feed",
+                "changed": True,
+                "level_increased": False,
+            },
+        )
+
+        self.assertEqual(repository.records[0].event_type, "pet.care_completed")
+        self.assertEqual(repository.records[0].kind, "pet_care_feed_completed")
+        self.assertNotIn("dialogue", repository.records[0].payload)
+
     def test_logs_repository_failures(self) -> None:
         bus = EventBus()
         repository = _FailingRepository()

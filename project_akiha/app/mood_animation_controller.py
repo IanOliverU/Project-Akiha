@@ -46,6 +46,7 @@ class MoodAnimationController:
 
         decision = self._mapper.decide(
             mood=mood,
+            mood_reason=reason if isinstance(reason, str) else "",
             current_animation_state=self._current_animation_state,
             sleeping_from_mood=self._sleeping_from_mood,
         )

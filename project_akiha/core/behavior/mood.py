@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 from project_akiha.core.behavior.activity import ActivitySnapshot, ActivityState
-from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
+from project_akiha.core.pet import CareAction, PetBandTransition, PetNeed, WellbeingBand
 
 
 class CompanionMood(StrEnum):
@@ -104,6 +104,26 @@ class MoodEngine:
             )
             return self._transition_to(mood, reason, now)
         return self._transition_to(CompanionMood.CHECKING_IN, reason, now)
+
+    def observe_pet_care_completed(
+        self,
+        action: CareAction,
+        *,
+        level_increased: bool = False,
+        now: datetime | None = None,
+    ) -> MoodSnapshot:
+        """Reflect one committed care result without inspecting dialogue."""
+        if not isinstance(action, CareAction):
+            raise TypeError("action must be a CareAction value.")
+        if not isinstance(level_increased, bool):
+            raise TypeError("level_increased must be a boolean.")
+
+        reason = f"pet_care_{action.value}_completed"
+        if level_increased:
+            return self._transition_to(CompanionMood.CHECKING_IN, reason, now)
+        if action is CareAction.REST:
+            return self._transition_to(CompanionMood.RESTING, reason, now)
+        return self._transition_to(CompanionMood.ATTENTIVE, reason, now)
 
     def observe_delivery_result(
         self,

@@ -59,6 +59,14 @@ class AssistantSpeechController:
             source="proactive_suggestion",
         )
 
+    def submit_pet_reaction(self, text: str) -> bool:
+        """Request speech for one explicit, structured pet-care reaction."""
+        return self._submit(
+            text,
+            enabled=self._config.automatic_speech_enabled,
+            source="pet_reaction",
+        )
+
     def _submit(self, text: str, *, enabled: bool, source: str) -> bool:
         if (
             not enabled

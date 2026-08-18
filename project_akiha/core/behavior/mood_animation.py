@@ -24,11 +24,15 @@ class MoodAnimationMapper:
         self,
         *,
         mood: CompanionMood,
+        mood_reason: str = "",
         current_animation_state: AnimationState,
         sleeping_from_mood: bool,
     ) -> MoodAnimationDecision:
         """Return the animation request implied by the mood, if any."""
-        if mood == CompanionMood.RESTING:
+        should_sleep = mood == CompanionMood.RESTING or (
+            mood == CompanionMood.SLEEPY and mood_reason.startswith("pet_need_energy_")
+        )
+        if should_sleep:
             if current_animation_state == AnimationState.IDLE:
                 return MoodAnimationDecision(
                     animation_state=AnimationState.SLEEPING,

@@ -197,6 +197,40 @@ class MoodControllerTest(unittest.TestCase):
         self.assertEqual(received[-1].payload["mood"], "sleepy")
         self.assertEqual(received[-1].payload["reason"], "pet_need_energy_low")
 
+    def test_structured_care_completion_updates_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(
+            EventType.PET_CARE_COMPLETED,
+            {
+                "action": "rest",
+                "changed": True,
+                "level_increased": False,
+            },
+        )
+
+        self.assertEqual(received[-1].payload["mood"], "resting")
+        self.assertEqual(
+            received[-1].payload["reason"],
+            "pet_care_rest_completed",
+        )
+
+    def test_dialogue_shaped_care_payload_is_ignored(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(
+            EventType.PET_CARE_COMPLETED,
+            {"dialogue": "I fed Akiha"},
+        )
+
+        self.assertEqual(len(received), 1)
+
     def test_unselected_pet_need_transition_does_not_replace_mood(self) -> None:
         bus = EventBus()
         received: list[Event] = []

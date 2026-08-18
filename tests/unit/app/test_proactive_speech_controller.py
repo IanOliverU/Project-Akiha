@@ -35,6 +35,15 @@ class ProactiveSpeechControllerTest(unittest.TestCase):
         self.assertIsInstance(requests[0].payload["text"], str)
         self.assertTrue(requests[0].payload["text"])
 
+    def test_delivered_pet_need_uses_structured_local_line(self) -> None:
+        bus, requests = _speech_bus()
+        ProactiveSpeechController(bus, _assistant_speech(bus))
+
+        _publish_delivery(bus, kind="pet_need_energy_low")
+
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].payload["source"], "proactive_suggestion")
+
     def test_failed_or_unknown_delivery_is_not_spoken(self) -> None:
         for payload in (
             _delivery_payload(delivered=False),
@@ -141,10 +150,10 @@ def _complete_flow(
     return bus, requests
 
 
-def _publish_delivery(bus: EventBus) -> None:
+def _publish_delivery(bus: EventBus, *, kind: str = "idle_check_in") -> None:
     bus.publish(
         EventType.PROACTIVE_SUGGESTION_DELIVERED,
-        _delivery_payload(),
+        _delivery_payload(kind=kind),
     )
 
 

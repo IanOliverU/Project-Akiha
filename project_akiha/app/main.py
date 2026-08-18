@@ -38,6 +38,7 @@ from project_akiha.app.local_conversation_session_controller import (
 from project_akiha.app.mood_animation_controller import MoodAnimationController
 from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
+from project_akiha.app.pet_reaction_controller import PetReactionController
 from project_akiha.app.proactive_controller import ProactiveController
 from project_akiha.app.proactive_delivery_controller import ProactiveDeliveryController
 from project_akiha.app.proactive_speech_controller import ProactiveSpeechController
@@ -747,6 +748,10 @@ def _run_application() -> int:
         style_service=AkihaSpeechStyleService(),
         mood_provider=lambda: mood_controller.snapshot.mood,
     )
+    pet_reaction_controller = PetReactionController(
+        event_bus=event_bus,
+        speech_controller=assistant_speech_controller,
+    )
     response_segment_renderer = ResponseSegmentRenderer(
         SafeSpeechStyleRenderer(AkihaSpeechStyleService()),
         mood_provider=lambda: mood_controller.snapshot.mood,
@@ -966,6 +971,7 @@ def _run_application() -> int:
                 error=True,
             )
             return
+        pet_reaction_controller.publish_care_evaluation(evaluation)
         proactive_controller.evaluate_pet_transitions(
             evaluation.care_outcome.band_transitions,
             activity_controller.snapshot,
@@ -3074,6 +3080,7 @@ def _run_application() -> int:
         notification_policy,
         pet_controller,
         pet_care_window,
+        pet_reaction_controller,
         pet_runtime_tick_timer,
         pet_state_repository,
         pet_state_service,

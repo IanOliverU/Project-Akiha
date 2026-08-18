@@ -13,7 +13,12 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
-from project_akiha.core.pet import PetBandTransition, PetNeed, WellbeingBand
+from project_akiha.core.pet import (
+    CareAction,
+    PetBandTransition,
+    PetNeed,
+    WellbeingBand,
+)
 from project_akiha.core.state.voice import VoiceState
 
 
@@ -58,6 +63,10 @@ class MoodController:
         event_bus.subscribe(
             EventType.PET_NEED_BAND_CHANGED,
             self._handle_pet_need_band_changed,
+        )
+        event_bus.subscribe(
+            EventType.PET_CARE_COMPLETED,
+            self._handle_pet_care_completed,
         )
         event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
@@ -106,6 +115,24 @@ class MoodController:
             return
         self._publish_if_changed(
             self._mood_engine.observe_pet_need_transition(transition)
+        )
+
+    def _handle_pet_care_completed(self, event: Event) -> None:
+        if event.payload.get("changed") is not True:
+            return
+        action_value = event.payload.get("action")
+        level_increased = event.payload.get("level_increased")
+        if not isinstance(action_value, str) or not isinstance(level_increased, bool):
+            return
+        try:
+            action = CareAction(action_value)
+        except ValueError:
+            return
+        self._publish_if_changed(
+            self._mood_engine.observe_pet_care_completed(
+                action,
+                level_increased=level_increased,
+            )
         )
 
     def _handle_interaction(self, event: Event) -> None:
