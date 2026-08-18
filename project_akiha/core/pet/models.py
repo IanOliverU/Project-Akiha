@@ -71,6 +71,7 @@ class PetMutationKind(StrEnum):
     CARE_REST = "care_rest"
     CARE_SPEND_TIME = "care_spend_time"
     INTERACTION_CONVERSATION = "interaction_conversation"
+    RESET = "reset"
 
 
 class PetRewardKind(StrEnum):

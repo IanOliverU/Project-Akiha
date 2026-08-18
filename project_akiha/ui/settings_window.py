@@ -76,6 +76,7 @@ from project_akiha.services.credential_store import (
 from project_akiha.services.hosted_live_diagnostics import (
     build_hosted_live_diagnostics,
 )
+from project_akiha.services.pet_diagnostics import PetDiagnosticsSnapshot
 from project_akiha.services.privacy_notice import (
     acknowledge_current_hosted_live_privacy_notice,
     hosted_live_privacy_notice_required,
@@ -160,6 +161,8 @@ class SettingsWindow(QWidget):
 
     settings_saved = Signal(object)
     position_reset_requested = Signal()
+    pet_diagnostics_requested = Signal()
+    pet_reset_requested = Signal()
     memory_manager_requested = Signal()
     behavior_history_requested = Signal()
     assistant_action_history_requested = Signal()
@@ -217,6 +220,23 @@ class SettingsWindow(QWidget):
         self._always_on_top_input = _ToggleSwitch()
         self._always_on_top_input.setChecked(config.pet_window.always_on_top)
         self._manifest_path_input = QLineEdit(config.pet_window.animation_manifest_path)
+        self._pet_diagnostic_status = QLabel("Not checked")
+        self._pet_diagnostic_status.setWordWrap(True)
+        self._pet_state_summary = QLabel("Open diagnostics to inspect pet state.")
+        self._pet_state_summary.setWordWrap(True)
+        self._pet_progression_summary = QLabel("Not checked")
+        self._pet_progression_summary.setWordWrap(True)
+        self._pet_runtime_summary = QLabel("Not checked")
+        self._pet_runtime_summary.setWordWrap(True)
+        self._pet_last_evaluated = QLabel("Not checked")
+        self._pet_last_evaluated.setWordWrap(True)
+        self._pet_diagnostics_button = QPushButton("Refresh diagnostics")
+        self._pet_diagnostics_button.clicked.connect(
+            self.pet_diagnostics_requested.emit
+        )
+        self._pet_reset_button = QPushButton("Reset pet progress")
+        self._pet_reset_button.setObjectName("dangerButton")
+        self._pet_reset_button.clicked.connect(self._request_pet_reset)
         self._ai_provider_input = _ChevronComboBox()
         self._ai_provider_input.addItems(
             [provider for provider in _AI_PROVIDER_ORDER if provider in AI_PROVIDERS]
@@ -776,7 +796,9 @@ class SettingsWindow(QWidget):
         self._voice_output_provider_input.setCurrentText(config.voice.output_provider)
         self._voice_output_base_url_input.setText(config.voice.output_base_url)
         self._voice_output_voice_id_input.setText(config.voice.output_voice_id)
-        self._voice_output_reference_dir_input.setText(config.voice.output_reference_dir)
+        self._voice_output_reference_dir_input.setText(
+            config.voice.output_reference_dir
+        )
         self._voice_output_prompt_text_input.setText(config.voice.output_prompt_text)
         _set_device_combo_value(
             self._voice_output_device_input,
@@ -865,6 +887,37 @@ class SettingsWindow(QWidget):
                 "Stop voice test" if active else "Test voice"
             )
 
+    def set_pet_diagnostics(self, snapshot: PetDiagnosticsSnapshot) -> None:
+        """Display a privacy-safe typed pet-state diagnostic snapshot."""
+        if not isinstance(snapshot, PetDiagnosticsSnapshot):
+            raise TypeError("snapshot must be a PetDiagnosticsSnapshot value.")
+        self._pet_diagnostic_status.setText("Pet state is ready.")
+        self._pet_diagnostic_status.setStyleSheet(f"color: {AKIHA_PALETTE.success};")
+        self._pet_state_summary.setText(snapshot.state_summary)
+        self._pet_progression_summary.setText(snapshot.progression_summary)
+        self._pet_runtime_summary.setText(snapshot.runtime_summary)
+        self._pet_last_evaluated.setText(snapshot.evaluated_at.isoformat())
+
+    def set_pet_maintenance_status(
+        self,
+        status: str,
+        is_error: bool = False,
+    ) -> None:
+        """Display one pet maintenance result without private content."""
+        self._pet_diagnostic_status.setText(status.strip() or "Ready")
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
+        self._pet_diagnostic_status.setStyleSheet(f"color: {color};")
+
+    def set_pet_maintenance_busy(self, busy: bool) -> None:
+        """Prevent overlapping diagnostics and reset requests."""
+        self._pet_diagnostics_button.setEnabled(not busy)
+        self._pet_reset_button.setEnabled(not busy)
+        if busy:
+            self._pet_diagnostic_status.setText("Checking pet state...")
+            self._pet_diagnostic_status.setStyleSheet(
+                f"color: {AKIHA_PALETTE.muted_text};"
+            )
+
     def set_microphone_activity(self, status: str) -> None:
         """Display coarse microphone activity without transcript content."""
         self._voice_microphone_activity.setText(status.strip() or "Not active")
@@ -899,9 +952,18 @@ class SettingsWindow(QWidget):
 
         appearance_layout = _build_form_layout()
         appearance_layout.addRow("Always on top", self._always_on_top_input)
+        diagnostics_layout = _build_form_layout(wrap_long_rows=True)
+        diagnostics_layout.addRow("Status", self._pet_diagnostic_status)
+        diagnostics_layout.addRow("Wellbeing", self._pet_state_summary)
+        diagnostics_layout.addRow("Progression", self._pet_progression_summary)
+        diagnostics_layout.addRow("Runtime", self._pet_runtime_summary)
+        diagnostics_layout.addRow("Last evaluated", self._pet_last_evaluated)
+        diagnostics_layout.addRow("Diagnostics", self._pet_diagnostics_button)
+        diagnostics_layout.addRow("Reset", self._pet_reset_button)
         return _build_scroll_tab(
             _build_section("Window", window_layout),
             _build_section("Appearance", appearance_layout),
+            _build_section("Care system", diagnostics_layout),
         )
 
     def _build_ai_tab(self) -> QWidget:
@@ -1502,6 +1564,20 @@ class SettingsWindow(QWidget):
         )
         if answer == QMessageBox.StandardButton.Yes:
             self.assistant_permissions_reset_requested.emit()
+
+    def _request_pet_reset(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Reset pet progress",
+            "Restore Akiha's wellbeing, XP, level, and currency to their "
+            "initial values? Pet care history and reward cooldowns will also "
+            "be cleared. Chat, memories, settings, and assistant permissions "
+            "will not be changed.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.pet_reset_requested.emit()
 
     def _browse_manifest(self) -> None:
         selected_path, _ = QFileDialog.getOpenFileName(

@@ -308,6 +308,14 @@ def settings_stylesheet() -> str:
 {root} QPushButton#primaryButton:hover {{
     background-color: {color.highlight};
 }}
+{root} QPushButton#dangerButton {{
+    border-color: {color.error};
+    background-color: transparent;
+    color: #FFB4AB;
+}}
+{root} QPushButton#dangerButton:hover {{
+    background-color: #3A252C;
+}}
 {root} QScrollBar:vertical {{
     width: 9px;
     margin: 2px;

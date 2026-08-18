@@ -64,3 +64,10 @@ class PetStateRepository(Protocol):
         event_id: UUID,
     ) -> PetRewardGrant | None:
         """Return a reward already assigned to one structured event."""
+
+    async def reset(
+        self,
+        initial_state: PetState,
+        evaluated_at: datetime,
+    ) -> PetStateRecord:
+        """Atomically replace pet state and clear pet history and rewards."""

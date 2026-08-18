@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A through 9H complete; settings, diagnostics,
-and reset behavior next
+**Status:** In progress - Phases 9A through 9I complete; final verification
+and packaged smoke testing next
 
 ## Phase Goal
 
@@ -811,6 +811,53 @@ dialogue, transcripts, translations, sentiment, or provider output.
   set of unrelated pre-existing files remains outside Black's preferred
   formatting and is left untouched by this module.
 
+## Phase 9I: Settings, Diagnostics, And Reset
+
+Phase 9I was completed on 2026-08-18. It adds a read-only pet diagnostics
+surface and an explicit recovery operation without expanding the AI or
+assistant-action mutation boundary.
+
+### Pet Diagnostics
+
+- The Pet page in Settings includes a compact Care system section with current
+  wellbeing, progression, revision, elapsed-decay remainder, and evaluation
+  time summaries.
+- Diagnostics are built only from a validated `PetStateRecord`; dialogue-
+  shaped dictionaries and arbitrary provider output are rejected.
+- The diagnostics snapshot contains no chat text, transcript, translation,
+  file content, provider response, credential, or private path.
+- Refresh and reset work run off the Qt UI thread. Overlapping pet care,
+  runtime evaluation, diagnostics, and reset operations are blocked.
+
+### Confirmed Reset Boundary
+
+- Reset requires an explicit Settings confirmation that states what will be
+  removed and what will be preserved.
+- One SQLite transaction restores the approved initial wellbeing and
+  progression state, resets decay remainders and revision, clears pet-state
+  history, and clears pet reward grants.
+- Reset preserves chat, memories, settings, assistant-action permissions and
+  audit history, Spotify credentials and preferences, and general behavior
+  history.
+- The repository records one new typed `reset` history entry after clearing
+  the prior pet ledgers. The service refreshes its cached snapshot only after
+  the transaction succeeds.
+- A successful reset publishes a sanitized `pet.state_reset` event so the Care
+  window, mood, diagnostics, and behavior history agree on the new state.
+- No reset capability is exposed to AI providers, tool proposals, chat text,
+  or assistant-action dispatch.
+
+### Phase 9I Verification
+
+- Repository tests cover atomic state restoration, revision reset, reward and
+  pet-history clearing, and the replacement reset record.
+- Service, worker, UI, mood, diagnostics, and behavior-history tests cover
+  typed input, cache refresh, explicit confirmation, busy-state exclusion,
+  sanitized presentation, and reset reactions.
+- The complete suite passes with 1,485 tests and 3 optional-provider skips.
+- Ruff, changed-file Black verification, Python compilation, and diff checks
+  pass.
+
 ## Planned Scope
 
 - Persistent satiety, attention, affection, and energy statistics.
@@ -846,7 +893,7 @@ dialogue, transcripts, translations, sentiment, or provider output.
 - [x] Add pet status and care UI.
 - [x] Integrate structured pet events with mood and proactive behavior.
 - [x] Add voice and animation reactions.
-- [ ] Add settings, diagnostics, and reset behavior.
+- [x] Add settings, diagnostics, and reset behavior.
 - [ ] Add automated and manual verification.
 
 ## Required Boundary Tests

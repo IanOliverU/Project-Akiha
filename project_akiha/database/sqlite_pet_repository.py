@@ -136,6 +136,20 @@ class SQLitePetStateRepository:
             raise TypeError("event_id must be a UUID.")
         return await asyncio.to_thread(self._find_reward_grant, event_id)
 
+    async def reset(
+        self,
+        initial_state: PetState,
+        evaluated_at: datetime,
+    ) -> PetStateRecord:
+        """Atomically restore defaults and clear pet-only history and rewards."""
+        _require_state(initial_state, "initial_state")
+        normalized_time = _normalize_datetime(evaluated_at, "evaluated_at")
+        return await asyncio.to_thread(
+            self._reset,
+            initial_state,
+            normalized_time,
+        )
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
@@ -343,6 +357,59 @@ class SQLitePetStateRepository:
         finally:
             connection.close()
         return _reward_from_row(row) if row is not None else None
+
+    def _reset(
+        self,
+        initial_state: PetState,
+        evaluated_at: datetime,
+    ) -> PetStateRecord:
+        timestamp = _timestamp(evaluated_at)
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM pet_reward_grants")
+            connection.execute("DELETE FROM pet_state_history")
+            connection.execute("DELETE FROM pet_state")
+            connection.execute(
+                """
+                INSERT INTO pet_state(
+                    id,
+                    satiety,
+                    energy,
+                    attention,
+                    affection,
+                    xp,
+                    level,
+                    currency,
+                    satiety_decay_seconds,
+                    energy_decay_seconds,
+                    attention_decay_seconds,
+                    revision,
+                    evaluated_at,
+                    created_at,
+                    updated_at
+                )
+                VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                """,
+                _state_columns(initial_state) + (timestamp, timestamp, timestamp),
+            )
+            _insert_history(
+                connection,
+                revision=0,
+                mutation_kind=PetMutationKind.RESET,
+                previous_state=None,
+                current_state=initial_state,
+                band_transitions=(),
+                created_at=timestamp,
+            )
+            row = _select_state(connection)
+            connection.commit()
+            return _record_from_row(_require_row(row))
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
 
 def _select_state(connection: sqlite3.Connection) -> sqlite3.Row | None:

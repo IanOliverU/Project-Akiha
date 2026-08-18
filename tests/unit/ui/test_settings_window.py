@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -37,6 +38,7 @@ from project_akiha.integrations.spotify.auth import SpotifyToken
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryResult,
 )
+from project_akiha.services.pet_diagnostics import PetDiagnosticsSnapshot
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.theme import AKIHA_PALETTE
 
@@ -157,6 +159,7 @@ class SettingsWindowTest(unittest.TestCase):
             {
                 "Window",
                 "Appearance",
+                "Care system",
                 "Provider",
                 "Processing boundary",
                 "Identity",
@@ -174,6 +177,73 @@ class SettingsWindowTest(unittest.TestCase):
                 "Diagnostics",
             }.issubset(section_titles)
         )
+
+    def test_pet_diagnostics_controls_present_typed_snapshot(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            requested: list[str] = []
+            window.pet_diagnostics_requested.connect(
+                lambda: requested.append("diagnostics")
+            )
+            snapshot = PetDiagnosticsSnapshot(
+                revision=3,
+                evaluated_at=datetime(2026, 8, 18, 12, 0, tzinfo=UTC),
+                satiety=80,
+                energy=70,
+                attention=60,
+                affection=55,
+                xp=30,
+                level=2,
+                currency=8,
+                decay_remainders=(10, 20, 30),
+            )
+
+            window._pet_diagnostics_button.click()
+            window.set_pet_diagnostics(snapshot)
+
+        self.assertEqual(requested, ["diagnostics"])
+        self.assertEqual(window._pet_diagnostic_status.text(), "Pet state is ready.")
+        self.assertIn("Satiety 80%", window._pet_state_summary.text())
+        self.assertEqual(
+            window._pet_progression_summary.text(),
+            "Level 2 | 30 XP | 8 currency",
+        )
+        self.assertIn("Revision 3", window._pet_runtime_summary.text())
+
+    def test_pet_reset_requires_explicit_confirmation(self) -> None:
+        original_question = settings_window_module.QMessageBox.question
+        try:
+            with TemporaryDirectory() as directory:
+                window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+                requested: list[str] = []
+                window.pet_reset_requested.connect(lambda: requested.append("reset"))
+                settings_window_module.QMessageBox.question = lambda *args: (
+                    settings_window_module.QMessageBox.StandardButton.No
+                )
+                window._pet_reset_button.click()
+                self.assertEqual(requested, [])
+
+                settings_window_module.QMessageBox.question = lambda *args: (
+                    settings_window_module.QMessageBox.StandardButton.Yes
+                )
+                window._pet_reset_button.click()
+        finally:
+            settings_window_module.QMessageBox.question = original_question
+
+        self.assertEqual(requested, ["reset"])
+
+    def test_pet_maintenance_busy_state_blocks_overlapping_requests(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+
+            window.set_pet_maintenance_busy(True)
+
+            self.assertFalse(window._pet_diagnostics_button.isEnabled())
+            self.assertFalse(window._pet_reset_button.isEnabled())
+            self.assertEqual(
+                window._pet_diagnostic_status.text(),
+                "Checking pet state...",
+            )
 
     def test_assistant_permission_controls_refresh_and_emit_actions(self) -> None:
         with TemporaryDirectory() as directory:

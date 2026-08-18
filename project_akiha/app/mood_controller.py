@@ -68,6 +68,7 @@ class MoodController:
             EventType.PET_CARE_COMPLETED,
             self._handle_pet_care_completed,
         )
+        event_bus.subscribe(EventType.PET_STATE_RESET, self._handle_pet_state_reset)
         event_bus.subscribe(
             EventType.VOICE_STATE_CHANGED,
             self._handle_voice_state_changed,
@@ -133,6 +134,14 @@ class MoodController:
                 action,
                 level_increased=level_increased,
             )
+        )
+
+    def _handle_pet_state_reset(self, event: Event) -> None:
+        revision = event.payload.get("revision")
+        if type(revision) is not int or revision != 0:
+            return
+        self._publish_if_changed(
+            self._mood_engine.observe_interaction("pet_state_reset")
         )
 
     def _handle_interaction(self, event: Event) -> None:

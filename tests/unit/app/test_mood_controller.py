@@ -231,6 +231,28 @@ class MoodControllerTest(unittest.TestCase):
 
         self.assertEqual(len(received), 1)
 
+    def test_typed_pet_reset_restores_attentive_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+        bus.publish(EventType.USER_ACTIVITY_STATE_CHANGED, _activity_payload("away"))
+
+        bus.publish(EventType.PET_STATE_RESET, {"revision": 0})
+
+        self.assertEqual(received[-1].payload["mood"], "attentive")
+        self.assertEqual(received[-1].payload["reason"], "pet_state_reset")
+
+    def test_invalid_pet_reset_payload_is_ignored(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(EventType.PET_STATE_RESET, {"dialogue": "reset pet"})
+
+        self.assertEqual(len(received), 1)
+
     def test_unselected_pet_need_transition_does_not_replace_mood(self) -> None:
         bus = EventBus()
         received: list[Event] = []

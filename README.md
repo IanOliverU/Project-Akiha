@@ -109,7 +109,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
-| Phase 9 | In progress; 9A-9H complete | Pet statistics, care actions, progression, and attention behavior |
+| Phase 9 | In progress; 9A-9I complete | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
 
 ## Tech Stack
@@ -347,7 +347,11 @@ motion; nearest-neighbor rendering preserves its original hard pixel edges.
 Phase 9H publishes sanitized care, affection, and level events only from
 committed typed outcomes, then routes bounded local voice lines and safe
 sleep/idle fallbacks through the existing voice, mood, animation, proactive,
-and behavior-history systems.
+and behavior-history systems. Phase 9I adds read-only pet diagnostics and a
+confirmed, atomic reset operation that restores only pet state and progression
+while preserving chat, memories, settings, permissions, Spotify data, and
+general behavior history. The reset remains unavailable to AI providers and
+assistant-action tools.
 
 Details: `docs/phases/phase-09-pet-sim/README.md`
 

@@ -325,6 +325,47 @@ class SQLitePetStateRepositoryTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(persisted, first)
         self.assertEqual(len(history), 2)
 
+    async def test_reset_atomically_restores_defaults_and_clears_pet_ledgers(
+        self,
+    ) -> None:
+        initial = PetState(progression=PetProgression(xp=20, level=1, currency=0))
+        record = await self._repository.load_or_create(initial, self._started_at)
+        grant = PetRewardGrant(
+            kind=PetRewardKind.CARE_FEED,
+            event_id=None,
+            xp_awarded=5,
+            currency_awarded=2,
+            granted_at=self._started_at,
+        )
+        changed = replace(
+            record.state,
+            progression=PetProgression(xp=25, level=2, currency=2),
+        )
+        await self._repository.save_transition(
+            expected_revision=record.revision,
+            previous_state=record.state,
+            current_state=changed,
+            evaluated_at=self._started_at,
+            mutation_kind=PetMutationKind.CARE_FEED,
+            record_history=True,
+            reward_grant=grant,
+        )
+        reset_at = self._started_at + timedelta(hours=1)
+
+        reset = await self._repository.reset(PetState.initial(), reset_at)
+        history = await self._repository.get_recent_history(10)
+        grants = await self._repository.get_reward_grants(
+            self._started_at - timedelta(days=1)
+        )
+
+        self.assertEqual(reset.state, PetState.initial())
+        self.assertEqual(reset.revision, 0)
+        self.assertEqual(reset.evaluated_at, reset_at)
+        self.assertEqual(grants, ())
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].mutation_kind, PetMutationKind.RESET)
+        self.assertIsNone(history[0].previous_state)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -169,6 +169,29 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    async def test_reset_restores_initial_state_and_refreshes_service_cache(
+        self,
+    ) -> None:
+        service = PetStateService(self._repository, self._clock)
+        await service.initialize()
+        await service.apply_care_action(CareAction.SPEND_TIME)
+        self._clock.advance(timedelta(hours=2))
+
+        reset = await service.reset()
+        snapshot = await service.snapshot()
+        history = await self._repository.get_recent_history(10)
+        grants = await self._repository.get_reward_grants(
+            self._clock.now() - timedelta(days=1)
+        )
+
+        self.assertEqual(reset, snapshot)
+        self.assertEqual(reset.state, PetState.initial())
+        self.assertEqual(reset.revision, 0)
+        self.assertEqual(reset.evaluated_at, self._clock.now())
+        self.assertEqual(grants, ())
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].mutation_kind, PetMutationKind.RESET)
+
     async def test_care_recovers_floor_state_and_persists_recovery(self) -> None:
         floor_state = PetState(
             wellbeing=PetWellbeing(
@@ -359,6 +382,7 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
                 "apply_interaction_event",
                 "evaluate_runtime",
                 "initialize",
+                "reset",
                 "snapshot",
             },
         )

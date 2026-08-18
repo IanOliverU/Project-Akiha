@@ -115,6 +115,15 @@ class PetStateService:
             await self._evaluate_and_commit_locked(now, DecayMode.RUNTIME)
             return await self._apply_interaction_event_locked(event, now)
 
+    async def reset(self) -> PetStateRecord:
+        """Atomically restore the approved initial state and pet-only ledgers."""
+        async with self._lock:
+            self._record = await self._repository.reset(
+                self._initial_state,
+                self._current_time(),
+            )
+            return self._record
+
     async def _initialize_locked(self, now: datetime) -> PetStateEvaluation:
         self._record = await self._repository.load_or_create(
             self._initial_state,

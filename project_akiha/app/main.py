@@ -264,6 +264,10 @@ from project_akiha.services.intent_arbitration import (
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
 from project_akiha.services.path_resolver import ConfigPathResolver
+from project_akiha.services.pet_diagnostics import (
+    PetDiagnosticsSnapshot,
+    build_pet_diagnostics,
+)
 from project_akiha.services.pet_state import PetStateService, SystemPetClock
 from project_akiha.services.privacy_notice import (
     acknowledge_current_privacy_notice,
@@ -322,6 +326,10 @@ from project_akiha.ui.pet_care_window import PetCareWindow
 from project_akiha.ui.pet_care_worker import (
     PetCareThread,
     PetRuntimeEvaluationThread,
+)
+from project_akiha.ui.pet_maintenance_worker import (
+    PetMaintenanceOperation,
+    PetMaintenanceThread,
 )
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 from project_akiha.ui.pet_window import PetWindow
@@ -783,6 +791,7 @@ def _run_application() -> int:
     interrupted_chat_threads: list[ChatResponseThread] = []
     active_action_threads: list[AssistantActionThread] = []
     active_pet_care_threads: list[PetCareThread] = []
+    active_pet_maintenance_threads: list[PetMaintenanceThread] = []
     active_pet_runtime_threads: list[PetRuntimeEvaluationThread] = []
     active_tool_threads: list[
         AssistantToolProposalThread
@@ -938,12 +947,90 @@ def _run_application() -> int:
         voice_diagnostics_controller.toggle_output_test
     )
 
+    def cleanup_pet_maintenance_thread(thread: PetMaintenanceThread) -> None:
+        if thread in active_pet_maintenance_threads:
+            active_pet_maintenance_threads.remove(thread)
+        thread.deleteLater()
+        if not active_pet_maintenance_threads:
+            settings_window.set_pet_maintenance_busy(False)
+
+    def handle_pet_diagnostics(snapshot: object) -> None:
+        if not isinstance(snapshot, PetDiagnosticsSnapshot):
+            logger.error("Pet diagnostics worker returned an invalid snapshot.")
+            settings_window.set_pet_maintenance_status(
+                "Pet diagnostics returned invalid data.",
+                True,
+            )
+            return
+        settings_window.set_pet_diagnostics(snapshot)
+
+    def handle_pet_reset(record: object) -> None:
+        if not isinstance(record, PetStateRecord):
+            logger.error("Pet reset worker returned an invalid record.")
+            settings_window.set_pet_maintenance_status(
+                "Pet progress could not be reset.",
+                True,
+            )
+            return
+        snapshot = build_pet_diagnostics(record)
+        settings_window.set_pet_diagnostics(snapshot)
+        settings_window.set_pet_maintenance_status("Pet progress was reset.")
+        pet_care_window.update_record(record)
+        pet_care_window.set_notice("Akiha's care progress was reset.")
+        event_bus.publish(
+            EventType.PET_STATE_RESET,
+            {
+                "kind": "pet_state_reset",
+                "revision": record.revision,
+                "evaluated_at": record.evaluated_at.isoformat(),
+            },
+        )
+
+    def handle_pet_maintenance_failure(detail: str) -> None:
+        logger.error("Pet maintenance operation failed: %s", detail)
+        settings_window.set_pet_maintenance_status(
+            "Pet maintenance could not be completed. Check the logs.",
+            True,
+        )
+
+    def start_pet_maintenance(operation: PetMaintenanceOperation) -> None:
+        if not isinstance(operation, PetMaintenanceOperation):
+            raise TypeError("operation must be a PetMaintenanceOperation value.")
+        if (
+            active_pet_care_threads
+            or active_pet_runtime_threads
+            or active_pet_maintenance_threads
+        ):
+            settings_window.set_pet_maintenance_status(
+                "A pet-state operation is already running.",
+                True,
+            )
+            return
+        settings_window.set_pet_maintenance_busy(True)
+        thread = PetMaintenanceThread(pet_state_service, operation)
+        active_pet_maintenance_threads.append(thread)
+        thread.diagnostics_ready.connect(handle_pet_diagnostics)
+        thread.reset_ready.connect(handle_pet_reset)
+        thread.failed.connect(handle_pet_maintenance_failure)
+        thread.finished.connect(
+            lambda current=thread: cleanup_pet_maintenance_thread(current)
+        )
+        thread.start()
+
+    settings_window.pet_diagnostics_requested.connect(
+        lambda: start_pet_maintenance(PetMaintenanceOperation.DIAGNOSTICS)
+    )
+    settings_window.pet_reset_requested.connect(
+        lambda: start_pet_maintenance(PetMaintenanceOperation.RESET)
+    )
+
     def show_settings(event: Event | None = None) -> None:
         del event
         refresh_assistant_permissions()
         settings_window.show()
         settings_window.raise_()
         settings_window.activateWindow()
+        start_pet_maintenance(PetMaintenanceOperation.DIAGNOSTICS)
 
     def cleanup_pet_care_thread(thread: PetCareThread) -> None:
         if thread in active_pet_care_threads:
@@ -986,7 +1073,11 @@ def _run_application() -> int:
         )
 
     def start_pet_care_operation(action: CareAction | None = None) -> None:
-        if active_pet_care_threads or active_pet_runtime_threads:
+        if (
+            active_pet_care_threads
+            or active_pet_runtime_threads
+            or active_pet_maintenance_threads
+        ):
             return
         pet_care_window.set_busy(True)
         thread = PetCareThread(pet_state_service, action)
@@ -2914,6 +3005,7 @@ def _run_application() -> int:
             *active_action_threads,
             *active_tool_threads,
             *active_pet_care_threads,
+            *active_pet_maintenance_threads,
             *active_pet_runtime_threads,
         ]
         try:
@@ -3027,7 +3119,11 @@ def _run_application() -> int:
         logger.error("Pet runtime evaluation failed: %s", detail)
 
     def evaluate_pet_runtime() -> None:
-        if active_pet_care_threads or active_pet_runtime_threads:
+        if (
+            active_pet_care_threads
+            or active_pet_runtime_threads
+            or active_pet_maintenance_threads
+        ):
             return
         thread = PetRuntimeEvaluationThread(pet_state_service)
         active_pet_runtime_threads.append(thread)
@@ -3061,6 +3157,7 @@ def _run_application() -> int:
         active_chat_threads,
         active_action_threads,
         active_pet_care_threads,
+        active_pet_maintenance_threads,
         active_pet_runtime_threads,
         active_tool_threads,
         assistant_tool_gateway,
