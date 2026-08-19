@@ -100,6 +100,30 @@ class SpeechOutputServiceTest(unittest.TestCase):
         self.assertEqual(captured.exception.code, "invalid_synthesis_request")
         self.assertFalse(provider.health_called)
 
+    def test_waits_for_managed_provider_before_health_check(self) -> None:
+        provider = _Provider()
+        waits: list[bool] = []
+        service = SpeechOutputService(
+            provider,
+            readiness_waiter=lambda: waits.append(True) or True,
+        )
+
+        asyncio.run(service.synthesize("Test."))
+
+        self.assertEqual(waits, [True])
+        self.assertTrue(provider.health_called)
+
+    def test_startup_timeout_does_not_send_text_to_provider(self) -> None:
+        provider = _Provider()
+        service = SpeechOutputService(provider, readiness_waiter=lambda: False)
+
+        with self.assertRaises(SpeechOutputServiceError) as captured:
+            asyncio.run(service.synthesize("Private response."))
+
+        self.assertEqual(captured.exception.code, "provider_startup_timeout")
+        self.assertFalse(provider.health_called)
+        self.assertIsNone(provider.request)
+
 
 class _Provider:
     def __init__(

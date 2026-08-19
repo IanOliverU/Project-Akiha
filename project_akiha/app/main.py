@@ -9,6 +9,7 @@ import os
 import sys
 import traceback
 import wave
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
@@ -722,6 +723,10 @@ def _run_application() -> int:
         config.voice,
         project_root=paths.project_root,
         model_dir=paths.model_dir,
+        readiness_waiter=_build_gpt_sovits_readiness_waiter(
+            config.voice,
+            gpt_sovits_engine_manager,
+        ),
     )
     voice_synthesis_controller = VoiceSynthesisController(
         event_bus=event_bus,
@@ -883,6 +888,10 @@ def _run_application() -> int:
             updated_config.voice,
             project_root=paths.project_root,
             model_dir=paths.model_dir,
+            readiness_waiter=_build_gpt_sovits_readiness_waiter(
+                updated_config.voice,
+                gpt_sovits_engine_manager,
+            ),
         )
         voice_transcription_controller.apply_service(
             speech_input_service,
@@ -3352,6 +3361,7 @@ def _build_speech_output_service(
     *,
     project_root: Path | None = None,
     model_dir: Path | None = None,
+    readiness_waiter: Callable[[], bool] | None = None,
 ) -> SpeechOutputService:
     if voice_config.output_provider == "disabled":
         return SpeechOutputService(
@@ -3371,13 +3381,35 @@ def _build_speech_output_service(
                 reference_audio_path=reference_audio,
                 prompt_text=prompt_text,
                 timeout_seconds=float(voice_config.request_timeout_seconds),
-            )
+            ),
+            readiness_waiter=readiness_waiter,
         )
     return SpeechOutputService(
         UnavailableVoiceOutputProvider(
             "No supported local speech output provider is configured."
         )
     )
+
+
+def _build_gpt_sovits_readiness_waiter(
+    voice_config: VoiceConfig,
+    manager: GptSoVitsEngineManager,
+) -> Callable[[], bool] | None:
+    if (
+        voice_config.output_provider != "gpt-sovits"
+        or not voice_config.output_engine_auto_start
+    ):
+        return None
+    base_url = voice_config.output_base_url
+    timeout_seconds = max(60.0, float(voice_config.request_timeout_seconds))
+
+    def wait_until_ready() -> bool:
+        return manager.wait_until_ready(
+            base_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+    return wait_until_ready
 
 
 def _resolve_gpt_sovits_prompt(

@@ -1,7 +1,7 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - Phases 9A through 9I complete; final verification
-and packaged smoke testing next
+**Status:** In progress - corrected Phase 9J automated and packaged gates pass;
+owner manual standalone approval remains
 
 ## Phase Goal
 
@@ -299,10 +299,11 @@ contract above before integration.
 #### First Reference-Guided Prototype
 
 `idle-v1` is a four-frame, restrained idle reaction generated from the active
-standing sprite. The owner approved it as Akiha's first animated idle on
-2026-08-14. Its normalized frames are active through the animation manifest at
-approximately six frames per second while the original standing sprite remains
-available as a universal fallback.
+standing sprite. It was provisionally approved on 2026-08-14, then superseded
+after closer review found that generated poses could not guarantee exact
+palette, shading, and identity fidelity. Its review bundle remains as research
+history, but its generated frames are not referenced by the active manifest and
+must not be used as a canonical source.
 
 - [Animated preview](prototypes/idle-v1/animation.gif)
 - [Enlarged contact sheet](prototypes/idle-v1/review-contact-sheet.png)
@@ -310,10 +311,12 @@ available as a universal fallback.
 - [Pipeline and QC metadata](prototypes/idle-v1/pipeline-meta.json)
 - [Generation prompt](prototypes/idle-v1/prompt-used.txt)
 
-The generated frames passed format, dimension, transparency, and output-edge
-checks. The complete generation bundle remains under Phase 9 documentation so
-clean release builds package only the four approved runtime frames rather than
-raw or review artwork.
+The prototype passed basic format, dimension, transparency, and output-edge
+checks, demonstrating why automated image-shape checks are necessary but not
+sufficient for identity approval. The active idle now reuses only the exact
+`standing/000.png` image with integer-position offsets. The reconciled current
+and future boundaries are recorded in
+[the pet animation architecture](../../../PROJECT_AKIHA_PET_ANIMATION_ARCHITECTURE.MD).
 
 ### Minimum Reaction Matrix
 
@@ -858,6 +861,77 @@ assistant-action mutation boundary.
 - Ruff, changed-file Black verification, Python compilation, and diff checks
   pass.
 
+## Phase 9J: Final Verification And Standalone Candidate
+
+Phase 9J produced an automated Phase 9 candidate on 2026-08-19. Owner testing
+found one packaged GPT-SoVITS cold-start race, so the original candidate was
+superseded by a corrected candidate. The replacement is ready for the
+owner-only visual, audio, interaction, and graceful Quit pass; Phase 9 is not
+formally closed until that manual result is recorded.
+
+### Automated Source Gate
+
+- The complete suite passes with 1,491 tests and 3 optional-provider skips.
+- Ruff passes across `project_akiha` and `tests`.
+- Black passes across all 452 checked Python files. Older formatting drift in
+  configuration, GPT-SoVITS preparation, and provider-test code was normalized
+  without changing behavior.
+- Python compilation and Git whitespace checks pass.
+- An isolated fresh-data source startup creates the Phase 9 database tables and
+  a clean application log.
+
+### Standalone Candidate
+
+- Python 3.13.14 and Nuitka 4.1.3 initially produced
+  `dist/nuitka-phase9-final/main.dist/Akiha.exe` through the `CleanRelease`
+  workflow.
+- The clean build took 6,505.709 seconds (about 1 hour 48 minutes). Its timing
+  JSON and Nuitka compilation XML are stored beside the artifact.
+- The Windows GUI subsystem and packaged-artifact validators pass.
+- The package contains 814 files and is approximately 0.421 GiB.
+- Fresh-data and seeded existing-data packaged smoke passes both create/load
+  migrations through `0010`, show no visible console window, and produce logs
+  without unexpected errors.
+- The automated harness force-stops the tray-owned process after requesting
+  `CloseMainWindow()`; this is expected and does not replace manual tray Quit.
+- Nuitka reported that the Microsoft Visual C++ 2015-2022 runtime must be
+  installed on a target Windows machine because its redistributable DLLs were
+  not bundled by this build environment.
+
+### Corrected Voice Candidate
+
+The original candidate allowed a synthesis request to probe the managed
+GPT-SoVITS endpoint while its models were still loading. A cold launch could
+therefore report that the local API was unreachable even though the owned
+process became ready roughly 30 seconds later.
+
+- `SpeechOutputService` now waits off the Qt UI thread for an owned,
+  auto-started GPT-SoVITS process to become ready, with a fixed 60-second
+  minimum bound and a privacy-safe timeout failure.
+- External or manually managed GPT-SoVITS endpoints retain immediate health
+  behavior, and the engine manager now honors the auto-start setting.
+- Privacy-safe latency diagnostics record elapsed time to the first provider
+  delta and first stable speech segment without logging response text.
+- Python 3.13.14 and Nuitka 4.1.3 produced the replacement at
+  `dist/nuitka-phase9-final-fixed/main.dist/Akiha.exe` through the isolated
+  `FastBuild` workflow.
+- The first project-local cache build took 6,420.078 seconds (about 1 hour 47
+  minutes). Nuitka attributed 5,820.49 seconds to compiling the generated
+  `google.genai.types` module; later builds may reuse the populated cache.
+- The Windows GUI subsystem and packaged-artifact validators pass. The package
+  contains 814 files and is approximately 0.421 GiB.
+- Fresh-data and seeded existing-data packaged smoke passes both create/load
+  migrations through `0010`, show no visible console window, and produce logs
+  without unexpected errors.
+
+### Owner Manual Gate
+
+Use `docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md` with
+`dist/nuitka-phase9-final-fixed/main.dist/Akiha.exe`. In addition to the existing
+voice, provider, action, memory, and shutdown checks, the report now covers
+care actions, progression, diagnostics, reset preservation, canonical idle
+fidelity, and walking direction.
+
 ## Planned Scope
 
 - Persistent satiety, attention, affection, and energy statistics.
@@ -894,7 +968,8 @@ assistant-action mutation boundary.
 - [x] Integrate structured pet events with mood and proactive behavior.
 - [x] Add voice and animation reactions.
 - [x] Add settings, diagnostics, and reset behavior.
-- [ ] Add automated and manual verification.
+- [x] Complete final automated source and packaged verification.
+- [ ] Complete owner manual standalone verification.
 
 ## Required Boundary Tests
 

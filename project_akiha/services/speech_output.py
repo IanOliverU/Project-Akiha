@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import asyncio
+from collections.abc import Callable, Sequence
 
 from project_akiha.providers.voice import (
     SpeechSynthesisRequest,
@@ -26,8 +27,14 @@ class SpeechOutputServiceError(RuntimeError):
 class SpeechOutputService:
     """Validate provider health and synthesize one temporary utterance."""
 
-    def __init__(self, provider: VoiceOutputProvider) -> None:
+    def __init__(
+        self,
+        provider: VoiceOutputProvider,
+        *,
+        readiness_waiter: Callable[[], bool] | None = None,
+    ) -> None:
         self._provider = provider
+        self._readiness_waiter = readiness_waiter
 
     async def health(self) -> VoiceProviderHealth:
         """Return provider health without raising connection failures."""
@@ -80,6 +87,16 @@ class SpeechOutputService:
             ) from error
 
         try:
+            if self._readiness_waiter is not None:
+                try:
+                    is_ready = await asyncio.to_thread(self._readiness_waiter)
+                except Exception:
+                    is_ready = False
+                if not is_ready:
+                    raise SpeechOutputServiceError(
+                        "provider_startup_timeout",
+                        "The managed speech engine did not become ready in time.",
+                    )
             health = await self._provider.health()
             if health.status != VoiceProviderStatus.AVAILABLE:
                 raise SpeechOutputServiceError(

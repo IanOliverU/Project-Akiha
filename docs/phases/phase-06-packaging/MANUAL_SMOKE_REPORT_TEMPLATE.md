@@ -29,6 +29,7 @@ Use this report with
 | Memory Manager | pending | |
 | Behavior History | pending | |
 | Proactive behavior | pending | |
+| Pet Sim | pending | |
 | Graceful Quit | pending | |
 
 Use `pass`, `fail`, or `blocked` for each result.
@@ -47,6 +48,8 @@ Use `pass`, `fail`, or `blocked` for each result.
 - Missing permission and confirmation behavior remained enforced: yes/no
 - Provider-visible action results remained sanitized: yes/no
 - Japanese deterministic memory fallback produced a pending candidate: yes/no
+- Care actions, progression, diagnostics, and confirmed pet reset worked: yes/no
+- Canonical idle remained sharp and walking direction remained correct: yes/no
 - `%LOCALAPPDATA%\Akiha\logs\app.log` had no unexpected failures: yes/no
 - `%LOCALAPPDATA%\Akiha\state\pet_window.json` was written: yes/no
 

@@ -290,9 +290,7 @@ class VoiceConfig:
             "disabled",
             "gpt-sovits",
         }:
-            message = (
-                "voice.output_provider must be 'disabled' or 'gpt-sovits'."
-            )
+            message = "voice.output_provider must be 'disabled' or 'gpt-sovits'."
             raise ValueError(message)
         if not self.input_model.strip():
             raise ValueError("voice.input_model cannot be empty.")

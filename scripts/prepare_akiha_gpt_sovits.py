@@ -74,8 +74,7 @@ def main() -> int:
     print(f"Manifest: {manifest.manifest_path}")
     print(f"Training list: {manifest.list_path}")
     print(
-        "Transcribed clips: "
-        f"{sum(bool(entry.text) for entry in manifest.entries)}"
+        "Transcribed clips: " f"{sum(bool(entry.text) for entry in manifest.entries)}"
     )
     print(
         json.dumps(

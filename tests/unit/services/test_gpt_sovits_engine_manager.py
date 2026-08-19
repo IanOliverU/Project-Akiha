@@ -112,6 +112,50 @@ class GptSoVitsEngineManagerTest(unittest.TestCase):
         self.assertTrue(status.is_error)
         self.assertEqual(factory.commands, [])
 
+    def test_disabled_auto_start_does_not_launch_runtime(self) -> None:
+        factory = _ProcessFactory()
+        manager = GptSoVitsEngineManager(
+            Path.cwd(),
+            process_factory=factory,
+            endpoint_probe=lambda _url: False,
+            environment={},
+        )
+
+        status = manager.apply_config(_managed_config(output_engine_auto_start=False))
+
+        self.assertEqual(status.state, "disabled")
+        self.assertEqual(factory.commands, [])
+
+    def test_wait_until_ready_accepts_owned_engine_after_loading(self) -> None:
+        probes = iter((False, False, True))
+        manager = GptSoVitsEngineManager(
+            Path.cwd(),
+            endpoint_probe=lambda _url: next(probes),
+        )
+        manager._process = _Process()
+
+        ready = manager.wait_until_ready(
+            "http://127.0.0.1:9880",
+            timeout_seconds=0.1,
+            poll_interval_seconds=0.001,
+        )
+
+        self.assertTrue(ready)
+
+    def test_wait_until_ready_stops_when_owned_engine_exits(self) -> None:
+        manager = GptSoVitsEngineManager(
+            Path.cwd(),
+            endpoint_probe=lambda _url: False,
+        )
+
+        ready = manager.wait_until_ready(
+            "http://127.0.0.1:9880",
+            timeout_seconds=0.1,
+            poll_interval_seconds=0.001,
+        )
+
+        self.assertFalse(ready)
+
 
 class _Process:
     def __init__(self) -> None:
@@ -158,6 +202,7 @@ def _managed_config(**overrides: object) -> VoiceConfig:
         "enabled": True,
         "output_provider": "gpt-sovits",
         "output_base_url": "http://127.0.0.1:9880",
+        "output_engine_auto_start": True,
     }
     values.update(overrides)
     return VoiceConfig(**values)

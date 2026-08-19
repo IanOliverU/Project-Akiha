@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,6 +99,13 @@ class GptSoVitsEngineManager:
             )
             return GptSoVitsEngineStatus("running", detail)
 
+        if not config.output_engine_auto_start:
+            self.stop()
+            return GptSoVitsEngineStatus(
+                "disabled",
+                "Automatic GPT-SoVITS start is disabled.",
+            )
+
         runtime = self._resolve_runtime()
         if runtime is None:
             self.stop()
@@ -164,6 +172,30 @@ class GptSoVitsEngineManager:
             "GPT-SoVITS API is not reachable.",
             True,
         )
+
+    def wait_until_ready(
+        self,
+        base_url: str,
+        *,
+        timeout_seconds: float = 60.0,
+        poll_interval_seconds: float = 0.5,
+    ) -> bool:
+        """Wait for an owned process to expose its endpoint within a fixed bound."""
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be greater than zero.")
+        if poll_interval_seconds <= 0:
+            raise ValueError("poll_interval_seconds must be greater than zero.")
+
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            if self._endpoint_probe(base_url):
+                return True
+            if not self.owns_running_process:
+                return False
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(poll_interval_seconds, remaining))
 
     def stop(self, timeout_seconds: float = 5.0) -> bool:
         """Stop the owned process without touching an external API process."""

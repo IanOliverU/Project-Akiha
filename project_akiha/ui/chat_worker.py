@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Protocol
 from uuid import uuid4
 
@@ -63,9 +64,13 @@ class ChatResponseThread(QThread):
         self._response_segmenter = StableResponseSegmenter(
             self._response_context.response_id
         )
+        self._response_started_at: float | None = None
+        self._first_delta_logged = False
+        self._first_segment_logged = False
 
     def run(self) -> None:
         """Generate an assistant response in this worker thread."""
+        self._response_started_at = time.monotonic()
         self._ensure_response_started()
         if self._is_cancelled():
             self._emit_response_event(ModularResponseEventKind.CANCELLED)
@@ -108,6 +113,7 @@ class ChatResponseThread(QThread):
 
             chunks.append(chunk)
             if chunk:
+                self._log_first_latency("provider_delta")
                 self._emit_response_event(ModularResponseEventKind.DELTA, text=chunk)
                 self._emit_response_segments(self._response_segmenter.push(chunk))
             self.response_delta.emit(chunk)
@@ -125,6 +131,7 @@ class ChatResponseThread(QThread):
         segments: tuple[CanonicalResponseSegment, ...],
     ) -> None:
         for segment in segments:
+            self._log_first_latency("speech_segment")
             self.response_segment_ready.emit(segment)
             if self._segment_renderer is None:
                 continue
@@ -137,6 +144,27 @@ class ChatResponseThread(QThread):
                 )
                 rendered = canonical_speech_fallback(segment)
             self.speech_segment_ready.emit(rendered)
+
+    def _log_first_latency(self, stage: str) -> None:
+        if stage == "provider_delta":
+            if self._first_delta_logged:
+                return
+            self._first_delta_logged = True
+        elif stage == "speech_segment":
+            if self._first_segment_logged:
+                return
+            self._first_segment_logged = True
+        else:
+            return
+        started_at = self._response_started_at
+        if started_at is None:
+            return
+        elapsed_ms = round((time.monotonic() - started_at) * 1_000)
+        logging.getLogger("project_akiha.voice.latency").info(
+            "Local modular response stage=%s elapsed_ms=%d.",
+            stage,
+            elapsed_ms,
+        )
 
     def _is_cancelled(self) -> bool:
         return self._is_cancel_requested or self.isInterruptionRequested()

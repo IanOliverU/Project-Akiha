@@ -133,6 +133,21 @@ class ChatResponseThreadTest(unittest.TestCase):
         self.assertEqual([segment.is_final for segment in segments], [False, True])
         self.assertEqual(completed, ["First sentence. Second sentence begins."])
 
+    def test_latency_diagnostics_record_stages_without_response_content(self) -> None:
+        thread = ChatResponseThread(
+            StreamingController(("Private response.",)),
+            "hello",
+        )
+
+        with self.assertLogs("project_akiha.voice.latency", "INFO") as logs:
+            thread.run()
+
+        combined = " ".join(logs.output)
+        self.assertIn("stage=provider_delta", combined)
+        self.assertIn("stage=speech_segment", combined)
+        self.assertIn("elapsed_ms=", combined)
+        self.assertNotIn("Private response", combined)
+
     def test_cancel_discards_pending_canonical_segment(self) -> None:
         thread = ChatResponseThread(
             StreamingController(("Incomplete response", " must not flush.")),

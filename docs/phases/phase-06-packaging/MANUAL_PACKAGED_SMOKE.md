@@ -160,6 +160,28 @@ manual check is still kept as a human visual confirmation.
 - [ ] Quiet-hours/cooldown settings still save from Settings.
 - [ ] Proactive chat/tray delivery does not interrupt shutdown.
 
+## Pet Sim
+
+- [ ] `Akiha Care` opens from the pet menu and tray menu.
+- [ ] Satiety, energy, attention, affection, XP, level, and currency render.
+- [ ] Feed increases satiety and grants a reward only when eligible.
+- [ ] Rest increases energy and requests the safe sleeping presentation.
+- [ ] Spend time increases attention and affection.
+- [ ] Repeated reward farming respects cooldown and daily-cap behavior while
+  care remains able to recover a low statistic.
+- [ ] A care reaction uses the configured local voice provider when automatic
+  speech is enabled and remains silent without crashing when it is disabled.
+- [ ] Walking or dragging is not interrupted by a lower-priority care cue.
+- [ ] `Akiha > Pet > Care system > Refresh diagnostics` shows current bounded
+  values, revision, decay remainder, and evaluation time.
+- [ ] Cancelling `Reset pet progress` changes nothing.
+- [ ] Confirming reset restores the initial pet state, XP, level, currency, and
+  decay remainder while preserving chat, memories, settings, permissions,
+  Spotify data, and general behavior history.
+- [ ] The canonical idle remains sharp and visually identical to
+  `assets/animations/akiha/standing/000.png`.
+- [ ] Left and right walking face the correct travel direction.
+
 ## Graceful Quit
 
 - [ ] Move the pet to a visible new position.

@@ -94,9 +94,7 @@ class GptSoVitsProviderTest(unittest.TestCase):
             )
 
             with self.assertRaises(VoiceProviderError) as captured:
-                asyncio.run(
-                    provider.synthesize(SpeechSynthesisRequest(text=secret))
-                )
+                asyncio.run(provider.synthesize(SpeechSynthesisRequest(text=secret)))
 
         self.assertEqual(captured.exception.code, "gpt_sovits_error_response")
         self.assertNotIn(secret, str(captured.exception))
