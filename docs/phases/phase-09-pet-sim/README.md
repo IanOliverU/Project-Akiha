@@ -1,8 +1,8 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** Source implementation and automated verification complete; owner
-source-mode acceptance remains. The corrected standalone and packaged-provider
-gate is intentionally deferred until the consolidated post-Phase 10 release pass.
+**Status:** Complete - source implementation, automated verification, owner
+source-mode acceptance, and real Gemini/GPT-SoVITS runtime smoke passed on
+2026-08-20. The consolidated standalone release gate remains post-Phase 10 work.
 
 ## Phase Goal
 
@@ -1018,6 +1018,23 @@ Owner visual, voice, pet-care, interaction, and tray-Quit acceptance in source
 mode remains the final Phase 9J feature gate. Obsolete candidates remain
 untouched until the consolidated release pass.
 
+### Phase 9 Closure
+
+Phase 9 formally closed on 2026-08-20 at the agreed source boundary:
+
+- The owner accepted the source-mode pet, care, voice, provider, action, and
+  interaction behavior.
+- The complete automated source gate passed with 1,505 tests and 3 optional
+  skips, plus Ruff, Black, and Python compilation checks.
+- The host-context runtime smoke loaded the real Google Gen AI SDK, opened and
+  closed a real Gemini Live session, discovered the external private Akiha
+  references, and returned valid in-memory WAV audio from GPT-SoVITS.
+- The first sandboxed smoke could not decrypt current-user DPAPI data because it
+  ran in an isolated security context. Repeating the same privacy-safe check in
+  the normal Windows user context passed and confirmed the saved key is valid.
+- No additional standalone was built. Package correction and release acceptance
+  are intentionally consolidated with Phase 10J.
+
 ## Planned Scope
 
 - Persistent satiety, attention, affection, and energy statistics.
@@ -1055,8 +1072,8 @@ untouched until the consolidated release pass.
 - [x] Add voice and animation reactions.
 - [x] Add settings, diagnostics, and reset behavior.
 - [x] Complete final automated source verification.
-- [ ] Re-save the Gemini API key through source Settings and verify Gemini Live.
-- [ ] Complete owner manual source-mode verification.
+- [x] Validate the saved Gemini credential and pass real Gemini Live source smoke.
+- [x] Complete owner manual source-mode verification.
 - [ ] Post-Phase 10: build one corrected cached standalone candidate.
 - [ ] Post-Phase 10: pass real packaged Gemini and GPT-SoVITS runtime smoke.
 - [ ] Post-Phase 10: complete owner manual standalone verification.

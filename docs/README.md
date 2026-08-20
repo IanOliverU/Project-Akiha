@@ -16,7 +16,13 @@ material is separated by purpose.
 | 6 - Packaging | Complete | [`phases/phase-06-packaging/`](phases/phase-06-packaging/) |
 | 7 - Voice | Complete | [`phases/phase-07-voice/`](phases/phase-07-voice/) |
 | 8 - Assistant Actions | Complete | [`phases/phase-08-actions/`](phases/phase-08-actions/) |
-| 9 - Pet Simulation | In progress | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
+| 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
+
+## Planned Phase
+
+| Phase | Status | Documentation |
+| --- | --- | --- |
+| 10 - Shop And Visual Expansion | Planned | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
 ## Current Roadmap
 
