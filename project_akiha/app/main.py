@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import sys
 import traceback
-import wave
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -257,7 +255,10 @@ from project_akiha.services.ephemeral_action_context import (
     EphemeralSelectionReference,
 )
 from project_akiha.services.event_logger import EventLogger
-from project_akiha.services.gpt_sovits_engine_manager import GptSoVitsEngineManager
+from project_akiha.services.gpt_sovits_engine_manager import (
+    GptSoVitsEngineManager,
+)
+from project_akiha.services.gpt_sovits_reference import resolve_gpt_sovits_prompt
 from project_akiha.services.intent_arbitration import (
     IntentArbiter,
     IntentProposal,
@@ -281,6 +282,10 @@ from project_akiha.services.provider_action_dispatcher import (
 )
 from project_akiha.services.provider_action_proposal_gateway import (
     ProviderActionProposalGateway,
+)
+from project_akiha.services.provider_runtime_smoke import (
+    run_provider_runtime_smoke,
+    write_provider_runtime_smoke_report,
 )
 from project_akiha.services.provider_tool_fallback import (
     ProviderToolFallbackGate,
@@ -357,11 +362,51 @@ class _ChatErrorSurface(Protocol):
 
 def main() -> int:
     """Run the application and log unrecoverable startup failures."""
+    smoke_request = _provider_runtime_smoke_request(sys.argv[1:])
+    if smoke_request is not None:
+        report_path, connect_gemini = smoke_request
+        return _run_provider_runtime_smoke(report_path, connect_gemini)
     try:
         return _run_application()
     except Exception:
         _log_startup_failure()
         raise
+
+
+def _provider_runtime_smoke_request(
+    arguments: list[str],
+) -> tuple[Path, bool] | None:
+    prefix = "--provider-runtime-smoke-report="
+    report_value = next(
+        (
+            argument[len(prefix) :]
+            for argument in arguments
+            if argument.startswith(prefix)
+        ),
+        "",
+    ).strip()
+    if not report_value:
+        return None
+    connect_gemini = "--skip-gemini-network" not in arguments
+    return Path(report_value).expanduser(), connect_gemini
+
+
+def _run_provider_runtime_smoke(report_path: Path, connect_gemini: bool) -> int:
+    paths = get_app_paths()
+    config = load_config(
+        paths.user_config_path if paths.user_config_path.exists() else None
+    )
+    credentials = EncryptedCredentialStore(paths.credential_path)
+    report = asyncio.run(
+        run_provider_runtime_smoke(
+            config,
+            paths.project_root,
+            credentials,
+            connect_gemini=connect_gemini,
+        )
+    )
+    write_provider_runtime_smoke_report(report, report_path)
+    return 0 if report.passed else 1
 
 
 def _run_application() -> int:
@@ -3371,10 +3416,9 @@ def _build_speech_output_service(
         )
     if voice_config.output_provider == "gpt-sovits":
         resolved_root = project_root or Path(__file__).resolve().parents[2]
-        reference_dir = resolved_root / voice_config.output_reference_dir
-        reference_audio, prompt_text = _resolve_gpt_sovits_prompt(
+        reference_audio, prompt_text = resolve_gpt_sovits_prompt(
             resolved_root,
-            reference_dir,
+            voice_config.output_reference_dir,
             voice_config.output_prompt_text,
         )
         return SpeechOutputService(
@@ -3412,50 +3456,6 @@ def _build_gpt_sovits_readiness_waiter(
         )
 
     return wait_until_ready
-
-
-def _resolve_gpt_sovits_prompt(
-    project_root: Path,
-    reference_dir: Path,
-    configured_prompt: str,
-) -> tuple[Path | None, str]:
-    """Use a prepared valid reference/transcript pair when available."""
-    manifest_path = (
-        project_root
-        / "artifacts"
-        / "voice"
-        / "gpt-sovits"
-        / "akiha-dataset"
-        / "manifest.jsonl"
-    )
-    if manifest_path.is_file():
-        for line in manifest_path.read_text(encoding="utf-8").splitlines():
-            try:
-                entry = json.loads(line)
-                audio_path = Path(str(entry.get("audio", "")))
-                text = str(entry.get("text", "")).strip()
-                if (
-                    audio_path.is_file()
-                    and text
-                    and _is_gpt_sovits_reference(audio_path)
-                ):
-                    return audio_path, configured_prompt.strip() or text
-            except (OSError, TypeError, ValueError, wave.Error):
-                continue
-
-    for audio_path in sorted(reference_dir.glob("*.wav")):
-        if _is_gpt_sovits_reference(audio_path):
-            return audio_path, configured_prompt.strip()
-    return None, configured_prompt.strip()
-
-
-def _is_gpt_sovits_reference(audio_path: Path) -> bool:
-    try:
-        with wave.open(str(audio_path), "rb") as wav_file:
-            duration = wav_file.getnframes() / wav_file.getframerate()
-    except (OSError, wave.Error, ZeroDivisionError):
-        return False
-    return 3.0 <= duration <= 10.0
 
 
 def _build_conversation_summarizer(

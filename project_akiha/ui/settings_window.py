@@ -2254,8 +2254,9 @@ class SettingsWindow(QWidget):
             self._config.privacy,
             self._credential_store,
         )
+        sdk_status = "ready" if snapshot.sdk_available else snapshot.sdk_detail
         details = (
-            f"SDK: {'ready' if snapshot.sdk_available else 'missing'}; "
+            f"SDK: {sdk_status}; "
             f"Gemini key: {'saved' if snapshot.api_key_available else 'missing'}; "
             f"consent: {'current' if snapshot.privacy_notice_current else 'required'}; "
             f"limit: {snapshot.max_duration_seconds // 60} min. "

@@ -466,7 +466,7 @@ py -3.13 -m venv .venv313
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
 .\scripts\build_akiha_nuitka.ps1 `
   -FastBuild `
-  -OutputDir dist\nuitka-dev
+  -RequireBuildReuse
 ```
 
 Use a clean build only when closing a phase or preparing a release candidate:
@@ -480,6 +480,11 @@ Use a clean build only when closing a phase or preparing a release candidate:
 Development and release builds use separate Nuitka caches. Every invocation
 records stage timings under the output directory's `build-reports` folder, and
 packaged builds also create a Nuitka XML compilation report.
+FastBuild uses the persistent `dist\nuitka-development` workspace with 10 jobs,
+managed Zig 0.16.0, LTO disabled, and the unsafe Nuitka bytecode cache disabled.
+It retains the expensive C-object cache and pins Zig's native caches beneath
+`dist\build-cache\nuitka-dev`; reserve CleanRelease for phase closure and
+release verification.
 
 Automated release readiness for the current standalone package:
 

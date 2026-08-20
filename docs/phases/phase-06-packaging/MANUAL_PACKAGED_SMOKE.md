@@ -201,6 +201,18 @@ tracebacks.
 
 Record the final result in the generated manual smoke report.
 
+Before this manual pass, run:
+
+```powershell
+.\scripts\test_packaged_provider_runtimes.ps1
+```
+
+- [ ] Packaged `google.genai` import and Gemini client construction pass.
+- [ ] Gemini Live opens and closes a real provider session.
+- [ ] GPT-SoVITS finds the external Akiha reference without packaging it.
+- [ ] GPT-SoVITS returns valid in-memory WAV audio for the smoke phrase.
+- [ ] The generated report contains no key, transcript, reference path, or audio.
+
 Known acceptable caveat:
 
 - Automated smoke scripts may force-stop the app after requesting

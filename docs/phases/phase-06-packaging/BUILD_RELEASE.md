@@ -165,13 +165,49 @@ standalone-vs-installer decision.
 pip install -e ".[package,voice,live]"
 .\scripts\build_akiha_nuitka.ps1 `
   -FastBuild `
-  -OutputDir dist\nuitka-dev
+  -RequireBuildReuse
 ```
 
 `-FastBuild` is the normal packaged-development lane. It reuses Nuitka's
-standard development cache and is appropriate for debugging packaged-only
-behavior during a phase. The first build on a machine is still cold, but later
-builds can reuse unchanged C compiler results.
+persistent `dist\nuitka-development\main.build` workspace and the separate
+`dist\build-cache\nuitka-dev` compiler cache. It is appropriate for debugging
+packaged-only behavior during a phase. FastBuild pins managed Zig 0.16.0, uses
+10 parallel jobs, disables LTO, and disables Nuitka's bytecode/module cache.
+The first build on a machine is still cold, but later builds reuse unchanged C
+compiler results through the separate Zig cache.
+
+FastBuild also pins Zig's own native caches beneath the same persistent root:
+
+```text
+dist\build-cache\nuitka-dev\zig-native\global
+dist\build-cache\nuitka-dev\zig-native\local
+```
+
+This keeps compiler writes deterministic and prevents a real cache miss from
+falling back to `%LOCALAPPDATA%\zig`. `-DisableCompilerCache` is a diagnostic
+repair option only; it disables Nuitka's C-object cache and may trigger a very
+expensive native rebuild.
+
+The bytecode cache is intentionally excluded from FastBuild. Nuitka 4.1.3 has
+produced executables that pass static artifact checks but crash before startup
+logging when stale compiled code objects are reused. This exclusion preserves
+the expensive Zig C-object cache while regenerating the unsafe Python module
+layer on every package build.
+
+`-RequireBuildReuse` is the candidate-build safety gate. It stops before Nuitka
+starts unless the persistent workspace, compiler cache, and key expensive
+objects such as `google.genai.types` are present. Omit it only when intentionally
+creating the first development workspace.
+
+Audit the reuse gate without starting a compilation:
+
+```powershell
+.\scripts\build_akiha_nuitka.ps1 `
+  -FastBuild `
+  -RequireBuildReuse `
+  -PreflightOnly `
+  -SkipQualityChecks
+```
 
 Use a clean build only when closing a phase or preparing a release candidate:
 
@@ -224,13 +260,20 @@ normally. It can reuse an existing PowerShell console for diagnostics, which
 avoids a Nuitka 4.1.3/Zig startup failure observed with `disable` mode while
 still passing the no-visible-console smoke check.
 
-The build caches are intentionally separated:
+The build workspaces and caches are intentionally separated:
 
-- `-FastBuild` uses Nuitka's reusable development cache under
-  `%LOCALAPPDATA%\Nuitka\Nuitka\Cache` by default.
+- `-FastBuild` always defaults to the persistent
+  `dist\nuitka-development` output workspace and uses the reusable
+  `dist\build-cache\nuitka-dev` compiler cache, including project-local Zig
+  global and local caches.
 - `-CleanRelease` uses
   `%LOCALAPPDATA%\Akiha\BuildCache\Nuitka\release` and applies
   `--clean-cache=all` only to that release cache.
+
+Do not give routine FastBuild invocations a new output directory. A different
+output directory creates another `main.build` tree and can force expensive
+dependencies to compile again. CleanRelease remains the explicit phase-closing
+lane and defaults to `dist\nuitka-release` when no output directory is given.
 
 The clean release lane is intentional. A reused Nuitka 4.1.3 module cache
 produced an executable that passed artifact and subsystem validation but failed
@@ -252,6 +295,16 @@ to:
 ```
 
 The console prints the same stage-duration summary after success or failure.
+The timing JSON also records the resolved compiler, Zig version, job count, LTO
+mode, pre-build reusable-object counts, Nuitka arguments, build log, and compiler
+cache summary. It also records post-build object counts and the compiler-cache
+delta, making unexpected invalidation visible instead of silently accepting a
+multi-hour rebuild.
+
+An interrupted build may leave `main.build` and compiler-cache objects that are
+safe to reuse, but its partial `main.dist` is never a candidate. Rerun the same
+FastBuild command, then require the GUI-subsystem check, artifact validation,
+and isolated packaged smoke test before accepting the rebuilt executable.
 
 ### Cached Build Benchmark
 
@@ -280,12 +333,12 @@ candidates still use `-CleanRelease` and receive the full manual smoke pass.
 The script also validates that the standalone artifact contains the expected
 runtime folders, bundled assets, default config, database migrations, the
 explicitly included PyAV `av.utils` extension, and faster-whisper's packaged
-Silero VAD ONNX model. The V8 build also compiles the statically imported
-`google.genai` modules into `Akiha.exe` for Gemini Live; packaged startup and
-the local Gemini setup diagnostic verify their runtime availability. Artifact
-validation rejects environment files, secret files, private Spotify exports,
-and SQLite database files so credentials and `%LOCALAPPDATA%` state cannot
-enter the release folder.
+Silero VAD ONNX model. Gemini candidates explicitly include the complete
+`google.genai` package and `google-genai` distribution metadata. Static module
+presence is insufficient: the packaged runtime smoke must import the SDK and
+construct its client inside `Akiha.exe`. Artifact validation rejects environment
+files, secret files, private Spotify exports, and SQLite database files so
+credentials and `%LOCALAPPDATA%` state cannot enter the release folder.
 
 ## Packaged Smoke Test
 
@@ -309,6 +362,23 @@ The smoke script verifies:
 - SQLite database creation
 - expected SQLite tables
 - startup with existing user config, state, and database files
+
+Run the optional-runtime gate separately after ordinary startup smoke:
+
+```powershell
+.\scripts\test_packaged_provider_runtimes.ps1
+```
+
+This launches `Akiha.exe` in a headless diagnostic mode and requires:
+
+- the real packaged `google.genai` import and client construction;
+- a short Gemini Live connect/disconnect when a valid saved key is available;
+- GPT-SoVITS endpoint health with external private reference discovery; and
+- one real in-memory GPT-SoVITS synthesis request.
+
+Use `-SkipGeminiNetwork` only while diagnosing packaging. It still verifies the
+SDK import and client construction but cannot close the real-provider gate. The
+JSON report contains no credentials, transcripts, reference paths, or audio.
 
 The smoke script is non-interactive. It may request `CloseMainWindow()` and then
 force-stop the process. Manual tray Quit validation remains required before

@@ -301,24 +301,7 @@ class GptSoVitsEngineManager:
 
     def _support_roots(self) -> tuple[Path, ...]:
         """Return bounded locations that may own the external voice runtime."""
-        candidates = [self._project_root]
-        candidates.extend(tuple(self._project_root.parents)[:4])
-        configured_root = self._environment.get("AKIHA_GPT_SOVITS_ROOT", "").strip()
-        if configured_root:
-            candidates.insert(0, Path(configured_root).expanduser())
-
-        local_app_data = self._environment.get("LOCALAPPDATA", "").strip()
-        if local_app_data:
-            candidates.append(
-                Path(local_app_data) / "Akiha" / "runtimes" / "gpt-sovits"
-            )
-
-        unique: list[Path] = []
-        for candidate in candidates:
-            resolved = candidate.resolve()
-            if resolved not in unique:
-                unique.append(resolved)
-        return tuple(unique)
+        return gpt_sovits_support_roots(self._project_root, self._environment)
 
     def _process_environment(self, nltk_data_dir: Path | None) -> dict[str, str]:
         environment = dict(self._environment)
@@ -342,6 +325,30 @@ def _local_endpoint(base_url: str) -> tuple[str, int] | None:
     if parsed.scheme != "http" or host not in {"127.0.0.1", "localhost", "::1"}:
         return None
     return host, parsed.port or 80
+
+
+def gpt_sovits_support_roots(
+    project_root: Path,
+    environment: Mapping[str, str] | None = None,
+) -> tuple[Path, ...]:
+    """Return bounded external roots shared by runtime and reference discovery."""
+    env = environment if environment is not None else os.environ
+    candidates = [project_root]
+    candidates.extend(tuple(project_root.parents)[:4])
+    configured_root = env.get("AKIHA_GPT_SOVITS_ROOT", "").strip()
+    if configured_root:
+        candidates.insert(0, Path(configured_root).expanduser())
+
+    local_app_data = env.get("LOCALAPPDATA", "").strip()
+    if local_app_data:
+        candidates.append(Path(local_app_data) / "Akiha" / "runtimes" / "gpt-sovits")
+
+    unique: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved not in unique:
+            unique.append(resolved)
+    return tuple(unique)
 
 
 def _probe_gpt_sovits_endpoint(base_url: str) -> bool:

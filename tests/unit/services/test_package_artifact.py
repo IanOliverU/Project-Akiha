@@ -46,6 +46,17 @@ class PackageArtifactTest(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("SQL files", issues[0].message)
 
+    def test_reports_missing_google_genai_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            (artifact_dir / "google_genai-2.17.0.dist-info").rmdir()
+
+            issues = validate_package_artifact(artifact_dir)
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("metadata", issues[0].message)
+
     def test_rejects_personal_spotify_export(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact_dir = Path(directory)
@@ -92,6 +103,7 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "shiboken6").mkdir()
     (artifact_dir / "av").mkdir()
     (artifact_dir / "faster_whisper/assets").mkdir(parents=True)
+    (artifact_dir / "google_genai-2.17.0.dist-info").mkdir()
     (artifact_dir / "Akiha.exe").write_bytes(b"")
     (artifact_dir / "av/utils.pyd").write_bytes(b"")
     (artifact_dir / "faster_whisper/assets/silero_vad_v6.onnx").write_bytes(b"")

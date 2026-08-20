@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.util import find_spec
 
 from project_akiha.config import PrivacyConfig, VoiceConfig
+from project_akiha.providers.live.google_sdk import probe_google_genai_sdk
 from project_akiha.services.credential_store import (
     CredentialStore,
     CredentialStoreError,
@@ -18,6 +18,7 @@ class HostedLiveDiagnosticsSnapshot:
     """Non-sensitive hosted-live setup state safe to display or log."""
 
     sdk_available: bool
+    sdk_detail: str
     api_key_available: bool
     privacy_notice_current: bool
     selected: bool
@@ -44,10 +45,7 @@ def build_hosted_live_diagnostics(
     credential_store: CredentialStore | None,
 ) -> HostedLiveDiagnosticsSnapshot:
     """Inspect local setup without opening a provider connection or microphone."""
-    try:
-        sdk_available = find_spec("google.genai") is not None
-    except (ImportError, ModuleNotFoundError, ValueError):
-        sdk_available = False
+    sdk = probe_google_genai_sdk()
 
     api_key_available = False
     if credential_store is not None:
@@ -57,7 +55,8 @@ def build_hosted_live_diagnostics(
             api_key_available = False
 
     return HostedLiveDiagnosticsSnapshot(
-        sdk_available=sdk_available,
+        sdk_available=sdk.available,
+        sdk_detail=sdk.detail,
         api_key_available=api_key_available,
         privacy_notice_current=not hosted_live_privacy_notice_required(privacy),
         selected=voice.session_provider == "gemini_live",

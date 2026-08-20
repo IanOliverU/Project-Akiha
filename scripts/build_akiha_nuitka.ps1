@@ -1,16 +1,34 @@
 param(
-    [string]$OutputDir = "dist\nuitka",
+    [string]$OutputDir = "",
     [switch]$FastBuild,
     [switch]$CleanRelease,
     [switch]$SkipQualityChecks,
     [switch]$SkipBuild,
+    [switch]$PreflightOnly,
     [switch]$AllowExperimentalPython,
+    [switch]$RequireBuildReuse,
+    [switch]$DisableCompilerCache,
+    [ValidateRange(1, 64)]
+    [int]$Jobs = 10,
+    [string]$ExpectedZigVersion = "0.16.0",
+    [string]$PythonPath = "",
     [string]$DevelopmentCacheDir = "",
     [string]$ReleaseCacheDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 $script:BuildTimings = [System.Collections.Generic.List[object]]::new()
+$script:ToolchainDescription = ""
+$script:CompilerExecutable = ""
+$script:CompilerVersion = ""
+$script:BuildObjectCountBefore = 0
+$script:CompilerCacheObjectCountBefore = 0
+$script:BuildObjectCountAfter = 0
+$script:CompilerCacheObjectCountAfter = 0
+$script:CompilerCacheSummary = @()
+$script:NuitkaArgumentsForReport = @()
+$script:BuildLogPath = ""
+$script:MissingRequiredReuseObjects = @()
 
 function Invoke-TimedCheckedCommand {
     param(
@@ -86,6 +104,25 @@ function Write-BuildTimingReport {
         cache_directory = $CacheDirectory
         output_directory = $OutputDirectory
         compilation_report = $CompilationReportPath
+        build_log = $script:BuildLogPath
+        toolchain = $script:ToolchainDescription
+        compiler_executable = $script:CompilerExecutable
+        compiler_version = $script:CompilerVersion
+        parallel_jobs = if ($BuildMode -eq "fast-development") { $Jobs } else { $null }
+        lto = if ($BuildMode -eq "fast-development") { "no" } else { "default" }
+        bytecode_cache = if ($BuildMode -eq "fast-development") { "disabled" } else { "clean" }
+        compiler_cache = if ($DisableCompilerCache) { "disabled" } else { "enabled" }
+        build_object_count_before = $script:BuildObjectCountBefore
+        compiler_cache_object_count_before = $script:CompilerCacheObjectCountBefore
+        build_object_count_after = $script:BuildObjectCountAfter
+        compiler_cache_object_count_after = $script:CompilerCacheObjectCountAfter
+        compiler_cache_object_delta = (
+            $script:CompilerCacheObjectCountAfter -
+            $script:CompilerCacheObjectCountBefore
+        )
+        missing_required_reuse_objects = @($script:MissingRequiredReuseObjects)
+        compiler_cache_summary = @($script:CompilerCacheSummary)
+        nuitka_arguments = @($script:NuitkaArgumentsForReport)
         stages = @($script:BuildTimings)
     }
     $Report | ConvertTo-Json -Depth 5 | Set-Content -Path $ReportPath -Encoding utf8
@@ -102,6 +139,14 @@ function Write-BuildTimingReport {
 }
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+if (-not $OutputDir) {
+    if ($CleanRelease) {
+        $OutputDir = "dist\nuitka-release"
+    }
+    else {
+        $OutputDir = "dist\nuitka-development"
+    }
+}
 $ResolvedOutputDir = Resolve-ProjectPath $OutputDir $ProjectRoot
 $BuildStartedAt = (Get-Date).ToUniversalTime()
 $BuildStamp = $BuildStartedAt.ToString("yyyyMMdd-HHmmss")
@@ -113,6 +158,9 @@ $CacheDirectory = ""
 $BuildOutcome = "failed"
 $PythonExecutable = ""
 $OriginalNuitkaCacheDir = $env:NUITKA_CACHE_DIR
+$OriginalPath = $env:PATH
+$OriginalZigGlobalCacheDir = $env:ZIG_GLOBAL_CACHE_DIR
+$OriginalZigLocalCacheDir = $env:ZIG_LOCAL_CACHE_DIR
 
 if ($FastBuild -and $CleanRelease) {
     throw "Choose exactly one build mode: -FastBuild or -CleanRelease."
@@ -128,29 +176,75 @@ New-Item -ItemType Directory -Path $ReportDir -Force | Out-Null
 
 Push-Location $ProjectRoot
 try {
-    $PythonExecutable = (& python -c "import sys; print(sys.executable)").Trim()
+    if (-not $PythonPath) {
+        $ProjectPython = Join-Path $ProjectRoot ".venv313\Scripts\python.exe"
+        if (Test-Path -LiteralPath $ProjectPython) {
+            $PythonPath = $ProjectPython
+        }
+        else {
+            $PythonPath = (Get-Command python -ErrorAction Stop).Source
+        }
+    }
+    $PythonPath = [System.IO.Path]::GetFullPath($PythonPath)
+    $PythonExecutable = (& $PythonPath -c "import sys; print(sys.executable)").Trim()
     if ($LASTEXITCODE -ne 0 -or -not $PythonExecutable) {
         throw "Unable to resolve the active Python executable."
+    }
+    $PythonUserHome = (& $PythonExecutable -c "import os; print(os.path.expanduser('~'))").Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $PythonUserHome) {
+        throw "Unable to resolve the Python user home for managed tool discovery."
     }
 
     if (-not $SkipQualityChecks) {
         Invoke-TimedCheckedCommand {
-            python -m unittest discover tests
+            & $PythonExecutable -m unittest discover tests
         } "Unit tests"
         Invoke-TimedCheckedCommand {
-            python -m ruff check project_akiha tests
+            & $PythonExecutable -m ruff check project_akiha tests
         } "Ruff"
         Invoke-TimedCheckedCommand {
-            python -m black --check project_akiha tests
+            & $PythonExecutable -m black --check project_akiha tests
         } "Black"
         Invoke-TimedCheckedCommand {
-            python -m compileall project_akiha tests
+            & $PythonExecutable -m compileall project_akiha tests
         } "Compile"
     }
 
     Invoke-TimedCheckedCommand {
-        python -m nuitka --version --zig --assume-yes-for-downloads
-    } "Nuitka availability"
+        $ToolchainOutput = (& $PythonExecutable -m nuitka --version --zig --assume-yes-for-downloads 2>&1 | Out-String).Trim()
+        Write-Host $ToolchainOutput
+        $script:ToolchainDescription = $ToolchainOutput
+
+        $CompilerMatch = [regex]::Match(
+            $ToolchainOutput,
+            "Version C compiler:\s*(.+?zig\.exe) \(zig\.exe ([^)]+)\)\."
+        )
+        if (-not $CompilerMatch.Success) {
+            throw "Nuitka did not resolve the required managed Zig compiler."
+        }
+        $script:CompilerExecutable = $CompilerMatch.Groups[1].Value
+        if ($script:CompilerExecutable.StartsWith("~\")) {
+            $script:CompilerExecutable = Join-Path $PythonUserHome (
+                $script:CompilerExecutable.Substring(2)
+            )
+        }
+        $script:CompilerExecutable = [System.IO.Path]::GetFullPath(
+            $script:CompilerExecutable
+        )
+        if (-not (Test-Path -LiteralPath $script:CompilerExecutable -PathType Leaf)) {
+            throw "Managed Zig executable was reported but does not exist: $($script:CompilerExecutable)"
+        }
+        $script:CompilerVersion = $CompilerMatch.Groups[2].Value
+        if ($script:CompilerVersion -ne $ExpectedZigVersion) {
+            throw (
+                "Expected managed Zig $ExpectedZigVersion, but Nuitka resolved " +
+                "$($script:CompilerVersion)."
+            )
+        }
+
+        $CompilerDirectory = Split-Path -Parent $script:CompilerExecutable
+        $env:PATH = $CompilerDirectory + ";" + $OriginalPath
+    } "Nuitka availability and toolchain pin"
 
     if ($SkipBuild) {
         $BuildOutcome = "passed"
@@ -158,7 +252,7 @@ try {
         return
     }
 
-    $PythonVersion = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')").Trim()
+    $PythonVersion = (& $PythonExecutable -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')").Trim()
     $PythonVersionParts = $PythonVersion.Split(".")
     $PythonMajor = [int]$PythonVersionParts[0]
     $PythonMinor = [int]$PythonVersionParts[1]
@@ -172,7 +266,7 @@ try {
     }
 
     if (-not $DevelopmentCacheDir) {
-        $DevelopmentCacheDir = Join-Path $env:LOCALAPPDATA "Nuitka\Nuitka\Cache"
+        $DevelopmentCacheDir = Join-Path $ProjectRoot "dist\build-cache\nuitka-dev"
     }
     if (-not $ReleaseCacheDir) {
         $ReleaseCacheDir = Join-Path $env:LOCALAPPDATA "Akiha\BuildCache\Nuitka\release"
@@ -194,6 +288,13 @@ try {
 
     New-Item -ItemType Directory -Path $CacheDirectory -Force | Out-Null
     $env:NUITKA_CACHE_DIR = $CacheDirectory
+    $ZigNativeCacheRoot = Join-Path $CacheDirectory "zig-native"
+    $env:ZIG_GLOBAL_CACHE_DIR = Join-Path $ZigNativeCacheRoot "global"
+    $env:ZIG_LOCAL_CACHE_DIR = Join-Path $ZigNativeCacheRoot "local"
+    New-Item -ItemType Directory -Path @(
+        $env:ZIG_GLOBAL_CACHE_DIR,
+        $env:ZIG_LOCAL_CACHE_DIR
+    ) -Force | Out-Null
     $CompilationReportPath = Join-Path (
         Join-Path $ResolvedOutputDir "build-reports"
     ) "nuitka-compilation-report-$BuildStamp.xml"
@@ -201,6 +302,57 @@ try {
     Write-Host "Build mode: $BuildMode"
     Write-Host "Nuitka cache: $CacheDirectory"
     Write-Host "Output directory: $ResolvedOutputDir"
+    Write-Host "Compiler: $($script:CompilerExecutable) (Zig $($script:CompilerVersion))"
+
+    $BuildObjectDirectory = Join-Path $ResolvedOutputDir "main.build"
+    if (Test-Path -LiteralPath $BuildObjectDirectory) {
+        $script:BuildObjectCountBefore = @(
+            Get-ChildItem -LiteralPath $BuildObjectDirectory -File -Filter "*.o"
+        ).Count
+    }
+    $script:CompilerCacheObjectCountBefore = @(
+        Get-ChildItem -LiteralPath $CacheDirectory -Recurse -File -Filter "*.obj" -ErrorAction SilentlyContinue
+    ).Count
+    $RequiredReuseObjects = @(
+        "module.google.genai.types.o",
+        "module.google.genai.client.o",
+        "module.faster_whisper.transcribe.o",
+        "module.av.o"
+    )
+    $script:MissingRequiredReuseObjects = @(
+        $RequiredReuseObjects | Where-Object {
+            -not (Test-Path -LiteralPath (Join-Path $BuildObjectDirectory $_))
+        }
+    )
+
+    Write-Host "Reusable main.build objects: $($script:BuildObjectCountBefore)"
+    Write-Host "Reusable compiler-cache objects: $($script:CompilerCacheObjectCountBefore)"
+    if ($script:MissingRequiredReuseObjects.Count -gt 0) {
+        Write-Host (
+            "Missing key reusable objects: " +
+            ($script:MissingRequiredReuseObjects -join ", ")
+        )
+    }
+    if (
+        $FastBuild -and
+        $RequireBuildReuse -and
+        (
+            $script:BuildObjectCountBefore -lt 100 -or
+            $script:CompilerCacheObjectCountBefore -lt 100 -or
+            $script:MissingRequiredReuseObjects.Count -gt 0
+        )
+    ) {
+        throw (
+            "FastBuild reuse was required, but the persistent workspace or compiler " +
+            "cache does not contain enough reusable objects. No build was started."
+        )
+    }
+
+    if ($PreflightOnly) {
+        $BuildOutcome = "passed"
+        Write-Host "Preflight passed. No Nuitka compilation was started."
+        return
+    }
 
     $NuitkaArguments += @(
         "--standalone",
@@ -208,6 +360,8 @@ try {
         "--zig",
         "--enable-plugin=pyside6",
         "--include-module=av.utils",
+        "--include-package=google.genai",
+        "--include-distribution-metadata=google-genai",
         "--include-package-data=faster_whisper",
         "--windows-console-mode=attach",
         "--output-dir=$ResolvedOutputDir",
@@ -219,26 +373,84 @@ try {
         "--include-data-files=scripts/run_gpt_sovits_api.py=scripts/run_gpt_sovits_api.py",
         "--report=$CompilationReportPath",
         "--report-user-provided=build_mode=$BuildMode",
+        "--report-user-provided=parallel_jobs=$(if ($FastBuild) { $Jobs } else { 'default' })",
+        "--report-user-provided=lto=$(if ($FastBuild) { 'no' } else { 'default' })",
         "project_akiha/app/main.py"
     )
+    if ($FastBuild) {
+        $FastBuildArguments = @(
+            $NuitkaArguments[0..1]
+            "--jobs=$Jobs"
+            "--lto=no"
+            "--disable-cache=bytecode"
+        )
+        if ($DisableCompilerCache) {
+            $FastBuildArguments += "--disable-cache=ccache"
+        }
+        $NuitkaArguments = @(
+            $FastBuildArguments
+            $NuitkaArguments[2..($NuitkaArguments.Count - 1)]
+        )
+    }
+    $script:NuitkaArgumentsForReport = @($NuitkaArguments)
+    $script:BuildLogPath = Join-Path $ReportDir "nuitka-build-$BuildStamp.log"
 
     Invoke-TimedCheckedCommand {
-        python @NuitkaArguments
+        $NativeErrorPreference = $ErrorActionPreference
+        $NativeExitCode = 0
+        try {
+            # Windows PowerShell wraps native stderr status lines as error records.
+            # Nuitka writes normal progress to stderr, so keep it visible and rely
+            # on the native exit code instead of treating each line as terminating.
+            $ErrorActionPreference = "Continue"
+            & $PythonExecutable @NuitkaArguments 2>&1 |
+                Tee-Object -FilePath $script:BuildLogPath
+            $NativeExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $NativeErrorPreference
+        }
+        if ($NativeExitCode -ne 0) {
+            throw "Nuitka exited with code $NativeExitCode."
+        }
     } "Nuitka build"
+
+    $script:CompilerCacheSummary = @(
+        Select-String -LiteralPath $script:BuildLogPath -Pattern @(
+            "cache hit",
+            "cache miss",
+            "cached C",
+            "compiled C",
+            "Nuitka-Scons"
+        ) -SimpleMatch |
+            Select-Object -Last 30 |
+            ForEach-Object { $_.Line.Trim() }
+    )
 
     $BuiltExePath = Join-Path $ResolvedOutputDir "main.dist\Akiha.exe"
     Invoke-TimedCheckedCommand {
-        python -m project_akiha.tools.verify_windows_gui_subsystem $BuiltExePath
+        & $PythonExecutable -m project_akiha.tools.verify_windows_gui_subsystem $BuiltExePath
     } "Windows GUI subsystem check"
 
     $BuiltArtifactDir = Join-Path $ResolvedOutputDir "main.dist"
     Invoke-TimedCheckedCommand {
-        python -m project_akiha.tools.verify_packaged_artifact $BuiltArtifactDir
+        & $PythonExecutable -m project_akiha.tools.verify_packaged_artifact $BuiltArtifactDir
     } "Packaged artifact check"
     $BuildOutcome = "passed"
 }
 finally {
     Pop-Location
+    $FinalBuildObjectDirectory = Join-Path $ResolvedOutputDir "main.build"
+    if (Test-Path -LiteralPath $FinalBuildObjectDirectory) {
+        $script:BuildObjectCountAfter = @(
+            Get-ChildItem -LiteralPath $FinalBuildObjectDirectory -File -Filter "*.o"
+        ).Count
+    }
+    if ($CacheDirectory -and (Test-Path -LiteralPath $CacheDirectory)) {
+        $script:CompilerCacheObjectCountAfter = @(
+            Get-ChildItem -LiteralPath $CacheDirectory -Recurse -File -Filter "*.obj" -ErrorAction SilentlyContinue
+        ).Count
+    }
     Write-BuildTimingReport `
         -ReportPath $TimingReportPath `
         -BuildMode $BuildMode `
@@ -255,4 +467,17 @@ finally {
     else {
         $env:NUITKA_CACHE_DIR = $OriginalNuitkaCacheDir
     }
+    if ($null -eq $OriginalZigGlobalCacheDir) {
+        Remove-Item Env:ZIG_GLOBAL_CACHE_DIR -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:ZIG_GLOBAL_CACHE_DIR = $OriginalZigGlobalCacheDir
+    }
+    if ($null -eq $OriginalZigLocalCacheDir) {
+        Remove-Item Env:ZIG_LOCAL_CACHE_DIR -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:ZIG_LOCAL_CACHE_DIR = $OriginalZigLocalCacheDir
+    }
+    $env:PATH = $OriginalPath
 }

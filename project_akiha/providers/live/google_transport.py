@@ -20,6 +20,10 @@ from project_akiha.providers.live.gemini import (
     GeminiTransportEvent,
     GeminiTransportEventKind,
 )
+from project_akiha.providers.live.google_sdk import (
+    GoogleGenAISdkImportError,
+    load_google_genai_sdk,
+)
 
 _PCM_MIME_PATTERN = re.compile(r"^audio/pcm\s*;\s*rate=(\d+)$", re.IGNORECASE)
 _MINIMUM_AUDIO_DURATION_SECONDS = 0.020
@@ -627,11 +631,11 @@ def _sdk_function_declaration(schema) -> dict[str, object]:
 
 def _build_function_response(**kwargs: object) -> object:
     try:
-        from google.genai import types
-    except ImportError as error:
+        _, types = load_google_genai_sdk()
+    except GoogleGenAISdkImportError as error:
         raise LiveSessionError(
             LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
-            "Gemini Live requires the optional google-genai package.",
+            str(error),
         ) from error
     return types.FunctionResponse(**kwargs)
 
@@ -699,11 +703,11 @@ def _validate_pcm_chunk(data: bytes, mime_type: str) -> None:
 
 def _build_google_client(api_key: str) -> object:
     try:
-        from google import genai
-    except ImportError as error:
+        genai, _ = load_google_genai_sdk()
+    except GoogleGenAISdkImportError as error:
         raise LiveSessionError(
             LiveSessionErrorCode.PROVIDER_UNAVAILABLE,
-            "Gemini Live requires the optional google-genai package.",
+            str(error),
         ) from error
     return genai.Client(api_key=api_key)
 

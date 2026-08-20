@@ -21,6 +21,7 @@ _REQUIRED_ARTIFACT_PATHS = (
     "av/utils.pyd",
     "faster_whisper/assets/silero_vad_v6.onnx",
 )
+_REQUIRED_ARTIFACT_GLOBS = ("google_genai-*.dist-info",)
 
 _FORBIDDEN_FILE_NAMES = {
     ".env",
@@ -50,6 +51,15 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
                 PackageArtifactIssue(
                     path=candidate,
                     message="Required packaged artifact path is missing.",
+                )
+            )
+
+    for required_glob in _REQUIRED_ARTIFACT_GLOBS:
+        if not tuple(artifact_dir.glob(required_glob)):
+            issues.append(
+                PackageArtifactIssue(
+                    path=artifact_dir / required_glob,
+                    message="Required packaged dependency metadata is missing.",
                 )
             )
 

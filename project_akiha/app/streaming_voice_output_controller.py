@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from collections.abc import Callable
 from typing import Protocol
@@ -15,6 +16,8 @@ from project_akiha.core.voice_session import ResponseSegment
 from project_akiha.providers.voice import SynthesizedAudio
 from project_akiha.services.speech_output import SpeechOutputService
 from project_akiha.ui.voice_synthesis_worker import VoiceSynthesisThread
+
+_LOGGER = logging.getLogger("project_akiha.voice.synthesis")
 
 
 class _SynthesisThread(Protocol):
@@ -252,9 +255,13 @@ class StreamingVoiceOutputController:
         code: str,
         message: str,
     ) -> None:
-        del message
         if not self._accepts_callback(thread, segment):
             return
+        _LOGGER.warning(
+            "Speech segment synthesis failed code=%s",
+            code.strip() or "synthesis_failed",
+        )
+        del message
         self._fail_segment(segment.segment_index, code)
 
     def _handle_synthesis_cancelled(self, thread: _SynthesisThread) -> None:

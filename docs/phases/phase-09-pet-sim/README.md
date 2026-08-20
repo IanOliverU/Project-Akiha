@@ -927,10 +927,85 @@ process became ready roughly 30 seconds later.
 ### Owner Manual Gate
 
 Use `docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md` with
-`dist/nuitka-phase9-final-fixed/main.dist/Akiha.exe`. In addition to the existing
+`dist/nuitka-development/main.dist/Akiha.exe`. In addition to the existing
 voice, provider, action, memory, and shutdown checks, the report now covers
 care actions, progression, diagnostics, reset preservation, canonical idle
 fidelity, and walking direction.
+
+### Final Incremental Candidate Correction
+
+The first persistent FastBuild candidate on 2026-08-20 passed static subsystem
+and artifact checks but reproduced a pre-logging Nuitka segmentation fault in
+an isolated startup smoke. The failure was traced to reuse of Nuitka 4.1.3's
+bytecode/module cache, a known unsafe cache lane already identified during Phase
+6. Its timing and artifact results remain useful build-performance data, but
+that executable is superseded and must not be accepted:
+
+- Python 3.13.14, Nuitka 4.1.3, and managed Zig 0.16.0
+- `--jobs=10` with `--lto=no`
+- 1,746 reusable `main.build` objects and 2,166 reusable compiler-cache objects
+  were present before the successful build.
+- The successful rerun added no compiler-cache objects and moved directly from
+  generated C to linking, so Gemini and the other expensive dependencies were
+  not recompiled.
+- Full gate: 1,499 tests passed with 3 optional-provider skips; Ruff, Black,
+  Python compilation, Windows GUI subsystem, and packaged-artifact checks pass.
+- Total duration: 401.112 seconds (6 minutes 41.112 seconds).
+- Nuitka stage: 379.873 seconds (6 minutes 19.873 seconds).
+- Artifact: 815 files, approximately 430.8 MiB; `Akiha.exe` SHA-256
+  `7FF510A2A60B032F13071EF9ECF9E17800F4610DEADF44222333B9E71CCF0B5B`.
+- The package contained the GPT-SoVITS launcher, faster-whisper VAD model,
+  default configuration, and migrations through `0010`. The artifact validator
+  rejects credentials, private exports, databases, and `%LOCALAPPDATA%` state.
+
+A second 7-minute candidate disabled the bytecode cache but still reproduced the
+same pre-logging crash. Targeted native-object invalidation then exposed a
+separate build-environment problem: Zig attempted to write its global cache to
+`%LOCALAPPDATA%\zig`, and the controlled build environment rejected that path.
+FastBuild now pins Zig's native global and local caches beneath
+`dist/build-cache/nuitka-dev/zig-native` as well as disabling the unsafe Nuitka
+bytecode cache.
+
+The native repair pass was interrupted once by the build runner limit and once
+by a machine shutdown. The persistent workspace safely retained 1,745 of 1,746
+objects; the final run resumed with only `google.genai.types` unfinished. The
+partial `main.dist` was not accepted or tested as a candidate.
+
+The startup-corrected candidate is available at
+`dist/nuitka-development/main.dist/Akiha.exe`:
+
+- Final run duration: 5,661.408 seconds (1 hour 34 minutes 21.408 seconds).
+- Nuitka stage: 5,657.976 seconds; `google.genai.types` alone required 5,214.67
+  seconds. That completed object is now in the persistent cache.
+- Python 3.13.14, Nuitka 4.1.3, managed Zig 0.16.0, 10 jobs, and LTO disabled.
+- Artifact: 815 files, approximately 430.8 MiB; `Akiha.exe` SHA-256
+  `DC00CBA41AB85E78C43C98FBAF2BD1516C4B3862D3B8FE9F431DA22D555633F8`.
+- Windows GUI-subsystem and packaged-artifact validation pass.
+- Isolated fresh-data and existing-data startup smoke passes create/reopen the
+  database through migration `0010`, show no visible console, and produce logs
+  without unexpected tracebacks.
+
+This candidate is not accepted for Phase 9 closure. Manual testing found two
+optional-runtime defects that the mock-provider startup smoke could not see:
+
+- packaged Gemini Live collapsed an SDK import-time failure into the inaccurate
+  message that `google-genai` was not installed, even though its compiled
+  modules were present;
+- packaged GPT-SoVITS anchored `AKIHA VOICE` beneath `main.dist`, while the
+  intentionally unbundled private reference directory remained at the project
+  support root.
+
+The source correction now uses a real shared Google SDK import probe, requires
+Google package metadata in future artifacts, resolves GPT-SoVITS references
+through bounded external support roots, and provides a headless provider runtime
+smoke mode. Source smoke confirms Google SDK import/client construction and real
+GPT-SoVITS health/synthesis. A corrected package has deliberately not been built
+yet. The saved Gemini DPAPI entry must also be re-saved before the eventual
+real-network smoke because Windows currently reports key state `0x8009000B`.
+
+Owner visual, voice, interaction, and tray-Quit acceptance remains the final
+Phase 9J gate. Obsolete candidates remain untouched until that acceptance is
+recorded.
 
 ## Planned Scope
 
@@ -968,7 +1043,9 @@ fidelity, and walking direction.
 - [x] Integrate structured pet events with mood and proactive behavior.
 - [x] Add voice and animation reactions.
 - [x] Add settings, diagnostics, and reset behavior.
-- [x] Complete final automated source and packaged verification.
+- [x] Complete final automated source verification.
+- [ ] Build and verify one corrected cached standalone candidate.
+- [ ] Pass the real packaged Gemini and GPT-SoVITS runtime smoke.
 - [ ] Complete owner manual standalone verification.
 
 ## Required Boundary Tests

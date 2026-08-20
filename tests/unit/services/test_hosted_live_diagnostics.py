@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from project_akiha.config import PrivacyConfig, VoiceConfig
+from project_akiha.providers.live.google_sdk import GoogleGenAISdkProbe
 from project_akiha.services.hosted_live_diagnostics import (
     build_hosted_live_diagnostics,
 )
@@ -25,9 +26,9 @@ class _Credentials:
 class HostedLiveDiagnosticsTest(unittest.TestCase):
     """Verify readiness checks expose state without provider activity."""
 
-    @patch("project_akiha.services.hosted_live_diagnostics.find_spec")
-    def test_ready_requires_sdk_key_and_current_notice(self, find_spec) -> None:
-        find_spec.return_value = object()
+    @patch("project_akiha.services.hosted_live_diagnostics.probe_google_genai_sdk")
+    def test_ready_requires_sdk_key_and_current_notice(self, probe_sdk) -> None:
+        probe_sdk.return_value = GoogleGenAISdkProbe(True, "SDK ready.")
         privacy = acknowledge_current_hosted_live_privacy_notice(PrivacyConfig())
 
         snapshot = build_hosted_live_diagnostics(
@@ -42,11 +43,15 @@ class HostedLiveDiagnosticsTest(unittest.TestCase):
         self.assertTrue(snapshot.context_compression_enabled)
         self.assertTrue(snapshot.session_resumption_enabled)
 
-    @patch("project_akiha.services.hosted_live_diagnostics.find_spec")
+    @patch("project_akiha.services.hosted_live_diagnostics.probe_google_genai_sdk")
     def test_missing_prerequisites_are_reported_without_secrets(
-        self, find_spec
+        self, probe_sdk
     ) -> None:
-        find_spec.return_value = None
+        probe_sdk.return_value = GoogleGenAISdkProbe(
+            False,
+            "Missing packaged dependency.",
+            "google.auth",
+        )
 
         snapshot = build_hosted_live_diagnostics(
             VoiceConfig(),
@@ -56,6 +61,7 @@ class HostedLiveDiagnosticsTest(unittest.TestCase):
 
         self.assertFalse(snapshot.ready)
         self.assertFalse(snapshot.sdk_available)
+        self.assertEqual(snapshot.sdk_detail, "Missing packaged dependency.")
         self.assertFalse(snapshot.api_key_available)
         self.assertFalse(snapshot.privacy_notice_current)
         self.assertNotIn("secret", repr(snapshot).casefold())
