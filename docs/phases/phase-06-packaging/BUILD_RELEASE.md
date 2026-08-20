@@ -5,6 +5,13 @@ for the verified V8 Hosted Live standalone package.
 
 ## Current Verified Candidate
 
+Phase 9 development currently remains source-first. On 2026-08-20 the owner
+deferred further standalone compilation until after Phase 10 so repeated Nuitka
+builds do not block feature work. The existing Phase 9 executable is diagnostic
+history rather than an accepted release candidate. After Phase 10, run one
+cached candidate build followed by the real packaged Gemini and GPT-SoVITS
+runtime smoke and the complete manual checklist.
+
 The retained verified package is:
 
 ```text

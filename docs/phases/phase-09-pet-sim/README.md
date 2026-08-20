@@ -1,7 +1,8 @@
 # Phase 9: Pet Sim Layer
 
-**Status:** In progress - corrected Phase 9J automated and packaged gates pass;
-owner manual standalone approval remains
+**Status:** Source implementation and automated verification complete; owner
+source-mode acceptance remains. The corrected standalone and packaged-provider
+gate is intentionally deferred until the consolidated post-Phase 10 release pass.
 
 ## Phase Goal
 
@@ -863,11 +864,13 @@ assistant-action mutation boundary.
 
 ## Phase 9J: Final Verification And Standalone Candidate
 
-Phase 9J produced an automated Phase 9 candidate on 2026-08-19. Owner testing
-found one packaged GPT-SoVITS cold-start race, so the original candidate was
-superseded by a corrected candidate. The replacement is ready for the
-owner-only visual, audio, interaction, and graceful Quit pass; Phase 9 is not
-formally closed until that manual result is recorded.
+Phase 9J produced several diagnostic candidates beginning on 2026-08-19. Owner
+testing exposed packaged-only GPT-SoVITS and Gemini defects that are corrected
+in source. Repeated Nuitka compilation was then removed from the Phase 9 critical
+path so feature development can continue. Phase 9 closes at the source boundary
+after owner visual, audio, pet-care, interaction, and graceful-Quit acceptance;
+one corrected standalone and its provider smoke are consolidated with the final
+post-Phase 10 release gate.
 
 ### Automated Source Gate
 
@@ -924,13 +927,14 @@ process became ready roughly 30 seconds later.
   migrations through `0010`, show no visible console window, and produce logs
   without unexpected errors.
 
-### Owner Manual Gate
+### Owner Source Manual Gate
 
-Use `docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md` with
-`dist/nuitka-development/main.dist/Akiha.exe`. In addition to the existing
-voice, provider, action, memory, and shutdown checks, the report now covers
+Run `python -m project_akiha.app.main` from the Python 3.13 project environment.
+Verify the existing voice, provider, action, memory, and shutdown behavior plus
 care actions, progression, diagnostics, reset preservation, canonical idle
-fidelity, and walking direction.
+fidelity, and walking direction. Re-enter the Gemini API key through Settings
+before the real hosted-provider check; the key must never be placed in a command,
+test fixture, report, or repository file.
 
 ### Final Incremental Candidate Correction
 
@@ -1003,9 +1007,16 @@ GPT-SoVITS health/synthesis. A corrected package has deliberately not been built
 yet. The saved Gemini DPAPI entry must also be re-saved before the eventual
 real-network smoke because Windows currently reports key state `0x8009000B`.
 
-Owner visual, voice, interaction, and tray-Quit acceptance remains the final
-Phase 9J gate. Obsolete candidates remain untouched until that acceptance is
-recorded.
+On 2026-08-20 the owner explicitly deferred further standalone compilation until
+after Phase 10. The current executable is retained only as diagnostic history
+and is not a release candidate. The source fixes, persistent build workspace,
+and packaged runtime-smoke harness remain ready for one consolidated rebuild.
+No packaged acceptance claim is made until that later executable passes the
+real Gemini and GPT-SoVITS smoke checks.
+
+Owner visual, voice, pet-care, interaction, and tray-Quit acceptance in source
+mode remains the final Phase 9J feature gate. Obsolete candidates remain
+untouched until the consolidated release pass.
 
 ## Planned Scope
 
@@ -1044,9 +1055,11 @@ recorded.
 - [x] Add voice and animation reactions.
 - [x] Add settings, diagnostics, and reset behavior.
 - [x] Complete final automated source verification.
-- [ ] Build and verify one corrected cached standalone candidate.
-- [ ] Pass the real packaged Gemini and GPT-SoVITS runtime smoke.
-- [ ] Complete owner manual standalone verification.
+- [ ] Re-save the Gemini API key through source Settings and verify Gemini Live.
+- [ ] Complete owner manual source-mode verification.
+- [ ] Post-Phase 10: build one corrected cached standalone candidate.
+- [ ] Post-Phase 10: pass real packaged Gemini and GPT-SoVITS runtime smoke.
+- [ ] Post-Phase 10: complete owner manual standalone verification.
 
 ## Required Boundary Tests
 
