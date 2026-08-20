@@ -13,6 +13,7 @@ from enum import StrEnum
 from uuid import uuid4
 
 from project_akiha.core.actions import (
+    SPOTIFY_CURRENT_PLAYBACK_ACTION,
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
     SPOTIFY_PAUSE_ACTION,
@@ -37,6 +38,7 @@ from project_akiha.integrations.spotify.client import (
     SpotifyAPIError,
     SpotifyCatalogItem,
     SpotifyClient,
+    SpotifyCurrentPlayback,
     SpotifyItemKind,
 )
 from project_akiha.integrations.spotify.devices import (
@@ -151,6 +153,69 @@ class SpotifyPlaybackExecutor:
             self._client.skip_to_next(device_id)
         else:
             self._client.skip_to_previous(device_id)
+
+
+class SpotifyCurrentPlaybackExecutor:
+    """Read only the current Spotify item through the existing action boundary."""
+
+    action_id = SPOTIFY_CURRENT_PLAYBACK_ACTION
+    executor_id = "spotify_current_playback"
+
+    def __init__(self, client: SpotifyClient) -> None:
+        self._client = client
+
+    async def execute(
+        self,
+        action: ValidatedAction,
+        *,
+        cancellation_token: ActionCancellationToken,
+    ) -> ActionExecutionResult:
+        if action.definition.action_id != self.action_id:
+            raise ValueError(
+                "Spotify current-playback executor received the wrong action."
+            )
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+
+        try:
+            playback = await asyncio.to_thread(self._client.get_current_playback)
+        except SpotifyOAuthError:
+            return _unavailable(
+                "Connect Spotify from Settings before checking current playback."
+            )
+        except SpotifyAPIError as error:
+            return _api_failure(error)
+        if cancellation_token.is_cancelled:
+            return _cancelled()
+        if playback is None:
+            return ActionExecutionResult(
+                status=ActionStatus.SUCCESS,
+                summary="Spotify is not currently playing anything.",
+                metadata={"has_item": False},
+            )
+
+        return ActionExecutionResult(
+            status=ActionStatus.SUCCESS,
+            summary=_current_playback_summary(playback),
+            metadata={
+                "has_item": True,
+                "item_type": playback.item_type,
+                "title": playback.title,
+                "creator_names": playback.creator_names,
+                "collection_name": playback.collection_name,
+                "playback_state": "playing" if playback.is_playing else "paused",
+                "progress_seconds": (
+                    playback.progress_ms // 1000
+                    if playback.progress_ms is not None
+                    else None
+                ),
+                "duration_seconds": (
+                    playback.duration_ms // 1000
+                    if playback.duration_ms is not None
+                    else None
+                ),
+            },
+        )
 
 
 class SpotifyShuffleExecutor:
@@ -735,6 +800,7 @@ def build_spotify_playback_executors(
     preference_ranker: SpotifyPreferenceRanker | None = None,
 ) -> tuple[
     SpotifyPlaybackExecutor
+    | SpotifyCurrentPlaybackExecutor
     | SpotifyShuffleExecutor
     | SpotifyRepeatExecutor
     | SpotifyVolumeExecutor
@@ -750,6 +816,7 @@ def build_spotify_playback_executors(
             SpotifyPlaybackExecutor(command, client, device_coordinator)
             for command in SpotifyPlaybackCommand
         ),
+        SpotifyCurrentPlaybackExecutor(client),
         SpotifyShuffleExecutor(client, device_coordinator),
         SpotifyRepeatExecutor(client, device_coordinator),
         SpotifyVolumeExecutor(client, device_coordinator),
@@ -762,6 +829,17 @@ def build_spotify_playback_executors(
             preference_ranker,
         ),
     )
+
+
+def _current_playback_summary(playback: SpotifyCurrentPlayback) -> str:
+    creators = ", ".join(playback.creator_names)
+    subject = f'"{playback.title}"'
+    if creators:
+        subject += f" by {creators}"
+    if playback.collection_name:
+        subject += f' from "{playback.collection_name}"'
+    state = "playing" if playback.is_playing else "paused"
+    return f"Spotify is currently {state} {subject}."
 
 
 async def _search_artist_candidates(

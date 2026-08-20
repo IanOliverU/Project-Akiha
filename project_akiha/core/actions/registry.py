@@ -27,6 +27,7 @@ SPOTIFY_PAUSE_ACTION = "spotify.pause"
 SPOTIFY_RESUME_ACTION = "spotify.resume"
 SPOTIFY_NEXT_ACTION = "spotify.next"
 SPOTIFY_PREVIOUS_ACTION = "spotify.previous"
+SPOTIFY_CURRENT_PLAYBACK_ACTION = "spotify.current_playback"
 SPOTIFY_SHUFFLE_ACTION = "spotify.shuffle"
 SPOTIFY_REPEAT_ACTION = "spotify.repeat"
 SPOTIFY_VOLUME_ACTION = "spotify.volume"
@@ -293,6 +294,30 @@ def build_default_action_registry() -> ActionRegistry:
                         "Return to the previous item on an approved Spotify device.",
                     ),
                 )
+            ),
+            ActionDefinition(
+                action_id=SPOTIFY_CURRENT_PLAYBACK_ACTION,
+                description=(
+                    "Read the current Spotify item only when the user explicitly "
+                    "asks what song, track, or content is playing. Return only "
+                    "bounded title, creator, album, progress, and playing or paused "
+                    "metadata. Do not invent playback state or use this action for "
+                    "catalog search."
+                ),
+                risk=ActionRisk.READ_ONLY,
+                permission_capability=SPOTIFY_PLAYBACK_CAPABILITY,
+                confirmation_policy=ConfirmationPolicy.NEVER,
+                executor_id="spotify_current_playback",
+                target_parameter="service",
+                parameters=(
+                    ActionParameterSpec(
+                        name="service",
+                        kind=ParameterKind.STRING,
+                        max_length=16,
+                        allowed_values=("spotify",),
+                    ),
+                ),
+                timeout_seconds=20,
             ),
             ActionDefinition(
                 action_id=SPOTIFY_SHUFFLE_ACTION,

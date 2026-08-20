@@ -27,12 +27,28 @@ protected FFmpeg installation.
 ```
 
 The runtime directories are ignored and are not part of the application
-source distribution. Optional environment overrides are available:
+source or standalone distribution. A packaged Akiha build contains only the
+small launcher helper. It discovers the separately installed runtime in this
+order:
+
+1. Explicit environment overrides.
+2. The packaged application directory and up to four parent directories. This
+   supports development candidates under `dist/<candidate>/main.dist` without
+   copying the multi-gigabyte runtime into every build.
+3. `%LOCALAPPDATA%/Akiha/runtimes/gpt-sovits/`.
+
+Optional environment overrides are available:
 
 ```text
+AKIHA_GPT_SOVITS_ROOT
 AKIHA_GPT_SOVITS_SOURCE
 AKIHA_GPT_SOVITS_PYTHON
+AKIHA_GPT_SOVITS_LAUNCHER
 ```
+
+The source, Python runtime, and launcher must all resolve to existing local
+files before automatic startup is allowed. Missing external runtime files are
+reported as unavailable and are never downloaded implicitly.
 
 ## Reference data
 

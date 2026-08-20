@@ -87,6 +87,7 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "assets/animations").mkdir(parents=True)
     (artifact_dir / "project_akiha/config").mkdir(parents=True)
     (artifact_dir / "project_akiha/database/migrations").mkdir(parents=True)
+    (artifact_dir / "scripts").mkdir()
     (artifact_dir / "PySide6").mkdir()
     (artifact_dir / "shiboken6").mkdir()
     (artifact_dir / "av").mkdir()
@@ -94,6 +95,10 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "Akiha.exe").write_bytes(b"")
     (artifact_dir / "av/utils.pyd").write_bytes(b"")
     (artifact_dir / "faster_whisper/assets/silero_vad_v6.onnx").write_bytes(b"")
+    (artifact_dir / "scripts/run_gpt_sovits_api.py").write_text(
+        "",
+        encoding="utf-8",
+    )
     (artifact_dir / "assets/animations/manifest.toml").write_text(
         "",
         encoding="utf-8",

@@ -18,6 +18,7 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_CURRENT_PLAYBACK_ACTION,
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_OPEN_ALBUM_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
@@ -347,6 +348,20 @@ _SPOTIFY_SEEK_PATTERN = re.compile(
     r"\s*[.!?]?$",
     re.IGNORECASE,
 )
+_SPOTIFY_CURRENT_PLAYBACK_PATTERN = re.compile(
+    r"^(?:/spotify-current|"
+    r"what\s+(?:song|track)\s+is\s+(?:currently\s+)?playing"
+    r"(?:\s+on\s+(?:the\s+)?spotify(?:\s+app)?)?|"
+    r"what(?:'s|\s+is)\s+(?:currently\s+)?playing\s+on\s+"
+    r"(?:the\s+)?spotify(?:\s+app)?|"
+    r"(?:identify|name)\s+(?:the\s+)?(?:song|track|content)\s+"
+    r"(?:that\s+is\s+)?(?:currently\s+)?playing"
+    r"(?:\s+on\s+(?:the\s+)?spotify(?:\s+app)?)?|"
+    r"(?:tell\s+me\s+)?(?:the\s+)?(?:title|name)\s+of\s+(?:the\s+)?"
+    r"(?:song|track)\s+(?:that\s+is\s+)?(?:currently\s+)?playing"
+    r"(?:\s+on\s+(?:the\s+)?spotify(?:\s+app)?)?)\s*[.!?]?$",
+    re.IGNORECASE,
+)
 _SPOTIFY_PLAYBACK_PATTERN = re.compile(
     r"^(?:(?:please|(?:can|could|would)\s+you(?:\s+please)?)\s+)?"
     r"(?:/spotify-(?P<slash>play|pause|resume|next|previous)|"
@@ -439,7 +454,7 @@ _VOICE_FILLER_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _VOICE_CONTEXT_FILLER_PATTERN = re.compile(
-    r"^(?:(?:so\s+)?for\s+now|so)\s*[,!.?]?\s*",
+    r"^(?:(?:so\s+)?for\s+now|so|how\s+about)\s*[,!.?]?\s*",
     re.IGNORECASE,
 )
 _VOICE_NAME_PATTERN = re.compile(
@@ -498,10 +513,23 @@ class AssistantActionRequestParser:
         if not normalized:
             return None
         request_id = correlation_id or f"chat-action-{uuid4().hex}"
+        if _SPOTIFY_CURRENT_PLAYBACK_PATTERN.fullmatch(normalized) is not None:
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_CURRENT_PLAYBACK_ACTION,
+                parameters={"service": "spotify"},
+            )
         envelope = self._command_envelope_parser.parse(normalized)
         if envelope is None:
             return None
         normalized = envelope.command_text
+
+        if _SPOTIFY_CURRENT_PLAYBACK_PATTERN.fullmatch(normalized) is not None:
+            return _request(
+                correlation_id=request_id,
+                action_id=SPOTIFY_CURRENT_PLAYBACK_ACTION,
+                parameters={"service": "spotify"},
+            )
 
         album_search_match = _SPOTIFY_ALBUM_SEARCH_PATTERN.fullmatch(normalized)
         if album_search_match is not None:

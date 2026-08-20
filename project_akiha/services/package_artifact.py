@@ -15,6 +15,7 @@ _REQUIRED_ARTIFACT_PATHS = (
     "project_akiha/config/default.toml",
     "project_akiha/database",
     "project_akiha/database/migrations",
+    "scripts/run_gpt_sovits_api.py",
     "PySide6",
     "shiboken6",
     "av/utils.pyd",

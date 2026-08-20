@@ -237,6 +237,13 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
             proposal.spotify_operation,
             SpotifyPlaybackOperation.PREVIOUS,
         )
+        current = parse_assistant_tool_proposal(
+            '{"action":"spotify_playback","operation":"current"}'
+        )
+        self.assertEqual(
+            current.spotify_operation,
+            SpotifyPlaybackOperation.CURRENT,
+        )
         with self.assertRaises(AssistantToolProposalError):
             parse_assistant_tool_proposal(
                 '{"action":"spotify_playback","operation":"search"}'
@@ -294,6 +301,9 @@ class AssistantToolProposalTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(should_request_tool_proposal("What should we do today?"))
         self.assertFalse(should_request_tool_proposal("Do not open Discord"))
         self.assertFalse(should_request_tool_proposal("How do I open Discord?"))
+        self.assertTrue(
+            should_request_tool_proposal("What is currently playing on Spotify?")
+        )
 
         spotify_context = IntentContextSnapshot(
             recent_action_id="spotify.pause",

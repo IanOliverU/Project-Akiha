@@ -163,6 +163,28 @@ class AssistantActionRequestParserTest(unittest.TestCase):
                 self.assertEqual(request.action_id, action_id)
                 self.assertEqual(dict(request.parameters), {"service": "spotify"})
 
+    def test_parses_explicit_current_spotify_playback_questions(self) -> None:
+        cases = (
+            "/spotify-current",
+            "What song is currently playing?",
+            "What's currently playing on Spotify?",
+            "Can you identify the song currently playing on the Spotify app?",
+            "Please tell me the title of the track that is currently playing.",
+            "What is currently playing on Spotify?",
+            (
+                "How about can you please identify the song that is currently "
+                "playing on the Spotify app?"
+            ),
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                request = self.parser.parse(text)
+
+                self.assertIsNotNone(request)
+                self.assertEqual(request.action_id, "spotify.current_playback")
+                self.assertEqual(dict(request.parameters), {"service": "spotify"})
+
     def test_parses_spotify_control_inside_natural_courtesy_envelope(self) -> None:
         cases = (
             ("Akiha, could you please pause Spotify for me?", "spotify.pause"),

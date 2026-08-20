@@ -101,6 +101,12 @@ _EXPLICIT_SPOTIFY_TARGET_PATTERN = re.compile(
     r"\b(?:music|música|musica|musik|mizik|musique|spotify|spatify|song|track)\b",
     re.IGNORECASE,
 )
+_CURRENT_PLAYBACK_QUERY_PATTERN = re.compile(
+    r"\b(?:what(?:'s|\s+is)|identify|name|title)\b.*"
+    r"\b(?:currently\s+playing|current\s+(?:song|track)|playing\s+on\s+spotify)\b|"
+    r"\b(?:song|track)\b.*\bcurrently\s+playing\b",
+    re.IGNORECASE,
+)
 _EXPLICIT_APPLICATION_TARGET_PATTERN = re.compile(
     r"\b(?:app|application|chrome|discord|spotify|vlc|vscode|"
     r"visual\s+studio\s+code)\b",
@@ -145,6 +151,7 @@ class SpotifyPlaybackOperation(StrEnum):
     RESUME = "resume"
     NEXT = "next"
     PREVIOUS = "previous"
+    CURRENT = "current"
 
 
 class MediaKind(StrEnum):
@@ -293,7 +300,12 @@ class LLMAssistantToolGateway:
         if not self._enabled:
             return AssistantToolProposal(AssistantToolKind.NONE)
         context = context or IntentContextSnapshot()
-        normalized = _proposal_candidate(user_text)
+        query_candidate = _normalize_navigation_text(user_text)
+        normalized = (
+            query_candidate
+            if _CURRENT_PLAYBACK_QUERY_PATTERN.search(query_candidate) is not None
+            else _proposal_candidate(user_text)
+        )
         if not should_request_tool_proposal(normalized, context=context):
             return AssistantToolProposal(AssistantToolKind.NONE)
         if _contains_multiple_action_clauses(normalized, context):
@@ -494,8 +506,8 @@ def render_assistant_tool_clarification(proposal: AssistantToolProposal) -> str:
             "Which local song or video should I play? Include its title if possible."
         ),
         AssistantToolClarification.SPOTIFY_PLAYBACK: (
-            "I may have misheard you. Should I play, pause, resume, skip, or go back"
-            " on Spotify?"
+            "I may have misheard you. Should I play, pause, resume, skip, go back,"
+            " or identify the current Spotify item?"
         ),
         AssistantToolClarification.CONTEXT_TARGET: (
             "Did you mean the recent application or Spotify playback?"
@@ -663,6 +675,9 @@ def should_request_tool_proposal(
     context: IntentContextSnapshot | None = None,
 ) -> bool:
     """Return whether explicit action language justifies an extra LLM request."""
+    query_candidate = _normalize_navigation_text(user_text)
+    if _CURRENT_PLAYBACK_QUERY_PATTERN.search(query_candidate) is not None:
+        return True
     normalized = _proposal_candidate(user_text)
     if not normalized:
         return False
@@ -688,7 +703,7 @@ Supported outputs:
  "parent":"parent directory name or empty"}
 {"action":"play_media","title":"title only","artist":"artist or empty",
  "media_kind":"audio|video|any"}
-{"action":"spotify_playback","operation":"play|pause|resume|next|previous"}
+{"action":"spotify_playback","operation":"play|pause|resume|next|previous|current"}
 
 Choose an action only when the user explicitly asks to launch an allowed
 application, gracefully close an allowed application, open a named local
@@ -697,7 +712,9 @@ Separate artist from title. Resolve a Spotify operation from recent context only
 when that state makes the intended control clear.
 Never output paths, commands, URLs, arguments, file contents, or other fields.
 Use clarify only when an explicit supported action is missing its application,
-directory, media target, or unambiguous Spotify playback operation. For
+directory, media target, or unambiguous Spotify playback operation. Use the
+current operation only for an explicit request to identify what Spotify is
+playing. For
 questions, planning, quoted commands,
 negation, discussion, or unsupported actions, return {"action":"none"}.
 If the user requests more than one supported action, return clarify with topic

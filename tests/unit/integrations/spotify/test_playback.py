@@ -22,6 +22,7 @@ from project_akiha.database import SQLiteActionRepository
 from project_akiha.integrations.spotify.client import (
     SpotifyAPIError,
     SpotifyCatalogItem,
+    SpotifyCurrentPlayback,
     SpotifyDevice,
     SpotifyItemKind,
     SpotifySearchResult,
@@ -35,6 +36,7 @@ from project_akiha.integrations.spotify.playback import (
     SpotifyArtistPlaybackExecutor,
     SpotifyArtistSearchExecutor,
     SpotifyArtistSelectionStore,
+    SpotifyCurrentPlaybackExecutor,
     SpotifyPlaybackCommand,
     SpotifyPlaybackExecutor,
     SpotifyRepeatExecutor,
@@ -211,6 +213,67 @@ class SpotifyPlaybackActionIntegrationTest(unittest.TestCase):
         self.assertEqual(client.calls, [("pause", "desktop-id")])
         self.assertEqual(len(audits), 2)
         self.assertTrue(all(audit.normalized_target == "spotify" for audit in audits))
+
+
+class SpotifyCurrentPlaybackExecutorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.validator = ActionRequestValidator(
+            build_default_action_registry(),
+            ProtectedPathPolicy(),
+        )
+
+    def test_returns_only_current_item_display_metadata(self) -> None:
+        playback = SpotifyCurrentPlayback(
+            item_type="track",
+            title="Night Signal",
+            creator_names=("Synthetic Singer",),
+            collection_name="Signal Archive",
+            is_playing=True,
+            progress_ms=65_000,
+            duration_ms=180_000,
+        )
+        executor = SpotifyCurrentPlaybackExecutor(
+            _CurrentPlaybackClient(playback)  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated(),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertIn("Night Signal", result.summary)
+        self.assertEqual(result.metadata["title"], "Night Signal")
+        self.assertEqual(result.metadata["creator_names"], ("Synthetic Singer",))
+        self.assertNotIn("device_id", result.metadata)
+        self.assertNotIn("uri", result.metadata)
+
+    def test_no_current_item_is_a_successful_bounded_result(self) -> None:
+        executor = SpotifyCurrentPlaybackExecutor(
+            _CurrentPlaybackClient(None)  # type: ignore[arg-type]
+        )
+
+        result = asyncio.run(
+            executor.execute(
+                self._validated(),
+                cancellation_token=ActionCancellationToken(),
+            )
+        )
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS)
+        self.assertEqual(dict(result.metadata), {"has_item": False})
+
+    def _validated(self):
+        return self.validator.validate(
+            ActionRequest(
+                correlation_id="spotify-current-1",
+                action_id="spotify.current_playback",
+                source="chat",
+                parameters={"service": "spotify"},
+            )
+        )
 
 
 class SpotifyShuffleExecutorTest(unittest.TestCase):
@@ -937,6 +1000,14 @@ class _PlaybackClient:
         if self.error is not None:
             raise self.error
         self.seek_calls.append((device_id, position_ms))
+
+
+class _CurrentPlaybackClient:
+    def __init__(self, playback: SpotifyCurrentPlayback | None) -> None:
+        self.playback = playback
+
+    def get_current_playback(self) -> SpotifyCurrentPlayback | None:
+        return self.playback
 
 
 class _ArtistClient:

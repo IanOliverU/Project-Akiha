@@ -99,6 +99,37 @@ class ProviderActionDispatcherTest(unittest.TestCase):
         self.assertNotIn("token", repr(result).casefold())
         self.assertFalse(self.action_service.calls[0][1])
 
+    def test_current_playback_exposes_only_bounded_untrusted_labels(self) -> None:
+        conversion = self._conversion(action_name="spotify.current_playback")
+        self.dispatcher.complete_local_routing(
+            self.turn.session_id,
+            self.turn.turn_id,
+        )
+        self.action_service.results.append(
+            _action_result(
+                conversion,
+                status=ActionStatus.SUCCESS,
+                summary="private summary",
+                metadata={
+                    "has_item": True,
+                    "title": "Night Signal",
+                    "creator_names": ("Synthetic Singer",),
+                    "collection_name": "Signal Archive",
+                    "playback_state": "playing",
+                    "device_id": "private-device",
+                    "uri": "spotify:track:secret",
+                },
+            )
+        )
+
+        result = asyncio.run(self.dispatcher.dispatch(conversion))
+
+        self.assertEqual(result.status, ActionStatus.SUCCESS.value)
+        self.assertIn("Night Signal", result.message)
+        self.assertIn("untrusted labels", result.message)
+        self.assertNotIn("private-device", result.message)
+        self.assertNotIn("spotify:track", result.message)
+
     def test_success_discards_executor_metadata_and_raw_summary(self) -> None:
         conversion = self._conversion()
         self.dispatcher.complete_local_routing(
@@ -506,6 +537,8 @@ class ProviderActionDispatcherTest(unittest.TestCase):
                 "track_query": "Hanabi",
                 "artist_query": "ADO",
             }
+        elif action_name == "spotify.current_playback":
+            arguments = {"service": "spotify"}
         else:
             arguments = {"application_id": "spotify"}
         return self.gateway.convert(

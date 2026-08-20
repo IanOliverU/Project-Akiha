@@ -104,6 +104,7 @@ from project_akiha.core.actions.registry import (
     LAUNCH_APPLICATION_ACTION,
     OPEN_DIRECTORY_ACTION,
     OPEN_FILE_ACTION,
+    SPOTIFY_CURRENT_PLAYBACK_ACTION,
     SPOTIFY_NEXT_ACTION,
     SPOTIFY_OPEN_ALBUM_ACTION,
     SPOTIFY_OPEN_ARTIST_ACTION,
@@ -2401,6 +2402,7 @@ def _run_application() -> int:
                     SpotifyPlaybackOperation.RESUME: SPOTIFY_RESUME_ACTION,
                     SpotifyPlaybackOperation.NEXT: SPOTIFY_NEXT_ACTION,
                     SpotifyPlaybackOperation.PREVIOUS: SPOTIFY_PREVIOUS_ACTION,
+                    SpotifyPlaybackOperation.CURRENT: (SPOTIFY_CURRENT_PLAYBACK_ACTION),
                 }[proposal.spotify_operation]
                 request = ActionRequest(
                     correlation_id=f"llm-spotify-{uuid4().hex}",

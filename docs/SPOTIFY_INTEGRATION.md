@@ -25,6 +25,9 @@ an assistant-action extension, not direct AI access to Spotify.
 - Spotify Premium is required for Web API playback control.
 - Akiha launches Spotify when playback needs an available desktop device.
 - Device IDs are fetched immediately before use and are never persisted.
+- Current-playback queries retain only the item title, bounded creator names,
+  album/show name, playing/paused state, and bounded progress for that request.
+  Device metadata, Spotify IDs, and URIs are discarded before presentation.
 - An active unrestricted device wins; otherwise Akiha selects one unambiguous
   computer or sole usable device and refuses to guess between peers.
 - Ambiguous songs, albums, artists, or playlists require a user choice.
@@ -83,11 +86,21 @@ phrases are not intercepted. Absolute seeking accepts bounded clock positions
 and spoken durations through commands such as `seek Spotify to 1 minute 30
 seconds`, `go to 2:15 on Spotify`, and `restart current Spotify track`.
 Positions are converted to milliseconds only after validation; relative seek
-commands remain out of scope until current playback-state retrieval is added.
+commands remain out of scope. Current playback retrieval is a separate
+read-only action and does not infer seek deltas.
 Speech punctuation between a control and its target is accepted, along with a
 small tested alias set for observed `pause`/`Spotify` transcription errors.
 Artist, track, album, playlist, and favorites selection use separate local
 resolution steps.
+
+Explicit questions such as `What song is currently playing?`, `What's playing
+on Spotify?`, `Identify the current track`, and `/spotify-current` use the
+typed `spotify.current_playback` action. The local Spotify client calls the
+fixed current-item endpoint and returns only bounded display metadata. In a
+provider-native tool session, Akiha receives a sanitized result that labels
+catalog values as untrusted data rather than instructions. The provider never
+receives device names or IDs, Spotify item IDs or URIs, OAuth data, or the raw
+API response.
 
 Artist-catalog playback is resolved locally through Spotify search and the
 fixed playback-context endpoint. Explicit forms include `play songs by
@@ -223,6 +236,8 @@ and artist names rather than the user's data.
   absolute seek controls.
 - [x] Deterministic typed/voice parsing for generic playback controls without
   sending the command through an AI provider.
+- [x] Permission-gated current-playback identification with bounded local
+  metadata and an explicitly sanitized Gemini/Ollama tool result.
 - [x] Local artist search, guarded artist-context playback, and bounded
   ambiguity follow-ups for typed and voice requests.
 - [x] Standalone artist search and bounded chat result presentation.

@@ -216,6 +216,7 @@ try {
         "--noinclude-data-files=assets/animations/akiha/Spotify.txt",
         "--include-data-dir=project_akiha/config=project_akiha/config",
         "--include-data-dir=project_akiha/database/migrations=project_akiha/database/migrations",
+        "--include-data-files=scripts/run_gpt_sovits_api.py=scripts/run_gpt_sovits_api.py",
         "--report=$CompilationReportPath",
         "--report-user-provided=build_mode=$BuildMode",
         "project_akiha/app/main.py"

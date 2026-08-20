@@ -12,6 +12,7 @@ from project_akiha.integrations.spotify.client import (
     SPOTIFY_API_BASE_URL,
     SpotifyAPIError,
     SpotifyClient,
+    SpotifyCurrentPlayback,
     SpotifyDevice,
     SpotifyItemKind,
 )
@@ -318,6 +319,54 @@ class SpotifyClientTest(unittest.TestCase):
         self.assertFalse(hasattr(devices[0], "is_private_session"))
         url = transport.requests[0][0]
         self.assertEqual(url, f"{SPOTIFY_API_BASE_URL}/me/player/devices")
+
+    def test_current_playback_keeps_only_bounded_display_metadata(self) -> None:
+        transport = _Transport(
+            [
+                {
+                    "is_playing": True,
+                    "progress_ms": 73_500,
+                    "device": {"id": "private-device", "name": "Private PC"},
+                    "item": _track(
+                        "track-1",
+                        "Night Signal",
+                        "Synthetic Singer",
+                        album="Signal Archive",
+                    ),
+                }
+            ]
+        )
+        client = SpotifyClient(self.config, self.session, transport=transport)
+
+        playback = client.get_current_playback()
+
+        self.assertEqual(
+            playback,
+            SpotifyCurrentPlayback(
+                item_type="track",
+                title="Night Signal",
+                creator_names=("Synthetic Singer",),
+                collection_name="Signal Archive",
+                is_playing=True,
+                progress_ms=73_500,
+                duration_ms=180_000,
+            ),
+        )
+        self.assertFalse(hasattr(playback, "device_id"))
+        self.assertFalse(hasattr(playback, "uri"))
+        self.assertEqual(
+            transport.requests[0][0],
+            f"{SPOTIFY_API_BASE_URL}/me/player/currently-playing",
+        )
+
+    def test_empty_current_playback_returns_none(self) -> None:
+        client = SpotifyClient(
+            self.config,
+            self.session,
+            transport=_Transport([{}]),
+        )
+
+        self.assertIsNone(client.get_current_playback())
 
     def test_invalid_device_collection_fails_without_echoing_content(self) -> None:
         transport = _Transport([{"devices": {"private": "do-not-echo"}}])

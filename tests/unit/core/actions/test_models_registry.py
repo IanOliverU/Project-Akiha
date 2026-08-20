@@ -48,6 +48,7 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
                 "spotify.resume",
                 "spotify.next",
                 "spotify.previous",
+                "spotify.current_playback",
                 "spotify.shuffle",
                 "spotify.repeat",
                 "spotify.volume",

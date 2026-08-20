@@ -48,6 +48,15 @@ ProcessFactory = Callable[
 EndpointProbe = Callable[[str], bool]
 
 
+@dataclass(frozen=True, slots=True)
+class _GptSoVitsRuntime:
+    python_executable: Path
+    source_dir: Path
+    config_path: Path
+    launcher_path: Path
+    nltk_data_dir: Path | None
+
+
 class GptSoVitsEngineManager:
     """Start and stop only the GPT-SoVITS process owned by Akiha."""
 
@@ -115,7 +124,9 @@ class GptSoVitsEngineManager:
                 True,
             )
 
-        python_executable, source_dir, config_path = runtime
+        python_executable = runtime.python_executable
+        source_dir = runtime.source_dir
+        config_path = runtime.config_path
         host, port = endpoint
         signature = (python_executable, source_dir, host, port)
         if self.owns_running_process and self._launch_signature == signature:
@@ -127,7 +138,7 @@ class GptSoVitsEngineManager:
 
         command = (
             str(python_executable),
-            str(self._project_root / "scripts" / "run_gpt_sovits_api.py"),
+            str(runtime.launcher_path),
             "-a",
             host,
             "-p",
@@ -135,7 +146,7 @@ class GptSoVitsEngineManager:
             "-c",
             config_path.relative_to(source_dir).as_posix(),
         )
-        environment = self._process_environment()
+        environment = self._process_environment(runtime.nltk_data_dir)
         try:
             self._process = self._process_factory(command, source_dir, environment)
         except OSError:
@@ -222,23 +233,46 @@ class GptSoVitsEngineManager:
             return True
         return self.stop()
 
-    def _resolve_runtime(self) -> tuple[Path, Path, Path] | None:
+    def _resolve_runtime(self) -> _GptSoVitsRuntime | None:
+        support_roots = self._support_roots()
         source_candidates = []
         configured_source = self._environment.get("AKIHA_GPT_SOVITS_SOURCE", "").strip()
         if configured_source:
             source_candidates.append(Path(configured_source).expanduser())
-        source_candidates.append(self._project_root / ".gpt-sovits-src")
+        source_candidates.extend(root / ".gpt-sovits-src" for root in support_roots)
 
         python_candidates = []
         configured_python = self._environment.get("AKIHA_GPT_SOVITS_PYTHON", "").strip()
         if configured_python:
             python_candidates.append(Path(configured_python).expanduser())
-        python_candidates.extend(
-            (
-                self._project_root / ".gpt-sovits-venv" / "Scripts" / "python.exe",
-                self._project_root / ".gpt-sovits-venv" / "bin" / "python",
+        for root in support_roots:
+            python_candidates.extend(
+                (
+                    root / ".gpt-sovits-venv" / "Scripts" / "python.exe",
+                    root / ".gpt-sovits-venv" / "bin" / "python",
+                )
             )
+
+        launcher_candidates = []
+        configured_launcher = self._environment.get(
+            "AKIHA_GPT_SOVITS_LAUNCHER", ""
+        ).strip()
+        if configured_launcher:
+            launcher_candidates.append(Path(configured_launcher).expanduser())
+        launcher_candidates.extend(
+            root / "scripts" / "run_gpt_sovits_api.py" for root in support_roots
         )
+        launcher_path = next(
+            (
+                candidate.resolve()
+                for candidate in launcher_candidates
+                if candidate.is_file()
+            ),
+            None,
+        )
+        if launcher_path is None:
+            return None
+
         command_python = shutil.which("python3.10") or shutil.which("python3")
         if command_python:
             python_candidates.append(Path(command_python))
@@ -252,14 +286,44 @@ class GptSoVitsEngineManager:
             for python_executable in python_candidates:
                 python_executable = python_executable.resolve()
                 if python_executable.is_file():
-                    return python_executable, source, config_path
+                    venv_root = python_executable.parent.parent
+                    nltk_data_dir = venv_root / "nltk_data"
+                    return _GptSoVitsRuntime(
+                        python_executable=python_executable,
+                        source_dir=source,
+                        config_path=config_path,
+                        launcher_path=launcher_path,
+                        nltk_data_dir=(
+                            nltk_data_dir if nltk_data_dir.is_dir() else None
+                        ),
+                    )
         return None
 
-    def _process_environment(self) -> dict[str, str]:
+    def _support_roots(self) -> tuple[Path, ...]:
+        """Return bounded locations that may own the external voice runtime."""
+        candidates = [self._project_root]
+        candidates.extend(tuple(self._project_root.parents)[:4])
+        configured_root = self._environment.get("AKIHA_GPT_SOVITS_ROOT", "").strip()
+        if configured_root:
+            candidates.insert(0, Path(configured_root).expanduser())
+
+        local_app_data = self._environment.get("LOCALAPPDATA", "").strip()
+        if local_app_data:
+            candidates.append(
+                Path(local_app_data) / "Akiha" / "runtimes" / "gpt-sovits"
+            )
+
+        unique: list[Path] = []
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if resolved not in unique:
+                unique.append(resolved)
+        return tuple(unique)
+
+    def _process_environment(self, nltk_data_dir: Path | None) -> dict[str, str]:
         environment = dict(self._environment)
-        nltk_data = self._project_root / ".gpt-sovits-venv" / "nltk_data"
-        if nltk_data.is_dir():
-            environment["NLTK_DATA"] = str(nltk_data)
+        if nltk_data_dir is not None:
+            environment["NLTK_DATA"] = str(nltk_data_dir)
         ffmpeg_bin = _resolve_ffmpeg_bin(environment)
         if ffmpeg_bin is not None:
             environment["AKIHA_FFMPEG_BIN"] = str(ffmpeg_bin)

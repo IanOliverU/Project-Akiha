@@ -81,6 +81,29 @@ class SpotifyDevice:
 
 
 @dataclass(frozen=True, slots=True)
+class SpotifyCurrentPlayback:
+    """Minimal current-item metadata retained for one explicit user query."""
+
+    item_type: str
+    title: str
+    creator_names: tuple[str, ...]
+    collection_name: str
+    is_playing: bool
+    progress_ms: int | None
+    duration_ms: int | None
+
+    def __post_init__(self) -> None:
+        if self.item_type not in {"track", "episode"}:
+            raise ValueError("Spotify playback item type is unsupported.")
+        if not self.title.strip():
+            raise ValueError("Spotify playback title cannot be empty.")
+        if self.progress_ms is not None and self.progress_ms < 0:
+            raise ValueError("Spotify playback progress cannot be negative.")
+        if self.duration_ms is not None and self.duration_ms < 0:
+            raise ValueError("Spotify playback duration cannot be negative.")
+
+
+@dataclass(frozen=True, slots=True)
 class SpotifyCatalogItem:
     """Minimal Spotify metadata retained for local ranking and presentation."""
 
@@ -233,6 +256,13 @@ class SpotifyClient:
             if device is not None:
                 devices.append(device)
         return tuple(devices)
+
+    def get_current_playback(self) -> SpotifyCurrentPlayback | None:
+        """Return only bounded metadata for the item currently on Spotify."""
+        payload = self._request_json("/me/player/currently-playing", {})
+        if not payload or payload.get("item") is None:
+            return None
+        return _parse_current_playback(payload)
 
     def start_or_resume_playback(self, device_id: str) -> None:
         """Start or resume the current Spotify context on one fresh device ID."""
@@ -465,7 +495,10 @@ def _get_json(url: str, headers: Mapping[str, str], timeout: float) -> JSONPaylo
     request = Request(url, headers=dict(headers), method="GET")
     try:
         with urlopen(request, timeout=timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            raw_payload = response.read()
+            if not raw_payload:
+                return {}
+            payload = json.loads(raw_payload.decode("utf-8"))
     except HTTPError as error:
         raise _http_error(error.code) from error
     except (OSError, URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -672,6 +705,50 @@ def _parse_device(raw_device: object) -> SpotifyDevice | None:
     )
 
 
+def _parse_current_playback(payload: object) -> SpotifyCurrentPlayback:
+    if not isinstance(payload, dict):
+        raise SpotifyAPIError("Spotify returned an invalid playback state.")
+    raw_item = payload.get("item")
+    if not isinstance(raw_item, dict):
+        raise SpotifyAPIError("Spotify returned an invalid playback item.")
+
+    item_type = raw_item.get("type")
+    if item_type not in {"track", "episode"}:
+        raise SpotifyAPIError("Spotify returned an unsupported playback item.")
+    title = _bounded_string(raw_item.get("name"), maximum=160)
+    if title is None:
+        raise SpotifyAPIError("Spotify returned an invalid playback title.")
+
+    if item_type == "track":
+        creator_names = _bounded_names(raw_item.get("artists"), maximum=8)
+        collection = raw_item.get("album")
+    else:
+        show = raw_item.get("show")
+        creator_names = ()
+        if isinstance(show, dict):
+            creator = _bounded_string(show.get("publisher"), maximum=160)
+            if creator is not None:
+                creator_names = (creator,)
+        collection = show
+
+    collection_name = ""
+    if isinstance(collection, dict):
+        collection_name = _bounded_string(collection.get("name"), maximum=160) or ""
+
+    is_playing = payload.get("is_playing")
+    if not isinstance(is_playing, bool):
+        raise SpotifyAPIError("Spotify returned an invalid playback state.")
+    return SpotifyCurrentPlayback(
+        item_type=item_type,
+        title=title,
+        creator_names=creator_names,
+        collection_name=collection_name,
+        is_playing=is_playing,
+        progress_ms=_bounded_milliseconds(payload.get("progress_ms")),
+        duration_ms=_bounded_milliseconds(raw_item.get("duration_ms")),
+    )
+
+
 def _artist_names(raw_artists: object) -> tuple[str, ...]:
     if not isinstance(raw_artists, list):
         return ()
@@ -681,6 +758,34 @@ def _artist_names(raw_artists: object) -> tuple[str, ...]:
         if isinstance(artist, dict)
         and (name := _nonempty_string(artist.get("name"))) is not None
     )
+
+
+def _bounded_names(raw_values: object, *, maximum: int) -> tuple[str, ...]:
+    if not isinstance(raw_values, list):
+        return ()
+    names: list[str] = []
+    for raw_value in raw_values[:maximum]:
+        if not isinstance(raw_value, dict):
+            continue
+        name = _bounded_string(raw_value.get("name"), maximum=160)
+        if name is not None:
+            names.append(name)
+    return tuple(names)
+
+
+def _bounded_string(value: object, *, maximum: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    if not normalized:
+        return None
+    return normalized[:maximum]
+
+
+def _bounded_milliseconds(value: object) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        return None
+    return min(value, 86_400_000)
 
 
 def _nonempty_string(value: object) -> str | None:

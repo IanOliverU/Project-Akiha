@@ -39,6 +39,9 @@ class GptSoVitsEngineManagerTest(unittest.TestCase):
             python = root / ".gpt-sovits-venv" / "Scripts" / "python.exe"
             python.parent.mkdir(parents=True)
             python.touch()
+            launcher = root / "scripts" / "run_gpt_sovits_api.py"
+            launcher.parent.mkdir(parents=True)
+            launcher.touch()
             ffmpeg_bin = root / "ffmpeg" / "bin"
             ffmpeg_bin.mkdir(parents=True)
             (ffmpeg_bin / "ffmpeg.exe").touch()
@@ -62,7 +65,7 @@ class GptSoVitsEngineManagerTest(unittest.TestCase):
             [
                 (
                     str(python.resolve()),
-                    str(root / "scripts" / "run_gpt_sovits_api.py"),
+                    str(launcher.resolve()),
                     "-a",
                     "127.0.0.1",
                     "-p",
@@ -79,6 +82,70 @@ class GptSoVitsEngineManagerTest(unittest.TestCase):
         )
         self.assertTrue(factory.process.terminated)
         self.assertTrue(stopped)
+
+    def test_packaged_layout_discovers_external_runtime_in_project_ancestor(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "Project Akiha"
+            packaged_root = root / "dist" / "candidate" / "main.dist"
+            packaged_root.mkdir(parents=True)
+            source = root / ".gpt-sovits-src"
+            (source / "GPT_SoVITS" / "configs").mkdir(parents=True)
+            (source / "api_v2.py").touch()
+            (source / "GPT_SoVITS" / "configs" / "tts_infer.yaml").touch()
+            python = root / ".gpt-sovits-venv" / "Scripts" / "python.exe"
+            python.parent.mkdir(parents=True)
+            python.touch()
+            packaged_launcher = packaged_root / "scripts" / "run_gpt_sovits_api.py"
+            packaged_launcher.parent.mkdir(parents=True)
+            packaged_launcher.touch()
+            factory = _ProcessFactory()
+            manager = GptSoVitsEngineManager(
+                packaged_root,
+                process_factory=factory,
+                endpoint_probe=lambda _url: False,
+                environment={},
+            )
+
+            status = manager.apply_config(_managed_config())
+
+        self.assertEqual(status.state, "starting")
+        self.assertEqual(factory.commands[0][0], str(python.resolve()))
+        self.assertEqual(factory.commands[0][1], str(packaged_launcher.resolve()))
+        self.assertEqual(factory.working_directories, [source.resolve()])
+
+    def test_packaged_layout_supports_explicit_external_runtime_paths(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            packaged_root = root / "package" / "main.dist"
+            packaged_root.mkdir(parents=True)
+            source = root / "voice-runtime" / "source"
+            (source / "GPT_SoVITS" / "configs").mkdir(parents=True)
+            (source / "api_v2.py").touch()
+            (source / "GPT_SoVITS" / "configs" / "tts_infer.yaml").touch()
+            python = root / "voice-runtime" / "venv" / "Scripts" / "python.exe"
+            python.parent.mkdir(parents=True)
+            python.touch()
+            launcher = root / "voice-runtime" / "launch.py"
+            launcher.touch()
+            factory = _ProcessFactory()
+            manager = GptSoVitsEngineManager(
+                packaged_root,
+                process_factory=factory,
+                endpoint_probe=lambda _url: False,
+                environment={
+                    "AKIHA_GPT_SOVITS_SOURCE": str(source),
+                    "AKIHA_GPT_SOVITS_PYTHON": str(python),
+                    "AKIHA_GPT_SOVITS_LAUNCHER": str(launcher),
+                },
+            )
+
+            status = manager.apply_config(_managed_config())
+
+        self.assertEqual(status.state, "starting")
+        self.assertEqual(factory.commands[0][0], str(python.resolve()))
+        self.assertEqual(factory.commands[0][1], str(launcher.resolve()))
 
     def test_external_runtime_is_not_stopped(self) -> None:
         factory = _ProcessFactory()
