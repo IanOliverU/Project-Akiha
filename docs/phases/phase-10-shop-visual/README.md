@@ -1,6 +1,6 @@
 # Phase 10: Shop And Visual Pet Expansion
 
-**Status:** Planned - blueprint ready for owner review; implementation has not started
+**Status:** In progress - Phase 10A domain and visual contracts complete
 
 ## Phase Goal
 
@@ -75,6 +75,11 @@ Initial equipment slots should remain small and meaningful: `head`, `face`,
 `neck`, and `accessory`. Add outfit replacement only after an approved asset set
 proves that full-body layering is visually reliable.
 
+Phase 10 begins with one product category: `cosmetic`. All initial cosmetics are
+non-stackable and occupy exactly one of the four slots above. Consumable food,
+care boosts, and full outfit replacement remain outside the initial catalog so
+the economy does not get ahead of approved gameplay and visual assets.
+
 ### Durable inventory
 
 Inventory records contain only stable IDs and ownership facts:
@@ -87,6 +92,22 @@ Inventory records contain only stable IDs and ownership facts:
 
 Repeated purchase requests for a non-stackable item return the existing owned
 item without charging currency again.
+
+### Purchase behavior
+
+The typed purchase decisions are `completed`, `already_owned`,
+`insufficient_funds`, `level_required`, and `item_unavailable`.
+
+- A completed purchase debits exactly the catalog price and links the inventory
+  grant to one UUID transaction.
+- Every denied result preserves the original balance and creates no committed
+  transaction or inventory record.
+- Duplicate purchase requests return `already_owned` and never charge again.
+- Prices may be zero for deliberate starter/promotional catalog entries, but
+  balances and level/catalog versions remain strictly validated.
+- Refunds, resale, trading, gifting, and item consumption are not supported in
+  Phase 10. An owned item is never silently removed because a catalog entry or
+  visual asset later becomes unavailable.
 
 ### Equipment loadout
 
@@ -108,6 +129,12 @@ An approved layer declares:
 No runtime interpolation, AI-generated replacement pixels, automatic recoloring,
 or subpixel positioning is allowed for canonical pixel-art presentation.
 
+The Phase 10A code contract additionally requires normalized relative PNG paths,
+the canonical 100 x 100 canvas, binary alpha, nearest-neighbor rendering, known
+animation states, explicit left/right compatibility, integer offsets, and bounded
+z-order. A missing or unsupported layer renders nothing while ownership and the
+equipped record remain intact for diagnostics and later recovery.
+
 ## Persistence Plan
 
 Phase 9 currently owns migrations through `0010`. Phase 10 starts at `0011`
@@ -128,13 +155,13 @@ inventory or transaction history.
 
 ### Phase 10A: Product, Economy, And Asset Contract
 
-- [ ] Confirm the minimum item categories and equipment slots.
-- [ ] Define catalog, inventory, transaction, loadout, and cosmetic-layer models.
-- [ ] Define item pricing and level prerequisites against Phase 9 progression.
-- [ ] Lock duplicate-purchase, insufficient-funds, refund, and unavailable-item
+- [x] Confirm the minimum item categories and equipment slots.
+- [x] Define catalog, inventory, transaction, loadout, and cosmetic-layer models.
+- [x] Define item pricing and level prerequisites against Phase 9 progression.
+- [x] Lock duplicate-purchase, insufficient-funds, refund, and unavailable-item
   behavior.
-- [ ] Extend the animation architecture with cosmetic-layer acceptance rules.
-- [ ] Require at least one owner-approved visible starter cosmetic before visual
+- [x] Extend the animation architecture with cosmetic-layer acceptance rules.
+- [x] Require at least one owner-approved visible starter cosmetic before visual
   Phase 10 completion can be claimed.
 
 ### Phase 10B: Trusted Catalog Foundation
