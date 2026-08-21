@@ -131,6 +131,7 @@ class PurchaseContractTest(unittest.TestCase):
         transaction = PurchaseTransaction(
             transaction_id=transaction_id,
             item_id="starter.ribbon",
+            catalog_version=1,
             price=20,
             balance_before=25,
             balance_after=5,
@@ -160,6 +161,7 @@ class PurchaseContractTest(unittest.TestCase):
                     PurchaseTransaction(
                         transaction_id=uuid4(),
                         item_id="starter.ribbon",
+                        catalog_version=1,
                         price=20,
                         balance_before=before,
                         balance_after=after,
@@ -182,6 +184,7 @@ class PurchaseContractTest(unittest.TestCase):
                 transaction=PurchaseTransaction(
                     transaction_id=uuid4(),
                     item_id="starter.ribbon",
+                    catalog_version=1,
                     price=0,
                     balance_before=20,
                     balance_after=20,

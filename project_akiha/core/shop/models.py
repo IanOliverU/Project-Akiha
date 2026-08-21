@@ -166,6 +166,7 @@ class PurchaseTransaction:
 
     transaction_id: UUID
     item_id: str
+    catalog_version: int
     price: int
     balance_before: int
     balance_after: int
@@ -175,6 +176,7 @@ class PurchaseTransaction:
         if not isinstance(self.transaction_id, UUID):
             raise TypeError("transaction_id must be a UUID.")
         _require_identifier(self.item_id, "item_id")
+        _require_positive_int(self.catalog_version, "catalog_version")
         _require_nonnegative_int(self.price, "price")
         _require_nonnegative_int(self.balance_before, "balance_before")
         _require_nonnegative_int(self.balance_after, "balance_after")

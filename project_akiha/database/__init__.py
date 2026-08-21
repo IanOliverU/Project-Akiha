@@ -8,6 +8,7 @@ from project_akiha.database.sqlite_conversation_repository import (
 )
 from project_akiha.database.sqlite_memory_repository import SQLiteMemoryRepository
 from project_akiha.database.sqlite_pet_repository import SQLitePetStateRepository
+from project_akiha.database.sqlite_shop_repository import SQLiteShopRepository
 
 __all__ = [
     "DatabaseMigrator",
@@ -16,4 +17,5 @@ __all__ = [
     "SQLiteConversationRepository",
     "SQLiteMemoryRepository",
     "SQLitePetStateRepository",
+    "SQLiteShopRepository",
 ]

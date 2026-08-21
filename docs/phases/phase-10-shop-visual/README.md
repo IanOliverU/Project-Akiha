@@ -1,6 +1,6 @@
 # Phase 10: Shop And Visual Pet Expansion
 
-**Status:** In progress - Phase 10B trusted catalog foundation complete
+**Status:** In progress - Phase 10C persistence and atomic economy complete
 
 ## Phase Goal
 
@@ -151,6 +151,28 @@ The bundled catalog remains version-controlled TOML rather than user database
 content. Removing an item from the active catalog must not silently delete its
 inventory or transaction history.
 
+Migration `0011_shop_inventory.sql` owns three durable tables:
+
+- `shop_transactions` stores completed idempotent currency debits, catalog
+  version, price, before/after balances, and purchase time;
+- `shop_inventory` stores one non-stackable ownership row per item with guarded
+  acquisition provenance; and
+- `shop_equipment` stores at most one owned item per approved slot and prevents
+  one item from occupying multiple slots.
+
+The SQLite shop repository owns the cross-table purchase transaction. Under one
+`BEGIN IMMEDIATE`, it checks transaction replay, existing ownership, catalog
+availability, level, and current currency before updating `pet_state`, writing
+the transaction, and granting inventory. Any failed statement rolls back all
+three mutations. A repeated transaction ID returns the original completed
+result, while a different transaction ID for an already-owned item returns
+`already_owned` without charging again.
+
+Purchases increment the shared pet-state revision and change only currency and
+the update timestamp. Phase 9 wellbeing, decay baselines, XP, level, reward
+grants, and pet history remain intact. Purchase audit history belongs to
+`shop_transactions`, avoiding duplicate or misleading care-history entries.
+
 ## Trusted Catalog Contract
 
 `project_akiha/config/shop_catalog.toml` is the bundled catalog entry point. Its
@@ -200,11 +222,11 @@ explicitly requested for trusted diagnostics or maintenance.
 
 ### Phase 10C: Persistence And Atomic Economy
 
-- [ ] Add migration `0011` and verify fresh and existing-data upgrades.
-- [ ] Implement inventory, equipment, and transaction repositories.
-- [ ] Implement atomic purchase with idempotency protection.
-- [ ] Prevent negative currency and duplicate charges.
-- [ ] Preserve Phase 9 pet state, XP, level, care history, and currency accrual.
+- [x] Add migration `0011` and verify fresh and existing-data upgrades.
+- [x] Implement inventory, equipment, and transaction repositories.
+- [x] Implement atomic purchase with idempotency protection.
+- [x] Prevent negative currency and duplicate charges.
+- [x] Preserve Phase 9 pet state, XP, level, care history, and currency accrual.
 
 ### Phase 10D: Shop And Inventory Services
 

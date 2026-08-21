@@ -33,6 +33,11 @@ from project_akiha.core.shop.models import (
     PurchaseTransaction,
     ShopItemCategory,
 )
+from project_akiha.core.shop.repository import (
+    ShopIdempotencyConflictError,
+    ShopRepository,
+    ShopStateUnavailableError,
+)
 
 __all__ = [
     "CANONICAL_COSMETIC_CANVAS_SIZE",
@@ -59,7 +64,10 @@ __all__ = [
     "PurchaseOutcome",
     "PurchaseTransaction",
     "ShopCatalog",
+    "ShopIdempotencyConflictError",
     "ShopItemCategory",
+    "ShopRepository",
+    "ShopStateUnavailableError",
     "browse_catalog",
     "load_catalog",
     "load_catalog_or_empty",
