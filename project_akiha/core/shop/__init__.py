@@ -1,5 +1,22 @@
 """Typed contracts for Akiha's trusted local shop and wardrobe."""
 
+from project_akiha.core.shop.catalog import (
+    SHOP_CATALOG_SCHEMA_VERSION,
+    CatalogDecodeError,
+    CatalogError,
+    CatalogLoadFailure,
+    CatalogLoadResult,
+    CatalogOwnershipFilter,
+    CatalogQuery,
+    CatalogReadError,
+    CatalogSort,
+    CatalogValidationError,
+    ShopCatalog,
+    browse_catalog,
+    load_catalog,
+    load_catalog_or_empty,
+    parse_catalog_toml,
+)
 from project_akiha.core.shop.models import (
     CANONICAL_COSMETIC_CANVAS_SIZE,
     AcquisitionSource,
@@ -19,9 +36,19 @@ from project_akiha.core.shop.models import (
 
 __all__ = [
     "CANONICAL_COSMETIC_CANVAS_SIZE",
+    "SHOP_CATALOG_SCHEMA_VERSION",
     "AcquisitionSource",
     "CatalogAvailability",
+    "CatalogDecodeError",
+    "CatalogError",
     "CatalogItem",
+    "CatalogLoadFailure",
+    "CatalogLoadResult",
+    "CatalogOwnershipFilter",
+    "CatalogQuery",
+    "CatalogReadError",
+    "CatalogSort",
+    "CatalogValidationError",
     "CosmeticLayer",
     "EquipmentLoadout",
     "EquipmentSlot",
@@ -31,5 +58,10 @@ __all__ = [
     "PurchaseDecision",
     "PurchaseOutcome",
     "PurchaseTransaction",
+    "ShopCatalog",
     "ShopItemCategory",
+    "browse_catalog",
+    "load_catalog",
+    "load_catalog_or_empty",
+    "parse_catalog_toml",
 ]

@@ -1,6 +1,6 @@
 # Phase 10: Shop And Visual Pet Expansion
 
-**Status:** In progress - Phase 10A domain and visual contracts complete
+**Status:** In progress - Phase 10B trusted catalog foundation complete
 
 ## Phase Goal
 
@@ -151,6 +151,31 @@ The bundled catalog remains version-controlled TOML rather than user database
 content. Removing an item from the active catalog must not silently delete its
 inventory or transaction history.
 
+## Trusted Catalog Contract
+
+`project_akiha/config/shop_catalog.toml` is the bundled catalog entry point. Its
+schema and catalog versions are explicit positive integers. The initial file is
+valid but intentionally empty until at least one cosmetic asset passes owner
+visual review.
+
+Catalog parsing is strict and fail-closed:
+
+- root, item, and layer tables reject missing and unknown fields;
+- item IDs, layer IDs, and layer asset paths must be unique;
+- every item preview and cosmetic-layer ID must resolve inside the same catalog;
+- prices, levels, versions, slots, availability, states, directions, canvas,
+  alpha, offsets, and z-order pass the Phase 10A typed contracts;
+- asset references are normalized relative PNG paths, never URLs, absolute
+  locations, parent traversal, scripts, or executables; and
+- a missing, unreadable, malformed, or invalid catalog returns a valid empty
+  snapshot plus one bounded diagnostic reason instead of partially loading.
+
+Catalog browsing is pure and deterministic. It supports typed category,
+availability, and ownership filters plus name, category, ascending/descending
+price, ownership, and availability ordering. Every ordering uses stable name and
+item-ID tie breakers. Hidden items are excluded by default and appear only when
+explicitly requested for trusted diagnostics or maintenance.
+
 ## Subphase Blueprint
 
 ### Phase 10A: Product, Economy, And Asset Contract
@@ -166,12 +191,12 @@ inventory or transaction history.
 
 ### Phase 10B: Trusted Catalog Foundation
 
-- [ ] Add a versioned local catalog schema and parser.
-- [ ] Reject duplicate IDs, invalid prices, unknown slots, unsafe paths, and
+- [x] Add a versioned local catalog schema and parser.
+- [x] Reject duplicate IDs, invalid prices, unknown slots, unsafe paths, and
   incompatible asset declarations.
-- [ ] Add deterministic filtering and ordering by category, price, ownership,
+- [x] Add deterministic filtering and ordering by category, price, ownership,
   and availability.
-- [ ] Add a safe empty or invalid catalog fallback.
+- [x] Add a safe empty or invalid catalog fallback.
 
 ### Phase 10C: Persistence And Atomic Economy
 
