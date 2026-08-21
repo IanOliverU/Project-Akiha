@@ -1,6 +1,6 @@
 # Phase 10: Shop And Visual Pet Expansion
 
-**Status:** In progress - Phase 10C persistence and atomic economy complete
+**Status:** In progress - Phase 10D shop and inventory services complete
 
 ## Phase Goal
 
@@ -96,7 +96,8 @@ item without charging currency again.
 ### Purchase behavior
 
 The typed purchase decisions are `completed`, `already_owned`,
-`insufficient_funds`, `level_required`, and `item_unavailable`.
+`insufficient_funds`, `level_required`, `item_unavailable`, and
+`item_not_found`.
 
 - A completed purchase debits exactly the catalog price and links the inventory
   grant to one UUID transaction.
@@ -198,6 +199,34 @@ price, ownership, and availability ordering. Every ordering uses stable name and
 item-ID tie breakers. Hidden items are excluded by default and appear only when
 explicitly requested for trusted diagnostics or maintenance.
 
+## Shop Service Boundary
+
+`ShopService` is the single application-facing entry point for catalog browsing,
+item inspection, purchasing, inventory inspection, loadout inspection, equipping,
+and unequipping. Its methods accept typed IDs, filters, and equipment slots; it
+does not accept dialogue, provider text, file paths, or arbitrary commands.
+
+All returned views are sanitized for application and UI use. They contain stable
+item metadata, ownership state, affordability, compatibility, balances, and
+equipment state without exposing cosmetic asset paths or raw layer declarations.
+Inventory and loadout entries remain visible by stable ID if a later catalog
+revision removes the corresponding item, preserving durable ownership and making
+the mismatch diagnosable.
+
+Purchase policy remains inside the atomic SQLite repository. `ShopService`
+refreshes the shared `PetStateService` snapshot after a completed purchase so
+Phase 9 currency consumers cannot continue displaying a stale balance. Equip and
+unequip operations require durable ownership and validate the declared slot and
+baseline idle left/right visual compatibility before committing the loadout.
+
+Only completed purchases and committed equipment changes publish events.
+`shop.purchase_completed` and `shop.equipment_changed` carry bounded IDs,
+decisions, slots, and balance state without prices, paths, assets, credentials,
+or dialogue. Denied and no-op decisions publish no mutation event. Providers and
+ordinary dialogue remain outside this service boundary; any future natural-
+language shop request must pass through a separate typed proposal and explicit
+confirmation path before reaching these methods.
+
 ## Subphase Blueprint
 
 ### Phase 10A: Product, Economy, And Asset Contract
@@ -230,10 +259,10 @@ explicitly requested for trusted diagnostics or maintenance.
 
 ### Phase 10D: Shop And Inventory Services
 
-- [ ] Add typed browse, inspect, purchase, equip, unequip, and loadout operations.
-- [ ] Enforce ownership, slot, level, availability, and compatibility rules.
-- [ ] Publish sanitized typed outcomes only after committed mutations.
-- [ ] Keep providers and ordinary dialogue outside the mutation boundary.
+- [x] Add typed browse, inspect, purchase, equip, unequip, and loadout operations.
+- [x] Enforce ownership, slot, level, availability, and compatibility rules.
+- [x] Publish sanitized typed outcomes only after committed mutations.
+- [x] Keep providers and ordinary dialogue outside the mutation boundary.
 
 ### Phase 10E: Shop And Wardrobe UI
 

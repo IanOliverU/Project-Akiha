@@ -55,6 +55,7 @@ class PurchaseDecision(StrEnum):
     """Closed purchase results used by the future economy service."""
 
     COMPLETED = "completed"
+    ITEM_NOT_FOUND = "item_not_found"
     ALREADY_OWNED = "already_owned"
     INSUFFICIENT_FUNDS = "insufficient_funds"
     LEVEL_REQUIRED = "level_required"

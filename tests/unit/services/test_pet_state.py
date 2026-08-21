@@ -382,6 +382,7 @@ class PetStateServiceTest(unittest.IsolatedAsyncioTestCase):
                 "apply_interaction_event",
                 "evaluate_runtime",
                 "initialize",
+                "refresh_snapshot",
                 "reset",
                 "snapshot",
             },

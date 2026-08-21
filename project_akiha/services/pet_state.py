@@ -82,6 +82,16 @@ class PetStateService:
                 await self._initialize_locked(self._current_time())
             return _require_record(self._record)
 
+    async def refresh_snapshot(self) -> PetStateRecord:
+        """Reload progression changed by another approved transactional service."""
+        async with self._lock:
+            latest = await self._repository.load()
+            if latest is None:
+                await self._initialize_locked(self._current_time())
+            else:
+                self._record = latest
+            return _require_record(self._record)
+
     async def evaluate_runtime(self) -> PetStateEvaluation:
         """Apply elapsed runtime decay from the last committed UTC baseline."""
         async with self._lock:
