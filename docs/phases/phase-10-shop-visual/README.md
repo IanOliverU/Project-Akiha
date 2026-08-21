@@ -1,6 +1,6 @@
 # Phase 10: Shop And Visual Pet Expansion
 
-**Status:** In progress - Phase 10D shop and inventory services complete
+**Status:** In progress - Phase 10E shop and wardrobe UI complete
 
 ## Phase Goal
 
@@ -227,6 +227,36 @@ ordinary dialogue remain outside this service boundary; any future natural-
 language shop request must pass through a separate typed proposal and explicit
 confirmation path before reaching these methods.
 
+## Shop And Wardrobe UI
+
+`ShopWindow` is a compact two-view native Qt surface using Akiha's established
+uniform palette and Fluent icon controls. It is available from the pet context
+menu, tray menu, and Care window. The window contains no provider or dialogue
+entry point.
+
+The Shop view presents the current level and currency balance, typed category,
+ownership/availability, and sort controls, local name filtering, a dense catalog
+list, and one selected-item detail pane. Price, ownership, availability, level
+requirement, affordability, and baseline visual compatibility are visible before
+purchase. Currency spending always requires an explicit confirmation dialog.
+Unavailable, insufficient-funds, level-locked, visually incompatible, empty,
+loading, and failed-catalog states are represented directly.
+
+The Wardrobe view presents durable owned items separately from the four-slot
+loadout. Equip and unequip controls use exact item IDs and typed slots. A
+completed operation returns a complete refreshed UI snapshot containing catalog,
+inventory, loadout, and balance state, preventing stale mixed panels. Wardrobe
+compatibility comes from each sanitized inventory view and therefore does not
+depend on the active Shop filter. Missing catalog entries remain visible by
+stable item ID and cannot be equipped until trusted metadata is restored.
+
+All shop work runs outside the Qt UI thread through a closed operation enum.
+Shop workers are coordinated with pet-state care, maintenance, and decay workers
+and participate in graceful shutdown. The bundled catalog remains intentionally
+empty until an owner-approved cosmetic passes the Phase 10G asset gate, so the
+expected current source UI is an honest empty Shop rather than placeholder
+merchandise.
+
 ## Subphase Blueprint
 
 ### Phase 10A: Product, Economy, And Asset Contract
@@ -266,12 +296,12 @@ confirmation path before reaching these methods.
 
 ### Phase 10E: Shop And Wardrobe UI
 
-- [ ] Add a compact Shop view using the existing Akiha UI theme.
-- [ ] Show balance, price, ownership, availability, and compatibility clearly.
-- [ ] Add category filters and owned/available views without nested card clutter.
-- [ ] Add confirmation before spending currency.
-- [ ] Add Inventory/Wardrobe equipment controls and immediate durable refresh.
-- [ ] Provide empty, loading, insufficient-funds, and asset-unavailable states.
+- [x] Add a compact Shop view using the existing Akiha UI theme.
+- [x] Show balance, price, ownership, availability, and compatibility clearly.
+- [x] Add category filters and owned/available views without nested card clutter.
+- [x] Add confirmation before spending currency.
+- [x] Add Inventory/Wardrobe equipment controls and immediate durable refresh.
+- [x] Provide empty, loading, insufficient-funds, and asset-unavailable states.
 
 ### Phase 10F: Layered Cosmetic Rendering
 

@@ -14,6 +14,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
 
     behavior_history_requested = Signal()
     pet_care_requested = Signal()
+    shop_requested = Signal()
 
     def __init__(
         self,
@@ -52,6 +53,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         care_action = QAction("Care", menu)
         care_action.triggered.connect(self.pet_care_requested.emit)
         menu.addAction(care_action)
+
+        shop_action = QAction("Shop & wardrobe", menu)
+        shop_action.triggered.connect(self.shop_requested.emit)
+        menu.addAction(shop_action)
 
         settings_action = QAction("Settings", menu)
         settings_action.triggered.connect(self._show_settings)

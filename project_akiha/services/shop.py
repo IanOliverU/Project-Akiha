@@ -197,6 +197,10 @@ class ShopService:
                     acquisition_source=owned.acquisition_source,
                     display_name=(catalog_item.display_name if catalog_item else None),
                     slot=(catalog_item.slot if catalog_item else None),
+                    availability=(catalog_item.availability if catalog_item else None),
+                    visual_compatible=(
+                        self._visual_compatible(owned.item_id) if catalog_item else None
+                    ),
                     equipped=owned.item_id in equipped_ids,
                     present_in_catalog=catalog_item is not None,
                 )

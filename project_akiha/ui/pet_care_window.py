@@ -47,6 +47,7 @@ class PetCareWindow(QWidget):
 
     refresh_requested = Signal()
     care_action_requested = Signal(object)
+    shop_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -108,6 +109,12 @@ class PetCareWindow(QWidget):
         heading.addLayout(title_row)
         heading.addWidget(self._summary_label)
 
+        shop = QPushButton()
+        shop.setObjectName("careIconButton")
+        shop.setIcon(fluent_icon("\ue719"))
+        shop.setToolTip("Open shop and wardrobe")
+        shop.clicked.connect(self.shop_requested.emit)
+
         refresh = QPushButton()
         refresh.setObjectName("careIconButton")
         refresh.setIcon(fluent_icon("\ue72c"))
@@ -126,6 +133,7 @@ class PetCareWindow(QWidget):
         header_layout.setSpacing(8)
         header_layout.addLayout(heading)
         header_layout.addStretch(1)
+        header_layout.addWidget(shop, 0, Qt.AlignmentFlag.AlignTop)
         header_layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignTop)
         header_layout.addWidget(close, 0, Qt.AlignmentFlag.AlignTop)
         header = QFrame()

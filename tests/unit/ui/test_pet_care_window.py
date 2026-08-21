@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from project_akiha.core.pet import (
     CareAction,
@@ -75,6 +75,20 @@ class PetCareWindowTest(unittest.TestCase):
             emitted,
             [CareAction.FEED, CareAction.REST, CareAction.SPEND_TIME],
         )
+
+    def test_shop_header_control_emits_open_request(self) -> None:
+        self._window = PetCareWindow()
+        emitted: list[bool] = []
+        self._window.shop_requested.connect(lambda: emitted.append(True))
+
+        shop_button = next(
+            button
+            for button in self._window.findChildren(QPushButton)
+            if button.toolTip() == "Open shop and wardrobe"
+        )
+        shop_button.click()
+
+        self.assertEqual(emitted, [True])
 
     def test_busy_state_blocks_refresh_and_care_controls(self) -> None:
         self._window = PetCareWindow()

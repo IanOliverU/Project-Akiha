@@ -229,6 +229,7 @@ class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
         missing = await self._service.equip("unknown.item")
         await self._service.purchase("glasses.black")
         incompatible = await self._service.equip("glasses.black")
+        inventory = await self._service.inventory()
 
         self.assertIs(unowned.decision, EquipmentDecision.NOT_OWNED)
         self.assertIs(missing.decision, EquipmentDecision.ITEM_NOT_FOUND)
@@ -236,6 +237,8 @@ class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
             incompatible.decision,
             EquipmentDecision.VISUAL_INCOMPATIBLE,
         )
+        glasses = next(item for item in inventory if item.item_id == "glasses.black")
+        self.assertFalse(glasses.visual_compatible)
         self.assertEqual(
             [event.event_type for event in self._events],
             [EventType.SHOP_PURCHASE_COMPLETED],
@@ -294,6 +297,8 @@ class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inventory[0].item_id, "ribbon.red")
         self.assertFalse(inventory[0].present_in_catalog)
         self.assertIsNone(inventory[0].display_name)
+        self.assertIsNone(inventory[0].availability)
+        self.assertIsNone(inventory[0].visual_compatible)
         equipped = loadout.item_for(EquipmentSlot.HEAD)
         self.assertIsNotNone(equipped)
         assert equipped is not None

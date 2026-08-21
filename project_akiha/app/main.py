@@ -147,6 +147,11 @@ from project_akiha.core.pet import (
     PetStateEvaluation,
     PetStateRecord,
 )
+from project_akiha.core.shop import (
+    CatalogQuery,
+    EquipmentSlot,
+    load_catalog_or_empty,
+)
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.voice_session import (
@@ -165,6 +170,7 @@ from project_akiha.database import (
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
     SQLitePetStateRepository,
+    SQLiteShopRepository,
 )
 from project_akiha.integrations.spotify.albums import (
     SpotifyAlbumSelectionStore,
@@ -295,6 +301,7 @@ from project_akiha.services.response_segment_renderer import (
     ResponseSegmentRenderer,
     SafeSpeechStyleRenderer,
 )
+from project_akiha.services.shop import ShopService, SystemShopClock
 from project_akiha.services.speech_identity import (
     AkihaSpeechStyleService,
     build_akiha_identity_system_prompt,
@@ -343,6 +350,12 @@ from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
 from project_akiha.ui.settings_window import SettingsWindow
+from project_akiha.ui.shop_window import ShopWindow
+from project_akiha.ui.shop_worker import (
+    ShopOperationThread,
+    ShopWorkerOperation,
+    ShopWorkerResult,
+)
 from project_akiha.ui.tray import AkihaTrayIcon
 
 _AI_KEY_ENVIRONMENT_VARIABLES = {
@@ -539,6 +552,22 @@ def _run_application() -> int:
     pet_state_repository = SQLitePetStateRepository(paths.database_path)
     pet_state_service = PetStateService(pet_state_repository, SystemPetClock())
     startup_pet_evaluation = asyncio.run(pet_state_service.initialize())
+    shop_catalog_result = load_catalog_or_empty(
+        paths.project_root / "project_akiha" / "config" / "shop_catalog.toml"
+    )
+    if shop_catalog_result.used_fallback:
+        logger.warning(
+            "Trusted shop catalog failed closed: %s.",
+            shop_catalog_result.failure.value,
+        )
+    shop_repository = SQLiteShopRepository(paths.database_path)
+    shop_service = ShopService(
+        shop_catalog_result,
+        shop_repository,
+        pet_state_service,
+        SystemShopClock(),
+        event_bus=event_bus,
+    )
     ai_provider = _build_ai_provider(config.ai, logger, credential_store)
     ollama_native_provider = (
         ai_provider if isinstance(ai_provider, OllamaProvider) else None
@@ -832,6 +861,7 @@ def _run_application() -> int:
     behavior_history_window = BehaviorHistoryWindow()
     assistant_action_history_window = AssistantActionHistoryWindow()
     pet_care_window = PetCareWindow()
+    shop_window = ShopWindow()
     _populate_chat_window(
         chat_window=chat_window,
         messages=recent_messages,
@@ -844,6 +874,7 @@ def _run_application() -> int:
     active_pet_care_threads: list[PetCareThread] = []
     active_pet_maintenance_threads: list[PetMaintenanceThread] = []
     active_pet_runtime_threads: list[PetRuntimeEvaluationThread] = []
+    active_shop_threads: list[ShopOperationThread] = []
     active_tool_threads: list[
         AssistantToolProposalThread
         | AssistantMediaSearchThread
@@ -1055,6 +1086,7 @@ def _run_application() -> int:
             active_pet_care_threads
             or active_pet_runtime_threads
             or active_pet_maintenance_threads
+            or active_shop_threads
         ):
             settings_window.set_pet_maintenance_status(
                 "A pet-state operation is already running.",
@@ -1132,6 +1164,7 @@ def _run_application() -> int:
             active_pet_care_threads
             or active_pet_runtime_threads
             or active_pet_maintenance_threads
+            or active_shop_threads
         ):
             return
         pet_care_window.set_busy(True)
@@ -1152,6 +1185,98 @@ def _run_application() -> int:
 
     pet_care_window.refresh_requested.connect(start_pet_care_operation)
     pet_care_window.care_action_requested.connect(start_pet_care_operation)
+
+    def cleanup_shop_thread(thread: ShopOperationThread) -> None:
+        if thread in active_shop_threads:
+            active_shop_threads.remove(thread)
+        thread.deleteLater()
+        if not active_shop_threads:
+            shop_window.set_busy(False)
+
+    def handle_shop_result(result: object) -> None:
+        if not isinstance(result, ShopWorkerResult):
+            logger.error("Shop worker returned an invalid result.")
+            shop_window.set_notice(
+                "The shop state could not be refreshed.",
+                error=True,
+            )
+            return
+        shop_window.update_result(result)
+
+    def handle_shop_failure(detail: str) -> None:
+        logger.error("Shop operation failed: %s", detail)
+        shop_window.set_notice(
+            "The shop operation could not be completed. Check the logs.",
+            error=True,
+        )
+
+    def start_shop_operation(
+        operation: ShopWorkerOperation = ShopWorkerOperation.REFRESH,
+        *,
+        query: CatalogQuery | None = None,
+        item_id: str | None = None,
+        slot: EquipmentSlot | None = None,
+    ) -> None:
+        if not isinstance(operation, ShopWorkerOperation):
+            raise TypeError("operation must be a ShopWorkerOperation value.")
+        if (
+            active_shop_threads
+            or active_pet_care_threads
+            or active_pet_runtime_threads
+            or active_pet_maintenance_threads
+        ):
+            shop_window.set_notice(
+                "Another pet-state operation is already running.",
+                error=True,
+            )
+            return
+        resolved_query = query or shop_window.current_query()
+        shop_window.set_busy(True)
+        thread = ShopOperationThread(
+            shop_service,
+            operation,
+            query=resolved_query,
+            item_id=item_id,
+            slot=slot,
+        )
+        active_shop_threads.append(thread)
+        thread.completed.connect(handle_shop_result)
+        thread.failed.connect(handle_shop_failure)
+        thread.finished.connect(lambda current=thread: cleanup_shop_thread(current))
+        thread.start()
+
+    def show_shop(event: Event | None = None) -> None:
+        del event
+        shop_window.show()
+        shop_window.raise_()
+        shop_window.activateWindow()
+        start_shop_operation()
+
+    shop_window.refresh_requested.connect(
+        lambda query: start_shop_operation(
+            ShopWorkerOperation.REFRESH,
+            query=query,
+        )
+    )
+    shop_window.purchase_requested.connect(
+        lambda item_id: start_shop_operation(
+            ShopWorkerOperation.PURCHASE,
+            item_id=item_id,
+        )
+    )
+    shop_window.equip_requested.connect(
+        lambda item_id: start_shop_operation(
+            ShopWorkerOperation.EQUIP,
+            item_id=item_id,
+        )
+    )
+    shop_window.unequip_requested.connect(
+        lambda slot: start_shop_operation(
+            ShopWorkerOperation.UNEQUIP,
+            slot=slot,
+        )
+    )
+    pet_care_window.shop_requested.connect(show_shop)
 
     def refresh_memory_window() -> None:
         memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
@@ -3013,6 +3138,7 @@ def _run_application() -> int:
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, show_pet_care)
+    event_bus.subscribe(EventType.SHOP_OPEN_REQUESTED, show_shop)
     event_bus.subscribe(
         EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, show_behavior_history
     )
@@ -3063,6 +3189,7 @@ def _run_application() -> int:
             *active_pet_care_threads,
             *active_pet_maintenance_threads,
             *active_pet_runtime_threads,
+            *active_shop_threads,
         ]
         try:
             streaming_voice_output_controller.cancel()
@@ -3139,6 +3266,7 @@ def _run_application() -> int:
     tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
     tray_icon.pet_care_requested.connect(show_pet_care)
+    tray_icon.shop_requested.connect(show_shop)
     tray_icon.show()
     if privacy_notice_required(config.privacy):
         QTimer.singleShot(0, privacy_notice.show)
@@ -3179,6 +3307,7 @@ def _run_application() -> int:
             active_pet_care_threads
             or active_pet_runtime_threads
             or active_pet_maintenance_threads
+            or active_shop_threads
         ):
             return
         thread = PetRuntimeEvaluationThread(pet_state_service)
@@ -3215,6 +3344,7 @@ def _run_application() -> int:
         active_pet_care_threads,
         active_pet_maintenance_threads,
         active_pet_runtime_threads,
+        active_shop_threads,
         active_tool_threads,
         assistant_tool_gateway,
         assistant_tool_result_store,
@@ -3245,6 +3375,9 @@ def _run_application() -> int:
         scheduled_check_in_controller,
         scheduled_check_in_engine,
         settings_window,
+        shop_repository,
+        shop_service,
+        shop_window,
         spotify_client,
         spotify_device_coordinator,
         spotify_session,

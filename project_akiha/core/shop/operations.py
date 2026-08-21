@@ -91,6 +91,8 @@ class ShopInventoryItemView:
     acquisition_source: AcquisitionSource
     display_name: str | None
     slot: EquipmentSlot | None
+    availability: CatalogAvailability | None
+    visual_compatible: bool | None
     equipped: bool
     present_in_catalog: bool
 

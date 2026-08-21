@@ -166,6 +166,10 @@ class PetWindow(QWidget):
         care_action.triggered.connect(self._request_care)
         menu.addAction(care_action)
 
+        shop_action = QAction("Shop & wardrobe", menu)
+        shop_action.triggered.connect(self._request_shop)
+        menu.addAction(shop_action)
+
         chat_action = QAction("Chat", menu)
         chat_action.triggered.connect(self._request_chat)
         menu.addAction(chat_action)
@@ -264,6 +268,9 @@ class PetWindow(QWidget):
 
     def _request_care(self) -> None:
         self._event_bus.publish(EventType.PET_CARE_OPEN_REQUESTED)
+
+    def _request_shop(self) -> None:
+        self._event_bus.publish(EventType.SHOP_OPEN_REQUESTED)
 
     def _request_behavior_history(self) -> None:
         self._event_bus.publish(EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED)

@@ -613,6 +613,254 @@ def pet_care_stylesheet() -> str:
 """
 
 
+def shop_window_stylesheet() -> str:
+    """Return the scoped stylesheet for the shop and wardrobe surface."""
+    color = AKIHA_PALETTE
+    root = "QWidget#akihaShopWindow"
+    return f"""
+{root} {{
+    background-color: {color.window};
+    color: {color.text};
+    font-family: "Segoe UI";
+    font-size: 13px;
+}}
+{root} QLabel {{
+    color: {color.text};
+    background: transparent;
+}}
+{root} QFrame#shopHeader {{
+    min-height: 72px;
+    border: none;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.control};
+}}
+{root} QLabel#shopTitle {{
+    color: {color.text};
+    font-size: 18px;
+    font-weight: 600;
+}}
+{root} QLabel#shopSummary,
+{root} QLabel#shopDetailMeta {{
+    color: {color.muted_text};
+    font-size: 12px;
+}}
+{root} QLabel#shopDetailTitle {{
+    color: {color.text};
+    font-size: 20px;
+    font-weight: 600;
+}}
+{root} QLabel#shopSectionTitle,
+{root} QLabel#shopSlotName {{
+    color: {color.text};
+    font-weight: 600;
+}}
+{root} QLabel#shopPrice {{
+    color: {color.speaking};
+    font-size: 17px;
+    font-weight: 600;
+}}
+{root} QLabel#shopItemStatus {{
+    color: {color.muted_text};
+}}
+{root} QLabel#shopItemStatus[semantic="available"],
+{root} QLabel#shopItemStatus[semantic="success"] {{
+    color: {color.success};
+}}
+{root} QLabel#shopItemStatus[semantic="warning"] {{
+    color: #D4B967;
+}}
+{root} QFrame#shopFooter {{
+    min-height: 48px;
+    border: none;
+    border-top: 1px solid {color.border};
+    background-color: {color.panel};
+}}
+{root} QLabel#shopNotice {{
+    color: {color.muted_text};
+}}
+{root} QLabel#shopNotice[semantic="error"] {{
+    color: {color.error};
+}}
+{root} QTabWidget#shopTabs {{
+    border: none;
+    background-color: {color.panel};
+}}
+{root} QTabWidget#shopTabs::pane {{
+    border: none;
+    background-color: {color.window};
+    top: -1px;
+}}
+{root} QTabBar::tab {{
+    min-width: 112px;
+    min-height: 40px;
+    padding: 0 14px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background-color: {color.panel};
+    color: {color.muted_text};
+}}
+{root} QTabBar::tab:selected {{
+    border-bottom-color: {color.highlight};
+    background-color: {color.panel};
+    color: {color.highlight};
+    font-weight: 600;
+}}
+{root} QTabBar::tab:hover:!selected {{
+    color: {color.text};
+}}
+{root} QWidget#shopPage,
+{root} QFrame#shopInventoryPanel,
+{root} QFrame#shopDetailPanel {{
+    border: none;
+    background-color: {color.window};
+}}
+{root} QFrame#shopFilters {{
+    min-height: 58px;
+    max-height: 58px;
+    border: none;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.panel};
+}}
+{root} QLineEdit#shopSearch,
+{root} QComboBox#shopFilter {{
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid {color.border};
+    border-radius: 4px;
+    background-color: {color.control};
+    color: {color.text};
+    selection-background-color: {color.primary};
+    selection-color: {color.text};
+}}
+{root} QComboBox#shopFilter {{
+    min-width: 128px;
+    padding-right: 30px;
+}}
+{root} QLineEdit#shopSearch:focus,
+{root} QComboBox#shopFilter:focus {{
+    border-color: {color.highlight};
+}}
+{root} QComboBox#shopFilter::drop-down {{
+    width: 30px;
+    border: none;
+}}
+{root} QComboBox#shopFilter::down-arrow {{
+    width: 0;
+    height: 0;
+    image: none;
+}}
+{root} QComboBox#shopFilter QAbstractItemView {{
+    border: 1px solid {color.border};
+    background-color: {color.control};
+    color: {color.text};
+    selection-background-color: #3C4081;
+    selection-color: {color.text};
+    outline: none;
+}}
+{root} QListWidget {{
+    padding: 8px;
+    border: none;
+    background-color: {color.window};
+    color: {color.text};
+    outline: none;
+}}
+{root} QListWidget::item {{
+    margin: 2px 0;
+    padding: 7px 10px;
+    border: none;
+    border-bottom: 1px solid {color.border};
+    background-color: transparent;
+    color: {color.text};
+}}
+{root} QListWidget::item:hover {{
+    background-color: {color.panel};
+}}
+{root} QListWidget::item:selected {{
+    border-left: 3px solid {color.highlight};
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QListWidget::item:disabled {{
+    color: {color.muted_text};
+}}
+{root} QFrame#shopLoadoutRow {{
+    border: 1px solid {color.border};
+    border-radius: 4px;
+    background-color: {color.panel};
+}}
+{root} QLabel#shopSlotItem {{
+    color: {color.speaking};
+}}
+{root} QPushButton {{
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid {color.border};
+    border-radius: 5px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+{root} QPushButton:hover {{
+    border-color: {color.highlight};
+    background-color: #353946;
+}}
+{root} QPushButton:disabled {{
+    color: #6F7488;
+    border-color: #343847;
+    background-color: #252832;
+}}
+{root} QPushButton#shopPrimaryButton {{
+    min-width: 112px;
+    border-color: {color.highlight};
+    background-color: {color.primary};
+    color: #F4F4FA;
+    font-weight: 600;
+}}
+{root} QPushButton#shopPrimaryButton:hover {{
+    background-color: #898DD2;
+}}
+{root} QPushButton#shopIconButton,
+{root} QPushButton#shopRowIconButton {{
+    min-width: 32px;
+    max-width: 32px;
+    padding: 0;
+    border: none;
+    background-color: transparent;
+}}
+{root} QPushButton#shopIconButton:hover,
+{root} QPushButton#shopRowIconButton:hover {{
+    background-color: {color.control};
+}}
+{root} QSplitter::handle {{
+    width: 1px;
+    background-color: {color.border};
+}}
+{root} QScrollBar:vertical {{
+    width: 9px;
+    margin: 2px;
+    border: none;
+    background: transparent;
+}}
+{root} QScrollBar::handle:vertical {{
+    min-height: 28px;
+    border-radius: 4px;
+    background-color: #555B70;
+}}
+{root} QScrollBar::add-line:vertical,
+{root} QScrollBar::sub-line:vertical,
+{root} QScrollBar::add-page:vertical,
+{root} QScrollBar::sub-page:vertical {{
+    height: 0;
+    background: transparent;
+}}
+{root} QToolTip {{
+    border: 1px solid {color.border};
+    padding: 5px;
+    background-color: {color.control};
+    color: {color.text};
+}}
+"""
+
+
 def manager_window_stylesheet(object_name: str) -> str:
     """Return the shared technical-modal stylesheet."""
     root = f"QWidget#{object_name}"
