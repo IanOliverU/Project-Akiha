@@ -59,6 +59,7 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("shop_transactions", table_names)
         self.assertIn("shop_inventory", table_names)
         self.assertIn("shop_equipment", table_names)
+        self.assertIn("pet_appearance_selection", table_names)
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
         self.assertIn("embedding_json", memory_columns)
@@ -77,6 +78,7 @@ class DatabaseMigratorTest(unittest.TestCase):
                 (9,),
                 (10,),
                 (11,),
+                (12,),
             ],
         )
 
@@ -216,7 +218,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             project_root = Path(__file__).resolve().parents[3]
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
-                if source.name.startswith("0011_"):
+                if source.name.startswith(("0011_", "0012_")):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)
 

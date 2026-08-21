@@ -112,7 +112,7 @@ class PetCareWindow(QWidget):
         shop = QPushButton()
         shop.setObjectName("careIconButton")
         shop.setIcon(fluent_icon("\ue719"))
-        shop.setToolTip("Open shop and wardrobe")
+        shop.setToolTip("Open shop and appearances")
         shop.clicked.connect(self.shop_requested.emit)
 
         refresh = QPushButton()

@@ -1,4 +1,4 @@
-"""Typed contracts for Akiha's trusted local shop and wardrobe."""
+"""Typed contracts for Akiha's trusted local appearance shop."""
 
 from project_akiha.core.shop.catalog import (
     SHOP_CATALOG_SCHEMA_VERSION,
@@ -18,15 +18,9 @@ from project_akiha.core.shop.catalog import (
     parse_catalog_toml,
 )
 from project_akiha.core.shop.models import (
-    CANONICAL_COSMETIC_CANVAS_SIZE,
     AcquisitionSource,
     CatalogAvailability,
     CatalogItem,
-    CosmeticLayer,
-    EquipmentLoadout,
-    EquipmentSlot,
-    EquippedItem,
-    FacingDirection,
     InventoryItem,
     PurchaseDecision,
     PurchaseOutcome,
@@ -34,15 +28,11 @@ from project_akiha.core.shop.models import (
     ShopItemCategory,
 )
 from project_akiha.core.shop.operations import (
-    EquipmentDecision,
-    EquipmentOutcome,
     ShopBrowseResult,
-    ShopEquippedItemView,
     ShopInspectDecision,
     ShopInspectResult,
     ShopInventoryItemView,
     ShopItemView,
-    ShopLoadoutView,
     ShopPurchaseResult,
 )
 from project_akiha.core.shop.repository import (
@@ -52,7 +42,6 @@ from project_akiha.core.shop.repository import (
 )
 
 __all__ = [
-    "CANONICAL_COSMETIC_CANVAS_SIZE",
     "SHOP_CATALOG_SCHEMA_VERSION",
     "AcquisitionSource",
     "CatalogAvailability",
@@ -66,27 +55,18 @@ __all__ = [
     "CatalogReadError",
     "CatalogSort",
     "CatalogValidationError",
-    "CosmeticLayer",
-    "EquipmentDecision",
-    "EquipmentLoadout",
-    "EquipmentOutcome",
-    "EquipmentSlot",
-    "EquippedItem",
-    "FacingDirection",
     "InventoryItem",
     "PurchaseDecision",
     "PurchaseOutcome",
     "PurchaseTransaction",
     "ShopCatalog",
     "ShopBrowseResult",
-    "ShopEquippedItemView",
     "ShopIdempotencyConflictError",
     "ShopInspectDecision",
     "ShopInspectResult",
     "ShopInventoryItemView",
-    "ShopItemView",
     "ShopItemCategory",
-    "ShopLoadoutView",
+    "ShopItemView",
     "ShopPurchaseResult",
     "ShopRepository",
     "ShopStateUnavailableError",

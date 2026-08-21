@@ -359,22 +359,24 @@ release gate so Phase 10 feature work is not blocked by repeated multi-hour buil
 
 Details: `docs/phases/phase-09-pet-sim/README.md`
 
-### Phase 10: Shop And Visual Pet Expansion
+### Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-Add the visual and economic payoff after the care loop and model requirements
-are proven.
+Add a lightweight visual and economic payoff after the care loop without
+turning Akiha into a wardrobe manager or demanding virtual-pet game.
 
-- Shop and inventory.
-- Currency spending.
-- Buyable cosmetic items and accessories.
-- Visible equipped-item state.
-- Richer sprite sets or a future Live2D-compatible presentation.
-- Expanded care, reward, and interaction animations.
+- Trusted optional shop, durable ownership, and atomic currency spending.
+- Three complete canonical appearances: Seifuku, Dress, and Vermillion.
+- Simple whole-appearance selection with no clothing slots or layered cosmetics.
+- An Akiha-specific Status surface built from useful existing state.
+- Data-driven autonomous activities controlled by pet behavior rather than an
+  LLM.
+- Expanded reactions only when owner-approved sprite assets exist.
 
-Phase 10 is specified in `docs/phases/phase-10-shop-visual/README.md`. It begins
-with trusted catalog, transaction, inventory, and equipment contracts before
-adding UI or renderer layers. The canonical Akiha sprite remains immutable, and
-no cosmetic becomes active without asset validation and owner visual approval.
+Phase 10 is specified in `docs/phases/phase-10-shop-visual/README.md`. Phases
+10A-10F now provide the economy, trusted catalog, persistence, Shop/Appearance
+UI, and whole-manifest selection foundation. The canonical Akiha sprite remains
+immutable; Dress and Vermillion stay unavailable until their complete asset
+sets pass validation and owner visual approval.
 
 ## Architecture
 

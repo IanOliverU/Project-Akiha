@@ -12,9 +12,6 @@ from project_akiha.core.shop import (
     AcquisitionSource,
     CatalogAvailability,
     CatalogItem,
-    EquipmentLoadout,
-    EquipmentSlot,
-    EquippedItem,
     InventoryItem,
     PurchaseDecision,
     PurchaseOutcome,
@@ -42,22 +39,6 @@ class SQLiteShopRepository:
     async def list_inventory(self) -> tuple[InventoryItem, ...]:
         """Return all owned items in stable acquisition order."""
         return await asyncio.to_thread(self._list_inventory)
-
-    async def get_loadout(self) -> EquipmentLoadout:
-        """Return the current single-occupancy equipment loadout."""
-        return await asyncio.to_thread(self._get_loadout)
-
-    async def save_equipped_item(self, item: EquippedItem) -> EquipmentLoadout:
-        """Persist one owned item in its selected slot."""
-        if not isinstance(item, EquippedItem):
-            raise TypeError("item must be an EquippedItem value.")
-        return await asyncio.to_thread(self._save_equipped_item, item)
-
-    async def remove_equipped_item(self, slot: EquipmentSlot) -> EquipmentLoadout:
-        """Clear one equipment slot and return the resulting loadout."""
-        if not isinstance(slot, EquipmentSlot):
-            raise TypeError("slot must be an EquipmentSlot value.")
-        return await asyncio.to_thread(self._remove_equipped_item, slot)
 
     async def get_transaction(
         self,
@@ -124,59 +105,6 @@ class SQLiteShopRepository:
         finally:
             connection.close()
         return tuple(_inventory_from_row(row) for row in rows)
-
-    def _get_loadout(self) -> EquipmentLoadout:
-        connection = self._connect()
-        try:
-            return _loadout_from_connection(connection)
-        finally:
-            connection.close()
-
-    def _save_equipped_item(self, item: EquippedItem) -> EquipmentLoadout:
-        connection = self._connect()
-        try:
-            connection.execute("BEGIN IMMEDIATE")
-            if _select_inventory_item(connection, item.item_id) is None:
-                raise ValueError("cannot equip an item that is not owned.")
-            connection.execute(
-                "DELETE FROM shop_equipment WHERE item_id = ?",
-                (item.item_id,),
-            )
-            connection.execute(
-                """
-                INSERT INTO shop_equipment(slot, item_id, equipped_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(slot) DO UPDATE SET
-                    item_id = excluded.item_id,
-                    equipped_at = excluded.equipped_at
-                """,
-                (item.slot.value, item.item_id, _timestamp(item.equipped_at)),
-            )
-            loadout = _loadout_from_connection(connection)
-            connection.commit()
-            return loadout
-        except Exception:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
-
-    def _remove_equipped_item(self, slot: EquipmentSlot) -> EquipmentLoadout:
-        connection = self._connect()
-        try:
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                "DELETE FROM shop_equipment WHERE slot = ?",
-                (slot.value,),
-            )
-            loadout = _loadout_from_connection(connection)
-            connection.commit()
-            return loadout
-        except Exception:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
 
     def _get_transaction(
         self,
@@ -387,24 +315,6 @@ def _select_transaction(
         """,
         (str(transaction_id),),
     ).fetchone()
-
-
-def _loadout_from_connection(connection: sqlite3.Connection) -> EquipmentLoadout:
-    rows = connection.execute("""
-        SELECT slot, item_id, equipped_at
-        FROM shop_equipment
-        ORDER BY slot ASC
-        """).fetchall()
-    return EquipmentLoadout(
-        tuple(
-            EquippedItem(
-                slot=EquipmentSlot(str(row["slot"])),
-                item_id=str(row["item_id"]),
-                equipped_at=_datetime_from_text(row["equipped_at"]),
-            )
-            for row in rows
-        )
-    )
 
 
 def _inventory_from_row(row: sqlite3.Row) -> InventoryItem:

@@ -1,4 +1,4 @@
-"""Tests for the compact shop and wardrobe surface."""
+"""Tests for the compact shop and fixed-appearance surface."""
 
 from __future__ import annotations
 
@@ -6,26 +6,26 @@ import os
 import sys
 import unittest
 from datetime import UTC, datetime
-from uuid import UUID
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from project_akiha.core.appearance import (
+    AppearanceAvailability,
+    AppearanceId,
+    AppearanceSelection,
+    AppearanceSelectionDecision,
+    AppearanceSelectionOutcome,
+    AppearanceView,
+)
 from project_akiha.core.shop import (
-    AcquisitionSource,
     CatalogAvailability,
     CatalogLoadFailure,
-    EquipmentSlot,
-    PurchaseDecision,
     ShopBrowseResult,
-    ShopEquippedItemView,
-    ShopInventoryItemView,
     ShopItemCategory,
     ShopItemView,
-    ShopLoadoutView,
-    ShopPurchaseResult,
 )
 from project_akiha.ui.shop_window import ShopWindow
 from project_akiha.ui.shop_worker import (
@@ -38,8 +38,6 @@ _NOW = datetime(2026, 8, 21, 18, 0, tzinfo=UTC)
 
 
 class ShopWindowTest(unittest.TestCase):
-    """Verify dense presentation, confirmations, and typed control signals."""
-
     @classmethod
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication(sys.argv)
@@ -48,231 +46,134 @@ class ShopWindowTest(unittest.TestCase):
         if hasattr(self, "_window"):
             self._window.close()
 
-    def test_renders_balance_catalog_inventory_and_loadout(self) -> None:
+    def test_renders_catalog_and_three_fixed_appearances(self) -> None:
         self._window = ShopWindow()
 
         self._window.update_snapshot(_snapshot())
 
         self.assertEqual(self._window._summary_label.text(), "Level 3  |  90 currency")
-        self.assertEqual(self._window._catalog_list.count(), 4)
-        self.assertEqual(self._window._inventory_list.count(), 1)
-        self.assertEqual(
-            self._window._loadout_labels[EquipmentSlot.HEAD].text(),
-            "Red Ribbon",
-        )
-        self.assertTrue(self._window._unequip_buttons[EquipmentSlot.HEAD].isEnabled())
+        self.assertEqual(self._window._catalog_list.count(), 2)
+        self.assertEqual(self._window._appearance_list.count(), 3)
+        self.assertIn("Seifuku", self._window._appearance_list.item(0).text())
 
-    def test_purchase_requires_confirmation_and_emits_exact_item_id(self) -> None:
+    def test_purchase_requires_confirmation_and_asset_availability(self) -> None:
         confirmations: list[str] = []
-
-        def confirm(item: ShopItemView) -> bool:
-            confirmations.append(item.item_id)
-            return True
-
-        self._window = ShopWindow(purchase_confirmation=confirm)
+        self._window = ShopWindow(
+            purchase_confirmation=lambda item: confirmations.append(item.item_id)
+            or True
+        )
         emitted: list[str] = []
         self._window.purchase_requested.connect(emitted.append)
         self._window.update_snapshot(_snapshot())
-        _select_catalog_item(self._window, "available.ribbon")
+        _select_catalog_item(self._window, "appearance.dress")
 
         self._window._purchase_button.click()
+        _select_catalog_item(self._window, "appearance.vermillion")
 
-        self.assertEqual(confirmations, ["available.ribbon"])
-        self.assertEqual(emitted, ["available.ribbon"])
-
-    def test_unaffordable_and_incompatible_items_cannot_be_purchased(self) -> None:
-        self._window = ShopWindow(purchase_confirmation=lambda item: True)
-        self._window.update_snapshot(_snapshot())
-
-        _select_catalog_item(self._window, "expensive.crown")
+        self.assertEqual(confirmations, ["appearance.dress"])
+        self.assertEqual(emitted, ["appearance.dress"])
         self.assertFalse(self._window._purchase_button.isEnabled())
-        self.assertIn("enough currency", self._window._item_status_label.text())
+        self.assertIn("animation set", self._window._item_status_label.text())
 
-        _select_catalog_item(self._window, "broken.glasses")
-        self.assertFalse(self._window._purchase_button.isEnabled())
-        self.assertIn("visual layer", self._window._item_status_label.text())
-
-    def test_search_filter_hides_nonmatching_rows(self) -> None:
+    def test_appearance_selection_emits_typed_identity(self) -> None:
         self._window = ShopWindow()
-        self._window.update_snapshot(_snapshot())
+        emitted: list[AppearanceId] = []
+        self._window.appearance_select_requested.connect(emitted.append)
+        self._window.update_snapshot(_snapshot(dress_owned=True))
+        self._window._tabs.setCurrentIndex(1)
+        _select_appearance(self._window, AppearanceId.DRESS)
 
-        self._window._search_input.setText("crown")
+        self._window._select_appearance_button.click()
 
-        visible = [
-            self._window._catalog_list.item(index).text()
-            for index in range(self._window._catalog_list.count())
-            if not self._window._catalog_list.item(index).isHidden()
-        ]
-        self.assertEqual(len(visible), 1)
-        self.assertIn("Level Crown", visible[0])
+        self.assertEqual(emitted, [AppearanceId.DRESS])
 
-    def test_available_view_builds_closed_unowned_available_query(self) -> None:
-        self._window = ShopWindow()
-
-        self._window._ownership_filter.setCurrentIndex(1)
-        query = self._window.current_query()
-
-        self.assertEqual(query.ownership.value, "unowned")
-        self.assertIs(query.availability, CatalogAvailability.AVAILABLE)
-
-    def test_wardrobe_emits_typed_equip_and_unequip_targets(self) -> None:
-        self._window = ShopWindow()
-        equipped: list[str] = []
-        unequipped: list[EquipmentSlot] = []
-        self._window.equip_requested.connect(equipped.append)
-        self._window.unequip_requested.connect(unequipped.append)
-        self._window.update_snapshot(_snapshot(inventory_equipped=False))
-
-        self._window._equip_button.click()
-        self._window.update_snapshot(_snapshot(inventory_equipped=True))
-        self._window._unequip_buttons[EquipmentSlot.HEAD].click()
-
-        self.assertEqual(equipped, ["owned.ribbon"])
-        self.assertEqual(unequipped, [EquipmentSlot.HEAD])
-
-    def test_operation_result_refreshes_state_and_renders_decision(self) -> None:
+    def test_results_and_failed_catalog_keep_appearance_selection_visible(self) -> None:
         self._window = ShopWindow()
         result = ShopWorkerResult(
-            operation=ShopWorkerOperation.PURCHASE,
-            snapshot=_snapshot(balance=70),
-            purchase=ShopPurchaseResult(
-                decision=PurchaseDecision.COMPLETED,
-                item_id="available.ribbon",
-                balance_before=90,
-                balance_after=70,
-                transaction_id=UUID("11111111-1111-1111-1111-111111111111"),
+            ShopWorkerOperation.SELECT_APPEARANCE,
+            _snapshot(catalog_failure=CatalogLoadFailure.INVALID_SCHEMA),
+            appearance=AppearanceSelectionOutcome(
+                AppearanceSelectionDecision.SELECTED,
+                AppearanceSelection(AppearanceId.DRESS, _NOW),
+                AppearanceId.DRESS,
             ),
         )
 
         self._window.update_result(result)
 
-        self.assertEqual(self._window._summary_label.text(), "Level 3  |  70 currency")
-        self.assertIn("Purchase complete", self._window._notice_label.text())
+        self.assertIn("Appearance selected", self._window._notice_label.text())
+        self.assertEqual(self._window._appearance_list.count(), 3)
 
-    def test_empty_and_failed_catalog_preserve_wardrobe_state(self) -> None:
-        self._window = ShopWindow()
-        snapshot = _snapshot(catalog_failure=CatalogLoadFailure.INVALID_SCHEMA)
-        snapshot = ShopUiSnapshot(
-            browse=ShopBrowseResult(
-                catalog_version=1,
-                catalog_failure=CatalogLoadFailure.INVALID_SCHEMA,
-                balance=snapshot.browse.balance,
-                level=snapshot.browse.level,
-                items=(),
-            ),
-            inventory=snapshot.inventory,
-            loadout=snapshot.loadout,
-        )
-
-        self._window.update_snapshot(snapshot)
-
-        self.assertIn("No catalog items", self._window._catalog_list.item(0).text())
-        self.assertEqual(self._window._inventory_list.count(), 1)
-        self.assertIn("could not be loaded", self._window._notice_label.text())
-        self.assertEqual(self._window._notice_label.property("semantic"), "error")
-
-    def test_busy_state_disables_mutation_and_filter_controls(self) -> None:
+    def test_busy_state_and_type_guards(self) -> None:
         self._window = ShopWindow()
         self._window.update_snapshot(_snapshot())
-        _select_catalog_item(self._window, "available.ribbon")
-
         self._window.set_busy(True)
 
         self.assertFalse(self._window._refresh_button.isEnabled())
         self.assertFalse(self._window._category_filter.isEnabled())
-        self.assertFalse(self._window._purchase_button.isEnabled())
-        self.assertIn("Updating", self._window._notice_label.text())
-
-    def test_rejects_untyped_snapshot_and_result(self) -> None:
-        self._window = ShopWindow()
         with self.assertRaises(TypeError):
             self._window.update_snapshot({})  # type: ignore[arg-type]
-        with self.assertRaises(TypeError):
-            self._window.update_result({})  # type: ignore[arg-type]
 
 
 def _snapshot(
     *,
-    balance: int = 90,
-    inventory_equipped: bool = True,
+    dress_owned: bool = False,
     catalog_failure: CatalogLoadFailure | None = None,
 ) -> ShopUiSnapshot:
     items = (
-        _shop_item("available.ribbon", "Available Ribbon", price=20),
-        _shop_item("expensive.crown", "Level Crown", price=120, affordable=False),
-        _shop_item(
-            "broken.glasses",
-            "Black Glasses",
-            price=30,
-            visual_compatible=False,
-        ),
-        _shop_item("owned.ribbon", "Red Ribbon", price=20, owned=True),
+        _shop_item(AppearanceId.DRESS, owned=dress_owned, asset_available=True),
+        _shop_item(AppearanceId.VERMILLION, price=140, asset_available=False),
     )
-    inventory = (
-        ShopInventoryItemView(
-            item_id="owned.ribbon",
-            acquired_at=_NOW,
-            acquisition_source=AcquisitionSource.PURCHASE,
-            display_name="Red Ribbon",
-            slot=EquipmentSlot.HEAD,
-            availability=CatalogAvailability.AVAILABLE,
-            visual_compatible=True,
-            equipped=inventory_equipped,
-            present_in_catalog=True,
+    appearances = (
+        AppearanceView(
+            AppearanceId.SEIFUKU,
+            "Akiha - Seifuku",
+            AppearanceAvailability.AVAILABLE,
+            True,
+            True,
         ),
-    )
-    loadout = ShopLoadoutView(
-        items=(
-            (
-                (
-                    ShopEquippedItemView(
-                        slot=EquipmentSlot.HEAD,
-                        item_id="owned.ribbon",
-                        display_name="Red Ribbon",
-                        equipped_at=_NOW,
-                        present_in_catalog=True,
-                    )
-                ),
-            )
-            if inventory_equipped
-            else ()
-        )
+        AppearanceView(
+            AppearanceId.DRESS,
+            "Akiha - Dress",
+            AppearanceAvailability.AVAILABLE,
+            dress_owned,
+            False,
+        ),
+        AppearanceView(
+            AppearanceId.VERMILLION,
+            "Akiha Vermillion",
+            AppearanceAvailability.UNAVAILABLE,
+            False,
+            False,
+        ),
     )
     return ShopUiSnapshot(
-        browse=ShopBrowseResult(
-            catalog_version=1,
-            catalog_failure=catalog_failure,
-            balance=balance,
-            level=3,
-            items=items,
-        ),
-        inventory=inventory,
-        loadout=loadout,
+        browse=ShopBrowseResult(1, catalog_failure, 90, 3, items),
+        inventory=(),
+        appearances=appearances,
     )
 
 
 def _shop_item(
-    item_id: str,
-    name: str,
+    appearance_id: AppearanceId,
     *,
-    price: int,
+    price: int = 20,
     owned: bool = False,
-    affordable: bool = True,
-    visual_compatible: bool = True,
+    asset_available: bool,
 ) -> ShopItemView:
     return ShopItemView(
-        item_id=item_id,
-        display_name=name,
-        category=ShopItemCategory.COSMETIC,
-        slot=EquipmentSlot.HEAD,
+        item_id=f"appearance.{appearance_id.value}",
+        display_name=f"Akiha - {appearance_id.value.title()}",
+        category=ShopItemCategory.APPEARANCE,
+        appearance_id=appearance_id,
         price=price,
         availability=CatalogAvailability.AVAILABLE,
         required_level=1,
         owned=owned,
-        equipped=False,
-        affordable=affordable,
+        selected=False,
+        affordable=True,
         level_met=True,
-        visual_compatible=visual_compatible,
+        asset_available=asset_available,
     )
 
 
@@ -280,10 +181,20 @@ def _select_catalog_item(window: ShopWindow, item_id: str) -> None:
     for index in range(window._catalog_list.count()):
         row = window._catalog_list.item(index)
         item = row.data(Qt.ItemDataRole.UserRole)
-        if isinstance(item, ShopItemView) and item.item_id == item_id:
+        if getattr(item, "item_id", None) == item_id:
             window._catalog_list.setCurrentItem(row)
             return
-    raise AssertionError(f"Catalog item not found: {item_id}")
+    raise AssertionError(f"catalog item not found: {item_id}")
+
+
+def _select_appearance(window: ShopWindow, appearance_id: AppearanceId) -> None:
+    for index in range(window._appearance_list.count()):
+        row = window._appearance_list.item(index)
+        appearance = row.data(Qt.ItemDataRole.UserRole)
+        if getattr(appearance, "appearance_id", None) is appearance_id:
+            window._appearance_list.setCurrentItem(row)
+            return
+    raise AssertionError(f"appearance not found: {appearance_id}")
 
 
 if __name__ == "__main__":

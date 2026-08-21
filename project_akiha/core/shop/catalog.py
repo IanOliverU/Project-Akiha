@@ -1,4 +1,4 @@
-"""Strict trusted-catalog loading and deterministic browsing."""
+"""Strict trusted appearance-product catalog loading and browsing."""
 
 from __future__ import annotations
 
@@ -8,42 +8,24 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from project_akiha.core.appearance import AppearanceId
 from project_akiha.core.shop.models import (
     CatalogAvailability,
     CatalogItem,
-    CosmeticLayer,
-    EquipmentSlot,
-    FacingDirection,
     ShopItemCategory,
 )
-from project_akiha.core.state.animation import AnimationState
 
-SHOP_CATALOG_SCHEMA_VERSION = 1
-
-_ROOT_KEYS = frozenset({"schema_version", "catalog_version", "items", "layers"})
+SHOP_CATALOG_SCHEMA_VERSION = 2
+_ROOT_KEYS = frozenset({"schema_version", "catalog_version", "items"})
 _ITEM_KEYS = frozenset(
     {
         "item_id",
         "display_name",
         "category",
-        "slot",
+        "appearance_id",
         "price",
         "availability",
         "required_level",
-        "preview_asset_id",
-        "cosmetic_layer_id",
-    }
-)
-_LAYER_REQUIRED_KEYS = frozenset({"layer_id", "asset_path", "states", "directions"})
-_LAYER_OPTIONAL_KEYS = frozenset(
-    {
-        "offset_x",
-        "offset_y",
-        "z_order",
-        "canvas_width",
-        "canvas_height",
-        "binary_alpha_required",
-        "nearest_neighbor_required",
     }
 )
 
@@ -94,37 +76,22 @@ class CatalogSort(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ShopCatalog:
-    """One immutable validated snapshot of the trusted local catalog."""
+    """One immutable validated snapshot of trusted appearance products."""
 
     version: int
     items: tuple[CatalogItem, ...] = ()
-    layers: tuple[CosmeticLayer, ...] = ()
 
     def __post_init__(self) -> None:
         _require_positive_int(self.version, "catalog version")
         _require_typed_tuple(self.items, CatalogItem, "catalog items")
-        _require_typed_tuple(self.layers, CosmeticLayer, "catalog layers")
-
         item_ids = tuple(item.item_id for item in self.items)
-        layer_ids = tuple(layer.layer_id for layer in self.layers)
-        layer_paths = tuple(layer.relative_asset_path for layer in self.layers)
+        appearance_ids = tuple(item.appearance_id for item in self.items)
         _reject_duplicates(item_ids, "item ID")
-        _reject_duplicates(layer_ids, "layer ID")
-        _reject_duplicates(layer_paths, "layer asset path")
-
-        known_layers = frozenset(layer_ids)
+        _reject_duplicates(appearance_ids, "appearance ID")
         for item in self.items:
             if item.catalog_version != self.version:
                 raise CatalogValidationError(
                     f"Item {item.item_id} does not match catalog version."
-                )
-            if item.cosmetic_layer_id not in known_layers:
-                raise CatalogValidationError(
-                    f"Item {item.item_id} references an unknown cosmetic layer."
-                )
-            if item.preview_asset_id not in known_layers:
-                raise CatalogValidationError(
-                    f"Item {item.item_id} references an unknown preview layer."
                 )
 
     @classmethod
@@ -133,17 +100,17 @@ class ShopCatalog:
         return cls(version=version)
 
     def item_by_id(self, item_id: str) -> CatalogItem | None:
-        """Return one catalog item without accepting dynamic paths or queries."""
+        """Return one product by exact stable ID."""
         if not isinstance(item_id, str):
             raise TypeError("item_id must be a string.")
         return next((item for item in self.items if item.item_id == item_id), None)
 
-    def layer_by_id(self, layer_id: str) -> CosmeticLayer | None:
-        """Return one approved layer from this catalog snapshot."""
-        if not isinstance(layer_id, str):
-            raise TypeError("layer_id must be a string.")
+    def item_for_appearance(self, appearance_id: AppearanceId) -> CatalogItem | None:
+        """Return the product owning one non-default appearance."""
+        if not isinstance(appearance_id, AppearanceId):
+            raise TypeError("appearance_id must be an AppearanceId value.")
         return next(
-            (layer for layer in self.layers if layer.layer_id == layer_id),
+            (item for item in self.items if item.appearance_id is appearance_id),
             None,
         )
 
@@ -193,11 +160,11 @@ _EMPTY_OWNED_ITEM_IDS: frozenset[str] = frozenset()
 
 
 def load_catalog(path: Path) -> ShopCatalog:
-    """Read and validate a trusted local catalog or raise a bounded error."""
+    """Load a trusted local catalog from disk."""
     if not isinstance(path, Path):
-        raise TypeError("path must be a Path value.")
+        raise TypeError("catalog path must be a Path value.")
     try:
-        text = path.read_text(encoding="utf-8-sig")
+        text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise CatalogReadError("Unable to read the trusted shop catalog.") from error
     return parse_catalog_toml(text)
@@ -248,7 +215,6 @@ def browse_catalog(
         not isinstance(item_id, str) for item_id in owned_item_ids
     ):
         raise TypeError("owned_item_ids must be a frozenset of strings.")
-
     items = tuple(
         item for item in catalog.items if _matches_query(item, query, owned_item_ids)
     )
@@ -265,18 +231,12 @@ def _parse_catalog_document(document: dict[str, Any]) -> ShopCatalog:
     catalog_version = document["catalog_version"]
     _require_positive_int(catalog_version, "catalog_version")
     items_data = _require_table_array(document["items"], "items")
-    layers_data = _require_table_array(document["layers"], "layers")
-
-    layers = tuple(
-        _parse_layer(layer_data, index)
-        for index, layer_data in enumerate(layers_data, start=1)
-    )
     items = tuple(
         _parse_item(item_data, index, catalog_version)
         for index, item_data in enumerate(items_data, start=1)
     )
     try:
-        return ShopCatalog(version=catalog_version, items=items, layers=layers)
+        return ShopCatalog(version=catalog_version, items=items)
     except (TypeError, ValueError) as error:
         if isinstance(error, CatalogValidationError):
             raise
@@ -294,61 +254,14 @@ def _parse_item(
             item_id=data["item_id"],
             display_name=data["display_name"],
             category=ShopItemCategory(data["category"]),
-            slot=EquipmentSlot(data["slot"]),
+            appearance_id=AppearanceId(data["appearance_id"]),
             price=data["price"],
             availability=CatalogAvailability(data["availability"]),
             required_level=data["required_level"],
             catalog_version=catalog_version,
-            preview_asset_id=data["preview_asset_id"],
-            cosmetic_layer_id=data["cosmetic_layer_id"],
         )
     except (TypeError, ValueError) as error:
         raise CatalogValidationError(f"Catalog item {index} is invalid.") from error
-
-
-def _parse_layer(data: dict[str, Any], index: int) -> CosmeticLayer:
-    allowed_keys = _LAYER_REQUIRED_KEYS | _LAYER_OPTIONAL_KEYS
-    _require_closed_table(data, _LAYER_REQUIRED_KEYS, allowed_keys, f"layer {index}")
-    try:
-        return CosmeticLayer(
-            layer_id=data["layer_id"],
-            relative_asset_path=data["asset_path"],
-            compatible_states=_parse_enum_set(
-                data["states"], AnimationState, f"layer {index} states"
-            ),
-            compatible_directions=_parse_enum_set(
-                data["directions"], FacingDirection, f"layer {index} directions"
-            ),
-            offset_x=data.get("offset_x", 0),
-            offset_y=data.get("offset_y", 0),
-            z_order=data.get("z_order", 0),
-            canvas_width=data.get("canvas_width", 100),
-            canvas_height=data.get("canvas_height", 100),
-            binary_alpha_required=data.get("binary_alpha_required", True),
-            nearest_neighbor_required=data.get("nearest_neighbor_required", True),
-        )
-    except (TypeError, ValueError) as error:
-        raise CatalogValidationError(f"Catalog layer {index} is invalid.") from error
-
-
-def _parse_enum_set(
-    value: object,
-    enum_type: type[StrEnum],
-    label: str,
-) -> frozenset[Any]:
-    if (
-        not isinstance(value, list)
-        or not value
-        or any(not isinstance(item, str) for item in value)
-    ):
-        raise CatalogValidationError(f"{label} must be a nonempty string array.")
-    try:
-        parsed = tuple(enum_type(item) for item in value)
-    except ValueError as error:
-        raise CatalogValidationError(f"{label} contains an unknown value.") from error
-    if len(parsed) != len(set(parsed)):
-        raise CatalogValidationError(f"{label} cannot contain duplicates.")
-    return frozenset(parsed)
 
 
 def _matches_query(
@@ -422,7 +335,7 @@ def _require_table_array(value: object, label: str) -> list[dict[str, Any]]:
     return value
 
 
-def _reject_duplicates(values: tuple[str, ...], label: str) -> None:
+def _reject_duplicates(values: tuple[object, ...], label: str) -> None:
     if len(values) != len(set(values)):
         raise CatalogValidationError(f"Catalog contains a duplicate {label}.")
 

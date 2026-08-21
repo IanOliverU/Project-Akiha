@@ -1,0 +1,20 @@
+schema_version = 1
+default_appearance = "seifuku"
+
+[[appearances]]
+appearance_id = "seifuku"
+display_name = "Akiha - Seifuku"
+availability = "available"
+manifest = "manifest.toml"
+
+[[appearances]]
+appearance_id = "dress"
+display_name = "Akiha - Dress"
+availability = "unavailable"
+required_item_id = "appearance.dress"
+
+[[appearances]]
+appearance_id = "vermillion"
+display_name = "Akiha Vermillion"
+availability = "unavailable"
+required_item_id = "appearance.vermillion"

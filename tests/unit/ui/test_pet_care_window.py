@@ -84,7 +84,7 @@ class PetCareWindowTest(unittest.TestCase):
         shop_button = next(
             button
             for button in self._window.findChildren(QPushButton)
-            if button.toolTip() == "Open shop and wardrobe"
+            if button.toolTip() == "Open shop and appearances"
         )
         shop_button.click()
 

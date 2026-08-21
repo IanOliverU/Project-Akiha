@@ -1,386 +1,284 @@
-# Phase 10: Shop And Visual Pet Expansion
+# Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10E shop and wardrobe UI complete
+**Status:** In progress - Phase 10F fixed appearance integration complete
 
 ## Phase Goal
 
-Turn the Phase 9 care loop into a visible, rewarding pet economy. Akiha can earn
-currency through bounded care and interaction, buy trusted local catalog items,
-own them durably, equip compatible cosmetics, and display approved visual layers
-without changing the canonical character sprite.
+Extend the Phase 9 care loop with a lightweight trusted shop, three complete
+canonical appearances, and data-driven autonomous activities that make Akiha
+feel alive without turning the companion into a wardrobe manager or demanding
+virtual-pet game.
 
-Phase 10 is the visual and economic payoff for Phase 9. It is not a real-money
-store, remote marketplace, generative character system, or unrestricted asset
-loader.
+Akiha remains, in priority order, an AI companion, desktop pet, and local
+assistant. Shop, status, care, and activity systems support that experience.
+
+## Approved Scope Decision
+
+The layered-cosmetic and wardrobe design built during 10A-10E was retired
+before renderer integration. Active Phase 10 code supports only these closed
+appearance identities:
+
+- `seifuku`
+- `dress`
+- `vermillion`
+
+Each identity represents one complete, owner-approved animation manifest.
+There are no equipment slots, layers, compositing rules, loadouts, or cosmetic
+combinations. Seifuku is the default and remains available without purchase.
+Dress and Vermillion stay explicitly unavailable until complete approved asset
+sets exist.
 
 ## Hard Architecture Rules
 
-1. `assets/animations/akiha/standing/000.png` remains the immutable character
-   source of truth.
-2. Cosmetics are separate approved layers. Purchasing or equipping an item never
-   rewrites a canonical sprite or animation file.
-3. Currency mutations occur only through one transactional economy service.
-4. Balances cannot become negative, and purchases must be atomic and idempotent.
-5. Dialogue and provider output cannot purchase, sell, equip, or grant items
-   directly.
-6. Catalog definitions are trusted local data validated before use. No arbitrary
-   file path, URL, script, executable, or provider-defined item is accepted.
-7. Unsupported cosmetic/state combinations use an explicit safe fallback rather
-   than guessing an anchor or modifying pixels.
-8. Every activated visual asset requires automated validation and owner visual
-   approval.
-9. Builds remain deferred until Phase 10J. Development and acceptance use the
-   Python 3.13 source environment until the feature scope is complete.
+1. `assets/animations/akiha/standing/000.png` remains the immutable canonical
+   Seifuku source sprite.
+2. Appearance selection swaps a complete trusted manifest. It never recolors,
+   redraws, regenerates, interpolates, or overlays canonical pixels.
+3. Shop purchases remain atomic, idempotent, non-stackable, and unable to make
+   currency negative.
+4. Dialogue and provider output cannot purchase products, select appearances,
+   mutate pet state, or manipulate renderer frames directly.
+5. Catalog and appearance definitions are closed trusted local TOML. They never
+   accept provider-defined paths, URLs, scripts, or executables.
+6. Pet statistics are structured state. They are not inferred by parsing
+   Japanese or English dialogue.
+7. Autonomous activities are selected by a deterministic pet behavior
+   controller, independent of the LLM and assistant-action system.
+8. Missing or unapproved assets fail closed to the selected safe appearance and
+   idle behavior.
+9. Builds remain deferred until 10J. Phase development uses Python 3.13 source
+   verification.
 
-## System Pipeline
+## Active Architecture
+
+### Shop and appearance
 
 ```text
-Trusted catalog TOML
-    -> CatalogLoader / CatalogValidator
-        -> ShopService
-            -> EconomyTransaction
-                -> PetStateService currency debit
-                -> InventoryRepository ownership grant
-                -> PurchaseRepository audit record
-
-Owned InventoryItem
-    -> EquipmentService
-        -> validated slot and compatibility policy
-            -> equipped loadout
-                -> CosmeticPresentationController
-                    -> existing AnimationProvider frame
-                    + approved CosmeticLayer metadata
-                        -> SpritePetRenderer
+Trusted ShopCatalog
+    -> ShopService
+        -> atomic purchase / durable ownership
+            -> AppearanceService
+                -> selected complete AppearanceId
+                    -> trusted AnimationManifest
+                        -> existing AssetAnimationProvider
+                            -> SpritePetRenderer
 ```
 
-The transaction boundary must commit the currency debit, ownership grant, and
-purchase record together. A crash must leave either the complete purchase or no
-purchase.
+`ShopService` owns catalog browsing, inspection, purchasing, and inventory.
+`AppearanceService` separately owns availability, ownership checks, selection,
+and trusted manifest resolution. The renderer receives a normal animation
+provider and requires no wardrobe-specific code.
 
-## Domain Contracts
+### Autonomous activity
 
-### Catalog item
+```text
+Pet State + Presence + Mood + Time + Current Activity
+    -> ActivityBehaviorController
+        -> bounded ActivityId
+            -> approved ActivityManifest
+                -> existing animation/controller boundaries
+                    -> SpritePetRenderer
+```
 
-A trusted catalog entry contains:
+This pipeline belongs to 10H. The LLM may eventually propose a bounded
+interaction, but it does not schedule autonomous activities or name animation
+files.
 
-- stable `item_id` and display name
-- category and equipment slot
-- non-negative currency price
-- availability state and optional level prerequisite
-- preview asset identifier
-- visual compatibility declaration
-- immutable catalog version
+## Persistence And Compatibility
 
-Initial equipment slots should remain small and meaningful: `head`, `face`,
-`neck`, and `accessory`. Add outfit replacement only after an approved asset set
-proves that full-body layering is visually reliable.
+Migration `0011_shop_inventory.sql` introduced transaction, inventory, and
+historical equipment tables. The transaction and inventory tables remain
+active. `shop_equipment` is retained only as inert schema history so existing
+databases stay compatible; no current repository, service, or UI reads or
+writes it.
 
-Phase 10 begins with one product category: `cosmetic`. All initial cosmetics are
-non-stackable and occupy exactly one of the four slots above. Consumable food,
-care boosts, and full outfit replacement remain outside the initial catalog so
-the economy does not get ahead of approved gameplay and visual assets.
+Migration `0012_appearance_selection.sql` adds one constrained singleton row:
 
-### Durable inventory
+- appearance ID restricted to `seifuku`, `dress`, or `vermillion`
+- timezone-aware selected timestamp
+- safe default of `seifuku`
 
-Inventory records contain only stable IDs and ownership facts:
+An existing selection that becomes unavailable or loses required ownership is
+repaired to Seifuku during service initialization. Inventory and transaction
+history are never deleted by that repair.
 
-- item ID
-- acquired timestamp
-- acquisition source
-- purchase transaction ID when applicable
-- equipped state through a separate loadout record
+## Trusted Data Contracts
 
-Repeated purchase requests for a non-stackable item return the existing owned
-item without charging currency again.
+`project_akiha/config/shop_catalog.toml` uses schema version 2. A product is a
+complete non-default appearance and contains only a stable item ID, display
+name, category, appearance ID, price, availability, level requirement, and
+catalog version. The bundled catalog remains intentionally empty until an
+appearance passes owner review.
 
-### Purchase behavior
+`assets/animations/appearances.toml` is the fixed appearance registry. It must
+define all three IDs, one available default, optional ownership requirements,
+and normalized relative TOML manifest paths. Every available manifest must
+exist inside the trusted registry root.
 
-The typed purchase decisions are `completed`, `already_owned`,
-`insufficient_funds`, `level_required`, `item_unavailable`, and
-`item_not_found`.
+Future shop categories may include food, drinks, gifts, and favorites only when
+they map to an existing meaningful care or convenience behavior. Medicine is
+excluded unless an approved health/sickness mechanic exists. No category is
+added merely because another virtual-pet application has one.
 
-- A completed purchase debits exactly the catalog price and links the inventory
-  grant to one UUID transaction.
-- Every denied result preserves the original balance and creates no committed
-  transaction or inventory record.
-- Duplicate purchase requests return `already_owned` and never charge again.
-- Prices may be zero for deliberate starter/promotional catalog entries, but
-  balances and level/catalog versions remain strictly validated.
-- Refunds, resale, trading, gifting, and item consumption are not supported in
-  Phase 10. An owned item is never silently removed because a catalog entry or
-  visual asset later becomes unavailable.
+## UI Direction
 
-### Equipment loadout
+The native Qt surface is **Akiha Shop** with two compact tabs:
 
-Only one item may occupy a slot unless a future catalog version explicitly
-defines a safe multi-layer order. Equipping is reversible and does not consume
-the item. Missing or invalid visual assets preserve ownership while rendering no
-layer and reporting a diagnostic state.
+- **Shop** shows balance, level, trusted products, purchase requirements, and
+  explicit confirmation before spending currency.
+- **Appearance** shows exactly Seifuku, Dress, and Vermillion with availability,
+  ownership, and current-selection state.
 
-### Cosmetic layer
+The old Wardrobe view, inventory equipment controls, slots, and loadout wording
+have been removed. The UI can honestly show future appearances as awaiting
+approved assets without offering an unsafe selection.
 
-An approved layer declares:
+A later Status surface should answer “How is Akiha doing?” using only useful
+existing state: level, XP, currency, mood, care state, current activity,
+appearance, and current animation. It must not encourage constant
+micromanagement.
 
-- trusted asset path under the cosmetic asset root
-- target animation clip and direction
-- integer anchor offset and explicit z-order
-- expected canvas dimensions, alpha behavior, and scale contract
-- compatibility fallback for unsupported states
+## VPet Research Boundary
 
-No runtime interpolation, AI-generated replacement pixels, automatic recoloring,
-or subpixel positioning is allowed for canonical pixel-art presentation.
+VPet was reviewed only as product research for shop discoverability, status
+visibility, user interaction, and autonomous desktop activity. Project Akiha
+does not copy its code, assets, UI, terminology, stat model, or mechanics.
 
-The Phase 10A code contract additionally requires normalized relative PNG paths,
-the canonical 100 x 100 canvas, binary alpha, nearest-neighbor rendering, known
-animation states, explicit left/right compatibility, integer offsets, and bounded
-z-order. A missing or unsupported layer renders nothing while ownership and the
-equipped record remain intact for diagnostics and later recovery.
+Research references:
 
-## Persistence Plan
+- VPet documentation: <https://wiki.exlb.net/en/vpet>
+- VPet Menu reference: <https://vpet-simulator.fandom.com/wiki/Menu>
+- VPet Status reference: <https://vpet-simulator.fandom.com/wiki/Status>
+- VPet source repository: <https://github.com/LorisYounger/VPet>
 
-Phase 9 currently owns migrations through `0010`. Phase 10 starts at `0011`
-after confirming that number remains free.
+Useful concepts:
 
-Planned tables:
+- optional, discoverable care/shop interactions;
+- a readable current-status surface;
+- autonomous start/loop/finish activities;
+- animation driven by pet behavior rather than an LLM; and
+- graceful return to idle after an activity.
 
-- `shop_inventory` for durable ownership
-- `shop_equipment` for one equipped item per slot
-- `shop_transactions` for idempotent currency debits and acquisition history
-- optional `shop_catalog_state` only when catalog-version migration is required
+Explicitly rejected concepts:
 
-The bundled catalog remains version-controlled TOML rather than user database
-content. Removing an item from the active catalog must not silently delete its
-inventory or transaction history.
+- constant hunger/thirst/health micromanagement;
+- death, running away, or punitive neglect loops;
+- a large RPG economy;
+- wardrobe pieces, layered outfits, or arbitrary customization;
+- copying VPet activities without Akiha-specific character fit; and
+- continuous LLM control of desktop animation.
 
-Migration `0011_shop_inventory.sql` owns three durable tables:
+## Subphase Checklist
 
-- `shop_transactions` stores completed idempotent currency debits, catalog
-  version, price, before/after balances, and purchase time;
-- `shop_inventory` stores one non-stackable ownership row per item with guarded
-  acquisition provenance; and
-- `shop_equipment` stores at most one owned item per approved slot and prevents
-  one item from occupying multiple slots.
+### 10A: Product, Economy, And Asset Contract
 
-The SQLite shop repository owns the cross-table purchase transaction. Under one
-`BEGIN IMMEDIATE`, it checks transaction replay, existing ownership, catalog
-availability, level, and current currency before updating `pet_state`, writing
-the transaction, and granting inventory. Any failed statement rolls back all
-three mutations. A repeated transaction ID returns the original completed
-result, while a different transaction ID for an already-owned item returns
-`already_owned` without charging again.
+- [x] Define initial trusted product, ownership, purchase, and visual contracts.
+- [x] Protect the canonical sprite and preserve explicit owner approval.
+- [x] Define atomic and idempotent currency behavior.
+- [x] Record the original cosmetic design as superseded by the approved fixed
+  appearance revision.
 
-Purchases increment the shared pet-state revision and change only currency and
-the update timestamp. Phase 9 wellbeing, decay baselines, XP, level, reward
-grants, and pet history remain intact. Purchase audit history belongs to
-`shop_transactions`, avoiding duplicate or misleading care-history entries.
+### 10B: Trusted Catalog Foundation
 
-## Trusted Catalog Contract
+- [x] Add strict versioned local catalog loading.
+- [x] Add deterministic filtering and ordering.
+- [x] Fail closed for malformed or missing trusted data.
+- [x] Revise schema 2 to complete appearance products only.
 
-`project_akiha/config/shop_catalog.toml` is the bundled catalog entry point. Its
-schema and catalog versions are explicit positive integers. The initial file is
-valid but intentionally empty until at least one cosmetic asset passes owner
-visual review.
+### 10C: Persistence And Atomic Economy
 
-Catalog parsing is strict and fail-closed:
+- [x] Preserve atomic transactions and durable ownership in migration `0011`.
+- [x] Prevent negative currency, duplicate charges, and partial commits.
+- [x] Preserve Phase 9 care, XP, level, and reward history.
+- [x] Retain the old equipment table as unused migration compatibility only.
 
-- root, item, and layer tables reject missing and unknown fields;
-- item IDs, layer IDs, and layer asset paths must be unique;
-- every item preview and cosmetic-layer ID must resolve inside the same catalog;
-- prices, levels, versions, slots, availability, states, directions, canvas,
-  alpha, offsets, and z-order pass the Phase 10A typed contracts;
-- asset references are normalized relative PNG paths, never URLs, absolute
-  locations, parent traversal, scripts, or executables; and
-- a missing, unreadable, malformed, or invalid catalog returns a valid empty
-  snapshot plus one bounded diagnostic reason instead of partially loading.
+### 10D: Shop And Inventory Services
 
-Catalog browsing is pure and deterministic. It supports typed category,
-availability, and ownership filters plus name, category, ascending/descending
-price, ownership, and availability ordering. Every ordering uses stable name and
-item-ID tie breakers. Hidden items are excluded by default and appear only when
-explicitly requested for trusted diagnostics or maintenance.
-
-## Shop Service Boundary
-
-`ShopService` is the single application-facing entry point for catalog browsing,
-item inspection, purchasing, inventory inspection, loadout inspection, equipping,
-and unequipping. Its methods accept typed IDs, filters, and equipment slots; it
-does not accept dialogue, provider text, file paths, or arbitrary commands.
-
-All returned views are sanitized for application and UI use. They contain stable
-item metadata, ownership state, affordability, compatibility, balances, and
-equipment state without exposing cosmetic asset paths or raw layer declarations.
-Inventory and loadout entries remain visible by stable ID if a later catalog
-revision removes the corresponding item, preserving durable ownership and making
-the mismatch diagnosable.
-
-Purchase policy remains inside the atomic SQLite repository. `ShopService`
-refreshes the shared `PetStateService` snapshot after a completed purchase so
-Phase 9 currency consumers cannot continue displaying a stale balance. Equip and
-unequip operations require durable ownership and validate the declared slot and
-baseline idle left/right visual compatibility before committing the loadout.
-
-Only completed purchases and committed equipment changes publish events.
-`shop.purchase_completed` and `shop.equipment_changed` carry bounded IDs,
-decisions, slots, and balance state without prices, paths, assets, credentials,
-or dialogue. Denied and no-op decisions publish no mutation event. Providers and
-ordinary dialogue remain outside this service boundary; any future natural-
-language shop request must pass through a separate typed proposal and explicit
-confirmation path before reaching these methods.
-
-## Shop And Wardrobe UI
-
-`ShopWindow` is a compact two-view native Qt surface using Akiha's established
-uniform palette and Fluent icon controls. It is available from the pet context
-menu, tray menu, and Care window. The window contains no provider or dialogue
-entry point.
-
-The Shop view presents the current level and currency balance, typed category,
-ownership/availability, and sort controls, local name filtering, a dense catalog
-list, and one selected-item detail pane. Price, ownership, availability, level
-requirement, affordability, and baseline visual compatibility are visible before
-purchase. Currency spending always requires an explicit confirmation dialog.
-Unavailable, insufficient-funds, level-locked, visually incompatible, empty,
-loading, and failed-catalog states are represented directly.
-
-The Wardrobe view presents durable owned items separately from the four-slot
-loadout. Equip and unequip controls use exact item IDs and typed slots. A
-completed operation returns a complete refreshed UI snapshot containing catalog,
-inventory, loadout, and balance state, preventing stale mixed panels. Wardrobe
-compatibility comes from each sanitized inventory view and therefore does not
-depend on the active Shop filter. Missing catalog entries remain visible by
-stable item ID and cannot be equipped until trusted metadata is restored.
-
-All shop work runs outside the Qt UI thread through a closed operation enum.
-Shop workers are coordinated with pet-state care, maintenance, and decay workers
-and participate in graceful shutdown. The bundled catalog remains intentionally
-empty until an owner-approved cosmetic passes the Phase 10G asset gate, so the
-expected current source UI is an honest empty Shop rather than placeholder
-merchandise.
-
-## Subphase Blueprint
-
-### Phase 10A: Product, Economy, And Asset Contract
-
-- [x] Confirm the minimum item categories and equipment slots.
-- [x] Define catalog, inventory, transaction, loadout, and cosmetic-layer models.
-- [x] Define item pricing and level prerequisites against Phase 9 progression.
-- [x] Lock duplicate-purchase, insufficient-funds, refund, and unavailable-item
-  behavior.
-- [x] Extend the animation architecture with cosmetic-layer acceptance rules.
-- [x] Require at least one owner-approved visible starter cosmetic before visual
-  Phase 10 completion can be claimed.
-
-### Phase 10B: Trusted Catalog Foundation
-
-- [x] Add a versioned local catalog schema and parser.
-- [x] Reject duplicate IDs, invalid prices, unknown slots, unsafe paths, and
-  incompatible asset declarations.
-- [x] Add deterministic filtering and ordering by category, price, ownership,
-  and availability.
-- [x] Add a safe empty or invalid catalog fallback.
-
-### Phase 10C: Persistence And Atomic Economy
-
-- [x] Add migration `0011` and verify fresh and existing-data upgrades.
-- [x] Implement inventory, equipment, and transaction repositories.
-- [x] Implement atomic purchase with idempotency protection.
-- [x] Prevent negative currency and duplicate charges.
-- [x] Preserve Phase 9 pet state, XP, level, care history, and currency accrual.
-
-### Phase 10D: Shop And Inventory Services
-
-- [x] Add typed browse, inspect, purchase, equip, unequip, and loadout operations.
-- [x] Enforce ownership, slot, level, availability, and compatibility rules.
-- [x] Publish sanitized typed outcomes only after committed mutations.
+- [x] Keep typed browse, inspect, purchase, and inventory operations.
+- [x] Remove equip, unequip, slot, and loadout operations.
+- [x] Gate purchases on complete approved asset availability.
 - [x] Keep providers and ordinary dialogue outside the mutation boundary.
 
-### Phase 10E: Shop And Wardrobe UI
+### 10E: Simplified Shop And Appearance UI
 
-- [x] Add a compact Shop view using the existing Akiha UI theme.
-- [x] Show balance, price, ownership, availability, and compatibility clearly.
-- [x] Add category filters and owned/available views without nested card clutter.
-- [x] Add confirmation before spending currency.
-- [x] Add Inventory/Wardrobe equipment controls and immediate durable refresh.
-- [x] Provide empty, loading, insufficient-funds, and asset-unavailable states.
+- [x] Keep the compact trusted Shop view and spending confirmation.
+- [x] Replace Wardrobe with a three-entry Appearance view.
+- [x] Remove equipment and layer controls.
+- [x] Show unavailable and awaiting-asset states clearly.
 
-### Phase 10F: Layered Cosmetic Rendering
+### 10F: Fixed Appearance Reconciliation And Integration
 
-- [ ] Extend the existing renderer rather than creating a competing renderer.
-- [ ] Render approved layers with integer anchors, explicit z-order, binary alpha,
-  and nearest-neighbor scaling.
-- [ ] Cache cosmetic pixmaps without mutating source assets.
-- [ ] Handle left/right mirroring and declared animation compatibility.
-- [ ] Fall back safely when a layer is missing, invalid, or unsupported.
-- [ ] Prove the canonical sprite hash and palette remain unchanged.
+- [x] Add closed appearance IDs and strict registry loading.
+- [x] Add migration `0012` and a dedicated appearance repository/service.
+- [x] Select only complete, available, owned appearance sets.
+- [x] Repair stale selections to Seifuku without deleting ownership.
+- [x] Swap the whole animation provider after committed selection.
+- [x] Remove active wardrobe/layered-cosmetic code and stale tests.
+- [x] Verify migration compatibility and the full source suite.
 
-### Phase 10G: Visual Preview And Asset Validation
+### 10G: Whole-Set Preview And Asset Validation
 
-- [ ] Add preview rendering that uses the same composition rules as the pet.
-- [ ] Validate dimensions, palette expectations, alpha, anchors, clipping, and
-  trusted paths.
-- [ ] Generate contact sheets or runtime previews for owner review.
-- [ ] Activate only explicitly approved cosmetic assets.
-- [ ] Keep rejected and experimental assets out of active manifests.
+- [ ] Validate each appearance manifest, clip coverage, dimensions,
+  transparency, paths, and canonical fingerprints.
+- [ ] Add preview/contact-sheet tooling that uses the production provider.
+- [ ] Require owner visual approval before changing availability.
+- [ ] Keep missing, rejected, and experimental assets inactive.
+- [ ] Decide the minimum clip coverage required for Dress and Vermillion.
 
-### Phase 10H: Expanded Pet Reactions
+### 10H: Expanded Reactions And Autonomous Activities
 
-- [ ] Add approved feeding, affection, attention, level-up, sleep, or wake assets
-  only when their artwork exists.
-- [ ] Trigger reactions from typed Phase 9 outcomes rather than dialogue parsing.
-- [ ] Preserve voice, drag, walk, care, and idle priority rules.
-- [ ] Keep canonical idle and safe-state fallbacks for missing clips.
-- [ ] Record behavior events without storing private dialogue or asset contents.
+- [ ] Define closed `ActivityId`, lifecycle, cancellation, cooldown, and
+  priority contracts.
+- [ ] Add a deterministic scheduler using typed pet state, presence, mood, and
+  time rather than dialogue parsing.
+- [ ] Add data-driven activity manifests with safe idle fallback.
+- [ ] Integrate only activities supported by approved assets, beginning with
+  existing idle/walk/sleep capabilities.
+- [ ] Preserve drag, voice, direct care, and assistant-action priority rules.
+- [ ] Record privacy-safe activity history.
 
-### Phase 10I: Diagnostics, Privacy, And Reset
+### 10I: Status, Diagnostics, Privacy, And Reset
 
-- [ ] Add read-only catalog, inventory, equipment, transaction, and visual-layer
-  diagnostics.
-- [ ] Add a confirmed reset boundary for equipment/inventory only if product
-  behavior requires it.
-- [ ] Preserve chat, memory, permissions, Spotify, credentials, and unrelated pet
-  history during shop-specific maintenance.
-- [ ] Confirm no real-money payment, remote storefront, telemetry, or cloud asset
-  upload exists.
+- [ ] Add an Akiha-specific read-only Status surface.
+- [ ] Add catalog, ownership, appearance, activity, and transaction diagnostics.
+- [ ] Add only narrowly scoped confirmed reset behavior that product needs.
+- [ ] Preserve chat, memories, permissions, Spotify, credentials, and unrelated
+  history during shop/pet maintenance.
+- [ ] Confirm no real-money store, telemetry, cloud asset upload, or remote
+  marketplace exists.
 
-### Phase 10J: Final Verification And Consolidated Release Gate
+### 10J: Final Verification And Consolidated Release Gate
 
-- [ ] Run the complete source suite, Ruff, Black, compilation, migration, and
-  fresh/existing-data smoke checks.
-- [ ] Complete owner source-mode shop, inventory, equipment, animation, and
-  canonical-fidelity acceptance.
-- [ ] Build one corrected cached standalone containing all Phase 9 and Phase 10
-  source corrections.
-- [ ] Run real packaged Gemini Live and GPT-SoVITS runtime smoke.
-- [ ] Run packaged pet, shop, inventory, cosmetic, provider, action, Spotify,
-  tray, persistence, and graceful-Quit checks.
-- [ ] Validate that credentials, private voice references, user data, rejected
-  prototypes, and unapproved assets are absent from the package.
+- [ ] Run full tests, Ruff, Black, compilation, migrations, and fresh/existing
+  source-data smoke checks.
+- [ ] Complete owner source acceptance for shop, appearance, status, activity,
+  voice, pet, actions, and graceful shutdown.
+- [ ] Establish PyInstaller one-folder as an optional fast development package
+  only if its compatibility spike passes.
+- [ ] Keep Nuitka as the release candidate path unless a separately documented
+  decision replaces it.
+- [ ] Build one consolidated standalone after Phase 10 source scope closes.
+- [ ] Run packaged Gemini Live, GPT-SoVITS, pet, shop, appearance, actions,
+  Spotify, persistence, migration, tray, and graceful-Quit checks.
+- [ ] Verify credentials, private voice references, user data, rejected assets,
+  and experimental files are absent.
 - [ ] Remove obsolete builds only after the new candidate is accepted.
 
 ## Explicitly Out Of Scope
 
-- Real-money purchases, subscriptions, payment processing, or online commerce
-- User-authored scripts or downloadable executable shop items
-- Provider-controlled purchases or autonomous spending
-- Selling, trading, gifting, or multiplayer inventory
-- Arbitrary external asset loading
-- AI-generated replacement character artwork
-- A full Live2D, Spine, or 3D renderer migration
-- Mobile shop synchronization
+- Wardrobe, cosmetic slots, equipment loadouts, or layered compositing
+- Arbitrary user-generated or provider-generated appearances
+- Real-money purchases, subscriptions, payments, resale, or trading
+- Punitive neglect, death, or running-away mechanics
+- Large RPG stat or economy systems
+- LLM-controlled animation loops or arbitrary asset paths
+- Copying VPet code, assets, UI, terminology, or exact mechanics
+- Live2D, Spine, 3D, or mobile synchronization in this phase
 
-Live2D and richer model backends remain research topics. Phase 10 may document
-an adapter decision, but implementation requires its own approved visual assets,
-runtime licensing review, performance budget, and migration plan.
+## Exit Criteria
 
-## Phase Exit Criteria
-
-Phase 10 is complete when:
-
-- purchases are atomic, idempotent, and cannot create negative currency;
-- inventory and equipment survive restart and migrate safely;
-- at least one owner-approved cosmetic is visibly equipped without modifying the
-  canonical sprite;
-- unsupported or missing assets fail safely without losing ownership;
-- shop UI and diagnostics expose every important state without private data;
-- all source and consolidated standalone gates pass; and
-- owner visual and interaction approval is recorded explicitly.
+Phase 10 closes only when atomic purchases and fixed appearance selection remain
+restart-safe; unavailable assets fail closed; useful status and autonomous
+activity behavior are integrated without dialogue coupling; all active visuals
+have owner approval; source and consolidated package gates pass; and the
+companion remains lightweight in daily use.

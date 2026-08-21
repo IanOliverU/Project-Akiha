@@ -948,8 +948,6 @@ class SettingsWindow(QWidget):
         window_layout.addRow("Walking speed", self._walking_speed_input)
         window_layout.addRow("Start X", self._start_x_input)
         window_layout.addRow("Start Y", self._start_y_input)
-        window_layout.addRow("Animation manifest", self._build_manifest_row())
-
         appearance_layout = _build_form_layout()
         appearance_layout.addRow("Always on top", self._always_on_top_input)
         diagnostics_layout = _build_form_layout(wrap_long_rows=True)

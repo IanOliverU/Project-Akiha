@@ -1,4 +1,4 @@
-"""Tests for durable inventory, equipment, and atomic shop purchases."""
+"""Tests for durable ownership and atomic shop purchases."""
 
 from __future__ import annotations
 
@@ -10,12 +10,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+from project_akiha.core.appearance import AppearanceId
 from project_akiha.core.pet import PetProgression, PetState
 from project_akiha.core.shop import (
     CatalogAvailability,
     CatalogItem,
-    EquipmentSlot,
-    EquippedItem,
     PurchaseDecision,
     ShopIdempotencyConflictError,
     ShopItemCategory,
@@ -25,25 +24,22 @@ from project_akiha.database import SQLitePetStateRepository, SQLiteShopRepositor
 
 
 def _item(
-    item_id: str = "ribbon.red",
+    item_id: str = "appearance.dress",
     *,
-    slot: EquipmentSlot = EquipmentSlot.HEAD,
+    appearance_id: AppearanceId = AppearanceId.DRESS,
     price: int = 20,
     availability: CatalogAvailability = CatalogAvailability.AVAILABLE,
     required_level: int = 1,
 ) -> CatalogItem:
-    layer_id = f"{item_id}.layer"
     return CatalogItem(
         item_id=item_id,
         display_name=item_id.replace(".", " ").title(),
-        category=ShopItemCategory.COSMETIC,
-        slot=slot,
+        category=ShopItemCategory.APPEARANCE,
+        appearance_id=appearance_id,
         price=price,
         availability=availability,
         required_level=required_level,
         catalog_version=1,
-        preview_asset_id=layer_id,
-        cosmetic_layer_id=layer_id,
     )
 
 
@@ -138,7 +134,7 @@ class SQLiteShopRepositoryTest(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ShopIdempotencyConflictError):
             await self._repository.purchase(
-                _item("glasses.black", slot=EquipmentSlot.FACE),
+                _item("appearance.vermillion", appearance_id=AppearanceId.VERMILLION),
                 transaction_id=transaction_id,
                 purchased_at=self._started_at + timedelta(minutes=1),
             )
@@ -155,13 +151,28 @@ class SQLiteShopRepositoryTest(unittest.IsolatedAsyncioTestCase):
         cases = (
             (
                 _item(
-                    "hidden.ribbon",
+                    "appearance.hidden",
+                    appearance_id=AppearanceId.VERMILLION,
                     availability=CatalogAvailability.HIDDEN,
                 ),
                 PurchaseDecision.ITEM_UNAVAILABLE,
             ),
-            (_item("level.ribbon", required_level=2), PurchaseDecision.LEVEL_REQUIRED),
-            (_item("costly.ribbon", price=101), PurchaseDecision.INSUFFICIENT_FUNDS),
+            (
+                _item(
+                    "appearance.level",
+                    appearance_id=AppearanceId.VERMILLION,
+                    required_level=2,
+                ),
+                PurchaseDecision.LEVEL_REQUIRED,
+            ),
+            (
+                _item(
+                    "appearance.costly",
+                    appearance_id=AppearanceId.VERMILLION,
+                    price=101,
+                ),
+                PurchaseDecision.INSUFFICIENT_FUNDS,
+            ),
         )
 
         for item, decision in cases:
@@ -238,47 +249,6 @@ class SQLiteShopRepositoryTest(unittest.IsolatedAsyncioTestCase):
         assert pet_record is not None
         self.assertEqual(pet_record.state.progression.currency, 80)
 
-    async def test_loadout_survives_restart_and_rejects_unowned_items(self) -> None:
-        ribbon = _item()
-        glasses = _item("glasses.black", slot=EquipmentSlot.FACE, price=30)
-        await self._repository.purchase(
-            ribbon,
-            transaction_id=uuid4(),
-            purchased_at=self._started_at,
-        )
-        await self._repository.purchase(
-            glasses,
-            transaction_id=uuid4(),
-            purchased_at=self._started_at + timedelta(minutes=1),
-        )
-        equipped_at = self._started_at + timedelta(minutes=2)
-        await self._repository.save_equipped_item(
-            EquippedItem(EquipmentSlot.HEAD, ribbon.item_id, equipped_at)
-        )
-        await self._repository.save_equipped_item(
-            EquippedItem(EquipmentSlot.FACE, glasses.item_id, equipped_at)
-        )
-
-        restarted = SQLiteShopRepository(self._database_path)
-        loadout = await restarted.get_loadout()
-        self.assertEqual(loadout.item_for(EquipmentSlot.HEAD).item_id, ribbon.item_id)  # type: ignore[union-attr]
-        self.assertEqual(loadout.item_for(EquipmentSlot.FACE).item_id, glasses.item_id)  # type: ignore[union-attr]
-
-        with self.assertRaises(ValueError):
-            await restarted.save_equipped_item(
-                EquippedItem(
-                    EquipmentSlot.NECK,
-                    "neck.unowned",
-                    equipped_at,
-                )
-            )
-        unchanged = await restarted.get_loadout()
-        self.assertEqual(unchanged, loadout)
-
-        cleared = await restarted.remove_equipped_item(EquipmentSlot.HEAD)
-        self.assertIsNone(cleared.item_for(EquipmentSlot.HEAD))
-        self.assertIsNotNone(cleared.item_for(EquipmentSlot.FACE))
-
     async def test_purchase_requires_initialized_pet_state(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repository = SQLiteShopRepository(Path(directory) / "akiha.sqlite3")
@@ -292,7 +262,7 @@ class SQLiteShopRepositoryTest(unittest.IsolatedAsyncioTestCase):
     async def test_argument_validation_rejects_untyped_inputs(self) -> None:
         with self.assertRaises(TypeError):
             await self._repository.purchase(  # type: ignore[arg-type]
-                "ribbon",
+                "appearance.dress",
                 transaction_id=uuid4(),
                 purchased_at=self._started_at,
             )

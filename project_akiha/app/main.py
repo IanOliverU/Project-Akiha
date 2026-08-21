@@ -119,6 +119,11 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_SEARCH_PLAYLISTS_ACTION,
     SPOTIFY_SEARCH_TRACKS_ACTION,
 )
+from project_akiha.core.appearance import (
+    AppearanceId,
+    AppearanceSelectionDecision,
+    load_appearance_registry,
+)
 from project_akiha.core.behavior import (
     CompanionMood,
     CompanionPresenceMapper,
@@ -149,7 +154,6 @@ from project_akiha.core.pet import (
 )
 from project_akiha.core.shop import (
     CatalogQuery,
-    EquipmentSlot,
     load_catalog_or_empty,
 )
 from project_akiha.core.state.animation import AnimationStateMachine
@@ -166,6 +170,7 @@ from project_akiha.core.voice_session import (
 )
 from project_akiha.database import (
     SQLiteActionRepository,
+    SQLiteAppearanceRepository,
     SQLiteBehaviorRepository,
     SQLiteConversationRepository,
     SQLiteMemoryRepository,
@@ -223,6 +228,10 @@ from project_akiha.providers.voice import (
     UnavailableVoiceOutputProvider,
 )
 from project_akiha.services.app_paths import get_app_paths
+from project_akiha.services.appearance import (
+    AppearanceService,
+    SystemAppearanceClock,
+)
 from project_akiha.services.assistant_action_bridge import (
     AssistantActionBridge,
     AssistantActionDispatch,
@@ -272,7 +281,6 @@ from project_akiha.services.intent_arbitration import (
 )
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
-from project_akiha.services.path_resolver import ConfigPathResolver
 from project_akiha.services.pet_diagnostics import (
     PetDiagnosticsSnapshot,
     build_pet_diagnostics,
@@ -429,10 +437,6 @@ def _run_application() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     paths = get_app_paths()
-    path_resolver = ConfigPathResolver(
-        project_root=paths.project_root,
-        asset_dir=paths.asset_dir,
-    )
     log_path = configure_logging(paths.log_dir)
     logger = logging.getLogger("project_akiha.app")
     logger.info("Starting Project Akiha. Log path: %s", log_path)
@@ -561,10 +565,23 @@ def _run_application() -> int:
             shop_catalog_result.failure.value,
         )
     shop_repository = SQLiteShopRepository(paths.database_path)
+    appearance_registry = load_appearance_registry(
+        paths.project_root / "assets" / "animations" / "appearances.toml"
+    )
+    appearance_repository = SQLiteAppearanceRepository(paths.database_path)
+    appearance_service = AppearanceService(
+        appearance_registry,
+        appearance_repository,
+        shop_repository,
+        SystemAppearanceClock(),
+        event_bus=event_bus,
+    )
+    asyncio.run(appearance_service.initialize())
     shop_service = ShopService(
         shop_catalog_result,
         shop_repository,
         pet_state_service,
+        appearance_service,
         SystemShopClock(),
         event_bus=event_bus,
     )
@@ -646,9 +663,7 @@ def _run_application() -> int:
             height=config.pet_window.height,
         ),
     )
-    manifest_path = path_resolver.resolve_asset_path(
-        config.pet_window.animation_manifest_path
-    )
+    manifest_path = appearance_service.current_manifest_path
     animation_provider = _build_animation_provider(
         manifest_path,
         logger,
@@ -906,9 +921,7 @@ def _run_application() -> int:
         config = updated_config
         user_config_store.save_config(updated_config)
         window.apply_config(updated_config.pet_window)
-        manifest = path_resolver.resolve_asset_path(
-            updated_config.pet_window.animation_manifest_path
-        )
+        manifest = appearance_service.current_manifest_path
         window.set_animation_provider(_build_animation_provider(manifest, logger))
         ai_provider = _build_ai_provider(
             updated_config.ai,
@@ -1202,6 +1215,16 @@ def _run_application() -> int:
             )
             return
         shop_window.update_result(result)
+        if (
+            result.appearance is not None
+            and result.appearance.decision is AppearanceSelectionDecision.SELECTED
+        ):
+            window.set_animation_provider(
+                _build_animation_provider(
+                    appearance_service.current_manifest_path,
+                    logger,
+                )
+            )
 
     def handle_shop_failure(detail: str) -> None:
         logger.error("Shop operation failed: %s", detail)
@@ -1215,7 +1238,7 @@ def _run_application() -> int:
         *,
         query: CatalogQuery | None = None,
         item_id: str | None = None,
-        slot: EquipmentSlot | None = None,
+        appearance_id: AppearanceId | None = None,
     ) -> None:
         if not isinstance(operation, ShopWorkerOperation):
             raise TypeError("operation must be a ShopWorkerOperation value.")
@@ -1234,10 +1257,11 @@ def _run_application() -> int:
         shop_window.set_busy(True)
         thread = ShopOperationThread(
             shop_service,
+            appearance_service,
             operation,
             query=resolved_query,
             item_id=item_id,
-            slot=slot,
+            appearance_id=appearance_id,
         )
         active_shop_threads.append(thread)
         thread.completed.connect(handle_shop_result)
@@ -1264,16 +1288,10 @@ def _run_application() -> int:
             item_id=item_id,
         )
     )
-    shop_window.equip_requested.connect(
-        lambda item_id: start_shop_operation(
-            ShopWorkerOperation.EQUIP,
-            item_id=item_id,
-        )
-    )
-    shop_window.unequip_requested.connect(
-        lambda slot: start_shop_operation(
-            ShopWorkerOperation.UNEQUIP,
-            slot=slot,
+    shop_window.appearance_select_requested.connect(
+        lambda appearance_id: start_shop_operation(
+            ShopWorkerOperation.SELECT_APPEARANCE,
+            appearance_id=appearance_id,
         )
     )
     pet_care_window.shop_requested.connect(show_shop)
@@ -3378,6 +3396,9 @@ def _run_application() -> int:
         shop_repository,
         shop_service,
         shop_window,
+        appearance_registry,
+        appearance_repository,
+        appearance_service,
         spotify_client,
         spotify_device_coordinator,
         spotify_session,

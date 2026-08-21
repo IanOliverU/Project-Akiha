@@ -614,7 +614,7 @@ def pet_care_stylesheet() -> str:
 
 
 def shop_window_stylesheet() -> str:
-    """Return the scoped stylesheet for the shop and wardrobe surface."""
+    """Return the scoped stylesheet for the shop and appearance surface."""
     color = AKIHA_PALETTE
     root = "QWidget#akihaShopWindow"
     return f"""

@@ -2,6 +2,9 @@
 
 from project_akiha.database.migrator import DatabaseMigrator
 from project_akiha.database.sqlite_action_repository import SQLiteActionRepository
+from project_akiha.database.sqlite_appearance_repository import (
+    SQLiteAppearanceRepository,
+)
 from project_akiha.database.sqlite_behavior_repository import SQLiteBehaviorRepository
 from project_akiha.database.sqlite_conversation_repository import (
     SQLiteConversationRepository,
@@ -13,6 +16,7 @@ from project_akiha.database.sqlite_shop_repository import SQLiteShopRepository
 __all__ = [
     "DatabaseMigrator",
     "SQLiteActionRepository",
+    "SQLiteAppearanceRepository",
     "SQLiteBehaviorRepository",
     "SQLiteConversationRepository",
     "SQLiteMemoryRepository",

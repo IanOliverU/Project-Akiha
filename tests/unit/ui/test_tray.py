@@ -105,7 +105,7 @@ class AkihaTrayIconTest(unittest.TestCase):
 
         self._tray_icon.shop_requested.connect(record_signal)
 
-        _trigger_action(self._tray_icon, "Shop & wardrobe")
+        _trigger_action(self._tray_icon, "Shop & appearance")
 
         self.assertEqual(emitted_count, 1)
 

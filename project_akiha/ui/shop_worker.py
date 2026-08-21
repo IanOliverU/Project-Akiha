@@ -1,4 +1,4 @@
-"""Qt worker for typed shop, inventory, and wardrobe operations."""
+"""Qt worker for typed shop and complete-appearance operations."""
 
 from __future__ import annotations
 
@@ -8,15 +8,18 @@ from enum import StrEnum
 
 from PySide6.QtCore import QObject, QThread, Signal
 
+from project_akiha.core.appearance import (
+    AppearanceId,
+    AppearanceSelectionOutcome,
+    AppearanceView,
+)
 from project_akiha.core.shop import (
     CatalogQuery,
-    EquipmentOutcome,
-    EquipmentSlot,
     ShopBrowseResult,
     ShopInventoryItemView,
-    ShopLoadoutView,
     ShopPurchaseResult,
 )
+from project_akiha.services.appearance import AppearanceService
 from project_akiha.services.shop import ShopService
 
 
@@ -25,8 +28,7 @@ class ShopWorkerOperation(StrEnum):
 
     REFRESH = "refresh"
     PURCHASE = "purchase"
-    EQUIP = "equip"
-    UNEQUIP = "unequip"
+    SELECT_APPEARANCE = "select_appearance"
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +37,7 @@ class ShopUiSnapshot:
 
     browse: ShopBrowseResult
     inventory: tuple[ShopInventoryItemView, ...]
-    loadout: ShopLoadoutView
+    appearances: tuple[AppearanceView, ...]
 
     def __post_init__(self) -> None:
         if not isinstance(self.browse, ShopBrowseResult):
@@ -44,8 +46,10 @@ class ShopUiSnapshot:
             not isinstance(item, ShopInventoryItemView) for item in self.inventory
         ):
             raise TypeError("inventory must contain ShopInventoryItemView values.")
-        if not isinstance(self.loadout, ShopLoadoutView):
-            raise TypeError("loadout must be a ShopLoadoutView value.")
+        if not isinstance(self.appearances, tuple) or any(
+            not isinstance(item, AppearanceView) for item in self.appearances
+        ):
+            raise TypeError("appearances must contain AppearanceView values.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +59,7 @@ class ShopWorkerResult:
     operation: ShopWorkerOperation
     snapshot: ShopUiSnapshot
     purchase: ShopPurchaseResult | None = None
-    equipment: EquipmentOutcome | None = None
+    appearance: AppearanceSelectionOutcome | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.operation, ShopWorkerOperation):
@@ -67,14 +71,13 @@ class ShopWorkerResult:
                 raise ValueError("purchase operations require a purchase result.")
         elif self.purchase is not None:
             raise ValueError("non-purchase operations cannot contain purchase data.")
-        if self.operation in {
-            ShopWorkerOperation.EQUIP,
-            ShopWorkerOperation.UNEQUIP,
-        }:
-            if not isinstance(self.equipment, EquipmentOutcome):
-                raise ValueError("equipment operations require an equipment result.")
-        elif self.equipment is not None:
-            raise ValueError("non-equipment operations cannot contain equipment data.")
+        if self.operation is ShopWorkerOperation.SELECT_APPEARANCE:
+            if not isinstance(self.appearance, AppearanceSelectionOutcome):
+                raise ValueError("appearance operations require a selection result.")
+        elif self.appearance is not None:
+            raise ValueError(
+                "non-appearance operations cannot contain appearance data."
+            )
 
 
 class ShopOperationThread(QThread):
@@ -85,12 +88,13 @@ class ShopOperationThread(QThread):
 
     def __init__(
         self,
-        service: ShopService,
+        shop_service: ShopService,
+        appearance_service: AppearanceService,
         operation: ShopWorkerOperation,
         *,
         query: CatalogQuery | None = None,
         item_id: str | None = None,
-        slot: EquipmentSlot | None = None,
+        appearance_id: AppearanceId | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -100,17 +104,17 @@ class ShopOperationThread(QThread):
             raise TypeError("query must be a CatalogQuery value or None.")
         if item_id is not None and (not isinstance(item_id, str) or not item_id):
             raise ValueError("item_id must be a nonempty string or None.")
-        if slot is not None and not isinstance(slot, EquipmentSlot):
-            raise TypeError("slot must be an EquipmentSlot value or None.")
-        _validate_operation_arguments(operation, item_id=item_id, slot=slot)
-        self._service = service
+        if appearance_id is not None and not isinstance(appearance_id, AppearanceId):
+            raise TypeError("appearance_id must be an AppearanceId value or None.")
+        _validate_arguments(operation, item_id, appearance_id)
+        self._shop_service = shop_service
+        self._appearance_service = appearance_service
         self._operation = operation
         self._query = query
         self._item_id = item_id
-        self._slot = slot
+        self._appearance_id = appearance_id
 
     def run(self) -> None:
-        """Execute the typed operation and return a complete refreshed snapshot."""
         try:
             self.completed.emit(asyncio.run(self._execute()))
         except Exception as error:
@@ -118,56 +122,53 @@ class ShopOperationThread(QThread):
 
     async def _execute(self) -> ShopWorkerResult:
         purchase: ShopPurchaseResult | None = None
-        equipment: EquipmentOutcome | None = None
+        appearance: AppearanceSelectionOutcome | None = None
         if self._operation is ShopWorkerOperation.PURCHASE:
-            purchase = await self._service.purchase(_require_item_id(self._item_id))
-        elif self._operation is ShopWorkerOperation.EQUIP:
-            equipment = await self._service.equip(_require_item_id(self._item_id))
-        elif self._operation is ShopWorkerOperation.UNEQUIP:
-            equipment = await self._service.unequip(_require_slot(self._slot))
-
+            purchase = await self._shop_service.purchase(
+                _require_item_id(self._item_id)
+            )
+        elif self._operation is ShopWorkerOperation.SELECT_APPEARANCE:
+            appearance = await self._appearance_service.select(
+                _require_appearance_id(self._appearance_id)
+            )
         snapshot = ShopUiSnapshot(
-            browse=await self._service.browse(self._query),
-            inventory=await self._service.inventory(),
-            loadout=await self._service.loadout(),
+            browse=await self._shop_service.browse(self._query),
+            inventory=await self._shop_service.inventory(),
+            appearances=await self._appearance_service.list_appearances(),
         )
         return ShopWorkerResult(
             operation=self._operation,
             snapshot=snapshot,
             purchase=purchase,
-            equipment=equipment,
+            appearance=appearance,
         )
 
     def cancel(self) -> None:
-        """Mark the short operation for shutdown coordination."""
         self.requestInterruption()
 
 
-def _validate_operation_arguments(
+def _validate_arguments(
     operation: ShopWorkerOperation,
-    *,
     item_id: str | None,
-    slot: EquipmentSlot | None,
+    appearance_id: AppearanceId | None,
 ) -> None:
-    if operation in {ShopWorkerOperation.PURCHASE, ShopWorkerOperation.EQUIP}:
-        if item_id is None or slot is not None:
-            raise ValueError(f"{operation.value} requires only an item ID.")
-        return
-    if operation is ShopWorkerOperation.UNEQUIP:
-        if slot is None or item_id is not None:
-            raise ValueError("unequip requires only an equipment slot.")
-        return
-    if item_id is not None or slot is not None:
+    if operation is ShopWorkerOperation.PURCHASE:
+        if item_id is None or appearance_id is not None:
+            raise ValueError("purchase requires only an item ID.")
+    elif operation is ShopWorkerOperation.SELECT_APPEARANCE:
+        if appearance_id is None or item_id is not None:
+            raise ValueError("appearance selection requires only an appearance ID.")
+    elif item_id is not None or appearance_id is not None:
         raise ValueError("refresh cannot contain mutation arguments.")
 
 
-def _require_item_id(item_id: str | None) -> str:
-    if item_id is None:
+def _require_item_id(value: str | None) -> str:
+    if value is None:
         raise RuntimeError("The typed shop operation is missing its item ID.")
-    return item_id
+    return value
 
 
-def _require_slot(slot: EquipmentSlot | None) -> EquipmentSlot:
-    if slot is None:
-        raise RuntimeError("The typed shop operation is missing its slot.")
-    return slot
+def _require_appearance_id(value: AppearanceId | None) -> AppearanceId:
+    if value is None:
+        raise RuntimeError("The typed operation is missing its appearance ID.")
+    return value

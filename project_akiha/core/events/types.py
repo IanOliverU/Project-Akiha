@@ -22,7 +22,7 @@ class EventType(StrEnum):
     PET_LEVEL_INCREASED = "pet.level_increased"
     PET_STATE_RESET = "pet.state_reset"
     SHOP_PURCHASE_COMPLETED = "shop.purchase_completed"
-    SHOP_EQUIPMENT_CHANGED = "shop.equipment_changed"
+    APPEARANCE_CHANGED = "appearance.changed"
     SHOP_OPEN_REQUESTED = "shop.open_requested"
     CHAT_OPEN_REQUESTED = "chat.open_requested"
     SETTINGS_OPEN_REQUESTED = "settings.open_requested"

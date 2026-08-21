@@ -192,7 +192,7 @@ class PetWindowTest(unittest.TestCase):
         event_bus.subscribe(EventType.SHOP_OPEN_REQUESTED, record_event)
 
         menu = self._window._build_context_menu()
-        _trigger_action(menu, "Shop & wardrobe")
+        _trigger_action(menu, "Shop & appearance")
 
         self.assertEqual(event_count, 1)
 

@@ -1,4 +1,4 @@
-"""Tests for typed non-blocking shop UI operations."""
+"""Tests for typed non-blocking shop and appearance operations."""
 
 from __future__ import annotations
 
@@ -6,17 +6,18 @@ import unittest
 from datetime import UTC, datetime
 from uuid import UUID
 
+from project_akiha.core.appearance import (
+    AppearanceAvailability,
+    AppearanceId,
+    AppearanceSelection,
+    AppearanceSelectionDecision,
+    AppearanceSelectionOutcome,
+    AppearanceView,
+)
 from project_akiha.core.shop import (
-    AcquisitionSource,
-    CatalogAvailability,
     CatalogQuery,
-    EquipmentDecision,
-    EquipmentOutcome,
-    EquipmentSlot,
     PurchaseDecision,
     ShopBrowseResult,
-    ShopInventoryItemView,
-    ShopLoadoutView,
     ShopPurchaseResult,
 )
 from project_akiha.ui.shop_worker import (
@@ -29,14 +30,14 @@ _NOW = datetime(2026, 8, 21, 18, 0, tzinfo=UTC)
 
 
 class ShopOperationThreadTest(unittest.TestCase):
-    """Verify workers dispatch only closed typed operations."""
-
     def test_refresh_reads_all_presentation_state_without_mutation(self) -> None:
-        service = _FakeShopService()
+        shop = _FakeShopService()
+        appearance = _FakeAppearanceService()
         emitted: list[object] = []
         query = CatalogQuery()
         thread = ShopOperationThread(  # type: ignore[arg-type]
-            service,
+            shop,
+            appearance,
             ShopWorkerOperation.REFRESH,
             query=query,
         )
@@ -44,143 +45,99 @@ class ShopOperationThreadTest(unittest.TestCase):
 
         thread.run()
 
-        self.assertEqual(service.mutations, [])
-        self.assertEqual(service.queries, [query])
-        self.assertEqual(len(emitted), 1)
-        result = emitted[0]
-        self.assertEqual(result.operation, ShopWorkerOperation.REFRESH)
-        self.assertIsInstance(result.snapshot, ShopUiSnapshot)
+        self.assertEqual(shop.mutations, [])
+        self.assertEqual(shop.queries, [query])
+        self.assertEqual(appearance.mutations, [])
+        self.assertIsInstance(emitted[0].snapshot, ShopUiSnapshot)
 
-    def test_purchase_returns_outcome_and_refreshed_snapshot(self) -> None:
-        service = _FakeShopService()
-        emitted: list[object] = []
-        thread = ShopOperationThread(  # type: ignore[arg-type]
-            service,
+    def test_purchase_and_selection_forward_only_typed_targets(self) -> None:
+        shop = _FakeShopService()
+        appearance = _FakeAppearanceService()
+        purchase = ShopOperationThread(  # type: ignore[arg-type]
+            shop,
+            appearance,
             ShopWorkerOperation.PURCHASE,
-            item_id="ribbon.red",
+            item_id="appearance.dress",
         )
-        thread.completed.connect(emitted.append)
-
-        thread.run()
-
-        self.assertEqual(service.mutations, [("purchase", "ribbon.red")])
-        result = emitted[0]
-        self.assertIs(result.purchase, service.purchase_result)
-        self.assertEqual(service.reads, ["browse", "inventory", "loadout"])
-
-    def test_equip_and_unequip_forward_only_typed_targets(self) -> None:
-        service = _FakeShopService()
-        equip = ShopOperationThread(  # type: ignore[arg-type]
-            service,
-            ShopWorkerOperation.EQUIP,
-            item_id="ribbon.red",
-        )
-        unequip = ShopOperationThread(  # type: ignore[arg-type]
-            service,
-            ShopWorkerOperation.UNEQUIP,
-            slot=EquipmentSlot.HEAD,
+        selection = ShopOperationThread(  # type: ignore[arg-type]
+            shop,
+            appearance,
+            ShopWorkerOperation.SELECT_APPEARANCE,
+            appearance_id=AppearanceId.DRESS,
         )
 
-        equip.run()
-        unequip.run()
+        purchase.run()
+        selection.run()
 
-        self.assertEqual(
-            service.mutations,
-            [("equip", "ribbon.red"), ("unequip", EquipmentSlot.HEAD)],
-        )
+        self.assertEqual(shop.mutations, [("purchase", "appearance.dress")])
+        self.assertEqual(appearance.mutations, [AppearanceId.DRESS])
 
-    def test_constructor_rejects_untyped_or_mismatched_arguments(self) -> None:
-        service = _FakeShopService()
+    def test_constructor_rejects_mismatched_arguments(self) -> None:
+        shop = _FakeShopService()
+        appearance = _FakeAppearanceService()
         with self.assertRaises(TypeError):
-            ShopOperationThread(  # type: ignore[arg-type]
-                service,
-                "purchase",
-                item_id="ribbon.red",
-            )
+            ShopOperationThread(shop, appearance, "refresh")  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
-            ShopOperationThread(  # type: ignore[arg-type]
-                service,
+            ShopOperationThread(
+                shop,  # type: ignore[arg-type]
+                appearance,  # type: ignore[arg-type]
                 ShopWorkerOperation.PURCHASE,
             )
         with self.assertRaises(ValueError):
-            ShopOperationThread(  # type: ignore[arg-type]
-                service,
+            ShopOperationThread(
+                shop,  # type: ignore[arg-type]
+                appearance,  # type: ignore[arg-type]
                 ShopWorkerOperation.REFRESH,
-                item_id="ribbon.red",
-            )
-        with self.assertRaises(TypeError):
-            ShopOperationThread(  # type: ignore[arg-type]
-                service,
-                ShopWorkerOperation.UNEQUIP,
-                slot="head",
+                appearance_id=AppearanceId.DRESS,
             )
 
 
 class _FakeShopService:
     def __init__(self) -> None:
         self.queries: list[CatalogQuery | None] = []
-        self.reads: list[str] = []
-        self.mutations: list[tuple[str, object]] = []
+        self.mutations: list[tuple[str, str]] = []
         self.purchase_result = ShopPurchaseResult(
-            decision=PurchaseDecision.COMPLETED,
-            item_id="ribbon.red",
-            balance_before=100,
-            balance_after=80,
-            transaction_id=UUID("11111111-1111-1111-1111-111111111111"),
-        )
-        self.equipment_result = EquipmentOutcome(
-            decision=EquipmentDecision.EQUIPPED,
-            loadout=ShopLoadoutView(),
-            slot=EquipmentSlot.HEAD,
-            item_id="ribbon.red",
+            PurchaseDecision.COMPLETED,
+            "appearance.dress",
+            100,
+            80,
+            UUID("11111111-1111-1111-1111-111111111111"),
         )
 
     async def browse(self, query: CatalogQuery | None = None) -> ShopBrowseResult:
         self.queries.append(query)
-        self.reads.append("browse")
-        return ShopBrowseResult(
-            catalog_version=1,
-            catalog_failure=None,
-            balance=80,
-            level=2,
-            items=(),
-        )
+        return ShopBrowseResult(1, None, 80, 2, ())
 
-    async def inventory(self) -> tuple[ShopInventoryItemView, ...]:
-        self.reads.append("inventory")
-        return (
-            ShopInventoryItemView(
-                item_id="ribbon.red",
-                acquired_at=_NOW,
-                acquisition_source=AcquisitionSource.PURCHASE,
-                display_name="Red Ribbon",
-                slot=EquipmentSlot.HEAD,
-                availability=CatalogAvailability.AVAILABLE,
-                visual_compatible=True,
-                equipped=False,
-                present_in_catalog=True,
-            ),
-        )
-
-    async def loadout(self) -> ShopLoadoutView:
-        self.reads.append("loadout")
-        return ShopLoadoutView()
+    async def inventory(self) -> tuple[object, ...]:
+        return ()
 
     async def purchase(self, item_id: str) -> ShopPurchaseResult:
         self.mutations.append(("purchase", item_id))
         return self.purchase_result
 
-    async def equip(self, item_id: str) -> EquipmentOutcome:
-        self.mutations.append(("equip", item_id))
-        return self.equipment_result
 
-    async def unequip(self, slot: EquipmentSlot) -> EquipmentOutcome:
-        self.mutations.append(("unequip", slot))
-        return EquipmentOutcome(
-            decision=EquipmentDecision.UNEQUIPPED,
-            loadout=ShopLoadoutView(),
-            slot=slot,
-            item_id="ribbon.red",
+class _FakeAppearanceService:
+    def __init__(self) -> None:
+        self.mutations: list[AppearanceId] = []
+
+    async def list_appearances(self) -> tuple[AppearanceView, ...]:
+        return (
+            AppearanceView(
+                AppearanceId.SEIFUKU,
+                "Akiha - Seifuku",
+                AppearanceAvailability.AVAILABLE,
+                True,
+                True,
+            ),
+        )
+
+    async def select(self, appearance_id: AppearanceId) -> AppearanceSelectionOutcome:
+        self.mutations.append(appearance_id)
+        selection = AppearanceSelection(appearance_id, _NOW)
+        return AppearanceSelectionOutcome(
+            AppearanceSelectionDecision.SELECTED,
+            selection,
+            appearance_id,
         )
 
 

@@ -1,4 +1,4 @@
-"""Sanitized application-facing shop and wardrobe outcomes."""
+"""Sanitized application-facing shop outcomes."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
+from project_akiha.core.appearance import AppearanceId
 from project_akiha.core.shop.catalog import CatalogLoadFailure
 from project_akiha.core.shop.models import (
     AcquisitionSource,
     CatalogAvailability,
-    EquipmentSlot,
     PurchaseDecision,
     ShopItemCategory,
 )
@@ -24,34 +24,22 @@ class ShopInspectDecision(StrEnum):
     ITEM_NOT_FOUND = "item_not_found"
 
 
-class EquipmentDecision(StrEnum):
-    """Closed results for equip and unequip operations."""
-
-    EQUIPPED = "equipped"
-    UNEQUIPPED = "unequipped"
-    ALREADY_EQUIPPED = "already_equipped"
-    EMPTY_SLOT = "empty_slot"
-    ITEM_NOT_FOUND = "item_not_found"
-    NOT_OWNED = "not_owned"
-    VISUAL_INCOMPATIBLE = "visual_incompatible"
-
-
 @dataclass(frozen=True, slots=True)
 class ShopItemView:
-    """Catalog item state without paths or raw visual metadata."""
+    """Catalog product state without manifest paths or raw asset metadata."""
 
     item_id: str
     display_name: str
     category: ShopItemCategory
-    slot: EquipmentSlot
+    appearance_id: AppearanceId
     price: int
     availability: CatalogAvailability
     required_level: int
     owned: bool
-    equipped: bool
+    selected: bool
     affordable: bool
     level_met: bool
-    visual_compatible: bool
+    asset_available: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +55,7 @@ class ShopBrowseResult:
 
 @dataclass(frozen=True, slots=True)
 class ShopInspectResult:
-    """Typed inspect result that never exposes layer paths."""
+    """Typed inspect result that never exposes manifest paths."""
 
     decision: ShopInspectDecision
     item: ShopItemView | None
@@ -84,41 +72,17 @@ class ShopInspectResult:
 
 @dataclass(frozen=True, slots=True)
 class ShopInventoryItemView:
-    """Durable ownership state with optional current catalog metadata."""
+    """Durable ownership with optional current appearance metadata."""
 
     item_id: str
     acquired_at: datetime
     acquisition_source: AcquisitionSource
     display_name: str | None
-    slot: EquipmentSlot | None
+    appearance_id: AppearanceId | None
     availability: CatalogAvailability | None
-    visual_compatible: bool | None
-    equipped: bool
+    asset_available: bool | None
+    selected: bool
     present_in_catalog: bool
-
-
-@dataclass(frozen=True, slots=True)
-class ShopEquippedItemView:
-    """One equipment slot without visual asset paths."""
-
-    slot: EquipmentSlot
-    item_id: str
-    display_name: str | None
-    equipped_at: datetime
-    present_in_catalog: bool
-
-
-@dataclass(frozen=True, slots=True)
-class ShopLoadoutView:
-    """Sanitized ordered equipment snapshot."""
-
-    items: tuple[ShopEquippedItemView, ...] = ()
-
-    def item_for(self, slot: EquipmentSlot) -> ShopEquippedItemView | None:
-        """Return one visible slot entry when present."""
-        if not isinstance(slot, EquipmentSlot):
-            raise TypeError("slot must be an EquipmentSlot value.")
-        return next((item for item in self.items if item.slot is slot), None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,25 +109,3 @@ class ShopPurchaseResult:
                 raise ValueError("a completed purchase requires a transaction ID.")
         elif self.transaction_id is not None:
             raise ValueError("a denied purchase cannot expose a transaction ID.")
-
-
-@dataclass(frozen=True, slots=True)
-class EquipmentOutcome:
-    """Sanitized result and committed loadout for one equipment request."""
-
-    decision: EquipmentDecision
-    loadout: ShopLoadoutView
-    slot: EquipmentSlot | None = None
-    item_id: str | None = None
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.decision, EquipmentDecision):
-            raise TypeError("decision must be an EquipmentDecision value.")
-        if not isinstance(self.loadout, ShopLoadoutView):
-            raise TypeError("loadout must be a ShopLoadoutView value.")
-        if self.slot is not None and not isinstance(self.slot, EquipmentSlot):
-            raise TypeError("slot must be an EquipmentSlot value or None.")
-        if self.item_id is not None and (
-            not isinstance(self.item_id, str) or not self.item_id
-        ):
-            raise ValueError("item_id must be a nonempty string or None.")

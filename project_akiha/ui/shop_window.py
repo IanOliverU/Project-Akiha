@@ -1,4 +1,4 @@
-"""Compact trusted shop and wardrobe surface for Akiha."""
+"""Compact trusted shop and complete-appearance surface for Akiha."""
 
 from __future__ import annotations
 
@@ -21,15 +21,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from project_akiha.core.appearance import (
+    AppearanceAvailability,
+    AppearanceId,
+    AppearanceSelectionDecision,
+    AppearanceView,
+)
 from project_akiha.core.shop import (
     CatalogAvailability,
     CatalogOwnershipFilter,
     CatalogQuery,
     CatalogSort,
-    EquipmentDecision,
-    EquipmentSlot,
     PurchaseDecision,
-    ShopInventoryItemView,
     ShopItemCategory,
     ShopItemView,
 )
@@ -38,16 +41,15 @@ from project_akiha.ui.shop_worker import ShopUiSnapshot, ShopWorkerResult
 from project_akiha.ui.theme import shop_window_stylesheet
 
 _SHOP_ITEM_ROLE = Qt.ItemDataRole.UserRole
-_INVENTORY_ITEM_ROLE = Qt.ItemDataRole.UserRole
+_APPEARANCE_ROLE = Qt.ItemDataRole.UserRole
 
 
 class ShopWindow(QWidget):
-    """Present trusted catalog and wardrobe state with explicit mutations."""
+    """Present trusted products and complete appearance selection."""
 
     refresh_requested = Signal(object)
     purchase_requested = Signal(str)
-    equip_requested = Signal(str)
-    unequip_requested = Signal(object)
+    appearance_select_requested = Signal(object)
 
     def __init__(
         self,
@@ -64,21 +66,17 @@ class ShopWindow(QWidget):
         self._purchase_confirmation = purchase_confirmation or self._confirm_purchase
         self._snapshot: ShopUiSnapshot | None = None
         self._shop_items: dict[str, ShopItemView] = {}
-        self._inventory_items: dict[str, ShopInventoryItemView] = {}
-        self._loadout_labels: dict[EquipmentSlot, QLabel] = {}
-        self._unequip_buttons: dict[EquipmentSlot, QPushButton] = {}
+        self._appearances: dict[AppearanceId, AppearanceView] = {}
 
-        header = self._build_header()
         self._tabs = QTabWidget()
         self._tabs.setObjectName("shopTabs")
         self._tabs.setDocumentMode(True)
         self._tabs.addTab(self._build_shop_page(), "Shop")
-        self._tabs.addTab(self._build_wardrobe_page(), "Wardrobe")
+        self._tabs.addTab(self._build_appearance_page(), "Appearance")
 
         self._notice_label = QLabel("Loading the trusted local catalog...")
         self._notice_label.setObjectName("shopNotice")
         self._notice_label.setWordWrap(True)
-
         footer_layout = QHBoxLayout()
         footer_layout.setContentsMargins(18, 10, 18, 10)
         footer_layout.addWidget(self._notice_label, 1)
@@ -89,7 +87,7 @@ class ShopWindow(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(header)
+        layout.addWidget(self._build_header())
         layout.addWidget(self._tabs, 1)
         layout.addWidget(footer)
         self.setLayout(layout)
@@ -101,31 +99,26 @@ class ShopWindow(QWidget):
         title.setObjectName("shopTitle")
         self._summary_label = QLabel("Level --  |  -- currency")
         self._summary_label.setObjectName("shopSummary")
-
         title_row = QHBoxLayout()
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(9)
         title_row.addWidget(icon)
         title_row.addWidget(title)
-
         heading = QVBoxLayout()
         heading.setContentsMargins(0, 0, 0, 0)
         heading.setSpacing(5)
         heading.addLayout(title_row)
         heading.addWidget(self._summary_label)
-
         self._refresh_button = QPushButton()
         self._refresh_button.setObjectName("shopIconButton")
         self._refresh_button.setIcon(fluent_icon("\ue72c"))
-        self._refresh_button.setToolTip("Refresh shop and wardrobe")
+        self._refresh_button.setToolTip("Refresh shop and appearances")
         self._refresh_button.clicked.connect(self._emit_refresh)
-
         close_button = QPushButton()
         close_button.setObjectName("shopIconButton")
         close_button.setIcon(fluent_icon("\ue8bb"))
         close_button.setToolTip("Close")
         close_button.clicked.connect(self.close)
-
         layout = QHBoxLayout()
         layout.setContentsMargins(20, 16, 14, 16)
         layout.setSpacing(8)
@@ -143,49 +136,35 @@ class ShopWindow(QWidget):
         self._search_input.setObjectName("shopSearch")
         self._search_input.setPlaceholderText("Search catalog")
         self._search_input.addAction(
-            fluent_icon("\ue721"),
-            QLineEdit.ActionPosition.LeadingPosition,
+            fluent_icon("\ue721"), QLineEdit.ActionPosition.LeadingPosition
         )
         self._search_input.textChanged.connect(self._apply_text_filter)
-
         self._category_filter = FluentComboBox()
         self._category_filter.setObjectName("shopFilter")
         self._category_filter.setFixedWidth(140)
         self._category_filter.addItem("All categories", None)
-        self._category_filter.addItem("Cosmetics", ShopItemCategory.COSMETIC.value)
+        self._category_filter.addItem("Appearances", ShopItemCategory.APPEARANCE.value)
         self._category_filter.currentIndexChanged.connect(self._emit_refresh)
-
         self._ownership_filter = FluentComboBox()
         self._ownership_filter.setObjectName("shopFilter")
         self._ownership_filter.setFixedWidth(155)
+        self._ownership_filter.addItem("All items", CatalogOwnershipFilter.ALL.value)
         self._ownership_filter.addItem(
-            "All items",
-            CatalogOwnershipFilter.ALL.value,
+            "Available to buy", CatalogOwnershipFilter.UNOWNED.value
         )
-        self._ownership_filter.addItem(
-            "Available to buy",
-            CatalogOwnershipFilter.UNOWNED.value,
-        )
-        self._ownership_filter.addItem(
-            "Owned",
-            CatalogOwnershipFilter.OWNED.value,
-        )
+        self._ownership_filter.addItem("Owned", CatalogOwnershipFilter.OWNED.value)
         self._ownership_filter.currentIndexChanged.connect(self._emit_refresh)
-
         self._sort_filter = FluentComboBox()
         self._sort_filter.setObjectName("shopFilter")
         self._sort_filter.setFixedWidth(170)
         self._sort_filter.addItem("Name", CatalogSort.NAME.value)
         self._sort_filter.addItem(
-            "Price: low to high",
-            CatalogSort.PRICE_LOW_TO_HIGH.value,
+            "Price: low to high", CatalogSort.PRICE_LOW_TO_HIGH.value
         )
         self._sort_filter.addItem(
-            "Price: high to low",
-            CatalogSort.PRICE_HIGH_TO_LOW.value,
+            "Price: high to low", CatalogSort.PRICE_HIGH_TO_LOW.value
         )
         self._sort_filter.currentIndexChanged.connect(self._emit_refresh)
-
         filters = QHBoxLayout()
         filters.setContentsMargins(16, 12, 16, 12)
         filters.setSpacing(8)
@@ -199,7 +178,6 @@ class ShopWindow(QWidget):
 
         self._catalog_list = _build_list("shopCatalogList")
         self._catalog_list.currentItemChanged.connect(self._show_catalog_selection)
-
         self._item_name_label = QLabel("Select an item")
         self._item_name_label.setObjectName("shopDetailTitle")
         self._item_meta_label = QLabel("Catalog details will appear here.")
@@ -215,95 +193,57 @@ class ShopWindow(QWidget):
         self._purchase_button.setIcon(fluent_icon("\ue8c7"))
         self._purchase_button.clicked.connect(self._request_purchase_selected)
         self._purchase_button.setEnabled(False)
-
-        detail_layout = QVBoxLayout()
-        detail_layout.setContentsMargins(20, 18, 20, 18)
-        detail_layout.setSpacing(10)
-        detail_layout.addWidget(self._item_name_label)
-        detail_layout.addWidget(self._item_meta_label)
-        detail_layout.addSpacing(8)
-        detail_layout.addWidget(self._item_price_label)
-        detail_layout.addWidget(self._item_status_label)
-        detail_layout.addStretch(1)
-        detail_layout.addWidget(self._purchase_button, 0, Qt.AlignmentFlag.AlignRight)
-        detail = QFrame()
-        detail.setObjectName("shopDetailPanel")
-        detail.setLayout(detail_layout)
-
+        detail = _detail_panel(
+            self._item_name_label,
+            self._item_meta_label,
+            self._item_price_label,
+            self._item_status_label,
+            self._purchase_button,
+        )
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setObjectName("shopSplitter")
         splitter.addWidget(self._catalog_list)
         splitter.addWidget(detail)
         splitter.setSizes([430, 330])
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-
-        layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(filter_frame)
-        layout.addWidget(splitter, 1)
+        page_layout = QVBoxLayout()
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+        page_layout.addWidget(filter_frame)
+        page_layout.addWidget(splitter, 1)
         page = QWidget()
         page.setObjectName("shopPage")
-        page.setLayout(layout)
+        page.setLayout(page_layout)
         return page
 
-    def _build_wardrobe_page(self) -> QWidget:
-        self._inventory_list = _build_list("shopInventoryList")
-        self._inventory_list.currentItemChanged.connect(self._show_inventory_selection)
-
-        inventory_title = QLabel("Owned items")
-        inventory_title.setObjectName("shopSectionTitle")
-        inventory_layout = QVBoxLayout()
-        inventory_layout.setContentsMargins(16, 14, 10, 14)
-        inventory_layout.setSpacing(10)
-        inventory_layout.addWidget(inventory_title)
-        inventory_layout.addWidget(self._inventory_list, 1)
-        inventory_panel = QFrame()
-        inventory_panel.setObjectName("shopInventoryPanel")
-        inventory_panel.setLayout(inventory_layout)
-
-        selected_title = QLabel("Selected item")
-        selected_title.setObjectName("shopSectionTitle")
-        self._inventory_detail_label = QLabel("Select an owned item to equip it.")
-        self._inventory_detail_label.setObjectName("shopDetailMeta")
-        self._inventory_detail_label.setWordWrap(True)
-        self._equip_button = QPushButton("Equip")
-        self._equip_button.setObjectName("shopPrimaryButton")
-        self._equip_button.setIcon(fluent_icon("\ue73e"))
-        self._equip_button.clicked.connect(self._request_equip_selected)
-        self._equip_button.setEnabled(False)
-
-        loadout_title = QLabel("Current loadout")
-        loadout_title.setObjectName("shopSectionTitle")
-        loadout_layout = QVBoxLayout()
-        loadout_layout.setContentsMargins(0, 0, 0, 0)
-        loadout_layout.setSpacing(6)
-        for slot in EquipmentSlot:
-            loadout_layout.addWidget(self._build_loadout_row(slot))
-
-        detail_layout = QVBoxLayout()
-        detail_layout.setContentsMargins(20, 16, 20, 16)
-        detail_layout.setSpacing(10)
-        detail_layout.addWidget(selected_title)
-        detail_layout.addWidget(self._inventory_detail_label)
-        detail_layout.addWidget(self._equip_button, 0, Qt.AlignmentFlag.AlignRight)
-        detail_layout.addSpacing(12)
-        detail_layout.addWidget(loadout_title)
-        detail_layout.addLayout(loadout_layout)
-        detail_layout.addStretch(1)
-        detail_panel = QFrame()
-        detail_panel.setObjectName("shopDetailPanel")
-        detail_panel.setLayout(detail_layout)
-
+    def _build_appearance_page(self) -> QWidget:
+        self._appearance_list = _build_list("shopAppearanceList")
+        self._appearance_list.currentItemChanged.connect(
+            self._show_appearance_selection
+        )
+        self._appearance_name_label = QLabel("Select an appearance")
+        self._appearance_name_label.setObjectName("shopDetailTitle")
+        self._appearance_status_label = QLabel(
+            "Complete approved appearance sets will appear here."
+        )
+        self._appearance_status_label.setObjectName("shopItemStatus")
+        self._appearance_status_label.setWordWrap(True)
+        self._select_appearance_button = QPushButton("Use appearance")
+        self._select_appearance_button.setObjectName("shopPrimaryButton")
+        self._select_appearance_button.setIcon(fluent_icon("\ue73e"))
+        self._select_appearance_button.clicked.connect(
+            self._request_appearance_selected
+        )
+        self._select_appearance_button.setEnabled(False)
+        detail = _detail_panel(
+            self._appearance_name_label,
+            self._appearance_status_label,
+            self._select_appearance_button,
+        )
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setObjectName("shopSplitter")
-        splitter.addWidget(inventory_panel)
-        splitter.addWidget(detail_panel)
-        splitter.setSizes([390, 410])
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-
+        splitter.addWidget(self._appearance_list)
+        splitter.addWidget(detail)
+        splitter.setSizes([430, 330])
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(splitter)
@@ -312,180 +252,113 @@ class ShopWindow(QWidget):
         page.setLayout(layout)
         return page
 
-    def _build_loadout_row(self, slot: EquipmentSlot) -> QFrame:
-        slot_label = QLabel(slot.value.title())
-        slot_label.setObjectName("shopSlotName")
-        item_label = QLabel("Empty")
-        item_label.setObjectName("shopSlotItem")
-        item_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        button = QPushButton()
-        button.setObjectName("shopRowIconButton")
-        button.setIcon(fluent_icon("\ue711"))
-        button.setToolTip(f"Unequip {slot.value} item")
-        button.setEnabled(False)
-        button.clicked.connect(
-            lambda checked=False, selected_slot=slot: self.unequip_requested.emit(
-                selected_slot
-            )
-        )
-        self._loadout_labels[slot] = item_label
-        self._unequip_buttons[slot] = button
-
-        layout = QHBoxLayout()
-        layout.setContentsMargins(12, 8, 8, 8)
-        layout.setSpacing(8)
-        layout.addWidget(slot_label)
-        layout.addStretch(1)
-        layout.addWidget(item_label)
-        layout.addWidget(button)
-        row = QFrame()
-        row.setObjectName("shopLoadoutRow")
-        row.setLayout(layout)
-        return row
-
     def current_query(self) -> CatalogQuery:
-        """Return the current closed catalog query represented by the controls."""
         category_value = self._category_filter.currentData()
         ownership_value = self._ownership_filter.currentData()
         sort_value = self._sort_filter.currentData()
-        if category_value is not None and not isinstance(category_value, str):
-            raise RuntimeError("The category control contains an invalid value.")
-        if not isinstance(ownership_value, str):
-            raise RuntimeError("The ownership control contains an invalid value.")
-        if not isinstance(sort_value, str):
-            raise RuntimeError("The sort control contains an invalid value.")
-        try:
-            category = (
-                ShopItemCategory(category_value) if category_value is not None else None
-            )
-            ownership = CatalogOwnershipFilter(ownership_value)
-            sort = CatalogSort(sort_value)
-        except ValueError as error:
-            raise RuntimeError("A shop filter contains an unknown value.") from error
-        availability = (
-            CatalogAvailability.AVAILABLE
-            if ownership is CatalogOwnershipFilter.UNOWNED
-            else None
+        category = (
+            ShopItemCategory(category_value) if category_value is not None else None
         )
+        ownership = CatalogOwnershipFilter(ownership_value)
         return CatalogQuery(
             category=category,
-            availability=availability,
+            availability=(
+                CatalogAvailability.AVAILABLE
+                if ownership is CatalogOwnershipFilter.UNOWNED
+                else None
+            ),
             ownership=ownership,
-            sort=sort,
+            sort=CatalogSort(sort_value),
         )
 
     def update_result(self, result: ShopWorkerResult) -> None:
-        """Render one completed operation and its fully refreshed snapshot."""
         if not isinstance(result, ShopWorkerResult):
             raise TypeError("result must be a ShopWorkerResult value.")
         self.update_snapshot(result.snapshot)
         if result.purchase is not None:
             self.set_notice(_purchase_message(result.purchase.decision))
-        elif result.equipment is not None:
-            self.set_notice(_equipment_message(result.equipment.decision))
+        elif result.appearance is not None:
+            self.set_notice(_appearance_message(result.appearance.decision))
         else:
-            self.set_notice("Shop and wardrobe refreshed.")
+            self.set_notice("Shop and appearances refreshed.")
 
     def update_snapshot(self, snapshot: ShopUiSnapshot) -> None:
-        """Render sanitized catalog, inventory, and loadout state."""
         if not isinstance(snapshot, ShopUiSnapshot):
             raise TypeError("snapshot must be a ShopUiSnapshot value.")
-        selected_shop_id = _selected_item_id(self._catalog_list, _SHOP_ITEM_ROLE)
-        selected_inventory_id = _selected_item_id(
-            self._inventory_list,
-            _INVENTORY_ITEM_ROLE,
+        selected_item = _selected_id(self._catalog_list, _SHOP_ITEM_ROLE, "item_id")
+        selected_appearance = _selected_id(
+            self._appearance_list, _APPEARANCE_ROLE, "appearance_id"
         )
         self._snapshot = snapshot
         self._shop_items = {item.item_id: item for item in snapshot.browse.items}
-        self._inventory_items = {item.item_id: item for item in snapshot.inventory}
+        self._appearances = {item.appearance_id: item for item in snapshot.appearances}
         self._summary_label.setText(
             f"Level {snapshot.browse.level}  |  {snapshot.browse.balance} currency"
         )
-        self._render_catalog(selected_shop_id)
-        self._render_inventory(selected_inventory_id)
-        self._render_loadout()
+        self._render_catalog(selected_item)
+        self._render_appearances(selected_appearance)
         if snapshot.browse.catalog_failure is not None:
             self.set_notice(
                 "The trusted catalog could not be loaded. "
-                "The wardrobe remains available.",
+                "Appearance selection remains available.",
                 error=True,
             )
 
     def set_busy(self, busy: bool) -> None:
-        """Prevent overlapping mutations while a shop operation is active."""
-        if not isinstance(busy, bool):
-            raise TypeError("busy must be a boolean.")
         self._refresh_button.setEnabled(not busy)
         self._category_filter.setEnabled(not busy)
         self._ownership_filter.setEnabled(not busy)
         self._sort_filter.setEnabled(not busy)
         self._purchase_button.setEnabled(not busy and self._purchase_allowed())
-        self._equip_button.setEnabled(not busy and self._equip_allowed())
-        for slot, button in self._unequip_buttons.items():
-            button.setEnabled(not busy and self._slot_is_occupied(slot))
+        self._select_appearance_button.setEnabled(
+            not busy and self._appearance_select_allowed()
+        )
         if busy:
             self.set_notice("Updating the trusted shop state...")
 
     def set_notice(self, message: str, *, error: bool = False) -> None:
-        """Show one concise sanitized operation status."""
-        self._notice_label.setText(message.strip() or "Shop and wardrobe are ready.")
+        self._notice_label.setText(message.strip() or "Shop and appearances are ready.")
         self._notice_label.setProperty("semantic", "error" if error else "normal")
-        self._notice_label.style().unpolish(self._notice_label)
-        self._notice_label.style().polish(self._notice_label)
+        _refresh_style(self._notice_label)
 
     def _emit_refresh(self, *_args: object) -> None:
         self.refresh_requested.emit(self.current_query())
 
-    def _render_catalog(self, selected_item_id: str | None) -> None:
+    def _render_catalog(self, selected_item_id: object) -> None:
         self._catalog_list.clear()
         for item in self._shop_items.values():
             status = "Owned" if item.owned else _catalog_item_status(item)
             row = QListWidgetItem(
-                f"{item.display_name}\n{item.price} currency  |  "
-                f"{item.slot.value.title()}  |  {status}"
+                f"{item.display_name}\n{item.price} currency  |  {status}"
             )
             row.setData(_SHOP_ITEM_ROLE, item)
             row.setSizeHint(QSize(0, 58))
             self._catalog_list.addItem(row)
         if not self._shop_items:
-            _add_empty_row(self._catalog_list, "No catalog items match this view.")
+            _add_empty_row(
+                self._catalog_list, "No appearance products match this view."
+            )
             self._clear_catalog_detail()
             return
-        _restore_selection(self._catalog_list, selected_item_id, _SHOP_ITEM_ROLE)
+        _restore_selection(
+            self._catalog_list, selected_item_id, _SHOP_ITEM_ROLE, "item_id"
+        )
         self._apply_text_filter(self._search_input.text())
 
-    def _render_inventory(self, selected_item_id: str | None) -> None:
-        self._inventory_list.clear()
-        for item in self._inventory_items.values():
-            name = item.display_name or item.item_id
-            slot = item.slot.value.title() if item.slot is not None else "Unknown slot"
-            status = "Equipped" if item.equipped else "Owned"
-            if not item.present_in_catalog:
-                status = "Catalog entry unavailable"
-            row = QListWidgetItem(f"{name}\n{slot}  |  {status}")
-            row.setData(_INVENTORY_ITEM_ROLE, item)
-            row.setSizeHint(QSize(0, 56))
-            self._inventory_list.addItem(row)
-        if not self._inventory_items:
-            _add_empty_row(self._inventory_list, "No owned items yet.")
-            self._clear_inventory_detail()
-            return
+    def _render_appearances(self, selected_id: object) -> None:
+        self._appearance_list.clear()
+        for appearance in self._appearances.values():
+            status = _appearance_status(appearance)
+            row = QListWidgetItem(f"{appearance.display_name}\n{status}")
+            row.setData(_APPEARANCE_ROLE, appearance)
+            row.setSizeHint(QSize(0, 58))
+            self._appearance_list.addItem(row)
         _restore_selection(
-            self._inventory_list,
-            selected_item_id,
-            _INVENTORY_ITEM_ROLE,
+            self._appearance_list,
+            selected_id,
+            _APPEARANCE_ROLE,
+            "appearance_id",
         )
-
-    def _render_loadout(self) -> None:
-        snapshot = self._snapshot
-        for slot in EquipmentSlot:
-            equipped = snapshot.loadout.item_for(slot) if snapshot is not None else None
-            self._loadout_labels[slot].setText(
-                (equipped.display_name or equipped.item_id) if equipped else "Empty"
-            )
-            self._unequip_buttons[slot].setEnabled(equipped is not None)
 
     def _apply_text_filter(self, text: str) -> None:
         query = text.strip().casefold()
@@ -504,84 +377,68 @@ class ShopWindow(QWidget):
             self._catalog_list.setCurrentItem(first_visible)
 
     def _show_catalog_selection(
-        self,
-        current: QListWidgetItem | None,
-        previous: QListWidgetItem | None,
+        self, current: QListWidgetItem | None, _: object
     ) -> None:
-        del previous
         item = current.data(_SHOP_ITEM_ROLE) if current is not None else None
         if not isinstance(item, ShopItemView):
             self._clear_catalog_detail()
             return
         self._item_name_label.setText(item.display_name)
         self._item_meta_label.setText(
-            f"{item.category.value.title()}  |  {item.slot.value.title()} slot  |  "
-            f"Requires level {item.required_level}"
+            f"Complete appearance  |  Requires level {item.required_level}"
         )
         self._item_price_label.setText(f"{item.price} currency")
         self._item_status_label.setText(_catalog_item_detail(item))
-        self._item_status_label.setProperty("semantic", _catalog_item_semantic(item))
+        self._item_status_label.setProperty("semantic", _catalog_semantic(item))
         _refresh_style(self._item_status_label)
         self._purchase_button.setEnabled(self._purchase_allowed())
 
-    def _show_inventory_selection(
-        self,
-        current: QListWidgetItem | None,
-        previous: QListWidgetItem | None,
+    def _show_appearance_selection(
+        self, current: QListWidgetItem | None, _: object
     ) -> None:
-        del previous
-        item = current.data(_INVENTORY_ITEM_ROLE) if current is not None else None
-        if not isinstance(item, ShopInventoryItemView):
-            self._clear_inventory_detail()
+        appearance = current.data(_APPEARANCE_ROLE) if current is not None else None
+        if not isinstance(appearance, AppearanceView):
+            self._appearance_name_label.setText("Select an appearance")
+            self._appearance_status_label.setText("No appearance selected.")
+            self._select_appearance_button.setEnabled(False)
             return
-        name = item.display_name or item.item_id
-        source = item.acquisition_source.value.replace("_", " ").title()
-        if not item.present_in_catalog:
-            detail = f"{name}\nOwned via {source}. Its catalog entry is unavailable."
-        elif item.equipped:
-            detail = f"{name}\nCurrently equipped in the {item.slot.value} slot."
-        elif item.visual_compatible is not True:
-            detail = (
-                f"{name}\nOwned via {source}. Its approved visual layer is unavailable."
-            )
-        else:
-            detail = f"{name}\nOwned via {source}. Ready to equip."
-        self._inventory_detail_label.setText(detail)
-        self._equip_button.setEnabled(self._equip_allowed())
+        self._appearance_name_label.setText(appearance.display_name)
+        self._appearance_status_label.setText(_appearance_detail(appearance))
+        self._appearance_status_label.setProperty(
+            "semantic", "success" if appearance.selected else "normal"
+        )
+        _refresh_style(self._appearance_status_label)
+        self._select_appearance_button.setEnabled(self._appearance_select_allowed())
 
     def _request_purchase_selected(self) -> None:
         item = _selected_shop_item(self._catalog_list)
-        if item is None or not self._purchase_allowed():
-            return
-        if self._purchase_confirmation(item):
-            self.purchase_requested.emit(item.item_id)
+        if item is not None and self._purchase_allowed():
+            if self._purchase_confirmation(item):
+                self.purchase_requested.emit(item.item_id)
 
-    def _request_equip_selected(self) -> None:
-        item = _selected_inventory_item(self._inventory_list)
-        if item is not None and self._equip_allowed():
-            self.equip_requested.emit(item.item_id)
+    def _request_appearance_selected(self) -> None:
+        appearance = _selected_appearance(self._appearance_list)
+        if appearance is not None and self._appearance_select_allowed():
+            self.appearance_select_requested.emit(appearance.appearance_id)
 
     def _purchase_allowed(self) -> bool:
         item = _selected_shop_item(self._catalog_list)
         return bool(
-            item is not None
+            item
             and not item.owned
             and item.availability is CatalogAvailability.AVAILABLE
             and item.level_met
             and item.affordable
-            and item.visual_compatible
+            and item.asset_available
         )
 
-    def _equip_allowed(self) -> bool:
-        item = _selected_inventory_item(self._inventory_list)
-        if item is None or item.equipped or not item.present_in_catalog:
-            return False
-        return item.visual_compatible is True
-
-    def _slot_is_occupied(self, slot: EquipmentSlot) -> bool:
-        return (
-            self._snapshot is not None
-            and self._snapshot.loadout.item_for(slot) is not None
+    def _appearance_select_allowed(self) -> bool:
+        appearance = _selected_appearance(self._appearance_list)
+        return bool(
+            appearance
+            and appearance.owned
+            and not appearance.selected
+            and appearance.availability is AppearanceAvailability.AVAILABLE
         )
 
     def _clear_catalog_detail(self) -> None:
@@ -589,13 +446,7 @@ class ShopWindow(QWidget):
         self._item_meta_label.setText("Catalog details will appear here.")
         self._item_price_label.setText("-- currency")
         self._item_status_label.setText("No item selected.")
-        self._item_status_label.setProperty("semantic", "normal")
-        _refresh_style(self._item_status_label)
         self._purchase_button.setEnabled(False)
-
-    def _clear_inventory_detail(self) -> None:
-        self._inventory_detail_label.setText("Select an owned item to equip it.")
-        self._equip_button.setEnabled(False)
 
     def _confirm_purchase(self, item: ShopItemView) -> bool:
         answer = QMessageBox.question(
@@ -608,10 +459,23 @@ class ShopWindow(QWidget):
         return answer is QMessageBox.StandardButton.Yes
 
 
+def _detail_panel(*widgets: QWidget) -> QFrame:
+    layout = QVBoxLayout()
+    layout.setContentsMargins(20, 18, 20, 18)
+    layout.setSpacing(10)
+    for widget in widgets[:-1]:
+        layout.addWidget(widget)
+    layout.addStretch(1)
+    layout.addWidget(widgets[-1], 0, Qt.AlignmentFlag.AlignRight)
+    panel = QFrame()
+    panel.setObjectName("shopDetailPanel")
+    panel.setLayout(layout)
+    return panel
+
+
 def _build_list(object_name: str) -> QListWidget:
     widget = QListWidget()
     widget.setObjectName(object_name)
-    widget.setAlternatingRowColors(False)
     widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     widget.setUniformItemSizes(True)
@@ -627,14 +491,15 @@ def _add_empty_row(widget: QListWidget, text: str) -> None:
 
 def _restore_selection(
     widget: QListWidget,
-    item_id: str | None,
+    selected_id: object,
     role: Qt.ItemDataRole,
+    attribute: str,
 ) -> None:
     selected: QListWidgetItem | None = None
     for index in range(widget.count()):
         row = widget.item(index)
         value = row.data(role)
-        if getattr(value, "item_id", None) == item_id:
+        if getattr(value, attribute, None) == selected_id:
             selected = row
             break
         if selected is None and value is not None:
@@ -642,11 +507,10 @@ def _restore_selection(
     widget.setCurrentItem(selected)
 
 
-def _selected_item_id(widget: QListWidget, role: Qt.ItemDataRole) -> str | None:
+def _selected_id(widget: QListWidget, role: Qt.ItemDataRole, attribute: str) -> object:
     row = widget.currentItem()
     value = row.data(role) if row is not None else None
-    item_id = getattr(value, "item_id", None)
-    return item_id if isinstance(item_id, str) else None
+    return getattr(value, attribute, None)
 
 
 def _selected_shop_item(widget: QListWidget) -> ShopItemView | None:
@@ -655,17 +519,17 @@ def _selected_shop_item(widget: QListWidget) -> ShopItemView | None:
     return value if isinstance(value, ShopItemView) else None
 
 
-def _selected_inventory_item(widget: QListWidget) -> ShopInventoryItemView | None:
+def _selected_appearance(widget: QListWidget) -> AppearanceView | None:
     row = widget.currentItem()
-    value = row.data(_INVENTORY_ITEM_ROLE) if row is not None else None
-    return value if isinstance(value, ShopInventoryItemView) else None
+    value = row.data(_APPEARANCE_ROLE) if row is not None else None
+    return value if isinstance(value, AppearanceView) else None
 
 
 def _catalog_item_status(item: ShopItemView) -> str:
     if item.availability is not CatalogAvailability.AVAILABLE:
         return "Unavailable"
-    if not item.visual_compatible:
-        return "Visual unavailable"
+    if not item.asset_available:
+        return "Assets unavailable"
     if not item.level_met:
         return f"Level {item.required_level} required"
     if not item.affordable:
@@ -674,52 +538,71 @@ def _catalog_item_status(item: ShopItemView) -> str:
 
 
 def _catalog_item_detail(item: ShopItemView) -> str:
+    if item.selected:
+        return "Owned and currently selected."
     if item.owned:
-        return "Owned. Manage this item from Wardrobe."
+        return "Owned. Select this complete set from the Appearance tab."
     if item.availability is not CatalogAvailability.AVAILABLE:
-        return "This item is not currently available for purchase."
-    if not item.visual_compatible:
-        return "Its approved visual layer is unavailable for the baseline idle view."
+        return "This appearance is not currently available for purchase."
+    if not item.asset_available:
+        return "Its complete approved animation set is not available yet."
     if not item.level_met:
-        return f"Reach level {item.required_level} before purchasing this item."
+        return f"Reach level {item.required_level} before purchasing this appearance."
     if not item.affordable:
-        return "Akiha does not have enough currency for this item."
-    return "Available to purchase. Ownership is permanent and non-stackable."
+        return "Akiha does not have enough currency for this appearance."
+    return "Available to purchase as one complete canonical appearance set."
 
 
-def _catalog_item_semantic(item: ShopItemView) -> str:
+def _catalog_semantic(item: ShopItemView) -> str:
     if item.owned:
         return "success"
-    if _catalog_item_status(item) == "Available":
-        return "available"
-    return "warning"
+    return "available" if _catalog_item_status(item) == "Available" else "warning"
+
+
+def _appearance_status(appearance: AppearanceView) -> str:
+    if appearance.selected:
+        return "Currently selected"
+    if appearance.availability is AppearanceAvailability.UNAVAILABLE:
+        return "Awaiting approved assets"
+    return "Owned" if appearance.owned else "Not owned"
+
+
+def _appearance_detail(appearance: AppearanceView) -> str:
+    if appearance.selected:
+        return "This complete canonical appearance is active."
+    if appearance.availability is AppearanceAvailability.UNAVAILABLE:
+        return (
+            "This appearance remains disabled until its complete asset set is approved."
+        )
+    if not appearance.owned:
+        return "Purchase this appearance before selecting it."
+    return "Ready to use as Akiha's complete appearance."
 
 
 def _purchase_message(decision: PurchaseDecision) -> str:
-    messages = {
-        PurchaseDecision.COMPLETED: "Purchase complete. The item is now in Wardrobe.",
-        PurchaseDecision.ALREADY_OWNED: "That item is already owned.",
+    return {
+        PurchaseDecision.COMPLETED: "Purchase complete. The appearance is now owned.",
+        PurchaseDecision.ALREADY_OWNED: "That appearance is already owned.",
         PurchaseDecision.INSUFFICIENT_FUNDS: "Akiha does not have enough currency.",
         PurchaseDecision.LEVEL_REQUIRED: "Akiha has not reached the required level.",
-        PurchaseDecision.ITEM_UNAVAILABLE: "That item is currently unavailable.",
+        PurchaseDecision.ITEM_UNAVAILABLE: "That appearance is currently unavailable.",
         PurchaseDecision.ITEM_NOT_FOUND: "That catalog item no longer exists.",
-    }
-    return messages[decision]
+    }[decision]
 
 
-def _equipment_message(decision: EquipmentDecision) -> str:
-    messages = {
-        EquipmentDecision.EQUIPPED: "Item equipped. The wardrobe is up to date.",
-        EquipmentDecision.UNEQUIPPED: "Item unequipped. Ownership was preserved.",
-        EquipmentDecision.ALREADY_EQUIPPED: "That item is already equipped.",
-        EquipmentDecision.EMPTY_SLOT: "That equipment slot is already empty.",
-        EquipmentDecision.ITEM_NOT_FOUND: "That catalog item no longer exists.",
-        EquipmentDecision.NOT_OWNED: "Only owned items can be equipped.",
-        EquipmentDecision.VISUAL_INCOMPATIBLE: (
-            "That item's approved visual layer is not compatible yet."
+def _appearance_message(decision: AppearanceSelectionDecision) -> str:
+    return {
+        AppearanceSelectionDecision.SELECTED: "Appearance selected.",
+        AppearanceSelectionDecision.ALREADY_SELECTED: (
+            "That appearance is already active."
         ),
-    }
-    return messages[decision]
+        AppearanceSelectionDecision.UNAVAILABLE: (
+            "That appearance has no approved complete asset set yet."
+        ),
+        AppearanceSelectionDecision.NOT_OWNED: (
+            "Only owned appearances can be selected."
+        ),
+    }[decision]
 
 
 def _refresh_style(widget: QWidget) -> None:

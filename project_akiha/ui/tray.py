@@ -54,7 +54,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
         care_action.triggered.connect(self.pet_care_requested.emit)
         menu.addAction(care_action)
 
-        shop_action = QAction("Shop & wardrobe", menu)
+        shop_action = QAction("Shop & appearance", menu)
         shop_action.triggered.connect(self.shop_requested.emit)
         menu.addAction(shop_action)
 

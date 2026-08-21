@@ -253,23 +253,33 @@ pet state, behavior, permission, and AI-provider boundaries remain unchanged.
 That work belongs to a separately approved visual-evolution phase and must not
 be smuggled into Phase 9 maintenance.
 
-### Phase 10 cosmetic layers
+### Phase 10 complete appearances
 
-Phase 10 extends the existing renderer with approved overlay metadata; it does
-not create a replacement character or a second animation system. The typed
-contract lives in `project_akiha/core/shop/models.py` and accepts only:
+Phase 10 does not add cosmetic layers. It selects one complete trusted
+appearance manifest through the existing animation provider and renderer:
 
-- normalized relative PNG paths resolved beneath the trusted cosmetic root;
-- the canonical 100 x 100 canvas;
-- binary alpha and nearest-neighbor presentation;
-- explicit known animation states and left/right directions;
-- bounded integer offsets and z-order; and
-- one equipped item per `head`, `face`, `neck`, or `accessory` slot.
+```text
+AppearanceService
+    -> seifuku | dress | vermillion
+        -> complete approved manifest
+            -> AssetAnimationProvider
+                -> SpritePetRenderer
+```
 
-Unsupported states, directions, missing files, or rejected assets render no
-cosmetic layer. They do not alter `standing/000.png`, delete ownership, invent an
-anchor, or fall back to an arbitrary file. At least one visible cosmetic still
-requires owner visual approval before Phase 10 can claim visual completion.
+`assets/animations/appearances.toml` is the closed registry. Seifuku is the safe
+default. Dress and Vermillion remain unavailable until their complete sprite
+sets pass automated checks and owner visual review. A stale, unavailable, or
+unowned selection repairs to Seifuku without deleting shop ownership.
+
+There are no equipment slots, z-order rules, wardrobe loadouts, or runtime
+compositing paths. Every appearance owns its whole approved animation set, and
+all existing nearest-neighbor, integer-offset, trusted-path, and safe-fallback
+rules continue to apply within that manifest.
+
+Phase 10 autonomous activity work extends the existing controller/provider path
+with bounded activity IDs and manifests. The behavior controller selects an
+activity from structured pet state, presence, mood, and time; providers and
+dialogue never select files or continuously drive animation.
 
 ## 7. Asset Acceptance Contract
 

@@ -1,4 +1,4 @@
-"""Tests for typed shop, inventory, and wardrobe orchestration."""
+"""Tests for typed shop and complete-appearance ownership orchestration."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from project_akiha.core.appearance import AppearanceId
 from project_akiha.core.events import Event, EventBus, EventType
 from project_akiha.core.pet import PetProgression, PetState
 from project_akiha.core.shop import (
@@ -15,8 +16,6 @@ from project_akiha.core.shop import (
     CatalogLoadResult,
     CatalogOwnershipFilter,
     CatalogQuery,
-    EquipmentDecision,
-    EquipmentSlot,
     PurchaseDecision,
     ShopCatalog,
     ShopInspectDecision,
@@ -27,93 +26,26 @@ from project_akiha.services.pet_state import PetStateService
 from project_akiha.services.shop import ShopService
 
 _CATALOG = """
-schema_version = 1
+schema_version = 2
 catalog_version = 1
 
-[[layers]]
-layer_id = "ribbon.red.layer"
-asset_path = "head/ribbon-red/idle.png"
-states = ["idle", "walking"]
-directions = ["left", "right"]
-
-[[layers]]
-layer_id = "ribbon.blue.layer"
-asset_path = "head/ribbon-blue/idle.png"
-states = ["idle"]
-directions = ["left", "right"]
-
-[[layers]]
-layer_id = "glasses.black.layer"
-asset_path = "face/glasses-black/idle.png"
-states = ["idle"]
-directions = ["right"]
-
-[[layers]]
-layer_id = "brooch.gold.layer"
-asset_path = "accessory/brooch-gold/idle.png"
-states = ["idle"]
-directions = ["left", "right"]
-
-[[layers]]
-layer_id = "crown.level.layer"
-asset_path = "head/crown-level/idle.png"
-states = ["idle"]
-directions = ["left", "right"]
-
 [[items]]
-item_id = "ribbon.red"
-display_name = "Red Ribbon"
-category = "cosmetic"
-slot = "head"
+item_id = "appearance.dress"
+display_name = "Akiha - Dress"
+category = "appearance"
+appearance_id = "dress"
 price = 20
 availability = "available"
 required_level = 1
-preview_asset_id = "ribbon.red.layer"
-cosmetic_layer_id = "ribbon.red.layer"
 
 [[items]]
-item_id = "ribbon.blue"
-display_name = "Blue Ribbon"
-category = "cosmetic"
-slot = "head"
-price = 25
-availability = "available"
-required_level = 1
-preview_asset_id = "ribbon.blue.layer"
-cosmetic_layer_id = "ribbon.blue.layer"
-
-[[items]]
-item_id = "glasses.black"
-display_name = "Black Glasses"
-category = "cosmetic"
-slot = "face"
+item_id = "appearance.vermillion"
+display_name = "Akiha Vermillion"
+category = "appearance"
+appearance_id = "vermillion"
 price = 30
 availability = "available"
 required_level = 1
-preview_asset_id = "glasses.black.layer"
-cosmetic_layer_id = "glasses.black.layer"
-
-[[items]]
-item_id = "brooch.gold"
-display_name = "Gold Brooch"
-category = "cosmetic"
-slot = "accessory"
-price = 10
-availability = "hidden"
-required_level = 1
-preview_asset_id = "brooch.gold.layer"
-cosmetic_layer_id = "brooch.gold.layer"
-
-[[items]]
-item_id = "crown.level"
-display_name = "Level Crown"
-category = "cosmetic"
-slot = "head"
-price = 200
-availability = "available"
-required_level = 2
-preview_asset_id = "crown.level.layer"
-cosmetic_layer_id = "crown.level.layer"
 """
 
 
@@ -125,9 +57,14 @@ class _FakeClock:
         return self.value
 
 
-class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
-    """Verify service policy with real persistence and pet-state reconciliation."""
+class _FakeAppearanceService:
+    current_appearance_id = AppearanceId.SEIFUKU
 
+    def asset_available(self, appearance_id: AppearanceId) -> bool:
+        return appearance_id is AppearanceId.DRESS
+
+
+class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self._temporary_directory = TemporaryDirectory()
         self.addCleanup(self._temporary_directory.cleanup)
@@ -142,187 +79,109 @@ class ShopServiceTest(unittest.IsolatedAsyncioTestCase):
         await self._pet_service.initialize()
         self._shop_repository = SQLiteShopRepository(self._database_path)
         self._catalog = parse_catalog_toml(_CATALOG)
+        self._appearance_service = _FakeAppearanceService()
         self._events: list[Event] = []
         self._event_bus = EventBus()
         self._event_bus.subscribe(
-            EventType.SHOP_PURCHASE_COMPLETED,
-            self._events.append,
-        )
-        self._event_bus.subscribe(
-            EventType.SHOP_EQUIPMENT_CHANGED,
-            self._events.append,
+            EventType.SHOP_PURCHASE_COMPLETED, self._events.append
         )
         self._service = ShopService(
             CatalogLoadResult(self._catalog),
             self._shop_repository,
             self._pet_service,
+            self._appearance_service,
             self._clock,
             event_bus=self._event_bus,
         )
 
-    async def test_browse_and_inspect_return_sanitized_catalog_state(self) -> None:
+    async def test_browse_and_inspect_return_sanitized_appearance_state(self) -> None:
         browse = await self._service.browse()
-        inspected = await self._service.inspect("ribbon.red")
+        inspected = await self._service.inspect("appearance.dress")
         missing = await self._service.inspect("unknown.item")
 
-        self.assertEqual(browse.balance, 100)
-        self.assertEqual(browse.level, 1)
-        self.assertEqual(len(browse.items), 4)
-        self.assertNotIn("brooch.gold", {item.item_id for item in browse.items})
-        ribbon = next(item for item in browse.items if item.item_id == "ribbon.red")
-        self.assertTrue(ribbon.affordable)
-        self.assertTrue(ribbon.level_met)
-        self.assertTrue(ribbon.visual_compatible)
-        self.assertFalse(ribbon.owned)
-        glasses = next(item for item in browse.items if item.item_id == "glasses.black")
-        self.assertFalse(glasses.visual_compatible)
+        self.assertEqual((browse.balance, browse.level), (100, 1))
+        self.assertEqual(len(browse.items), 2)
+        dress = next(
+            item for item in browse.items if item.item_id == "appearance.dress"
+        )
+        vermillion = next(
+            item for item in browse.items if item.item_id == "appearance.vermillion"
+        )
+        self.assertTrue(dress.asset_available)
+        self.assertFalse(vermillion.asset_available)
+        self.assertFalse(dress.owned)
         self.assertIs(inspected.decision, ShopInspectDecision.FOUND)
         self.assertIs(missing.decision, ShopInspectDecision.ITEM_NOT_FOUND)
-        self.assertIsNone(missing.item)
+        self.assertNotIn("manifest", repr(asdict(inspected)))
         self.assertNotIn("path", repr(asdict(inspected)))
-        self.assertNotIn("asset", repr(asdict(inspected)))
 
-    async def test_browse_applies_typed_ownership_filter(self) -> None:
-        await self._service.purchase("ribbon.red")
-
-        owned = await self._service.browse(
-            CatalogQuery(ownership=CatalogOwnershipFilter.OWNED)
-        )
-
-        self.assertEqual(tuple(item.item_id for item in owned.items), ("ribbon.red",))
-        self.assertTrue(owned.items[0].owned)
-        self.assertEqual(owned.balance, 80)
-
-    async def test_completed_purchase_refreshes_pet_cache_and_publishes_safely(
+    async def test_purchase_refreshes_currency_and_publishes_bounded_event(
         self,
     ) -> None:
-        result = await self._service.purchase("ribbon.red")
-        pet_snapshot = await self._pet_service.snapshot()
+        result = await self._service.purchase("appearance.dress")
 
         self.assertIs(result.decision, PurchaseDecision.COMPLETED)
         self.assertEqual(result.balance_after, 80)
-        self.assertEqual(pet_snapshot.state.progression.currency, 80)
-        self.assertEqual(len(self._events), 1)
-        event = self._events[0]
-        self.assertIs(event.event_type, EventType.SHOP_PURCHASE_COMPLETED)
-        self.assertEqual(event.payload["item_id"], "ribbon.red")
-        self.assertNotIn("path", event.payload)
-        self.assertNotIn("asset", event.payload)
-        self.assertNotIn("price", event.payload)
-
-    async def test_denied_purchases_do_not_publish_mutation_events(self) -> None:
-        missing = await self._service.purchase("unknown.item")
-        hidden = await self._service.purchase("brooch.gold")
-        level = await self._service.purchase("crown.level")
-
-        self.assertIs(missing.decision, PurchaseDecision.ITEM_NOT_FOUND)
-        self.assertIs(hidden.decision, PurchaseDecision.ITEM_UNAVAILABLE)
-        self.assertIs(level.decision, PurchaseDecision.LEVEL_REQUIRED)
-        self.assertEqual(self._events, [])
         self.assertEqual(
-            (await self._pet_service.snapshot()).state.progression.currency, 100
+            (await self._pet_service.snapshot()).state.progression.currency,
+            80,
+        )
+        self.assertEqual(len(self._events), 1)
+        self.assertEqual(self._events[0].payload["item_id"], "appearance.dress")
+        self.assertNotIn("manifest", self._events[0].payload)
+
+    async def test_unapproved_assets_fail_before_currency_mutation(self) -> None:
+        unavailable = await self._service.purchase("appearance.vermillion")
+        missing = await self._service.purchase("unknown.item")
+
+        self.assertIs(unavailable.decision, PurchaseDecision.ITEM_UNAVAILABLE)
+        self.assertIs(missing.decision, PurchaseDecision.ITEM_NOT_FOUND)
+        self.assertEqual(
+            (await self._pet_service.snapshot()).state.progression.currency,
+            100,
         )
         self.assertEqual(await self._service.inventory(), ())
+        self.assertEqual(self._events, [])
 
-    async def test_equip_requires_ownership_and_visual_compatibility(self) -> None:
-        unowned = await self._service.equip("ribbon.red")
-        missing = await self._service.equip("unknown.item")
-        await self._service.purchase("glasses.black")
-        incompatible = await self._service.equip("glasses.black")
-        inventory = await self._service.inventory()
-
-        self.assertIs(unowned.decision, EquipmentDecision.NOT_OWNED)
-        self.assertIs(missing.decision, EquipmentDecision.ITEM_NOT_FOUND)
-        self.assertIs(
-            incompatible.decision,
-            EquipmentDecision.VISUAL_INCOMPATIBLE,
+    async def test_owned_filter_and_orphaned_inventory_remain_stable(self) -> None:
+        await self._service.purchase("appearance.dress")
+        owned = await self._service.browse(
+            CatalogQuery(ownership=CatalogOwnershipFilter.OWNED)
         )
-        glasses = next(item for item in inventory if item.item_id == "glasses.black")
-        self.assertFalse(glasses.visual_compatible)
-        self.assertEqual(
-            [event.event_type for event in self._events],
-            [EventType.SHOP_PURCHASE_COMPLETED],
-        )
-
-    async def test_equip_replace_and_unequip_preserve_inventory(self) -> None:
-        await self._service.purchase("ribbon.red")
-        await self._service.purchase("ribbon.blue")
-        first = await self._service.equip("ribbon.red")
-        repeated = await self._service.equip("ribbon.red")
-        replacement = await self._service.equip("ribbon.blue")
-        removed = await self._service.unequip(EquipmentSlot.HEAD)
-        empty = await self._service.unequip(EquipmentSlot.HEAD)
-        inventory = await self._service.inventory()
-
-        self.assertIs(first.decision, EquipmentDecision.EQUIPPED)
-        self.assertIs(repeated.decision, EquipmentDecision.ALREADY_EQUIPPED)
-        self.assertIs(replacement.decision, EquipmentDecision.EQUIPPED)
-        self.assertEqual(
-            replacement.loadout.item_for(EquipmentSlot.HEAD).item_id,  # type: ignore[union-attr]
-            "ribbon.blue",
-        )
-        self.assertIs(removed.decision, EquipmentDecision.UNEQUIPPED)
-        self.assertIs(empty.decision, EquipmentDecision.EMPTY_SLOT)
-        self.assertEqual(
-            {item.item_id for item in inventory}, {"ribbon.red", "ribbon.blue"}
-        )
-        self.assertFalse(any(item.equipped for item in inventory))
-        equipment_events = [
-            event
-            for event in self._events
-            if event.event_type is EventType.SHOP_EQUIPMENT_CHANGED
-        ]
-        self.assertEqual(len(equipment_events), 3)
-
-    async def test_orphaned_inventory_remains_visible_after_catalog_change(
-        self,
-    ) -> None:
-        await self._service.purchase("ribbon.red")
-        await self._service.equip("ribbon.red")
-        empty_catalog_service = ShopService(
+        fallback = ShopService(
             CatalogLoadResult(
                 ShopCatalog.empty(),
                 failure=CatalogLoadFailure.INVALID_SCHEMA,
             ),
             self._shop_repository,
             self._pet_service,
+            self._appearance_service,
             self._clock,
         )
+        inventory = await fallback.inventory()
 
-        inventory = await empty_catalog_service.inventory()
-        loadout = await empty_catalog_service.loadout()
-        browse = await empty_catalog_service.browse()
-
-        self.assertEqual(len(inventory), 1)
-        self.assertEqual(inventory[0].item_id, "ribbon.red")
+        self.assertEqual(
+            tuple(item.item_id for item in owned.items), ("appearance.dress",)
+        )
+        self.assertEqual(inventory[0].item_id, "appearance.dress")
         self.assertFalse(inventory[0].present_in_catalog)
-        self.assertIsNone(inventory[0].display_name)
-        self.assertIsNone(inventory[0].availability)
-        self.assertIsNone(inventory[0].visual_compatible)
-        equipped = loadout.item_for(EquipmentSlot.HEAD)
-        self.assertIsNotNone(equipped)
-        assert equipped is not None
-        self.assertFalse(equipped.present_in_catalog)
-        self.assertEqual(browse.items, ())
-        self.assertIs(browse.catalog_failure, CatalogLoadFailure.INVALID_SCHEMA)
+        self.assertIsNone(inventory[0].appearance_id)
 
-    async def test_service_rejects_untyped_commands_and_clock_results(self) -> None:
+    async def test_service_rejects_untyped_commands_and_bad_clock(self) -> None:
         with self.assertRaises(TypeError):
             await self._service.browse("cheap")  # type: ignore[arg-type]
         with self.assertRaises(TypeError):
-            await self._service.equip(1)  # type: ignore[arg-type]
-        with self.assertRaises(TypeError):
-            await self._service.unequip("head")  # type: ignore[arg-type]
+            await self._service.purchase(1)  # type: ignore[arg-type]
 
-        bad_clock = _FakeClock(datetime(2026, 8, 21, 15, 0))
         service = ShopService(
             CatalogLoadResult(self._catalog),
             self._shop_repository,
             self._pet_service,
-            bad_clock,
+            self._appearance_service,
+            _FakeClock(datetime(2026, 8, 21, 15, 0)),
         )
         with self.assertRaises(ValueError):
-            await service.purchase("ribbon.red")
+            await service.purchase("appearance.dress")
 
 
 if __name__ == "__main__":

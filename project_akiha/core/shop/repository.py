@@ -1,4 +1,4 @@
-"""Persistence boundary for the trusted shop and wardrobe."""
+"""Persistence boundary for trusted shop ownership and economy."""
 
 from __future__ import annotations
 
@@ -8,9 +8,6 @@ from uuid import UUID
 
 from project_akiha.core.shop.models import (
     CatalogItem,
-    EquipmentLoadout,
-    EquipmentSlot,
-    EquippedItem,
     InventoryItem,
     PurchaseOutcome,
     PurchaseTransaction,
@@ -26,22 +23,13 @@ class ShopIdempotencyConflictError(RuntimeError):
 
 
 class ShopRepository(Protocol):
-    """Durable ownership, loadout, and atomic economy operations."""
+    """Durable ownership and atomic economy operations."""
 
     async def get_inventory_item(self, item_id: str) -> InventoryItem | None:
         """Return one durable ownership record when present."""
 
     async def list_inventory(self) -> tuple[InventoryItem, ...]:
         """Return all owned items in stable acquisition order."""
-
-    async def get_loadout(self) -> EquipmentLoadout:
-        """Return the current single-occupancy equipment loadout."""
-
-    async def save_equipped_item(self, item: EquippedItem) -> EquipmentLoadout:
-        """Persist one owned item in its selected slot."""
-
-    async def remove_equipped_item(self, slot: EquipmentSlot) -> EquipmentLoadout:
-        """Clear one equipment slot and return the resulting loadout."""
 
     async def get_transaction(
         self,
