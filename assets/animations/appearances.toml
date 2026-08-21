@@ -6,6 +6,7 @@ appearance_id = "seifuku"
 display_name = "Akiha - Seifuku"
 availability = "available"
 manifest = "manifest.toml"
+approval = "approvals/seifuku.toml"
 
 [[appearances]]
 appearance_id = "dress"

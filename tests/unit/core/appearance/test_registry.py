@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -40,6 +41,7 @@ class AppearanceRegistryTest(unittest.TestCase):
                 "Akiha - Seifuku",
                 AppearanceAvailability.AVAILABLE,
                 "manifest.toml",
+                "approval.toml",
                 "appearance.seifuku",
             )
 
@@ -50,10 +52,19 @@ class AppearanceRegistryTest(unittest.TestCase):
             path.write_text(text, encoding="utf-8")
             with self.assertRaises(AppearanceRegistryError):
                 load_appearance_registry(path)
-
             path.write_text(text + "\nunknown = true\n", encoding="utf-8")
             with self.assertRaises(AppearanceRegistryError):
                 load_appearance_registry(path)
+
+    def test_loader_rejects_changes_after_owner_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            copied = Path(directory) / "animations"
+            shutil.copytree(Path("assets/animations"), copied)
+            canonical = copied / "akiha/standing/000.png"
+            canonical.write_bytes(canonical.read_bytes() + b"changed")
+
+            with self.assertRaisesRegex(AppearanceRegistryError, "hash changed"):
+                load_appearance_registry(copied / "appearances.toml")
 
 
 if __name__ == "__main__":

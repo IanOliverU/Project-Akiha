@@ -1,6 +1,6 @@
 # Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10F fixed appearance integration complete
+**Status:** In progress - Phase 10G whole-set validation complete
 
 ## Phase Goal
 
@@ -115,6 +115,45 @@ define all three IDs, one available default, optional ownership requirements,
 and normalized relative TOML manifest paths. Every available manifest must
 exist inside the trusted registry root.
 
+Every available appearance must also name a checked-in owner-approval record.
+That record pins the approved manifest and every referenced PNG by SHA-256,
+dimensions, and trusted relative path. Registry loading rejects a missing,
+modified, incomplete, or path-escaping approved set before it can reach the
+appearance service or renderer.
+
+The minimum complete appearance contract is explicit coverage for every
+runtime animation state currently consumed by the pet: `idle`, `walking`,
+`dragging`, and `sleeping`. Every rendered frame must be 100 by 100 pixels,
+RGBA, binary-alpha, transparent, and resolved beneath the trusted animation
+root. Dress and Vermillion remain inactive until complete manifests, assets,
+and separate owner-approval records satisfy the same contract.
+
+## Whole-Set Review Workflow
+
+`scripts/review_appearance_assets.py` validates and previews a complete set by
+using the production `AssetAnimationProvider` and `SpritePetRenderer`. It does
+not write to canonical assets. Contact sheets, per-frame renders, state GIFs,
+and the machine-readable validation report are derived review artifacts under
+`dist/appearance-review/`.
+
+Review an active appearance:
+
+```powershell
+.venv313\Scripts\python.exe scripts\review_appearance_assets.py --appearance seifuku
+```
+
+Review a candidate without activating it:
+
+```powershell
+.venv313\Scripts\python.exe scripts\review_appearance_assets.py `
+  --appearance dress `
+  --manifest C:\path\to\candidate\manifest.toml
+```
+
+Candidate review proves technical validity only. Availability changes require
+the owner to accept the rendered preview and add the matching approval record.
+Experimental, rejected, missing, and technically invalid sets stay inactive.
+
 Future shop categories may include food, drinks, gifts, and favorites only when
 they map to an existing meaningful care or convenience behavior. Medicine is
 excluded unless an approved health/sickness mechanic exists. No category is
@@ -218,12 +257,13 @@ Explicitly rejected concepts:
 
 ### 10G: Whole-Set Preview And Asset Validation
 
-- [ ] Validate each appearance manifest, clip coverage, dimensions,
+- [x] Validate each appearance manifest, clip coverage, dimensions,
   transparency, paths, and canonical fingerprints.
-- [ ] Add preview/contact-sheet tooling that uses the production provider.
-- [ ] Require owner visual approval before changing availability.
-- [ ] Keep missing, rejected, and experimental assets inactive.
-- [ ] Decide the minimum clip coverage required for Dress and Vermillion.
+- [x] Add preview/contact-sheet tooling that uses the production provider.
+- [x] Require owner visual approval before changing availability.
+- [x] Keep missing, rejected, and experimental assets inactive.
+- [x] Require `idle`, `walking`, `dragging`, and `sleeping` coverage for every
+  complete Dress or Vermillion set.
 
 ### 10H: Expanded Reactions And Autonomous Activities
 

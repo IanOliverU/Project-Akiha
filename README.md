@@ -110,7 +110,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
-| Phase 10 | Planned | Shop, inventory, cosmetics, and richer visual presentation |
+| Phase 10 | In progress | Shop, fixed appearances, and autonomous pet activity |
 
 ## Tech Stack
 
@@ -373,10 +373,11 @@ turning Akiha into a wardrobe manager or demanding virtual-pet game.
 - Expanded reactions only when owner-approved sprite assets exist.
 
 Phase 10 is specified in `docs/phases/phase-10-shop-visual/README.md`. Phases
-10A-10F now provide the economy, trusted catalog, persistence, Shop/Appearance
-UI, and whole-manifest selection foundation. The canonical Akiha sprite remains
-immutable; Dress and Vermillion stay unavailable until their complete asset
-sets pass validation and owner visual approval.
+10A-10G now provide the economy, trusted catalog, persistence, Shop/Appearance
+UI, whole-manifest selection, fingerprinted owner approvals, and production-
+renderer preview validation. The canonical Akiha sprite remains immutable;
+Dress and Vermillion stay unavailable until their complete asset sets pass
+validation and owner visual approval.
 
 ## Architecture
 

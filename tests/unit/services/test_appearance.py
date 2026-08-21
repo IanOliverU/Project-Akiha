@@ -68,13 +68,15 @@ class AppearanceServiceTest(unittest.IsolatedAsyncioTestCase):
                     "Akiha - Seifuku",
                     AppearanceAvailability.AVAILABLE,
                     "seifuku.toml",
+                    "seifuku-approval.toml",
                 ),
                 AppearanceDefinition(
                     AppearanceId.DRESS,
                     "Akiha - Dress",
                     AppearanceAvailability.AVAILABLE,
                     "dress.toml",
-                    "appearance.dress",
+                    "dress-approval.toml",
+                    required_item_id="appearance.dress",
                 ),
                 AppearanceDefinition(
                     AppearanceId.VERMILLION,

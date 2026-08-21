@@ -1,0 +1,15 @@
+schema_version = 1
+appearance_id = "seifuku"
+manifest_sha256 = "c860738ebd6669d5eaeacb8565c29b967160c8085946fd91519128a00e4fc3f3"
+
+[[assets]]
+path = "akiha/standing/000.png"
+sha256 = "b74a30f8a198658a09478d12b98fe66cc075ab775bb7d7239b65bb5676c4cf81"
+width = 100
+height = 100
+
+[[assets]]
+path = "akiha/walking/Akiha-Walking.png"
+sha256 = "2a9934ae4279e2a36f35cce4a450a58719f89835f18b441c0d775e3b469e698d"
+width = 800
+height = 100

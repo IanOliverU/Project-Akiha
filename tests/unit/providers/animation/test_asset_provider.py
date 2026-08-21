@@ -259,6 +259,28 @@ class AssetAnimationProviderTest(unittest.TestCase):
             with self.assertRaisesRegex(AnimationManifestError, "missing image"):
                 AssetAnimationProvider.from_manifest(manifest_path)
 
+    def test_rejects_unsafe_or_non_png_frame_paths(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            outside = root.parent / "outside.png"
+            _touch(outside)
+            cases = ("../outside.png", "C:/outside.png", "idle/frame.jpg")
+            for value in cases:
+                manifest_path = root / "manifest.toml"
+                manifest_path.write_text(
+                    "[animations.idle]\n" f'frames = ["{value}"]\n',
+                    encoding="utf-8",
+                )
+                with (
+                    self.subTest(value=value),
+                    self.assertRaisesRegex(
+                        AnimationManifestError,
+                        "relative PNG",
+                    ),
+                ):
+                    AssetAnimationProvider.from_manifest(manifest_path)
+            outside.unlink()
+
 
 def _touch(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from project_akiha.core.state.animation import AnimationState
@@ -107,6 +107,17 @@ class AssetAnimationProvider:
     def available_states(self) -> frozenset[AnimationState]:
         """Return animation states supported by this provider."""
         return frozenset(self._clips)
+
+    def clip_for(self, state: AnimationState) -> AnimationClip:
+        """Return an explicitly declared clip for validation and review tooling."""
+        if not isinstance(state, AnimationState):
+            raise TypeError("state must be an AnimationState value.")
+        try:
+            return self._clips[state]
+        except KeyError as error:
+            raise KeyError(
+                f"Animation state is not declared: {state.value}."
+            ) from error
 
     def frame_for(
         self,
@@ -257,7 +268,9 @@ def _parse_frame_sources(
     if not all(isinstance(frame, str) and frame for frame in frames):
         raise AnimationManifestError(f"Animation {state_name} frames must be strings.")
 
-    frame_paths = tuple(manifest_dir / frame for frame in frames)
+    frame_paths = tuple(
+        _resolve_image_path(manifest_dir, frame, state_name) for frame in frames
+    )
     _ensure_files_exist(frame_paths, state_name)
     return frame_paths, ()
 
@@ -284,7 +297,7 @@ def _parse_filmstrip(
     frame_count = _positive_int(
         state_data.get("frame_count"), "frame_count", state_name
     )
-    image_path = manifest_dir / filmstrip
+    image_path = _resolve_image_path(manifest_dir, filmstrip, state_name)
     _ensure_files_exist((image_path,), state_name)
     frame_paths = tuple(image_path for _ in range(frame_count))
     source_rects = tuple(
@@ -309,3 +322,28 @@ def _ensure_files_exist(paths: tuple[Path, ...], state_name: str) -> None:
         raise AnimationManifestError(
             f"Animation {state_name} references missing image file(s): {missing}."
         )
+
+
+def _resolve_image_path(manifest_dir: Path, value: str, state_name: str) -> Path:
+    if "\\" in value or ":" in value:
+        raise AnimationManifestError(
+            f"Animation {state_name} image paths must be normalized relative PNG paths."
+        )
+    relative = PurePosixPath(value)
+    if (
+        relative.is_absolute()
+        or relative.as_posix() != value
+        or any(part in {"", ".", ".."} for part in relative.parts)
+        or relative.suffix.lower() != ".png"
+    ):
+        raise AnimationManifestError(
+            f"Animation {state_name} image paths must be normalized relative PNG paths."
+        )
+    root = manifest_dir.resolve()
+    candidate = manifest_dir / Path(*relative.parts)
+    resolved = candidate.resolve()
+    if resolved == root or root not in resolved.parents:
+        raise AnimationManifestError(
+            f"Animation {state_name} image path escaped the manifest directory."
+        )
+    return candidate

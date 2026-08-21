@@ -271,10 +271,28 @@ default. Dress and Vermillion remain unavailable until their complete sprite
 sets pass automated checks and owner visual review. A stale, unavailable, or
 unowned selection repairs to Seifuku without deleting shop ownership.
 
+An available appearance also names a checked-in approval record under
+`assets/animations/approvals/`. The record pins the complete manifest and each
+referenced PNG by SHA-256, dimensions, and trusted relative path. Runtime
+registry loading rejects any mismatch before selection. The current complete
+set contract requires `idle`, `walking`, `dragging`, and `sleeping`, with every
+rendered frame remaining 100 by 100 RGBA pixels with binary transparency.
+
 There are no equipment slots, z-order rules, wardrobe loadouts, or runtime
 compositing paths. Every appearance owns its whole approved animation set, and
 all existing nearest-neighbor, integer-offset, trusted-path, and safe-fallback
 rules continue to apply within that manifest.
+
+Whole-set technical review runs through the production provider and renderer:
+
+```powershell
+.venv313\Scripts\python.exe scripts\review_appearance_assets.py --appearance seifuku
+```
+
+The command writes only derived contact sheets, GIFs, frame renders, and JSON
+results beneath `dist/appearance-review/`. A candidate can be reviewed with
+`--manifest` while its registry entry remains unavailable. Automated success
+does not replace explicit owner visual approval.
 
 Phase 10 autonomous activity work extends the existing controller/provider path
 with bounded activity IDs and manifests. The behavior controller selects an
@@ -327,6 +345,9 @@ Automated checks must cover:
 - 600-tick/10-second experimental timeline
 - renderer use of hard-edge transformation
 - provider or dialogue input cannot select arbitrary paths
+- available appearances have exact manifest and asset approval fingerprints
+- complete sets cover idle, walking, dragging, and sleeping
+- review output uses the production provider and renderer
 
 Manual checks must cover:
 

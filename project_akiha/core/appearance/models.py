@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
+
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 class AppearanceId(StrEnum):
@@ -40,6 +43,7 @@ class AppearanceDefinition:
     display_name: str
     availability: AppearanceAvailability
     manifest_relative_path: str | None = None
+    approval_relative_path: str | None = None
     required_item_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -53,8 +57,14 @@ class AppearanceDefinition:
             raise TypeError("availability must be an AppearanceAvailability value.")
         if self.availability is AppearanceAvailability.AVAILABLE:
             _require_manifest_path(self.manifest_relative_path)
-        elif self.manifest_relative_path is not None:
-            raise ValueError("unavailable appearances cannot expose a manifest path.")
+            _require_toml_path(self.approval_relative_path, "appearance approval")
+        elif (
+            self.manifest_relative_path is not None
+            or self.approval_relative_path is not None
+        ):
+            raise ValueError(
+                "unavailable appearances cannot expose manifest or approval paths."
+            )
         if self.required_item_id is not None:
             _require_item_id(self.required_item_id)
         if self.appearance_id is AppearanceId.SEIFUKU:
@@ -141,16 +151,64 @@ class AppearanceRegistry:
         relative = definition.manifest_relative_path
         if relative is None:
             return None
-        resolved_root = self.root.resolve()
-        candidate = (resolved_root / Path(*PurePosixPath(relative).parts)).resolve()
-        if candidate != resolved_root and resolved_root not in candidate.parents:
-            raise ValueError("appearance manifest escaped the trusted registry root.")
-        return candidate
+        return _resolve_beneath_root(self.root, relative, "appearance manifest")
+
+    def approval_path(self, appearance_id: AppearanceId) -> Path | None:
+        """Resolve one owner-approval record within the trusted registry root."""
+        definition = self.definition(appearance_id)
+        relative = definition.approval_relative_path
+        if relative is None:
+            return None
+        return _resolve_beneath_root(self.root, relative, "appearance approval")
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovedAppearanceAsset:
+    """One immutable source asset accepted by the owner review gate."""
+
+    relative_path: str
+    sha256: str
+    width: int
+    height: int
+
+    def __post_init__(self) -> None:
+        _require_png_path(self.relative_path)
+        _require_sha256(self.sha256, "asset SHA-256")
+        _require_positive_int(self.width, "asset width")
+        _require_positive_int(self.height, "asset height")
+
+
+@dataclass(frozen=True, slots=True)
+class AppearanceApproval:
+    """Checked-in owner approval for one complete appearance manifest."""
+
+    appearance_id: AppearanceId
+    manifest_sha256: str
+    approved_assets: tuple[ApprovedAppearanceAsset, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.appearance_id, AppearanceId):
+            raise TypeError("appearance_id must be an AppearanceId value.")
+        _require_sha256(self.manifest_sha256, "manifest SHA-256")
+        if not isinstance(self.approved_assets, tuple) or any(
+            not isinstance(asset, ApprovedAppearanceAsset)
+            for asset in self.approved_assets
+        ):
+            raise TypeError("approved_assets must contain approved asset values.")
+        if not self.approved_assets:
+            raise ValueError("an appearance approval requires at least one asset.")
+        paths = tuple(asset.relative_path for asset in self.approved_assets)
+        if len(paths) != len(set(paths)):
+            raise ValueError("approved appearance asset paths must be unique.")
 
 
 def _require_manifest_path(value: object) -> None:
+    _require_toml_path(value, "appearance manifest")
+
+
+def _require_toml_path(value: object, label: str) -> None:
     if not isinstance(value, str) or not value or "\\" in value or ":" in value:
-        raise ValueError("appearance manifest must be a trusted relative path.")
+        raise ValueError(f"{label} must be a trusted relative path.")
     path = PurePosixPath(value)
     if (
         path.is_absolute()
@@ -158,7 +216,40 @@ def _require_manifest_path(value: object) -> None:
         or any(part in {"", ".", ".."} for part in path.parts)
         or path.suffix.lower() != ".toml"
     ):
-        raise ValueError("appearance manifest must be a normalized relative TOML path.")
+        raise ValueError(f"{label} must be a normalized relative TOML path.")
+
+
+def _require_png_path(value: object) -> None:
+    if not isinstance(value, str) or not value or "\\" in value or ":" in value:
+        raise ValueError("approved asset must be a trusted relative path.")
+    path = PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or path.as_posix() != value
+        or any(part in {"", ".", ".."} for part in path.parts)
+        or path.suffix.lower() != ".png"
+    ):
+        raise ValueError("approved asset must be a normalized relative PNG path.")
+
+
+def _require_sha256(value: object, label: str) -> None:
+    if not isinstance(value, str) or _SHA256_PATTERN.fullmatch(value) is None:
+        raise ValueError(f"{label} must be a lowercase SHA-256 digest.")
+
+
+def _require_positive_int(value: object, label: str) -> None:
+    if type(value) is not int:
+        raise TypeError(f"{label} must be an integer.")
+    if value <= 0:
+        raise ValueError(f"{label} must be positive.")
+
+
+def _resolve_beneath_root(root: Path, relative: str, label: str) -> Path:
+    resolved_root = root.resolve()
+    candidate = (resolved_root / Path(*PurePosixPath(relative).parts)).resolve()
+    if candidate == resolved_root or resolved_root not in candidate.parents:
+        raise ValueError(f"{label} escaped the trusted registry root.")
+    return candidate
 
 
 def _require_item_id(value: object) -> None:
