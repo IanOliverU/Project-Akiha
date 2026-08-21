@@ -100,6 +100,26 @@ class BehaviorHistoryRecorderTest(unittest.TestCase):
         self.assertEqual(repository.records[0].event_type, "pet.state_reset")
         self.assertNotIn("previous_state", repository.records[0].payload)
 
+    def test_records_privacy_safe_autonomous_activity_lifecycle(self) -> None:
+        bus = EventBus()
+        repository = _RecordingRepository()
+        BehaviorHistoryRecorder(bus, repository)
+
+        bus.publish(
+            EventType.PET_ACTIVITY_STARTED,
+            {
+                "kind": "pet_activity_wander_started",
+                "activity_id": "wander",
+                "animation_state": "walking",
+                "duration_seconds": 20,
+                "source": "autonomous_activity",
+            },
+        )
+
+        self.assertEqual(repository.records[0].event_type, "pet.activity_started")
+        self.assertEqual(repository.records[0].kind, "pet_activity_wander_started")
+        self.assertNotIn("dialogue", repository.records[0].payload)
+
     def test_logs_repository_failures(self) -> None:
         bus = EventBus()
         repository = _FailingRepository()

@@ -20,6 +20,9 @@ from project_akiha.app.assistant_speech_controller import AssistantSpeechControl
 from project_akiha.app.assistant_translation_controller import (
     AssistantTranslationController,
 )
+from project_akiha.app.autonomous_activity_controller import (
+    AutonomousActivityController,
+)
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.app.chat_voice_presenter import ChatVoicePresenter
 from project_akiha.app.conversation_runtime_router import (
@@ -34,7 +37,6 @@ from project_akiha.app.live_transcript_controller import LiveTranscriptControlle
 from project_akiha.app.local_conversation_session_controller import (
     LocalConversationSessionController,
 )
-from project_akiha.app.mood_animation_controller import MoodAnimationController
 from project_akiha.app.mood_controller import MoodController
 from project_akiha.app.pet_controller import PetController
 from project_akiha.app.pet_reaction_controller import PetReactionController
@@ -127,7 +129,6 @@ from project_akiha.core.appearance import (
 from project_akiha.core.behavior import (
     CompanionMood,
     CompanionPresenceMapper,
-    MoodAnimationMapper,
     MoodEngine,
     NotificationPolicy,
     ProactiveDeliveryService,
@@ -151,6 +152,10 @@ from project_akiha.core.pet import (
     PetCareEvaluation,
     PetStateEvaluation,
     PetStateRecord,
+)
+from project_akiha.core.pet_activity import (
+    PetActivityManifestError,
+    load_pet_activity_manifest,
 )
 from project_akiha.core.shop import (
     CatalogQuery,
@@ -644,10 +649,21 @@ def _run_application() -> int:
         event_bus=event_bus,
         animation_state=animation_state,
     )
-    mood_animation_controller = MoodAnimationController(
+    try:
+        pet_activity_definitions = load_pet_activity_manifest(
+            paths.project_root / "assets" / "animations" / "activities.toml"
+        )
+    except PetActivityManifestError as error:
+        logger.warning("Autonomous pet activities failed closed: %s", error)
+        pet_activity_definitions = ()
+    autonomous_activity_controller = AutonomousActivityController(
         event_bus=event_bus,
-        mapper=MoodAnimationMapper(),
+        definitions=pet_activity_definitions,
+        initial_user_activity=activity_controller.snapshot.state,
+        initial_mood=mood_controller.snapshot.mood,
+        initial_pet_state=startup_pet_evaluation.record.state,
         initial_animation_state=pet_controller.animation_state,
+        enabled=config.behavior.enabled,
     )
     window_state_store = WindowStateStore(paths.state_dir / "pet_window.json")
     fallback_position = WindowPosition(
@@ -966,6 +982,7 @@ def _run_application() -> int:
             updated_config.memory.require_approval
         )
         activity_controller.apply_config(updated_config.behavior)
+        autonomous_activity_controller.set_enabled(updated_config.behavior.enabled)
         chat_voice_presenter.apply_config(updated_config.voice)
         voice_controller.apply_config(updated_config.voice)
         assistant_speech_controller.apply_config(updated_config.voice)
@@ -1075,6 +1092,7 @@ def _run_application() -> int:
         settings_window.set_pet_diagnostics(snapshot)
         settings_window.set_pet_maintenance_status("Pet progress was reset.")
         pet_care_window.update_record(record)
+        autonomous_activity_controller.observe_pet_state(record.state)
         pet_care_window.set_notice("Akiha's care progress was reset.")
         event_bus.publish(
             EventType.PET_STATE_RESET,
@@ -1148,6 +1166,7 @@ def _run_application() -> int:
             )
             return
         pet_care_window.update_record(record)
+        autonomous_activity_controller.observe_pet_state(record.state)
         pet_care_window.set_notice("Care status refreshed.")
 
     def handle_pet_care_result(evaluation: object) -> None:
@@ -1159,6 +1178,7 @@ def _run_application() -> int:
             )
             return
         pet_reaction_controller.publish_care_evaluation(evaluation)
+        autonomous_activity_controller.observe_pet_state(evaluation.record.state)
         proactive_controller.evaluate_pet_transitions(
             evaluation.care_outcome.band_transitions,
             activity_controller.snapshot,
@@ -3183,6 +3203,8 @@ def _run_application() -> int:
         provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
         pet_runtime_tick_timer.stop()
+        autonomous_activity_tick_timer.stop()
+        autonomous_activity_controller.shutdown()
         voice_endpoint_controller.cancel()
         conversation_runtime_router.close()
         push_to_talk_session_controller.close()
@@ -3314,6 +3336,7 @@ def _run_application() -> int:
             evaluation.decay_outcome.band_transitions,
             activity_controller.snapshot,
         )
+        autonomous_activity_controller.observe_pet_state(evaluation.record.state)
         if pet_care_window.isVisible():
             pet_care_window.update_record(evaluation.record)
 
@@ -3341,6 +3364,10 @@ def _run_application() -> int:
     pet_runtime_tick_timer.setInterval(60_000)
     pet_runtime_tick_timer.timeout.connect(evaluate_pet_runtime)
     pet_runtime_tick_timer.start()
+    autonomous_activity_tick_timer = QTimer()
+    autonomous_activity_tick_timer.setInterval(5_000)
+    autonomous_activity_tick_timer.timeout.connect(autonomous_activity_controller.tick)
+    autonomous_activity_tick_timer.start()
     proactive_controller.evaluate_pet_transitions(
         startup_pet_evaluation.decay_outcome.band_transitions,
         activity_controller.snapshot,
@@ -3376,7 +3403,8 @@ def _run_application() -> int:
         memory_pipeline,
         memory_repository,
         memory_window,
-        mood_animation_controller,
+        autonomous_activity_controller,
+        autonomous_activity_tick_timer,
         mood_controller,
         notification_policy,
         pet_controller,

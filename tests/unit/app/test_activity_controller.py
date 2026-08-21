@@ -79,6 +79,19 @@ class ActivityControllerTest(unittest.TestCase):
 
         self.assertEqual(snapshot.state, ActivityState.IDLE)
 
+    def test_autonomous_animation_request_is_not_user_activity(self) -> None:
+        bus = EventBus()
+        observed: list[Event] = []
+        bus.subscribe(EventType.USER_ACTIVITY_OBSERVED, observed.append)
+        ActivityController(bus, BehaviorConfig(), initial_time=_start())
+
+        bus.publish(
+            EventType.PET_WALK_REQUESTED,
+            {"source": "autonomous_activity", "activity_id": "wander"},
+        )
+
+        self.assertEqual(observed, [])
+
 
 def _start() -> datetime:
     return datetime(2026, 7, 24, 10, 0, tzinfo=UTC)

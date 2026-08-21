@@ -19,6 +19,7 @@ from project_akiha.core.pet import (
     PetNeed,
     WellbeingBand,
 )
+from project_akiha.core.pet_activity import AUTONOMOUS_ACTIVITY_SOURCE
 from project_akiha.core.state.voice import VoiceState
 
 
@@ -105,7 +106,8 @@ class MoodController:
         )
 
     def _handle_sleep_requested(self, event: Event) -> None:
-        del event
+        if event.payload.get("source") == AUTONOMOUS_ACTIVITY_SOURCE:
+            return
         self._publish_if_changed(self._mood_engine.observe_sleep_requested())
 
     def _handle_pet_need_band_changed(self, event: Event) -> None:
@@ -145,6 +147,8 @@ class MoodController:
         )
 
     def _handle_interaction(self, event: Event) -> None:
+        if event.payload.get("source") == AUTONOMOUS_ACTIVITY_SOURCE:
+            return
         source = self._interaction_sources[event.event_type]
         if event.event_type == EventType.PET_WAKE_REQUESTED:
             snapshot = self._mood_engine.observe_wake_requested()

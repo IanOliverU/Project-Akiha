@@ -1,0 +1,34 @@
+schema_version = 1
+
+[[activities]]
+id = "quiet_idle"
+animation_state = "idle"
+duration_seconds = 45
+cooldown_seconds = 30
+selection_priority = 10
+allowed_user_states = ["idle", "away"]
+allowed_moods = ["calm", "waiting", "attentive"]
+minimum_energy = 0
+maximum_energy = 100
+
+[[activities]]
+id = "wander"
+animation_state = "walking"
+duration_seconds = 20
+cooldown_seconds = 180
+selection_priority = 20
+allowed_user_states = ["idle"]
+allowed_moods = ["calm", "waiting"]
+minimum_energy = 25
+maximum_energy = 100
+
+[[activities]]
+id = "rest"
+animation_state = "sleeping"
+duration_seconds = 120
+cooldown_seconds = 300
+selection_priority = 100
+allowed_user_states = ["idle", "away"]
+allowed_moods = ["resting", "sleepy"]
+minimum_energy = 0
+maximum_energy = 100

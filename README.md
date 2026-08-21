@@ -373,11 +373,13 @@ turning Akiha into a wardrobe manager or demanding virtual-pet game.
 - Expanded reactions only when owner-approved sprite assets exist.
 
 Phase 10 is specified in `docs/phases/phase-10-shop-visual/README.md`. Phases
-10A-10G now provide the economy, trusted catalog, persistence, Shop/Appearance
-UI, whole-manifest selection, fingerprinted owner approvals, and production-
-renderer preview validation. The canonical Akiha sprite remains immutable;
-Dress and Vermillion stay unavailable until their complete asset sets pass
-validation and owner visual approval.
+10A-10H now provide the economy, trusted catalog, persistence, Shop/Appearance
+UI, whole-manifest selection, fingerprinted owner approvals, production-
+renderer preview validation, and deterministic autonomous idle/wander/rest
+behavior. The activity controller uses typed local state and remains
+independent from dialogue and AI providers. The canonical Akiha sprite remains
+immutable; Dress and Vermillion stay unavailable until their complete asset
+sets pass validation and owner visual approval.
 
 ## Architecture
 

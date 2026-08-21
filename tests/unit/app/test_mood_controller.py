@@ -93,6 +93,23 @@ class MoodControllerTest(unittest.TestCase):
         bus.publish(EventType.PET_WAKE_REQUESTED)
         self.assertEqual(received[-1].payload["mood"], "attentive")
 
+    def test_autonomous_animation_requests_do_not_mutate_mood(self) -> None:
+        bus = EventBus()
+        received: list[Event] = []
+        bus.subscribe(EventType.MOOD_STATE_CHANGED, received.append)
+        MoodController(bus, MoodEngine(initial_time=_now()))
+
+        bus.publish(
+            EventType.PET_WALK_REQUESTED,
+            {"source": "autonomous_activity", "activity_id": "wander"},
+        )
+        bus.publish(
+            EventType.PET_SLEEP_REQUESTED,
+            {"source": "autonomous_activity", "activity_id": "rest"},
+        )
+
+        self.assertEqual(len(received), 1)
+
     def test_repeated_same_mood_and_reason_is_not_republished(self) -> None:
         bus = EventBus()
         received: list[Event] = []

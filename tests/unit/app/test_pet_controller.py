@@ -52,6 +52,15 @@ class PetControllerTest(unittest.TestCase):
         bus.publish(EventType.PET_WAKE_REQUESTED)
         self.assertEqual(controller.animation_state, AnimationState.IDLE)
 
+    def test_direct_sleep_can_preempt_walking(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        bus.publish(EventType.PET_WALK_REQUESTED)
+
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        self.assertEqual(controller.animation_state, AnimationState.SLEEPING)
+
     def test_dragging_wakes_sleeping_pet(self) -> None:
         bus = EventBus()
         controller = PetController(bus, AnimationStateMachine())

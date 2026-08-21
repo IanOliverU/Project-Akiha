@@ -8,6 +8,7 @@ from project_akiha.config import BehaviorConfig
 from project_akiha.core.behavior import ActivitySnapshot, ActivityTracker
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.pet_activity import AUTONOMOUS_ACTIVITY_SOURCE
 
 
 class ActivityController:
@@ -78,6 +79,8 @@ class ActivityController:
 
     def _handle_activity_event(self, event: Event) -> None:
         if not self._config.enabled:
+            return
+        if event.payload.get("source") == AUTONOMOUS_ACTIVITY_SOURCE:
             return
 
         source = self._activity_event_sources[event.event_type]

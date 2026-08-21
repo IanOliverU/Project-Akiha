@@ -299,6 +299,20 @@ with bounded activity IDs and manifests. The behavior controller selects an
 activity from structured pet state, presence, mood, and time; providers and
 dialogue never select files or continuously drive animation.
 
+The Phase 10H runtime implements three closed activities in
+`assets/animations/activities.toml`: `quiet_idle`, `wander`, and `rest`. They
+map exactly to the already approved idle, walking, and sleeping animation
+states. The manifest controls bounded duration, cooldown, eligibility, and
+selection priority; it cannot name image paths or map an activity to dragging.
+
+`AutonomousActivityController` owns the in-memory start, completion, and
+cancellation lifecycle. The deterministic scheduler runs only from typed user
+activity, mood, pet state, time, and current animation. Drag, voice, explicit
+pet controls, care, and renewed user activity preempt it, while autonomous
+animation requests are tagged so they cannot be mistaken for user input or
+mutate mood through direct-control handlers. Lifecycle history is local and
+contains no dialogue or transcript content.
+
 ## 7. Asset Acceptance Contract
 
 Every new sprite clip must include:
@@ -384,6 +398,14 @@ approval.
 - Generalized start/loop/end clip support.
 - Richer animation arbitration.
 - Live2D, Spine, or 3D rendering.
+
+### Completed in Phase 10H
+
+- Strict closed autonomous activity manifest and fail-closed loading.
+- Deterministic selection and cooldown behavior without LLM involvement.
+- Preemptible idle, wander, and rest lifecycles using approved clips only.
+- Mechanical drag, voice, direct-control, and care priority handling.
+- Privacy-safe local activity lifecycle history.
 
 ## 10. Final Principle
 

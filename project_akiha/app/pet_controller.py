@@ -56,6 +56,11 @@ class PetController:
 
     def _handle_sleep_requested(self, event: Event) -> None:
         del event
+        if self._animation_state.state in {
+            AnimationState.WALKING,
+            AnimationState.DRAGGING,
+        }:
+            self._transition_to(AnimationState.IDLE)
         self._transition_to(AnimationState.SLEEPING)
 
     def _handle_wake_requested(self, event: Event) -> None:

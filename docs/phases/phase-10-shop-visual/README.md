@@ -1,6 +1,6 @@
 # Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10G whole-set validation complete
+**Status:** In progress - Phase 10H autonomous activity integration complete
 
 ## Phase Goal
 
@@ -83,6 +83,38 @@ Pet State + Presence + Mood + Time + Current Activity
 This pipeline belongs to 10H. The LLM may eventually propose a bounded
 interaction, but it does not schedule autonomous activities or name animation
 files.
+
+Phase 10H implements that boundary through a strict local manifest at
+`assets/animations/activities.toml`, a framework-free deterministic scheduler,
+and a preemptible application controller. The closed activity vocabulary is:
+
+- `quiet_idle` -> approved `idle` animation
+- `wander` -> approved `walking` animation
+- `rest` -> approved `sleeping` animation
+
+There are no placeholder entries for reading, tea, play, or other missing
+artwork. Those activities cannot enter the manifest until their complete
+appearance assets pass the 10G gate.
+
+Selection uses only typed user activity, companion mood, pet state, time,
+current animation, fixed eligibility rules, and cooldown history. It does not
+inspect conversation text, transcripts, provider output, memories, files, or
+assistant-action content. The scheduler is inactive while the user is active
+and fails closed to normal idle behavior when its trusted manifest is invalid.
+
+The runtime priority order is mechanical:
+
+```text
+drag > voice > direct pet control > care reaction > autonomous activity
+```
+
+Voice listening/thinking/speaking, dragging, care, direct walk/sleep/wake,
+opening Chat/Settings, and renewed user activity cancel an autonomous session.
+Completion and cancellation return safely to idle unless a higher-priority
+direct transition already owns the animation. Started, completed, and
+cancelled lifecycle events contain only activity ID, animation state, bounded
+timing, source, and cancellation reason, and are recorded in local behavior
+history.
 
 ## Persistence And Compatibility
 
@@ -267,15 +299,15 @@ Explicitly rejected concepts:
 
 ### 10H: Expanded Reactions And Autonomous Activities
 
-- [ ] Define closed `ActivityId`, lifecycle, cancellation, cooldown, and
+- [x] Define closed `ActivityId`, lifecycle, cancellation, cooldown, and
   priority contracts.
-- [ ] Add a deterministic scheduler using typed pet state, presence, mood, and
+- [x] Add a deterministic scheduler using typed pet state, presence, mood, and
   time rather than dialogue parsing.
-- [ ] Add data-driven activity manifests with safe idle fallback.
-- [ ] Integrate only activities supported by approved assets, beginning with
+- [x] Add data-driven activity manifests with safe idle fallback.
+- [x] Integrate only activities supported by approved assets, beginning with
   existing idle/walk/sleep capabilities.
-- [ ] Preserve drag, voice, direct care, and assistant-action priority rules.
-- [ ] Record privacy-safe activity history.
+- [x] Preserve drag, voice, direct care, and assistant-action priority rules.
+- [x] Record privacy-safe activity history.
 
 ### 10I: Status, Diagnostics, Privacy, And Reset
 
