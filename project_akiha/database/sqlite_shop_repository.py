@@ -57,6 +57,10 @@ class SQLiteShopRepository:
             raise ValueError("transaction limit must be greater than zero.")
         return await asyncio.to_thread(self._list_transactions, limit)
 
+    async def count_transactions(self) -> int:
+        """Return the exact number of completed local purchase records."""
+        return await asyncio.to_thread(self._count_transactions)
+
     async def purchase(
         self,
         item: CatalogItem,
@@ -138,6 +142,16 @@ class SQLiteShopRepository:
         finally:
             connection.close()
         return tuple(_transaction_from_row(row) for row in rows)
+
+    def _count_transactions(self) -> int:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT COUNT(*) AS transaction_count FROM shop_transactions"
+            ).fetchone()
+        finally:
+            connection.close()
+        return int(row["transaction_count"]) if row is not None else 0
 
     def _purchase(
         self,

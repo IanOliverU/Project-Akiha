@@ -95,6 +95,20 @@ class AkihaTrayIconTest(unittest.TestCase):
 
         self.assertEqual(emitted_count, 1)
 
+    def test_menu_status_action_emits_signal(self) -> None:
+        self._tray_icon = self._make_tray_icon()
+        emitted_count = 0
+
+        def record_signal() -> None:
+            nonlocal emitted_count
+            emitted_count += 1
+
+        self._tray_icon.pet_status_requested.connect(record_signal)
+
+        _trigger_action(self._tray_icon, "Status")
+
+        self.assertEqual(emitted_count, 1)
+
     def test_menu_shop_action_emits_signal(self) -> None:
         self._tray_icon = self._make_tray_icon()
         emitted_count = 0

@@ -90,6 +90,20 @@ class PetCareWindowTest(unittest.TestCase):
 
         self.assertEqual(emitted, [True])
 
+    def test_status_header_control_emits_open_request(self) -> None:
+        self._window = PetCareWindow()
+        emitted: list[bool] = []
+        self._window.status_requested.connect(lambda: emitted.append(True))
+
+        status_button = next(
+            button
+            for button in self._window.findChildren(QPushButton)
+            if button.toolTip() == "Open Akiha status"
+        )
+        status_button.click()
+
+        self.assertEqual(emitted, [True])
+
     def test_busy_state_blocks_refresh_and_care_controls(self) -> None:
         self._window = PetCareWindow()
 

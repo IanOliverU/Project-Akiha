@@ -63,12 +63,15 @@ Pet simulation rules remain under `core/pet/`, revisioned persistence remains
 in `database/sqlite_pet_repository.py`, and `services/pet_state.py` is the sole
 mutation boundary. `ui/pet_care_window.py` presents validated snapshots and
 emits only typed care requests; `ui/pet_care_worker.py` performs the Qt/async
-handoff. Read-only Settings summaries are assembled by
-`services/pet_diagnostics.py`, while `ui/pet_maintenance_worker.py` owns the
-background diagnostics/reset handoff. Reset remains an explicit confirmed UI
-operation and atomically replaces only pet state, pet history, and pet reward
-grants. None of these UI modules accepts dialogue or provider output as pet
-state.
+handoff. Read-only pet values are assembled by
+`services/pet_diagnostics.py`. `services/pet_status.py` aggregates those
+values with typed local shop, appearance, activity, transaction, and privacy
+diagnostics for `ui/pet_status_window.py` and Settings.
+`ui/pet_maintenance_worker.py` owns the background status/reset handoff. Reset
+remains an explicit confirmed UI operation and atomically replaces only pet
+state, pet history, and pet reward grants; shop ownership, transactions, and
+appearance selection remain intact. None of these UI modules accepts dialogue
+or provider output as pet state.
 The composition root settles runtime decay through a non-overlapping one-minute
 worker. `app/proactive_controller.py` publishes validated need-band edges,
 selects one deterministic priority cue, and reuses the existing notification

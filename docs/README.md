@@ -18,11 +18,11 @@ material is separated by purpose.
 | 8 - Assistant Actions | Complete | [`phases/phase-08-actions/`](phases/phase-08-actions/) |
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 
-## Planned Phase
+## Active Phase
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 10 - Shop And Visual Expansion | Planned | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
+| 10 - Shop And Visual Expansion | 10I complete; 10J pending | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
 ## Current Roadmap
 

@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from project_akiha.services.pet_diagnostics import build_pet_diagnostics
 from project_akiha.services.pet_state import PetStateService
+from project_akiha.services.pet_status import PetRuntimeStatus, PetStatusService
 
 
 class PetMaintenanceOperation(StrEnum):
@@ -29,6 +30,9 @@ class PetMaintenanceThread(QThread):
         self,
         service: PetStateService,
         operation: PetMaintenanceOperation,
+        *,
+        status_service: PetStatusService | None = None,
+        runtime_status: PetRuntimeStatus | None = None,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -36,13 +40,25 @@ class PetMaintenanceThread(QThread):
             raise TypeError("operation must be a PetMaintenanceOperation value.")
         self._service = service
         self._operation = operation
+        self._status_service = status_service
+        self._runtime_status = runtime_status
+        if (status_service is None) != (runtime_status is None):
+            raise ValueError(
+                "status_service and runtime_status must be provided together."
+            )
 
     def run(self) -> None:
         """Execute the selected typed operation."""
         try:
             if self._operation is PetMaintenanceOperation.DIAGNOSTICS:
-                record = asyncio.run(self._service.snapshot())
-                self.diagnostics_ready.emit(build_pet_diagnostics(record))
+                if self._status_service is not None:
+                    assert self._runtime_status is not None
+                    self.diagnostics_ready.emit(
+                        asyncio.run(self._status_service.snapshot(self._runtime_status))
+                    )
+                else:
+                    record = asyncio.run(self._service.snapshot())
+                    self.diagnostics_ready.emit(build_pet_diagnostics(record))
             elif self._operation is PetMaintenanceOperation.RESET:
                 self.reset_ready.emit(asyncio.run(self._service.reset()))
         except Exception as error:

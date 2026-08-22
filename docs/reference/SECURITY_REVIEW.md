@@ -242,6 +242,26 @@ Directory navigation does not build a persistent full-tree index. It searches
 on demand with depth, result, timeout, and cancellation bounds, skips links and
 reparse points, and keeps only temporary current-directory context.
 
+## Phase 10 Shop And Appearance Boundary
+
+Phase 10 uses closed local TOML catalogs and owner-approved complete appearance
+manifests. Provider output and ordinary dialogue have no purchase, selection,
+pet-state, activity-scheduling, asset-path, or renderer mutation interface.
+Purchases use an atomic SQLite transaction and cannot create negative currency,
+duplicate ownership, or a partial debit.
+
+The Status and Settings diagnostic surfaces read only typed local state and
+bounded counts. They exclude dialogue, credentials, filesystem paths, provider
+content, and asset contents. Pet reset remains separately confirmed and affects
+only pet progress, care history, and reward cooldowns; shop ownership,
+transactions, appearance selection, credentials, permissions, and unrelated
+history are preserved.
+
+There is no payment processing, real-money store, telemetry, cloud asset upload,
+remote catalog, or remote marketplace. Autonomous activity selection is local,
+deterministic, data-driven, and lower priority than drag, voice, care, and direct
+user control.
+
 ## Deferred Before Public Distribution
 
 - Code signing.

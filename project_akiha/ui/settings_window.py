@@ -77,6 +77,7 @@ from project_akiha.services.hosted_live_diagnostics import (
     build_hosted_live_diagnostics,
 )
 from project_akiha.services.pet_diagnostics import PetDiagnosticsSnapshot
+from project_akiha.services.pet_status import PetStatusSnapshot
 from project_akiha.services.privacy_notice import (
     acknowledge_current_hosted_live_privacy_notice,
     hosted_live_privacy_notice_required,
@@ -228,6 +229,16 @@ class SettingsWindow(QWidget):
         self._pet_progression_summary.setWordWrap(True)
         self._pet_runtime_summary = QLabel("Not checked")
         self._pet_runtime_summary.setWordWrap(True)
+        self._pet_shop_summary = QLabel("Not checked")
+        self._pet_shop_summary.setWordWrap(True)
+        self._pet_transaction_summary = QLabel("Not checked")
+        self._pet_transaction_summary.setWordWrap(True)
+        self._pet_appearance_summary = QLabel("Not checked")
+        self._pet_appearance_summary.setWordWrap(True)
+        self._pet_activity_summary = QLabel("Not checked")
+        self._pet_activity_summary.setWordWrap(True)
+        self._pet_privacy_summary = QLabel("Not checked")
+        self._pet_privacy_summary.setWordWrap(True)
         self._pet_last_evaluated = QLabel("Not checked")
         self._pet_last_evaluated.setWordWrap(True)
         self._pet_diagnostics_button = QPushButton("Refresh diagnostics")
@@ -898,6 +909,24 @@ class SettingsWindow(QWidget):
         self._pet_runtime_summary.setText(snapshot.runtime_summary)
         self._pet_last_evaluated.setText(snapshot.evaluated_at.isoformat())
 
+    def set_pet_system_diagnostics(self, snapshot: PetStatusSnapshot) -> None:
+        """Display aggregate Phase 10 diagnostics without sensitive content."""
+        if not isinstance(snapshot, PetStatusSnapshot):
+            raise TypeError("snapshot must be a PetStatusSnapshot value.")
+        self.set_pet_diagnostics(snapshot.pet)
+        systems = snapshot.systems
+        self._pet_shop_summary.setText(
+            f"{systems.catalog_summary} | {systems.ownership_summary}"
+        )
+        self._pet_transaction_summary.setText(systems.transaction_summary)
+        self._pet_appearance_summary.setText(systems.appearance_summary)
+        self._pet_activity_summary.setText(systems.activity_summary)
+        self._pet_privacy_summary.setText(systems.privacy_summary)
+        color = (
+            AKIHA_PALETTE.success if systems.privacy.local_only else AKIHA_PALETTE.error
+        )
+        self._pet_privacy_summary.setStyleSheet(f"color: {color};")
+
     def set_pet_maintenance_status(
         self,
         status: str,
@@ -955,6 +984,11 @@ class SettingsWindow(QWidget):
         diagnostics_layout.addRow("Wellbeing", self._pet_state_summary)
         diagnostics_layout.addRow("Progression", self._pet_progression_summary)
         diagnostics_layout.addRow("Runtime", self._pet_runtime_summary)
+        diagnostics_layout.addRow("Shop", self._pet_shop_summary)
+        diagnostics_layout.addRow("Transactions", self._pet_transaction_summary)
+        diagnostics_layout.addRow("Appearance", self._pet_appearance_summary)
+        diagnostics_layout.addRow("Activity", self._pet_activity_summary)
+        diagnostics_layout.addRow("Privacy", self._pet_privacy_summary)
         diagnostics_layout.addRow("Last evaluated", self._pet_last_evaluated)
         diagnostics_layout.addRow("Diagnostics", self._pet_diagnostics_button)
         diagnostics_layout.addRow("Reset", self._pet_reset_button)
@@ -1569,8 +1603,9 @@ class SettingsWindow(QWidget):
             "Reset pet progress",
             "Restore Akiha's wellbeing, XP, level, and currency to their "
             "initial values? Pet care history and reward cooldowns will also "
-            "be cleared. Chat, memories, settings, and assistant permissions "
-            "will not be changed.",
+            "be cleared. Shop ownership, purchase history, appearance, chat, "
+            "memories, settings, credentials, Spotify, assistant permissions, "
+            "and unrelated history will not be changed.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

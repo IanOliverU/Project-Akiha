@@ -32,6 +32,7 @@ class AutonomousActivityController:
             EventType.PET_WAKE_REQUESTED,
             EventType.CHAT_OPEN_REQUESTED,
             EventType.SETTINGS_OPEN_REQUESTED,
+            EventType.PET_STATUS_OPEN_REQUESTED,
         }
     )
 
@@ -79,6 +80,11 @@ class AutonomousActivityController:
     def active_session(self) -> PetActivitySession | None:
         """Return the current in-memory activity, if any."""
         return self._active
+
+    @property
+    def current_animation_state(self) -> AnimationState:
+        """Return the last typed animation state observed from the state machine."""
+        return self._animation_state
 
     def set_enabled(self, enabled: bool, now: datetime | None = None) -> None:
         """Enable scheduling or cancel autonomous behavior immediately."""

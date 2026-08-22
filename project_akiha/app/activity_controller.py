@@ -22,6 +22,7 @@ class ActivityController:
         EventType.PET_IDLE_REQUESTED: "pet_idle_requested",
         EventType.PET_SLEEP_REQUESTED: "pet_sleep_requested",
         EventType.PET_WAKE_REQUESTED: "pet_wake_requested",
+        EventType.PET_STATUS_OPEN_REQUESTED: "pet_status_open_requested",
         EventType.CHAT_OPEN_REQUESTED: "chat_open_requested",
         EventType.SETTINGS_OPEN_REQUESTED: "settings_open_requested",
     }

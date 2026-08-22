@@ -1,6 +1,6 @@
 # Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10H autonomous activity integration complete
+**Status:** In progress - Phase 10I status and local maintenance complete
 
 ## Phase Goal
 
@@ -204,10 +204,28 @@ The old Wardrobe view, inventory equipment controls, slots, and loadout wording
 have been removed. The UI can honestly show future appearances as awaiting
 approved assets without offering an unsafe selection.
 
-A later Status surface should answer “How is Akiha doing?” using only useful
-existing state: level, XP, currency, mood, care state, current activity,
-appearance, and current animation. It must not encourage constant
-micromanagement.
+The read-only **Akiha Status** surface answers “How is Akiha doing?” using only
+useful existing structured state: level, XP, currency, mood, care state, user
+presence, current autonomous activity, appearance, and animation. It also
+shows coarse local subsystem health for the trusted catalog, ownership,
+activity manifest, and Phase 10 privacy boundary. Status has no purchase,
+selection, care, reset, or other mutation controls; it links to the separately
+owned Care and Shop surfaces when the user explicitly chooses them.
+
+Settings diagnostics use the same typed aggregate snapshot. They report exact
+local ownership and transaction counts, catalog safe-fallback state, appearance
+availability, and active trusted activity without including dialogue,
+credentials, asset paths, provider content, or filesystem data.
+
+The only Phase 10 maintenance mutation remains the existing confirmed **Reset
+pet progress** operation. It resets wellbeing, XP, level, currency, pet-state
+history, and pet reward cooldowns. It deliberately preserves shop ownership,
+purchase transactions, selected appearance, chat, memories, settings,
+credentials, Spotify state, assistant permissions, action history, and other
+unrelated data. No broad shop/economy reset was added.
+
+Phase 10 is a local virtual economy only. It has no payments, real-money store,
+telemetry, cloud asset upload, remote catalog, or remote marketplace.
 
 ## VPet Research Boundary
 
@@ -311,12 +329,12 @@ Explicitly rejected concepts:
 
 ### 10I: Status, Diagnostics, Privacy, And Reset
 
-- [ ] Add an Akiha-specific read-only Status surface.
-- [ ] Add catalog, ownership, appearance, activity, and transaction diagnostics.
-- [ ] Add only narrowly scoped confirmed reset behavior that product needs.
-- [ ] Preserve chat, memories, permissions, Spotify, credentials, and unrelated
+- [x] Add an Akiha-specific read-only Status surface.
+- [x] Add catalog, ownership, appearance, activity, and transaction diagnostics.
+- [x] Add only narrowly scoped confirmed reset behavior that product needs.
+- [x] Preserve chat, memories, permissions, Spotify, credentials, and unrelated
   history during shop/pet maintenance.
-- [ ] Confirm no real-money store, telemetry, cloud asset upload, or remote
+- [x] Confirm no real-money store, telemetry, cloud asset upload, or remote
   marketplace exists.
 
 ### 10J: Final Verification And Consolidated Release Gate

@@ -104,6 +104,22 @@ class SQLiteShopRepositoryTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(pet_record.state.progression.currency, 80)
         self.assertEqual(len(await self._repository.list_transactions(10)), 1)
         self.assertEqual(len(await self._repository.list_inventory()), 1)
+        self.assertEqual(await self._repository.count_transactions(), 1)
+
+    async def test_pet_reset_preserves_shop_ownership_and_transactions(self) -> None:
+        await self._repository.purchase(
+            _item(),
+            transaction_id=uuid4(),
+            purchased_at=self._started_at + timedelta(minutes=1),
+        )
+
+        await self._pet_repository.reset(
+            PetState.initial(),
+            self._started_at + timedelta(minutes=2),
+        )
+
+        self.assertEqual(len(await self._repository.list_inventory()), 1)
+        self.assertEqual(await self._repository.count_transactions(), 1)
 
     async def test_second_transaction_for_owned_item_is_denied_without_charge(
         self,

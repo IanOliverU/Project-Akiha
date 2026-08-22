@@ -613,6 +613,36 @@ def pet_care_stylesheet() -> str:
 """
 
 
+def pet_status_stylesheet() -> str:
+    """Return the compact read-only Status surface stylesheet."""
+    color = AKIHA_PALETTE
+    root = "QWidget#akihaPetStatusWindow"
+    base = pet_care_stylesheet().replace(
+        "QWidget#akihaPetCareWindow",
+        root,
+    )
+    return base + f"""
+{root} QFrame#statusRuntimePanel,
+{root} QFrame#statusDiagnosticsPanel {{
+    border: 1px solid {color.border};
+    border-radius: 6px;
+    background-color: {color.panel};
+}}
+{root} QLabel#statusFieldLabel {{
+    color: {color.muted_text};
+    font-size: 12px;
+}}
+{root} QLabel#statusFieldValue {{
+    color: {color.text};
+    font-weight: 600;
+}}
+{root} QLabel#statusPrivacy {{
+    color: {color.success};
+    font-size: 12px;
+}}
+"""
+
+
 def shop_window_stylesheet() -> str:
     """Return the scoped stylesheet for the shop and appearance surface."""
     color = AKIHA_PALETTE

@@ -47,6 +47,7 @@ class PetCareWindow(QWidget):
 
     refresh_requested = Signal()
     care_action_requested = Signal(object)
+    status_requested = Signal()
     shop_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -109,6 +110,12 @@ class PetCareWindow(QWidget):
         heading.addLayout(title_row)
         heading.addWidget(self._summary_label)
 
+        status = QPushButton()
+        status.setObjectName("careIconButton")
+        status.setIcon(fluent_icon("\ue9d9"))
+        status.setToolTip("Open Akiha status")
+        status.clicked.connect(self.status_requested.emit)
+
         shop = QPushButton()
         shop.setObjectName("careIconButton")
         shop.setIcon(fluent_icon("\ue719"))
@@ -133,6 +140,7 @@ class PetCareWindow(QWidget):
         header_layout.setSpacing(8)
         header_layout.addLayout(heading)
         header_layout.addStretch(1)
+        header_layout.addWidget(status, 0, Qt.AlignmentFlag.AlignTop)
         header_layout.addWidget(shop, 0, Qt.AlignmentFlag.AlignTop)
         header_layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignTop)
         header_layout.addWidget(close, 0, Qt.AlignmentFlag.AlignTop)

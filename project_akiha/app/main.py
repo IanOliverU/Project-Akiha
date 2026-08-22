@@ -291,6 +291,11 @@ from project_akiha.services.pet_diagnostics import (
     build_pet_diagnostics,
 )
 from project_akiha.services.pet_state import PetStateService, SystemPetClock
+from project_akiha.services.pet_status import (
+    PetRuntimeStatus,
+    PetStatusService,
+    PetStatusSnapshot,
+)
 from project_akiha.services.privacy_notice import (
     acknowledge_current_privacy_notice,
     privacy_notice_required,
@@ -359,6 +364,7 @@ from project_akiha.ui.pet_maintenance_worker import (
     PetMaintenanceThread,
 )
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
+from project_akiha.ui.pet_status_window import PetStatusWindow
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
@@ -665,6 +671,13 @@ def _run_application() -> int:
         initial_animation_state=pet_controller.animation_state,
         enabled=config.behavior.enabled,
     )
+    pet_status_service = PetStatusService(
+        pet_state_service,
+        shop_catalog_result,
+        shop_repository,
+        appearance_service,
+        pet_activity_definitions,
+    )
     window_state_store = WindowStateStore(paths.state_dir / "pet_window.json")
     fallback_position = WindowPosition(
         x=config.pet_window.start_x,
@@ -892,6 +905,7 @@ def _run_application() -> int:
     behavior_history_window = BehaviorHistoryWindow()
     assistant_action_history_window = AssistantActionHistoryWindow()
     pet_care_window = PetCareWindow()
+    pet_status_window = PetStatusWindow()
     shop_window = ShopWindow()
     _populate_chat_window(
         chat_window=chat_window,
@@ -1069,8 +1083,13 @@ def _run_application() -> int:
         thread.deleteLater()
         if not active_pet_maintenance_threads:
             settings_window.set_pet_maintenance_busy(False)
+            pet_status_window.set_busy(False)
 
     def handle_pet_diagnostics(snapshot: object) -> None:
+        if isinstance(snapshot, PetStatusSnapshot):
+            settings_window.set_pet_system_diagnostics(snapshot)
+            pet_status_window.update_snapshot(snapshot)
+            return
         if not isinstance(snapshot, PetDiagnosticsSnapshot):
             logger.error("Pet diagnostics worker returned an invalid snapshot.")
             settings_window.set_pet_maintenance_status(
@@ -1094,6 +1113,10 @@ def _run_application() -> int:
         pet_care_window.update_record(record)
         autonomous_activity_controller.observe_pet_state(record.state)
         pet_care_window.set_notice("Akiha's care progress was reset.")
+        if pet_status_window.isVisible():
+            pet_status_window.set_notice(
+                "Pet progress was reset. Refresh to update all status details."
+            )
         event_bus.publish(
             EventType.PET_STATE_RESET,
             {
@@ -1108,6 +1131,21 @@ def _run_application() -> int:
         settings_window.set_pet_maintenance_status(
             "Pet maintenance could not be completed. Check the logs.",
             True,
+        )
+        pet_status_window.set_notice(
+            "Status could not be refreshed. Check the logs.",
+            error=True,
+        )
+
+    def current_pet_runtime_status() -> PetRuntimeStatus:
+        session = autonomous_activity_controller.active_session
+        return PetRuntimeStatus(
+            mood=mood_controller.snapshot.mood,
+            user_activity=activity_controller.snapshot.state,
+            animation_state=autonomous_activity_controller.current_animation_state,
+            autonomous_activity_id=(
+                session.definition.activity_id if session is not None else None
+            ),
         )
 
     def start_pet_maintenance(operation: PetMaintenanceOperation) -> None:
@@ -1125,7 +1163,21 @@ def _run_application() -> int:
             )
             return
         settings_window.set_pet_maintenance_busy(True)
-        thread = PetMaintenanceThread(pet_state_service, operation)
+        pet_status_window.set_busy(True)
+        thread = PetMaintenanceThread(
+            pet_state_service,
+            operation,
+            status_service=(
+                pet_status_service
+                if operation is PetMaintenanceOperation.DIAGNOSTICS
+                else None
+            ),
+            runtime_status=(
+                current_pet_runtime_status()
+                if operation is PetMaintenanceOperation.DIAGNOSTICS
+                else None
+            ),
+        )
         active_pet_maintenance_threads.append(thread)
         thread.diagnostics_ready.connect(handle_pet_diagnostics)
         thread.reset_ready.connect(handle_pet_reset)
@@ -1216,8 +1268,20 @@ def _run_application() -> int:
         pet_care_window.activateWindow()
         start_pet_care_operation()
 
+    def show_pet_status(event: Event | None = None) -> None:
+        del event
+        pet_status_window.show()
+        pet_status_window.raise_()
+        pet_status_window.activateWindow()
+        start_pet_maintenance(PetMaintenanceOperation.DIAGNOSTICS)
+
     pet_care_window.refresh_requested.connect(start_pet_care_operation)
     pet_care_window.care_action_requested.connect(start_pet_care_operation)
+    pet_care_window.status_requested.connect(show_pet_status)
+    pet_status_window.refresh_requested.connect(
+        lambda: start_pet_maintenance(PetMaintenanceOperation.DIAGNOSTICS)
+    )
+    pet_status_window.care_requested.connect(show_pet_care)
 
     def cleanup_shop_thread(thread: ShopOperationThread) -> None:
         if thread in active_shop_threads:
@@ -1315,6 +1379,7 @@ def _run_application() -> int:
         )
     )
     pet_care_window.shop_requested.connect(show_shop)
+    pet_status_window.shop_requested.connect(show_shop)
 
     def refresh_memory_window() -> None:
         memories = asyncio.run(memory_repository.get_recent_memories(limit=100))
@@ -3176,6 +3241,7 @@ def _run_application() -> int:
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, show_pet_care)
+    event_bus.subscribe(EventType.PET_STATUS_OPEN_REQUESTED, show_pet_status)
     event_bus.subscribe(EventType.SHOP_OPEN_REQUESTED, show_shop)
     event_bus.subscribe(
         EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, show_behavior_history
@@ -3306,6 +3372,7 @@ def _run_application() -> int:
     tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
     tray_icon.pet_care_requested.connect(show_pet_care)
+    tray_icon.pet_status_requested.connect(show_pet_status)
     tray_icon.shop_requested.connect(show_shop)
     tray_icon.show()
     if privacy_notice_required(config.privacy):

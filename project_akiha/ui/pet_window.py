@@ -166,6 +166,10 @@ class PetWindow(QWidget):
         care_action.triggered.connect(self._request_care)
         menu.addAction(care_action)
 
+        status_action = QAction("Status", menu)
+        status_action.triggered.connect(self._request_status)
+        menu.addAction(status_action)
+
         shop_action = QAction("Shop & appearance", menu)
         shop_action.triggered.connect(self._request_shop)
         menu.addAction(shop_action)
@@ -268,6 +272,9 @@ class PetWindow(QWidget):
 
     def _request_care(self) -> None:
         self._event_bus.publish(EventType.PET_CARE_OPEN_REQUESTED)
+
+    def _request_status(self) -> None:
+        self._event_bus.publish(EventType.PET_STATUS_OPEN_REQUESTED)
 
     def _request_shop(self) -> None:
         self._event_bus.publish(EventType.SHOP_OPEN_REQUESTED)

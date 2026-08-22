@@ -24,12 +24,13 @@ function Invoke-DatabaseSchemaCheck {
         [string]$PythonExe
     )
 
-    $SchemaCheck = @'
+$SchemaCheck = @'
 import sqlite3
 import sys
 
 database_path = sys.argv[1]
 expected_tables = {
+    "pet_appearance_selection",
     "behavior_events",
     "conversations",
     "memories",
@@ -38,6 +39,9 @@ expected_tables = {
     "pet_state",
     "pet_state_history",
     "schema_version",
+    "shop_equipment",
+    "shop_inventory",
+    "shop_transactions",
 }
 
 connection = sqlite3.connect(database_path)

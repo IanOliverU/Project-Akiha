@@ -40,6 +40,9 @@ class ShopRepository(Protocol):
     async def list_transactions(self, limit: int) -> tuple[PurchaseTransaction, ...]:
         """Return recent completed purchases newest first."""
 
+    async def count_transactions(self) -> int:
+        """Return the exact number of completed local purchase records."""
+
     async def purchase(
         self,
         item: CatalogItem,

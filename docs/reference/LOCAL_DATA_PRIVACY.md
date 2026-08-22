@@ -292,6 +292,22 @@ action boundary. Permissions are stored locally in the SQLite database and are
 revocable; they do not grant access to arbitrary shells, system-critical paths,
 or file mutation.
 
+## Phase 10 Local Shop And Status
+
+Phase 10 shop, appearance, status, and autonomous-activity features remain
+local. The trusted catalog and appearance/activity manifests are bundled local
+TOML; ownership, purchases, selected appearance, pet state, and pet progression
+are stored in the existing local SQLite database. The Status and Settings
+diagnostic surfaces expose only bounded counts and typed state. They do not
+show or transmit dialogue, credentials, local paths, provider content, or asset
+contents.
+
+There is no real-money store, payment processing, telemetry, cloud asset upload,
+remote catalog, or remote marketplace. Reset pet progress is deliberately
+narrow: it preserves shop ownership, transaction history, selected appearance,
+chat, memories, credentials, Spotify state, assistant permissions, and
+unrelated history.
+
 ## Reset
 
 To reset all local Project Akiha data, quit the app first, then remove:

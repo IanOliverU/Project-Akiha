@@ -33,6 +33,7 @@ class MoodController:
         EventType.PET_WALK_REQUESTED: "pet_walk_requested",
         EventType.PET_IDLE_REQUESTED: "pet_idle_requested",
         EventType.PET_WAKE_REQUESTED: "pet_wake_requested",
+        EventType.PET_STATUS_OPEN_REQUESTED: "pet_status_open_requested",
     }
     _voice_moods = {
         VoiceState.LISTENING: CompanionMood.VOICE_LISTENING,
