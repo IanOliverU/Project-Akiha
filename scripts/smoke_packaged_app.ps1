@@ -35,10 +35,14 @@ expected_tables = {
     "conversations",
     "memories",
     "messages",
+    "pet_appearance_selection",
     "pet_reward_grants",
     "pet_state",
     "pet_state_history",
     "schema_version",
+    "shop_equipment",
+    "shop_inventory",
+    "shop_transactions",
 }
 
 connection = sqlite3.connect(database_path)
@@ -312,6 +316,7 @@ try {
             ("smoke-localappdata-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     }
 
+    $SmokeRoot = [System.IO.Path]::GetFullPath($SmokeRoot)
     New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
 
     $OldLocalAppData = $env:LOCALAPPDATA

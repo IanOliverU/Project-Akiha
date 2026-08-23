@@ -354,14 +354,26 @@ try {
         return
     }
 
+    $MetadataProbe = (
+        "import importlib.metadata as m; " +
+        "print(m.distribution('google-genai')._path)"
+    )
+    $GoogleGenaiMetadataDir = (& $PythonExecutable -c $MetadataProbe).Trim()
+    if (-not (Test-Path -LiteralPath $GoogleGenaiMetadataDir -PathType Container)) {
+        throw "google-genai distribution metadata was not found."
+    }
+    $GoogleGenaiMetadataName = Split-Path -Leaf $GoogleGenaiMetadataDir
+
     $NuitkaArguments += @(
         "--standalone",
         "--assume-yes-for-downloads",
         "--zig",
         "--enable-plugin=pyside6",
+        "--include-qt-plugins=multimedia",
         "--include-module=av.utils",
         "--include-package=google.genai",
         "--include-distribution-metadata=google-genai",
+        "--include-data-dir=$GoogleGenaiMetadataDir=$GoogleGenaiMetadataName",
         "--include-package-data=faster_whisper",
         "--windows-console-mode=attach",
         "--output-dir=$ResolvedOutputDir",

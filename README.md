@@ -465,13 +465,25 @@ python -m compileall project_akiha tests
 
 ## Package Build
 
-Nuitka packaging is available through the package extras. Use Python 3.13 and
-choose the build mode explicitly. Cached development packages are intended for
-packaged debugging during a phase:
+Packaging tools are available through the package extras and require Python
+3.13. PyInstaller one-folder is the fast development loop; it preserves the
+same artifact/privacy validation without compiling the dependency graph to C:
 
 ```powershell
 py -3.13 -m venv .venv313
 .\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
+.\scripts\build_akiha_pyinstaller.ps1
+```
+
+The candidate is written to `dist\pyinstaller-development\Akiha`. Its first
+Phase 10 build completed in about 2 minutes 35 seconds, and an unchanged cached
+rebuild completed in about 12 seconds on the development machine. PyInstaller
+is intentionally one-folder/windowed; it is not the public release format.
+
+Nuitka remains the release-candidate path. Cached development candidates are
+used to verify packaged behavior without repeating a clean multi-hour compile:
+
+```powershell
 $env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
 .\scripts\build_akiha_nuitka.ps1 `
   -FastBuild `
@@ -483,7 +495,7 @@ Use a clean build only when closing a phase or preparing a release candidate:
 ```powershell
 .\scripts\build_akiha_nuitka.ps1 `
   -CleanRelease `
-  -OutputDir dist\nuitka-phase9-final
+  -OutputDir dist\nuitka-release
 ```
 
 Development and release builds use separate Nuitka caches. Every invocation

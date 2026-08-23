@@ -1,6 +1,7 @@
 param(
     [string]$ExePath = "dist\nuitka-development\main.dist\Akiha.exe",
     [string]$ReportPath = "dist\nuitka-development\build-reports\provider-runtime-smoke.json",
+    [int]$TimeoutSeconds = 240,
     [switch]$SkipGeminiNetwork
 )
 
@@ -19,17 +20,26 @@ if (Test-Path -LiteralPath $ResolvedReport) {
     Remove-Item -LiteralPath $ResolvedReport -Force
 }
 
-$Arguments = @("--provider-runtime-smoke-report=$ResolvedReport")
+$StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+$StartInfo.FileName = $ResolvedExe
+$StartInfo.WorkingDirectory = Split-Path -Parent $ResolvedExe
+$StartInfo.UseShellExecute = $false
+$StartInfo.CreateNoWindow = $true
+$StartInfo.Arguments = '"--provider-runtime-smoke-report={0}"' -f $ResolvedReport
 if ($SkipGeminiNetwork) {
-    $Arguments += "--skip-gemini-network"
+    $StartInfo.Arguments += " --skip-gemini-network"
 }
 
-$Process = Start-Process `
-    -FilePath $ResolvedExe `
-    -ArgumentList $Arguments `
-    -WindowStyle Hidden `
-    -Wait `
-    -PassThru
+$Process = [System.Diagnostics.Process]::new()
+$Process.StartInfo = $StartInfo
+if (-not $Process.Start()) {
+    throw "Packaged provider runtime smoke process did not start."
+}
+if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) {
+    $Process.Kill($true)
+    $Process.WaitForExit()
+    throw "Packaged provider runtime smoke exceeded $TimeoutSeconds seconds."
+}
 
 if (-not (Test-Path -LiteralPath $ResolvedReport -PathType Leaf)) {
     throw "Akiha did not write the provider runtime smoke report."

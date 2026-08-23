@@ -57,6 +57,18 @@ class PackageArtifactTest(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertIn("metadata", issues[0].message)
 
+    def test_reports_missing_qt_multimedia_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            plugin = artifact_dir / "PySide6/plugins/multimedia/windowsmediaplugin.dll"
+            plugin.unlink()
+
+            issues = validate_package_artifact(artifact_dir)
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("multimedia backend plugin", issues[0].message)
+
     def test_rejects_personal_spotify_export(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact_dir = Path(directory)
@@ -99,12 +111,15 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "project_akiha/config").mkdir(parents=True)
     (artifact_dir / "project_akiha/database/migrations").mkdir(parents=True)
     (artifact_dir / "scripts").mkdir()
-    (artifact_dir / "PySide6").mkdir()
+    (artifact_dir / "PySide6/plugins/multimedia").mkdir(parents=True)
     (artifact_dir / "shiboken6").mkdir()
     (artifact_dir / "av").mkdir()
     (artifact_dir / "faster_whisper/assets").mkdir(parents=True)
     (artifact_dir / "google_genai-2.17.0.dist-info").mkdir()
     (artifact_dir / "Akiha.exe").write_bytes(b"")
+    (artifact_dir / "PySide6/plugins/multimedia/windowsmediaplugin.dll").write_bytes(
+        b""
+    )
     (artifact_dir / "av/utils.pyd").write_bytes(b"")
     (artifact_dir / "faster_whisper/assets/silero_vad_v6.onnx").write_bytes(b"")
     (artifact_dir / "scripts/run_gpt_sovits_api.py").write_text(

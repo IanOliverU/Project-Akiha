@@ -1,6 +1,6 @@
 # Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10I status and local maintenance complete
+**Status:** In progress - Phase 10J candidate built; owner acceptance pending
 
 ## Phase Goal
 
@@ -339,20 +339,47 @@ Explicitly rejected concepts:
 
 ### 10J: Final Verification And Consolidated Release Gate
 
-- [ ] Run full tests, Ruff, Black, compilation, migrations, and fresh/existing
+- [x] Run full tests, Ruff, Black, compilation, migrations, and fresh/existing
   source-data smoke checks.
-- [ ] Complete owner source acceptance for shop, appearance, status, activity,
+- [x] Complete owner source acceptance for shop, appearance, status, activity,
   voice, pet, actions, and graceful shutdown.
-- [ ] Establish PyInstaller one-folder as an optional fast development package
+- [x] Establish PyInstaller one-folder as an optional fast development package
   only if its compatibility spike passes.
-- [ ] Keep Nuitka as the release candidate path unless a separately documented
+- [x] Keep Nuitka as the release candidate path unless a separately documented
   decision replaces it.
-- [ ] Build one consolidated standalone after Phase 10 source scope closes.
+- [x] Build one consolidated standalone after Phase 10 source scope closes.
 - [ ] Run packaged Gemini Live, GPT-SoVITS, pet, shop, appearance, actions,
   Spotify, persistence, migration, tray, and graceful-Quit checks.
-- [ ] Verify credentials, private voice references, user data, rejected assets,
+- [x] Verify credentials, private voice references, user data, rejected assets,
   and experimental files are absent.
 - [ ] Remove obsolete builds only after the new candidate is accepted.
+
+#### 10J Verification Record - 2026-08-23
+
+- Python 3.13.14 source gate: 1,582 tests passed with 3 intentional skips;
+  Ruff, Black, compilation, and diff checks passed.
+- Fresh and existing source-data smoke passed with all Phase 10 appearance,
+  shop, inventory, transaction, pet, memory, behavior, and chat tables present.
+- PyInstaller 6.22.2 one-folder compatibility passed artifact, Windows GUI,
+  fresh-data, existing-data, migration, and log validation. The first build took
+  155.211 seconds; its unchanged cached rebuild took 12.402 seconds.
+- PyInstaller produced 1,786 files totaling 626,731,753 bytes. It is retained as
+  the fast development package path, not the public release artifact.
+- Nuitka 4.1.3 FastBuild reused the persistent Python 3.13/Zig 0.16.0 workspace
+  with 10 jobs and LTO disabled. The corrected candidate build took 418.584
+  seconds and produced 828 files totaling 463,847,530 bytes.
+- Nuitka artifact, Windows GUI, fresh-data, existing-data, migration, and clean
+  log checks passed. Explicit `google_genai` distribution metadata inclusion was
+  added after Nuitka ignored its metadata-only option.
+- Both packaged candidates load the Gemini SDK. Both pass real GPT-SoVITS
+  health and in-memory synthesis against the external local runtime.
+- The live Gemini network check remains blocked because the currently saved
+  DPAPI credential cannot be decrypted in source or packaged mode. This is not
+  a package dependency failure; the owner must re-save the Gemini key.
+- Recursive artifact inspection found no credentials, SQLite databases,
+  Spotify export, private voice/reference audio, or user media.
+- Exact candidate and owner verification steps are recorded in
+  `PHASE10J_MANUAL_SMOKE_2026-08-23.md`.
 
 ## Explicitly Out Of Scope
 

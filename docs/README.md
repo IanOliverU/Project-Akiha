@@ -22,7 +22,7 @@ material is separated by purpose.
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 10 - Shop And Visual Expansion | 10I complete; 10J pending | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
+| 10 - Shop And Visual Expansion | 10J candidate built; owner acceptance pending | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
 ## Current Roadmap
 

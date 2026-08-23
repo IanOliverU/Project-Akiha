@@ -22,6 +22,10 @@ _REQUIRED_ARTIFACT_PATHS = (
     "faster_whisper/assets/silero_vad_v6.onnx",
 )
 _REQUIRED_ARTIFACT_GLOBS = ("google_genai-*.dist-info",)
+_QT_MULTIMEDIA_PLUGIN_DIRS = (
+    "PySide6/plugins/multimedia",
+    "PySide6/qt-plugins/multimedia",
+)
 
 _FORBIDDEN_FILE_NAMES = {
     ".env",
@@ -62,6 +66,23 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
                     message="Required packaged dependency metadata is missing.",
                 )
             )
+
+    multimedia_plugin_dirs = tuple(
+        artifact_dir / relative_path for relative_path in _QT_MULTIMEDIA_PLUGIN_DIRS
+    )
+    if not any(
+        plugin_dir.is_dir() and tuple(plugin_dir.glob("*mediaplugin.dll"))
+        for plugin_dir in multimedia_plugin_dirs
+    ):
+        issues.append(
+            PackageArtifactIssue(
+                path=multimedia_plugin_dirs[0],
+                message=(
+                    "A Qt multimedia backend plugin is required for packaged "
+                    "speech playback."
+                ),
+            )
+        )
 
     for candidate in artifact_dir.rglob("*"):
         if not candidate.is_file():
