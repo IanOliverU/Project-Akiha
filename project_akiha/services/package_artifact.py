@@ -26,6 +26,13 @@ _QT_MULTIMEDIA_PLUGIN_DIRS = (
     "PySide6/plugins/multimedia",
     "PySide6/qt-plugins/multimedia",
 )
+_QT_FFMPEG_RUNTIME_DLLS = (
+    "avcodec-61.dll",
+    "avformat-61.dll",
+    "avutil-59.dll",
+    "swresample-5.dll",
+    "swscale-8.dll",
+)
 
 _FORBIDDEN_FILE_NAMES = {
     ".env",
@@ -71,18 +78,32 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
         artifact_dir / relative_path for relative_path in _QT_MULTIMEDIA_PLUGIN_DIRS
     )
     if not any(
-        plugin_dir.is_dir() and tuple(plugin_dir.glob("*mediaplugin.dll"))
+        (plugin_dir / "ffmpegmediaplugin.dll").is_file()
         for plugin_dir in multimedia_plugin_dirs
     ):
         issues.append(
             PackageArtifactIssue(
                 path=multimedia_plugin_dirs[0],
                 message=(
-                    "A Qt multimedia backend plugin is required for packaged "
-                    "speech playback."
+                    "Qt's FFmpeg multimedia backend is required for reliable "
+                    "segmented speech playback."
                 ),
             )
         )
+    for runtime_dll in _QT_FFMPEG_RUNTIME_DLLS:
+        if not any(
+            (runtime_root / runtime_dll).is_file()
+            for runtime_root in (artifact_dir, artifact_dir / "PySide6")
+        ):
+            issues.append(
+                PackageArtifactIssue(
+                    path=artifact_dir / runtime_dll,
+                    message=(
+                        "A Qt FFmpeg runtime dependency required for speech "
+                        "playback is missing."
+                    ),
+                )
+            )
 
     for candidate in artifact_dir.rglob("*"):
         if not candidate.is_file():

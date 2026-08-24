@@ -49,6 +49,7 @@ class ChatResponseThread(QThread):
         *,
         response_context: ModularResponseContext | None = None,
         segment_renderer: SegmentRenderer | None = None,
+        minimum_speech_segment_chars: int = 96,
     ) -> None:
         super().__init__(parent)
         self._chat_controller = chat_controller
@@ -62,7 +63,8 @@ class ChatResponseThread(QThread):
         self._next_event_sequence = 0
         self._has_emitted_started_event = False
         self._response_segmenter = StableResponseSegmenter(
-            self._response_context.response_id
+            self._response_context.response_id,
+            minimum_streaming_chars=minimum_speech_segment_chars,
         )
         self._response_started_at: float | None = None
         self._first_delta_logged = False

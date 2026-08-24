@@ -114,6 +114,7 @@ class ChatResponseThreadTest(unittest.TestCase):
         thread = ChatResponseThread(
             StreamingController(("First sentence.", " Second sentence begins", ".")),
             "hello",
+            minimum_speech_segment_chars=1,
             response_context=ModularResponseContext(
                 response_id="response-segments",
                 processing_mode=VoiceProcessingMode.LOCAL_MODULAR,
@@ -176,6 +177,7 @@ class ChatResponseThreadTest(unittest.TestCase):
             StreamingController(("First.", " Second.")),
             "hello",
             segment_renderer=Renderer(),
+            minimum_speech_segment_chars=1,
         )
         rendered: list[ResponseSegment] = []
         thread.speech_segment_ready.connect(rendered.append)
@@ -187,6 +189,34 @@ class ChatResponseThreadTest(unittest.TestCase):
             ["spoken:First.", "spoken:Second."],
         )
         self.assertEqual([segment.is_final for segment in rendered], [False, True])
+
+    def test_default_speech_policy_batches_short_sentences(self) -> None:
+        class Renderer:
+            def render(self, segment: CanonicalResponseSegment) -> ResponseSegment:
+                return ResponseSegment(
+                    response_id=segment.response_id,
+                    segment_index=segment.segment_index,
+                    canonical_text=segment.canonical_text,
+                    speech_text=segment.canonical_text,
+                    is_final=segment.is_final,
+                )
+
+        thread = ChatResponseThread(
+            StreamingController(("First short sentence.", " Second short sentence.")),
+            "hello",
+            segment_renderer=Renderer(),
+        )
+        rendered: list[ResponseSegment] = []
+        thread.speech_segment_ready.connect(rendered.append)
+
+        thread.run()
+
+        self.assertEqual(len(rendered), 1)
+        self.assertEqual(
+            rendered[0].speech_text,
+            "First short sentence. Second short sentence.",
+        )
+        self.assertTrue(rendered[0].is_final)
 
     def test_renderer_failure_uses_canonical_speech_fallback(self) -> None:
         class FailingRenderer:

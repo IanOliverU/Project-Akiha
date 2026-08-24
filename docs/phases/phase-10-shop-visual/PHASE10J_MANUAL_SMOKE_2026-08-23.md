@@ -10,11 +10,22 @@ The initial Nuitka candidate omitted Qt's multimedia backend plugins. Both
 Local Modular and Gemini Live could hear and produce text, while their shared
 `QMediaPlayer` owner retained audio without starting playback or reporting a
 decoder error. The candidate now includes the matching PySide6
-`windowsmediaplugin.dll` and passes artifact validation.
+FFmpeg multimedia backend and matching codec runtime DLLs and passes artifact
+validation. The Windows Media backend alone could start an in-memory WAV but
+did not reliably report segment completion, which cut off queued Local Modular
+speech after its first segment.
 
 Future Nuitka builds explicitly include the `multimedia` Qt plugin group, and
 artifact validation now rejects packages that do not contain a multimedia
 backend. This correction did not require recompiling the existing candidate.
+
+Local Modular testing then exposed a separate latency issue: short sentences
+were synthesized independently, allowing playback to outrun GPT-SoVITS and
+pause between queued segments. Source mode now batches short replies into one
+speech derivative, preserves segmentation for longer replies, and collapses
+paragraph whitespace only for synthesis. Canonical chat and persisted text are
+unchanged. This source correction requires owner acceptance before the next
+cached candidate build.
 
 ## Required Setup
 

@@ -99,6 +99,27 @@ class GptSoVitsProviderTest(unittest.TestCase):
         self.assertEqual(captured.exception.code, "gpt_sovits_error_response")
         self.assertNotIn(secret, str(captured.exception))
 
+    def test_synthesize_collapses_paragraph_whitespace_for_speech_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            reference = Path(directory) / "prompt.wav"
+            reference.write_bytes(b"reference")
+            transport = _Transport(audio=(_wav_bytes(24_000), "audio/wav"))
+            provider = GptSoVitsProvider(
+                reference_audio_path=reference,
+                transport=transport,
+            )
+
+            asyncio.run(
+                provider.synthesize(
+                    SpeechSynthesisRequest(text="First sentence.\n\nSecond sentence.")
+                )
+            )
+
+        self.assertEqual(
+            transport.calls[0]["payload"]["text"],
+            "First sentence. Second sentence.",
+        )
+
     def test_synthesize_rejects_invalid_voice_id_before_http(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             reference = Path(directory) / "prompt.wav"

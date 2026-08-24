@@ -46,6 +46,41 @@ class StableResponseSegmenterTest(unittest.TestCase):
         )
         self.assertTrue(final[0].is_final)
 
+    def test_batches_short_sentences_for_continuous_local_speech(self) -> None:
+        segmenter = StableResponseSegmenter(
+            "response-batched",
+            minimum_streaming_chars=96,
+        )
+        text = (
+            "\u4eca\u65e5\u3082\u7a4f\u3084\u304b\u306b\u904e\u3054\u3057\u3066\u304a\u308a\u307e\u3059\u3002\n\n"
+            "\u4f55\u304b\u624b\u4f1d\u3048\u308b\u3053\u3068\u304c\u3042\u308c\u3070\u3001"
+            "\u9060\u616e\u306a\u304f\u4ef0\u3063\u3066\u304f\u3060\u3055\u3044\u3002"
+        )
+
+        self.assertEqual(segmenter.push(text), ())
+        final = segmenter.finish()
+
+        self.assertEqual(len(final), 1)
+        self.assertEqual(final[0].canonical_text, text)
+        self.assertTrue(final[0].is_final)
+
+    def test_releases_batched_sentences_once_streaming_target_is_met(self) -> None:
+        segmenter = StableResponseSegmenter(
+            "response-batched-long",
+            minimum_streaming_chars=32,
+            minimum_clause_chars=32,
+        )
+
+        segments = segmenter.push(
+            "First short sentence. Second sentence creates runway. Tail begins"
+        )
+
+        self.assertEqual(len(segments), 1)
+        self.assertEqual(
+            segments[0].canonical_text,
+            "First short sentence. Second sentence creates runway.",
+        )
+
     def test_waits_for_sentence_boundary_split_across_chunks(self) -> None:
         segmenter = StableResponseSegmenter("response-3")
 

@@ -33,6 +33,7 @@ class StableResponseSegmenter:
         self,
         response_id: str,
         *,
+        minimum_streaming_chars: int = 1,
         minimum_clause_chars: int = 96,
         clause_release_chars: int = 32,
         maximum_segment_chars: int = 320,
@@ -41,6 +42,12 @@ class StableResponseSegmenter:
             raise ValueError("response ID cannot be empty.")
         if minimum_clause_chars < 32:
             raise ValueError("minimum clause length cannot be less than 32.")
+        if minimum_streaming_chars < 1:
+            raise ValueError("minimum streaming length must be positive.")
+        if minimum_streaming_chars > maximum_segment_chars:
+            raise ValueError(
+                "minimum streaming length cannot exceed the maximum segment."
+            )
         if clause_release_chars < 8:
             raise ValueError("clause release length cannot be less than 8.")
         if maximum_segment_chars < minimum_clause_chars:
@@ -49,6 +56,7 @@ class StableResponseSegmenter:
             )
 
         self._response_id = response_id
+        self._minimum_streaming_chars = minimum_streaming_chars
         self._minimum_clause_chars = minimum_clause_chars
         self._clause_release_chars = clause_release_chars
         self._maximum_segment_chars = maximum_segment_chars
@@ -94,10 +102,24 @@ class StableResponseSegmenter:
     def _next_stable_boundary(self) -> int | None:
         sentence_boundaries = _sentence_boundaries(self._buffer)
         if sentence_boundaries:
-            first = sentence_boundaries[0]
-            if self._buffer[first:].strip():
-                return first
-            return None
+            releasable = tuple(
+                boundary
+                for boundary in sentence_boundaries
+                if self._buffer[boundary:].strip()
+            )
+            preferred = tuple(
+                boundary
+                for boundary in releasable
+                if self._minimum_streaming_chars
+                <= boundary
+                <= self._maximum_segment_chars
+            )
+            if preferred:
+                return preferred[0]
+            if len(self._buffer) <= (
+                self._maximum_segment_chars + self._clause_release_chars
+            ):
+                return None
 
         clause_boundary = _conservative_clause_boundary(
             self._buffer,

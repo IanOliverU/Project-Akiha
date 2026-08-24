@@ -156,8 +156,9 @@ class GptSoVitsProvider:
 
     def _synthesize_sync(self, request: SpeechSynthesisRequest) -> SynthesizedAudio:
         language = _normalize_language(request.language)
+        speech_text = " ".join(request.text.split())
         payload: dict[str, Any] = {
-            "text": request.text,
+            "text": speech_text,
             "text_lang": language,
             "ref_audio_path": str(self._reference_audio_path),
             "prompt_text": self._prompt_text,
@@ -166,7 +167,7 @@ class GptSoVitsProvider:
             "top_p": self._top_p,
             "temperature": self._temperature,
             "speed_factor": request.speaking_rate,
-            "seed": _stable_seed(request.text),
+            "seed": _stable_seed(speech_text),
             "media_type": "wav",
             "streaming_mode": False,
             "parallel_infer": True,
