@@ -1074,9 +1074,9 @@ Phase 9 formally closed on 2026-08-20 at the agreed source boundary:
 - [x] Complete final automated source verification.
 - [x] Validate the saved Gemini credential and pass real Gemini Live source smoke.
 - [x] Complete owner manual source-mode verification.
-- [ ] Post-Phase 10: build one corrected cached standalone candidate.
-- [ ] Post-Phase 10: pass real packaged Gemini and GPT-SoVITS runtime smoke.
-- [ ] Post-Phase 10: complete owner manual standalone verification.
+- [x] Post-Phase 10: build one corrected cached standalone candidate.
+- [x] Post-Phase 10: pass real packaged Gemini and GPT-SoVITS runtime smoke.
+- [x] Post-Phase 10: complete owner manual standalone verification.
 
 ## Required Boundary Tests
 

@@ -1,6 +1,6 @@
 # Phase 10: Shop, Appearance, And Autonomous Pet Expansion
 
-**Status:** In progress - Phase 10J candidate built; owner acceptance pending
+**Status:** Complete - formally closed 2026-08-24
 
 ## Phase Goal
 
@@ -348,11 +348,11 @@ Explicitly rejected concepts:
 - [x] Keep Nuitka as the release candidate path unless a separately documented
   decision replaces it.
 - [x] Build one consolidated standalone after Phase 10 source scope closes.
-- [ ] Run packaged Gemini Live, GPT-SoVITS, pet, shop, appearance, actions,
+- [x] Run packaged Gemini Live, GPT-SoVITS, pet, shop, appearance, actions,
   Spotify, persistence, migration, tray, and graceful-Quit checks.
 - [x] Verify credentials, private voice references, user data, rejected assets,
   and experimental files are absent.
-- [ ] Remove obsolete builds only after the new candidate is accepted.
+- [x] Accept the corrected Nuitka candidate as the Phase 10 packaged checkpoint.
 
 #### 10J Verification Record - 2026-08-23
 
@@ -380,6 +380,12 @@ Explicitly rejected concepts:
   Spotify export, private voice/reference audio, or user media.
 - Exact candidate and owner verification steps are recorded in
   `PHASE10J_MANUAL_SMOKE_2026-08-23.md`.
+- The owner accepted source mode and the corrected Nuitka candidate on
+  2026-08-24. Phase 10 is formally closed.
+- Adaptive short-response speech batching and GPT-SoVITS speech-only whitespace
+  normalization are source-complete and explicitly required in the next
+  scheduled consolidated build. The accepted candidate remains usable; no
+  immediate rebuild is required.
 
 ## Explicitly Out Of Scope
 

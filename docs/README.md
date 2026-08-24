@@ -17,12 +17,11 @@ material is separated by purpose.
 | 7 - Voice | Complete | [`phases/phase-07-voice/`](phases/phase-07-voice/) |
 | 8 - Assistant Actions | Complete | [`phases/phase-08-actions/`](phases/phase-08-actions/) |
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
+| 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
-## Active Phase
-
-| Phase | Status | Documentation |
-| --- | --- | --- |
-| 10 - Shop And Visual Expansion | 10J candidate built; owner acceptance pending | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
+There is no active numbered phase. The next scheduled consolidated build must
+include the accumulated source-only speech-batching improvements recorded in
+the Phase 10J manual smoke report.
 
 ## Current Roadmap
 

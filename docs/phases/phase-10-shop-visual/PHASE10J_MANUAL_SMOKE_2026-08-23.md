@@ -1,6 +1,6 @@
 # Phase 10J Manual Standalone Smoke
 
-**Status:** Pending owner acceptance  
+**Status:** Passed - Phase 10 formally closed 2026-08-24
 **Candidate:** `dist\nuitka-development\main.dist\Akiha.exe`  
 **Built:** 2026-08-23 with Python 3.13.14, Nuitka 4.1.3, and Zig 0.16.0
 
@@ -24,46 +24,57 @@ were synthesized independently, allowing playback to outrun GPT-SoVITS and
 pause between queued segments. Source mode now batches short replies into one
 speech derivative, preserves segmentation for longer replies, and collapses
 paragraph whitespace only for synthesis. Canonical chat and persisted text are
-unchanged. This source correction requires owner acceptance before the next
-cached candidate build.
+unchanged. The owner accepted the source behavior on 2026-08-24. This source
+correction must be included in the next scheduled consolidated build; it does
+not require an immediate rebuild of the already accepted candidate.
 
 ## Required Setup
 
-- [ ] Open Settings, re-enter the Gemini API key, and save it so Windows DPAPI
+- [x] Open Settings, re-enter the Gemini API key, and save it so Windows DPAPI
   replaces the currently undecryptable credential.
-- [ ] Keep the external GPT-SoVITS runtime/reference directory available at the
+- [x] Keep the external GPT-SoVITS runtime/reference directory available at the
   configured location. It is intentionally not bundled into Akiha.
 
 ## Manual Acceptance
 
-- [ ] Start `Akiha.exe`; confirm there is no console and the pet is visible,
+- [x] Start `Akiha.exe`; confirm there is no console and the pet is visible,
   sharp, draggable, and responsive.
-- [ ] Confirm tray Show/Hide, Chat, Settings, Memories, Behavior History,
+- [x] Confirm tray Show/Hide, Chat, Settings, Memories, Behavior History,
   Assistant Actions, Status, Shop, and Quit work.
-- [ ] Confirm Seifuku remains selected and unavailable Dress/Vermillion sets
+- [x] Confirm Seifuku remains selected and unavailable Dress/Vermillion sets
   fail closed without changing the canonical sprite.
-- [ ] Confirm Status displays current level, XP, currency, mood, care state,
+- [x] Confirm Status displays current level, XP, currency, mood, care state,
   activity, and appearance without exposing secrets or filesystem data.
-- [ ] Confirm feed, rest, and interact actions update pet state; cooldown and
+- [x] Confirm feed, rest, and interact actions update pet state; cooldown and
   anti-farming behavior remain enforced.
-- [ ] Confirm the trusted Shop lists products, purchases atomically, preserves
+- [x] Confirm the trusted Shop lists products, purchases atomically, preserves
   non-negative currency, and survives restart.
-- [ ] Confirm autonomous idle/walk/sleep behavior does not block dragging,
+- [x] Confirm autonomous idle/walk/sleep behavior does not block dragging,
   voice, care actions, or assistant actions.
-- [ ] Confirm Local Modular conversation hears multiple turns and GPT-SoVITS
+- [x] Confirm Local Modular conversation hears multiple turns and GPT-SoVITS
   speaks without synthesis errors.
-- [ ] Confirm Gemini Live starts, transcribes, speaks, accepts interruption,
+- [x] Confirm Gemini Live starts, transcribes, speaks, accepts interruption,
   returns to listening, and does not silently fall back to Local Modular.
-- [ ] Confirm approved applications, directories, nested directories, and local
+- [x] Confirm approved applications, directories, nested directories, and local
   passive media still open; denied targets remain denied and audited.
-- [ ] Confirm Spotify search, numbered results, playback, current-track lookup,
+- [x] Confirm Spotify search, numbered results, playback, current-track lookup,
   volume, shuffle, seek, playlist, artist page, pause/resume, and next/previous.
-- [ ] Move Akiha, quit from the tray, relaunch, and confirm position plus Phase
+- [x] Move Akiha, quit from the tray, relaunch, and confirm position plus Phase
   10 pet/shop/appearance state persists.
-- [ ] Inspect `%LOCALAPPDATA%\Akiha\logs\app.log` for unexpected tracebacks or
+- [x] Inspect `%LOCALAPPDATA%\Akiha\logs\app.log` for unexpected tracebacks or
   provider errors after the run.
 
 ## Closure
 
-Phase 10 closes only after every item above passes. Obsolete package folders
-remain untouched until this candidate is accepted.
+Every required item passed and the owner accepted both source mode and the
+corrected Nuitka candidate. Phase 10 formally closed on 2026-08-24. Obsolete
+package cleanup remains a separate maintenance action and is not required to
+preserve this acceptance record.
+
+## Next Consolidated Build Requirement
+
+The next scheduled consolidated package must be built from the current source
+tree so it includes adaptive short-response speech batching and GPT-SoVITS
+speech-only whitespace normalization. Until then, the accepted
+`dist\nuitka-development\main.dist` candidate remains the working packaged
+checkpoint. Do not rebuild solely for these optimizations.
