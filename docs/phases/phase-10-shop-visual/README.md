@@ -373,9 +373,8 @@ Explicitly rejected concepts:
   added after Nuitka ignored its metadata-only option.
 - Both packaged candidates load the Gemini SDK. Both pass real GPT-SoVITS
   health and in-memory synthesis against the external local runtime.
-- The live Gemini network check remains blocked because the currently saved
-  DPAPI credential cannot be decrypted in source or packaged mode. This is not
-  a package dependency failure; the owner must re-save the Gemini key.
+- The 2026-08-24 consolidated package passed the real Gemini Live connection
+  check and GPT-SoVITS health and synthesis checks.
 - Recursive artifact inspection found no credentials, SQLite databases,
   Spotify export, private voice/reference audio, or user media.
 - Exact candidate and owner verification steps are recorded in
@@ -383,9 +382,10 @@ Explicitly rejected concepts:
 - The owner accepted source mode and the corrected Nuitka candidate on
   2026-08-24. Phase 10 is formally closed.
 - Adaptive short-response speech batching and GPT-SoVITS speech-only whitespace
-  normalization are source-complete and explicitly required in the next
-  scheduled consolidated build. The accepted candidate remains usable; no
-  immediate rebuild is required.
+  normalization are included in the accepted 2026-08-24 consolidated
+  `dist/nuitka-development/main.dist` candidate.
+- The owner completed final manual acceptance of that consolidated candidate on
+  2026-08-25 and reported no blocking packaged issues.
 
 ## Explicitly Out Of Scope
 

@@ -19,9 +19,9 @@ material is separated by purpose.
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 | 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
-There is no active numbered phase. The next scheduled consolidated build must
-include the accumulated source-only speech-batching improvements recorded in
-the Phase 10J manual smoke report.
+There is no active numbered phase. The scheduled consolidated FastBuild was
+completed on 2026-08-24 and includes the accumulated speech-batching
+improvements recorded in the Phase 10J manual smoke report.
 
 ## Current Roadmap
 

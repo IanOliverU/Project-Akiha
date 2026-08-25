@@ -380,10 +380,10 @@ behavior. The activity controller uses typed local state and remains
 independent from dialogue and AI providers. The canonical Akiha sprite remains
 immutable; Dress and Vermillion stay unavailable until their complete asset
 sets pass validation and owner visual approval. Phase 10 formally closed on
-2026-08-24 after source and packaged owner acceptance. The next scheduled
-consolidated build will include the accumulated source-only speech-batching
-improvements; the accepted Nuitka candidate remains the current packaged
-checkpoint until then.
+2026-08-24 after source and packaged owner acceptance. The scheduled
+consolidated FastBuild completed the same day and now includes the accumulated
+speech-batching and GPT-SoVITS synthesis-normalization improvements in the
+accepted `dist/nuitka-development/main.dist` candidate.
 
 ## Architecture
 

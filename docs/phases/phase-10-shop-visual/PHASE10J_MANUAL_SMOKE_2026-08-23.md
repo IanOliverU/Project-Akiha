@@ -24,9 +24,8 @@ were synthesized independently, allowing playback to outrun GPT-SoVITS and
 pause between queued segments. Source mode now batches short replies into one
 speech derivative, preserves segmentation for longer replies, and collapses
 paragraph whitespace only for synthesis. Canonical chat and persisted text are
-unchanged. The owner accepted the source behavior on 2026-08-24. This source
-correction must be included in the next scheduled consolidated build; it does
-not require an immediate rebuild of the already accepted candidate.
+unchanged. The owner accepted the source behavior on 2026-08-24. The scheduled
+consolidated FastBuild completed later that day and includes this correction.
 
 ## Required Setup
 
@@ -71,10 +70,14 @@ corrected Nuitka candidate. Phase 10 formally closed on 2026-08-24. Obsolete
 package cleanup remains a separate maintenance action and is not required to
 preserve this acceptance record.
 
-## Next Consolidated Build Requirement
+## Consolidated Build Completion
 
-The next scheduled consolidated package must be built from the current source
-tree so it includes adaptive short-response speech batching and GPT-SoVITS
-speech-only whitespace normalization. Until then, the accepted
-`dist\nuitka-development\main.dist` candidate remains the working packaged
-checkpoint. Do not rebuild solely for these optimizations.
+The scheduled consolidated FastBuild completed on 2026-08-24 from the current
+source tree. It includes adaptive short-response speech batching and GPT-SoVITS
+speech-only whitespace normalization. Static artifact checks, isolated fresh-
+and existing-data startup checks, the Gemini Live connection check, and real
+GPT-SoVITS health and synthesis checks passed. The accepted candidate is
+`dist\nuitka-development\main.dist`.
+
+The owner completed the final manual smoke test of this consolidated candidate
+on 2026-08-25 and confirmed that the packaged application works as expected.
