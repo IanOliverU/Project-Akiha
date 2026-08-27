@@ -37,6 +37,28 @@ class EventLogger:
 
 
 def _privacy_safe_payload(event: Event) -> dict[str, object]:
+    if event.event_type == EventType.EXTERNAL_EVENT_ACCEPTED:
+        return _external_event_audit_payload(event.payload)
+    if event.event_type in {
+        EventType.PROACTIVE_SUGGESTION_READY,
+        EventType.PROACTIVE_SUGGESTION_DELIVERED,
+    } and _is_external_notification(event.payload):
+        payload = {
+            key: event.payload[key]
+            for key in (
+                "kind",
+                "urgency",
+                "created_at",
+                "source",
+                "delivered",
+                "channel",
+                "reason",
+            )
+            if key in event.payload
+        }
+        message = event.payload.get("message")
+        payload["message_present"] = isinstance(message, str) and bool(message.strip())
+        return payload
     if event.event_type == EventType.VOICE_SPEAK_REQUESTED:
         text = event.payload.get("text")
         payload: dict[str, object] = {
@@ -62,3 +84,22 @@ def _privacy_safe_payload(event: Event) -> dict[str, object]:
             payload["requires_review"] = True
         return payload
     return event.payload
+
+
+def _is_external_notification(payload: dict[str, object]) -> bool:
+    kind = payload.get("kind")
+    return isinstance(kind, str) and kind.startswith("external.")
+
+
+def _external_event_audit_payload(payload: dict[str, object]) -> dict[str, object]:
+    allowed = {
+        "service",
+        "kind",
+        "classification",
+        "priority",
+        "sender_present",
+        "subject_present",
+        "context_present",
+        "occurred_at",
+    }
+    return {key: payload[key] for key in allowed if key in payload}

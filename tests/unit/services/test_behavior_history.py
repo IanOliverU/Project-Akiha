@@ -120,6 +120,24 @@ class BehaviorHistoryRecorderTest(unittest.TestCase):
         self.assertEqual(repository.records[0].kind, "pet_activity_wander_started")
         self.assertNotIn("dialogue", repository.records[0].payload)
 
+    def test_redacts_external_notification_text_from_history(self) -> None:
+        bus = EventBus()
+        repository = _RecordingRepository()
+        BehaviorHistoryRecorder(bus, repository)
+
+        bus.publish(
+            EventType.PROACTIVE_SUGGESTION_READY,
+            {
+                "kind": "external.gmail.new_message",
+                "message": "Private rendered notification.",
+                "urgency": "normal",
+            },
+        )
+
+        payload = repository.records[0].payload
+        self.assertNotIn("message", payload)
+        self.assertTrue(payload["message_present"])
+
     def test_logs_repository_failures(self) -> None:
         bus = EventBus()
         repository = _FailingRepository()

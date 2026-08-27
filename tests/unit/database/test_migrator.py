@@ -60,6 +60,8 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("shop_inventory", table_names)
         self.assertIn("shop_equipment", table_names)
         self.assertIn("pet_appearance_selection", table_names)
+        self.assertIn("external_event_receipts", table_names)
+        self.assertIn("integration_sync_state", table_names)
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
         self.assertIn("embedding_json", memory_columns)
@@ -79,8 +81,51 @@ class DatabaseMigratorTest(unittest.TestCase):
                 (10,),
                 (11,),
                 (12,),
+                (13,),
             ],
         )
+
+    def test_applies_external_integration_migration_to_existing_database(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations_dir = root / "migrations"
+            migrations_dir.mkdir()
+            project_root = Path(__file__).resolve().parents[3]
+            source_dir = project_root / "project_akiha" / "database" / "migrations"
+            for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
+                if source.name.startswith("0013_"):
+                    continue
+                shutil.copy2(source, migrations_dir / source.name)
+
+            database_path = root / "akiha.sqlite3"
+            migrator = DatabaseMigrator(
+                database_path,
+                migrations_dir=migrations_dir,
+            )
+            migrator.apply_pending()
+            shutil.copy2(
+                source_dir / "0013_external_integrations.sql",
+                migrations_dir / "0013_external_integrations.sql",
+            )
+            migrator.apply_pending()
+
+            connection = sqlite3.connect(database_path)
+            try:
+                versions = connection.execute(
+                    "SELECT version FROM schema_version ORDER BY version"
+                ).fetchall()
+                tables = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            finally:
+                connection.close()
+
+        self.assertEqual(versions, [(version,) for version in range(1, 14)])
+        self.assertIn("external_event_receipts", tables)
+        self.assertIn("integration_sync_state", tables)
 
     def test_applies_assistant_action_migration_to_existing_database(self) -> None:
         with TemporaryDirectory() as directory:
@@ -218,7 +263,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             project_root = Path(__file__).resolve().parents[3]
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
-                if source.name.startswith(("0011_", "0012_")):
+                if source.name.startswith(("0011_", "0012_", "0013_")):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)
 

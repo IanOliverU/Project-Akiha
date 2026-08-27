@@ -37,6 +37,8 @@ class EventType(StrEnum):
     USER_ACTIVITY_STATE_CHANGED = "activity.state_changed"
     PROACTIVE_SUGGESTION_READY = "proactive.suggestion_ready"
     PROACTIVE_SUGGESTION_DELIVERED = "proactive.suggestion_delivered"
+    EXTERNAL_EVENT_ACCEPTED = "external.event_accepted"
+    EXTERNAL_INTEGRATION_HEALTH_CHANGED = "external.integration_health_changed"
     MOOD_STATE_CHANGED = "mood.state_changed"
     VOICE_LISTEN_REQUESTED = "voice.listen_requested"
     VOICE_LISTEN_STOP_REQUESTED = "voice.listen_stop_requested"

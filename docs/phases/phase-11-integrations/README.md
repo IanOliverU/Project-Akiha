@@ -1,7 +1,7 @@
 # Phase 11: External Communication Integrations
 
-**Status:** Architecture proposed on 2026-08-27; implementation awaiting owner
-approval
+**Status:** In progress - Phase 11A integration foundation completed on
+2026-08-27; Phase 11B Gmail read-only integration is next
 
 ## Purpose
 
@@ -78,7 +78,7 @@ Official external API
 `ExternalEvent`
 
 - Immutable typed envelope containing service, external ID, event kind,
-  timestamp, bounded sender display metadata, classification, and confidence.
+  timestamp, bounded sender display metadata, classification, and priority.
 - Does not contain raw bodies, attachments, OAuth data, browser data, or
   arbitrary provider JSON.
 
@@ -94,11 +94,12 @@ Official external API
 
 `IntegrationNotificationCoordinator`
 
-- Applies per-service preferences, priority mapping, coalescing, expiry, and the
-  existing global notification policy.
+- Validates and atomically claims candidates before application-thread handoff.
+- Maps priority into the existing global notification policy.
 - Publishes only a trusted bounded proactive delivery request.
-- Maintains a small queue when Akiha is already speaking; it does not create a
-  second voice or presentation controller.
+- Per-service preferences, coalescing, expiry, and busy-voice handling remain
+  Phase 11D work; they will not create a second voice or presentation
+  controller.
 
 `ExternalNotificationRenderer`
 
@@ -277,25 +278,21 @@ tables:
 `external_event_receipts`
 
 - `service`
-- `external_id`
+- SHA-256 `external_id_hash`
 - `event_kind`
-- bounded sender display value or sender hash, according to the final privacy
-  setting
 - `occurred_at`
 - `classification`
 - `priority`
 - `notification_status`
 - `notified_at`
 - `created_at`
-- unique key on `(service, external_id)`
+- unique key on `(service, external_id_hash)`
 
 `integration_sync_state`
 
-- service and local account key
+- service and SHA-256 local account-key hash
 - provider cursor/history ID
 - last successful check
-- last privacy-safe health code
-- backoff state
 
 No body, snippet, attachment, conversation history, token, or arbitrary provider
 response is persisted. Retention is bounded and user-clearable. Disconnecting
@@ -406,11 +403,18 @@ directly from their network worker thread.
 - [x] Audit existing event, proactive delivery, credential, settings,
   persistence, voice, and presentation boundaries.
 - [x] Verify current official Gmail and Discord integration options.
-- [ ] Add provider-neutral external event models and provider lifecycle protocol.
-- [ ] Add privacy validation and explicit `EventLogger` redaction before event
+- [x] Add provider-neutral external event models and provider lifecycle protocol.
+- [x] Add privacy validation and explicit `EventLogger` redaction before event
   publication.
-- [ ] Add the integration coordinator and Qt-thread handoff.
-- [ ] Add focused foundation tests.
+- [x] Add the integration coordinator and application-thread handoff boundary.
+- [x] Add migration `0013` with hashed deduplication receipts and bounded sync
+  cursors only.
+- [x] Add focused foundation tests.
+
+Phase 11A intentionally does not start a provider. The coordinator accepts only
+validated typed events, claims their hashed receipt before scheduling work onto
+the application thread, and publishes an allowlisted event envelope. External
+notification text is redacted from both diagnostics and behavior history.
 
 ### 11B: Gmail read-only integration
 
@@ -435,7 +439,8 @@ directly from their network worker thread.
 
 - [ ] Add per-event preferences, priority mapping, cooldowns, coalescing, and
   expiry.
-- [ ] Add stable-ID deduplication and minimal receipt persistence.
+- [x] Add stable-ID deduplication and minimal receipt persistence in the shared
+  Phase 11A foundation.
 - [ ] Add centralized uncertainty-aware Akiha notification wording.
 - [ ] Reuse existing chat/tray delivery and GPT-SoVITS speech arbitration.
 - [ ] Reuse only existing presentation cues; add no artwork.
@@ -449,7 +454,8 @@ directly from their network worker thread.
 
 ### 11F: Security, privacy, deduplication, and failure verification
 
-- [ ] Add migration `0013` and fresh/existing-data tests.
+- [ ] Re-verify migration `0013` with fresh/existing data and provider failure
+  scenarios.
 - [ ] Verify no body, attachment, secret, raw response, or private URL is logged
   or persisted.
 - [ ] Verify external content cannot enter memory, pet state, assistant actions,
@@ -480,11 +486,11 @@ directly from their network worker thread.
 - Single-instance, GPT-SoVITS recovery, weather, reminders, backup/export, and
   broader assistant improvements unless a direct Phase 11 dependency is found.
 
-## Approval Gate
+## Approval Record
 
-No Phase 11 runtime implementation begins until the owner approves this
-architecture, including the Discord feasibility gate and the Gmail
-metadata-only polling decision.
+The owner approved this architecture on 2026-08-27. Phase 11A is complete.
+Implementation proceeds sequentially; the Discord feasibility gate remains
+mandatory before selecting a Phase 11C transport.
 
 ## Official References
 

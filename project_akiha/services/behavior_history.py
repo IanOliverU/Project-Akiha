@@ -57,7 +57,7 @@ class BehaviorHistoryRecorder:
             asyncio.run(
                 self._repository.record_event(
                     event_type=event.event_type.value,
-                    payload=dict(event.payload),
+                    payload=_privacy_safe_behavior_payload(event),
                     kind=_payload_kind(event.payload),
                 )
             )
@@ -73,3 +73,20 @@ def _payload_kind(payload: dict[str, object]) -> str | None:
     if isinstance(kind, str) and kind.strip():
         return kind
     return None
+
+
+def _privacy_safe_behavior_payload(event: Event) -> dict[str, object]:
+    payload = dict(event.payload)
+    kind = payload.get("kind")
+    if (
+        event.event_type
+        in {
+            EventType.PROACTIVE_SUGGESTION_READY,
+            EventType.PROACTIVE_SUGGESTION_DELIVERED,
+        }
+        and isinstance(kind, str)
+        and kind.startswith("external.")
+    ):
+        message = payload.pop("message", None)
+        payload["message_present"] = isinstance(message, str) and bool(message.strip())
+    return payload

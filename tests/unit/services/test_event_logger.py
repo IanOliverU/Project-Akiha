@@ -71,6 +71,51 @@ class EventLoggerTest(unittest.TestCase):
         self.assertNotIn("Private interim words.", repr(logged_arguments))
         self.assertIn("text_present", repr(logged_arguments))
 
+    def test_external_event_payload_uses_strict_allowlist(self) -> None:
+        bus = EventBus()
+        logger = Mock(spec=logging.Logger)
+        EventLogger(bus, logger)
+
+        bus.publish(
+            EventType.EXTERNAL_EVENT_ACCEPTED,
+            {
+                "service": "gmail",
+                "kind": "gmail.new_message",
+                "classification": "general",
+                "priority": "normal",
+                "sender_present": True,
+                "subject_present": True,
+                "context_present": False,
+                "occurred_at": "2026-08-27T12:00:00+00:00",
+                "body": "Private email body.",
+                "refresh_token": "private-token",
+            },
+        )
+
+        logged_arguments = repr(logger.info.call_args.args)
+        self.assertNotIn("Private email body.", logged_arguments)
+        self.assertNotIn("private-token", logged_arguments)
+        self.assertIn("gmail.new_message", logged_arguments)
+
+    def test_external_notification_message_is_redacted(self) -> None:
+        bus = EventBus()
+        logger = Mock(spec=logging.Logger)
+        EventLogger(bus, logger)
+
+        bus.publish(
+            EventType.PROACTIVE_SUGGESTION_READY,
+            {
+                "kind": "external.gmail.new_message",
+                "message": "Private rendered notification.",
+                "urgency": "normal",
+                "source": "external_integration",
+            },
+        )
+
+        logged_arguments = repr(logger.info.call_args.args)
+        self.assertNotIn("Private rendered notification.", logged_arguments)
+        self.assertIn("message_present", logged_arguments)
+
 
 if __name__ == "__main__":
     unittest.main()

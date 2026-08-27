@@ -19,15 +19,17 @@ material is separated by purpose.
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 | 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
-## Proposed Phase
+## Active Phase
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 11 - External Integrations | Architecture proposed; awaiting approval | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
+| 11 - External Integrations | In progress; 11A foundation complete | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
 
-Phase 11 implementation has not started. Its architecture review preserves the
-read-only, optional, privacy-conscious boundaries requested for Gmail and
-Discord. Animation artwork work is paused without removing its infrastructure.
+Phase 11A established typed provider-neutral events, fail-closed validation,
+hashed SQLite deduplication receipts, bounded synchronization cursors, explicit
+event-log redaction, and reuse of the existing proactive notification policy.
+Phase 11B adds the optional Gmail metadata-only provider. Animation artwork work
+remains paused without removing its infrastructure.
 
 ## Current Roadmap
 
