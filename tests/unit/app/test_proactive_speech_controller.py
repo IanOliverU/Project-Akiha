@@ -44,6 +44,24 @@ class ProactiveSpeechControllerTest(unittest.TestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0].payload["source"], "proactive_suggestion")
 
+    def test_external_notice_uses_validated_rendered_message(self) -> None:
+        bus, requests = _speech_bus()
+        ProactiveSpeechController(bus, _assistant_speech(bus))
+
+        bus.publish(
+            EventType.PROACTIVE_SUGGESTION_DELIVERED,
+            _delivery_payload(
+                kind="external.gmail.interview_candidate",
+                message="Ian-sama, an interview email appears to have arrived.",
+            ),
+        )
+
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(
+            requests[0].payload["text"],
+            "Ian-sama, an interview email appears to have arrived.",
+        )
+
     def test_failed_or_unknown_delivery_is_not_spoken(self) -> None:
         for payload in (
             _delivery_payload(delivered=False),
@@ -161,11 +179,12 @@ def _delivery_payload(
     *,
     delivered: bool = True,
     kind: str = "idle_check_in",
+    message: str = "Need a short break?",
 ) -> dict[str, object]:
     return {
         "kind": kind,
         "delivered": delivered,
-        "message": "Need a short break?",
+        "message": message,
         "urgency": "low",
         "created_at": _at(12, 0).isoformat(),
         "channel": "chat_notice",

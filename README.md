@@ -111,7 +111,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
-| Phase 11 | In progress | Read-only Gmail and officially supported Discord awareness; shared privacy-safe foundation complete |
+| Phase 11 | Manual acceptance | Read-only Gmail metadata and official Discord Bot Gateway awareness; implementation/package gates complete |
 
 ## Tech Stack
 
@@ -386,6 +386,30 @@ consolidated FastBuild completed the same day and now includes the accumulated
 speech-batching and GPT-SoVITS synthesis-normalization improvements in the
 accepted `dist/nuitka-development/main.dist` candidate.
 
+### Phase 11: External Communication Awareness
+
+Add optional, read-only awareness of external communication without granting
+Akiha autonomous account control.
+
+- Gmail uses Desktop OAuth with PKCE, the metadata-only scope, a DPAPI-encrypted
+  refresh token, incremental history polling, and deterministic local
+  classification.
+- Discord uses the official Bot Gateway for DMs sent to the bot, bot mentions,
+  and explicitly authorized channels. It does not monitor a normal user's
+  private DMs, friends list, or friend requests.
+- Both providers cross a strict validation/redaction boundary before entering
+  the existing event bus, proactive policy, chat/tray delivery, and GPT-SoVITS
+  speech path.
+- Raw message bodies, attachments, provider responses, tokens, and OAuth
+  credentials are not persisted or sent to an LLM.
+- Migration `0013` stores only hashed deduplication receipts and bounded sync
+  cursors.
+
+Phase 11A-11F are implemented and the source/package quality gates pass. Final
+closure waits for owner-controlled Gmail OAuth and Discord bot smoke checks.
+
+Details: `docs/phases/phase-11-integrations/README.md`
+
 ## Architecture
 
 Akiha follows a layered, event-driven structure:
@@ -443,6 +467,13 @@ For optional local speech recognition, use Python 3.13:
 .\.venv313\Scripts\python.exe -m pip install -e ".[voice]"
 ```
 
+For the optional Discord Bot Gateway integration, install the integrations
+extra. Gmail uses the standard-library HTTP transport:
+
+```powershell
+.\.venv313\Scripts\python.exe -m pip install -e ".[integrations]"
+```
+
 Start Akiha:
 
 ```powershell
@@ -476,7 +507,7 @@ same artifact/privacy validation without compiling the dependency graph to C:
 
 ```powershell
 py -3.13 -m venv .venv313
-.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live]"
+.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live,integrations]"
 .\scripts\build_akiha_pyinstaller.ps1
 ```
 

@@ -23,13 +23,15 @@ material is separated by purpose.
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 11 - External Integrations | In progress; 11A foundation complete | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
+| 11 - External Integrations | Implementation complete; real-account manual acceptance pending | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
 
-Phase 11A established typed provider-neutral events, fail-closed validation,
-hashed SQLite deduplication receipts, bounded synchronization cursors, explicit
-event-log redaction, and reuse of the existing proactive notification policy.
-Phase 11B adds the optional Gmail metadata-only provider. Animation artwork work
-remains paused without removing its infrastructure.
+Phase 11A-11F now provide typed provider-neutral events, fail-closed validation,
+hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
+official Discord Bot Gateway adapter, proactive delivery through the existing
+voice/presentation system, and privacy-safe Settings diagnostics. The automated
+and packaged gates pass; Phase 11G remains open for owner-controlled real Gmail
+and Discord account checks. Animation artwork work remains paused without
+removing its infrastructure.
 
 ## Current Roadmap
 

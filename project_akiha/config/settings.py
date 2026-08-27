@@ -23,6 +23,7 @@ HOSTED_AI_PROVIDERS = frozenset(
 AI_PROVIDERS = frozenset({"mock", "ollama", *HOSTED_AI_PROVIDERS})
 
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:43821/callback"
+GMAIL_REDIRECT_URI = "http://127.0.0.1:43822/callback"
 _SPOTIFY_CLIENT_ID_PATTERN = re.compile(r"[0-9a-fA-F]{32}\Z")
 
 
@@ -381,6 +382,115 @@ class SpotifyConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class GmailIntegrationConfig:
+    """Settings for optional metadata-only Gmail awareness."""
+
+    enabled: bool = False
+    client_id: str = ""
+    redirect_uri: str = GMAIL_REDIRECT_URI
+    poll_interval_seconds: int = 60
+    request_timeout_seconds: int = 15
+    notify_new_messages: bool = True
+    notify_important: bool = True
+    notify_interview: bool = True
+    notify_recruiter: bool = True
+    notify_work: bool = True
+    notify_personal: bool = False
+    notify_newsletter: bool = False
+    notify_promotional: bool = False
+
+    def __post_init__(self) -> None:
+        """Validate public desktop OAuth configuration."""
+        client_id = self.client_id.strip()
+        if client_id and (
+            len(client_id) > 256
+            or not client_id.endswith(".apps.googleusercontent.com")
+        ):
+            raise ValueError(
+                "integrations.gmail.client_id must be a Google Desktop OAuth "
+                "client ID."
+            )
+        if self.enabled and not client_id:
+            raise ValueError(
+                "integrations.gmail.client_id is required when Gmail is enabled."
+            )
+        if self.redirect_uri != GMAIL_REDIRECT_URI:
+            raise ValueError(
+                f"integrations.gmail.redirect_uri must be {GMAIL_REDIRECT_URI}."
+            )
+        if not 30 <= self.poll_interval_seconds <= 3600:
+            raise ValueError(
+                "integrations.gmail.poll_interval_seconds must be between 30 "
+                "and 3600."
+            )
+        if not 1 <= self.request_timeout_seconds <= 60:
+            raise ValueError(
+                "integrations.gmail.request_timeout_seconds must be between 1 "
+                "and 60."
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class DiscordIntegrationConfig:
+    """Settings for the constrained official Discord bot/Gateway mode."""
+
+    enabled: bool = False
+    mode: str = "bot_gateway"
+    notify_bot_direct_messages: bool = True
+    notify_mentions: bool = True
+    notify_authorized_channels: bool = False
+    authorized_channel_ids: tuple[str, ...] = ()
+    reconnect_max_seconds: int = 60
+
+    def __post_init__(self) -> None:
+        """Reject unsupported personal-account modes and invalid channel IDs."""
+        if self.mode != "bot_gateway":
+            raise ValueError(
+                "integrations.discord.mode must be 'bot_gateway'; self-bot "
+                "modes are unsupported."
+            )
+        normalized_ids = tuple(
+            dict.fromkeys(
+                value.strip() for value in self.authorized_channel_ids if value.strip()
+            )
+        )
+        if any(not value.isdecimal() or len(value) > 32 for value in normalized_ids):
+            raise ValueError(
+                "integrations.discord.authorized_channel_ids must contain "
+                "Discord snowflake IDs."
+            )
+        if not 5 <= self.reconnect_max_seconds <= 300:
+            raise ValueError(
+                "integrations.discord.reconnect_max_seconds must be between 5 "
+                "and 300."
+            )
+        object.__setattr__(self, "authorized_channel_ids", normalized_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalIntegrationsConfig:
+    """Shared external-awareness preferences and provider settings."""
+
+    visual_notifications_enabled: bool = True
+    voice_notifications_enabled: bool = True
+    event_expiry_seconds: int = 300
+    receipt_retention_days: int = 90
+    gmail: GmailIntegrationConfig = GmailIntegrationConfig()
+    discord: DiscordIntegrationConfig = DiscordIntegrationConfig()
+
+    def __post_init__(self) -> None:
+        """Validate shared external notification limits."""
+        if not 30 <= self.event_expiry_seconds <= 3600:
+            raise ValueError(
+                "integrations.event_expiry_seconds must be between 30 and 3600."
+            )
+        if not 1 <= self.receipt_retention_days <= 365:
+            raise ValueError(
+                "integrations.receipt_retention_days must be between 1 and 365."
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
@@ -392,6 +502,7 @@ class AppConfig:
     behavior: BehaviorConfig = BehaviorConfig()
     voice: VoiceConfig = VoiceConfig()
     spotify: SpotifyConfig = SpotifyConfig()
+    integrations: ExternalIntegrationsConfig = ExternalIntegrationsConfig()
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -424,6 +535,13 @@ class AppConfig:
     def with_spotify(self, spotify: SpotifyConfig) -> AppConfig:
         """Return a copy with updated Spotify integration settings."""
         return replace(self, spotify=spotify)
+
+    def with_integrations(
+        self,
+        integrations: ExternalIntegrationsConfig,
+    ) -> AppConfig:
+        """Return a copy with updated external integration settings."""
+        return replace(self, integrations=integrations)
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -478,6 +596,17 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(spotify_data, dict):
         raise ValueError("spotify config must be a TOML table.")
 
+    integrations_data = data.get("integrations", {})
+    if not isinstance(integrations_data, dict):
+        raise ValueError("integrations config must be a TOML table.")
+    integrations_data = dict(integrations_data)
+    gmail_data = integrations_data.pop("gmail", {})
+    discord_data = integrations_data.pop("discord", {})
+    if not isinstance(gmail_data, dict):
+        raise ValueError("integrations.gmail config must be a TOML table.")
+    if not isinstance(discord_data, dict):
+        raise ValueError("integrations.discord config must be a TOML table.")
+
     return AppConfig(
         pet_window=PetWindowConfig(**pet_window_data),
         ai=AIConfig(**ai_data),
@@ -487,6 +616,11 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         behavior=BehaviorConfig(**behavior_data),
         voice=VoiceConfig(**voice_data),
         spotify=SpotifyConfig(**spotify_data),
+        integrations=ExternalIntegrationsConfig(
+            **integrations_data,
+            gmail=GmailIntegrationConfig(**gmail_data),
+            discord=DiscordIntegrationConfig(**discord_data),
+        ),
     )
 
 

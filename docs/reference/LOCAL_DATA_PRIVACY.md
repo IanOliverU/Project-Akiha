@@ -308,6 +308,28 @@ narrow: it preserves shop ownership, transaction history, selected appearance,
 chat, memories, credentials, Spotify state, assistant permissions, and
 unrelated history.
 
+## Phase 11 External Integrations
+
+Gmail and Discord are optional and disabled until configured. Gmail requests
+only the `gmail.metadata` scope and polls bounded message metadata. Its access
+token remains in memory and its refresh token is protected by Windows DPAPI.
+The application may transiently inspect sender, subject, timestamp, and label
+metadata for deterministic local classification, but it does not request or
+persist message bodies, snippets, or attachments.
+
+Discord uses an official bot token protected by DPAPI. The Bot Gateway accepts
+DMs sent to the bot, mentions of the bot, and explicitly authorized channel
+events. Message content is discarded before the normalized event boundary.
+The integration cannot monitor a normal user's private DMs, friends list, or
+friend requests and does not use self-bots, browser cookies, or user tokens.
+
+SQLite stores only SHA-256 external-ID/account-key hashes, event kind,
+classification, priority, delivery status, timestamps, and provider sync
+cursors. Receipts have a configurable bounded retention period and can be
+cleared from Settings. External communication is not added to chat memory or
+sent to an LLM. Diagnostics use allowlisted service/status fields and omit
+sender data, subjects, channel names, raw responses, and credentials.
+
 ## Reset
 
 To reset all local Project Akiha data, quit the app first, then remove:
@@ -345,6 +367,10 @@ The notice explains:
 - optional provider classification of explicit app/media requests without
   local filesystem details
 - sanitized assistant-action audit history and prohibited action categories
+- optional Gmail metadata-only polling and encrypted OAuth refresh-token storage
+- optional official Discord Bot Gateway scope and encrypted bot-token storage
+- hashed external-event deduplication receipts, bounded retention, and local
+  clear controls
 
 Revisit and version the notice again before adding persistent or always-listening
 capture, sync, plugins, file-content ingestion, or broader local commands.
@@ -355,6 +381,7 @@ Release builds include application code, public default configuration, database
 migrations, UI assets, and required runtime libraries. They do not copy the
 user's `%LOCALAPPDATA%\Akiha\` directory. The artifact validator rejects
 environment files, common secret files, private Spotify exports, and SQLite
-database files anywhere in the standalone folder. Gemini credentials and
-Spotify refresh tokens remain in the current Windows user's DPAPI-protected
-local state and are never embedded in `Akiha.exe` or its adjacent data files.
+database files anywhere in the standalone folder. Gemini credentials,
+Spotify/Gmail refresh tokens, and Discord bot tokens remain in the current
+Windows user's DPAPI-protected local state and are never embedded in `Akiha.exe`
+or its adjacent data files.

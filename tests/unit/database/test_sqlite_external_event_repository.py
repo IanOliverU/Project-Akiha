@@ -129,6 +129,37 @@ class SQLiteExternalEventRepositoryTest(unittest.TestCase):
             "history-456",
         )
 
+    def test_prunes_old_receipts_and_clear_removes_only_selected_service(self) -> None:
+        old_event = _event()
+        discord_event = ExternalEvent(
+            service=ExternalService.DISCORD,
+            external_id="discord-message-1",
+            kind=ExternalEventKind.DISCORD_MENTION,
+            occurred_at=self.now,
+            classification=ExternalClassification.GENERAL,
+            priority=ExternalEventPriority.IMPORTANT,
+        )
+        self.repository.claim_event(
+            old_event,
+            received_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        self.repository.claim_event(discord_event, received_at=self.now)
+
+        removed = self.repository.prune_receipts(
+            older_than=datetime(2026, 8, 1, tzinfo=UTC)
+        )
+        self.repository.clear_service_data(ExternalService.DISCORD)
+
+        self.assertEqual(removed, 1)
+        connection = sqlite3.connect(self.database_path)
+        try:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM external_event_receipts"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(count, 0)
+
 
 def _event() -> ExternalEvent:
     return ExternalEvent(

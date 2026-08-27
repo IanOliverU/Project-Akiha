@@ -8,6 +8,7 @@ import os
 import sys
 import traceback
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
@@ -29,8 +30,12 @@ from project_akiha.app.conversation_runtime_router import (
     ConversationRuntimeLane,
     ConversationRuntimeRouter,
 )
+from project_akiha.app.external_integration_runtime import ExternalIntegrationRuntime
 from project_akiha.app.hosted_conversation_runtime import HostedConversationRuntime
 from project_akiha.app.hosted_live_chat_presenter import HostedLiveChatPresenter
+from project_akiha.app.integration_notification_coordinator import (
+    IntegrationNotificationCoordinator,
+)
 from project_akiha.app.live_audio_playback import NativeAudioPlaybackQueue
 from project_akiha.app.live_memory_controller import LiveMemoryProcessingController
 from project_akiha.app.live_transcript_controller import LiveTranscriptController
@@ -137,6 +142,13 @@ from project_akiha.core.behavior import (
 )
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
+from project_akiha.core.integrations import (
+    ExternalClassification,
+    ExternalEvent,
+    ExternalEventKind,
+    ExternalEventPriority,
+    ExternalService,
+)
 from project_akiha.core.memory import (
     ConversationSummarizer,
     HeuristicConversationSummarizer,
@@ -178,10 +190,14 @@ from project_akiha.database import (
     SQLiteAppearanceRepository,
     SQLiteBehaviorRepository,
     SQLiteConversationRepository,
+    SQLiteExternalEventRepository,
     SQLiteMemoryRepository,
     SQLitePetStateRepository,
     SQLiteShopRepository,
 )
+from project_akiha.integrations.discord import DiscordGatewayProvider
+from project_akiha.integrations.gmail import GmailApiClient, GmailIntegrationProvider
+from project_akiha.integrations.gmail.session import GmailSession
 from project_akiha.integrations.spotify.albums import (
     SpotifyAlbumSelectionStore,
     build_spotify_album_executors,
@@ -275,6 +291,10 @@ from project_akiha.services.ephemeral_action_context import (
     EphemeralSelectionReference,
 )
 from project_akiha.services.event_logger import EventLogger
+from project_akiha.services.external_event_validation import ExternalEventValidator
+from project_akiha.services.external_notification_renderer import (
+    ExternalNotificationRenderer,
+)
 from project_akiha.services.gpt_sovits_engine_manager import (
     GptSoVitsEngineManager,
 )
@@ -352,6 +372,7 @@ from project_akiha.ui.behavior_history_window import BehaviorHistoryWindow
 from project_akiha.ui.chat_window import ChatWindow
 from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
+from project_akiha.ui.integration_scheduler import QtAppThreadScheduler
 from project_akiha.ui.memory_window import MemoryWindow
 from project_akiha.ui.ollama_tool_worker import OllamaNativeToolThread
 from project_akiha.ui.pet_care_window import PetCareWindow
@@ -486,6 +507,50 @@ def _run_application() -> int:
     mood_controller = MoodController(event_bus, MoodEngine())
     presence_mapper = CompanionPresenceMapper()
     notification_policy = NotificationPolicy(config.behavior)
+    external_event_repository = SQLiteExternalEventRepository(paths.database_path)
+    integration_scheduler = QtAppThreadScheduler()
+    integration_notification_coordinator = IntegrationNotificationCoordinator(
+        event_bus=event_bus,
+        validator=ExternalEventValidator(),
+        repository=external_event_repository,
+        notification_policy=notification_policy,
+        renderer=ExternalNotificationRenderer(),
+        activity_provider=lambda: activity_controller.snapshot,
+        schedule_on_app_thread=integration_scheduler.schedule,
+        preference_provider=lambda: config.integrations,
+    )
+
+    def publish_integration_health(
+        service: ExternalService,
+        status: str,
+        checked_at: datetime,
+    ) -> None:
+        integration_notification_coordinator.publish_health(
+            service.value,
+            status,
+            checked_at,
+        )
+
+    gmail_session = GmailSession(config.integrations.gmail, credential_store)
+    gmail_provider = GmailIntegrationProvider(
+        config.integrations.gmail,
+        gmail_session,
+        GmailApiClient(
+            timeout_seconds=config.integrations.gmail.request_timeout_seconds
+        ),
+        external_event_repository,
+        on_health=publish_integration_health,
+    )
+    discord_provider = DiscordGatewayProvider(
+        config.integrations.discord,
+        credential_store,
+        on_health=publish_integration_health,
+    )
+    external_integration_runtime = ExternalIntegrationRuntime(
+        gmail_provider,
+        discord_provider,
+        integration_notification_coordinator.submit,
+    )
     proactive_controller = ProactiveController(
         event_bus,
         ProactiveSuggestionEngine(notification_policy),
@@ -970,6 +1035,7 @@ def _run_application() -> int:
         spotify_device_coordinator.apply_auto_launch(
             updated_config.spotify.auto_launch_desktop_app
         )
+        external_integration_runtime.apply_config(updated_config.integrations)
         assistant_tool_result_store.clear()
         provider_action_gateway.clear_local_results()
         ephemeral_action_context.clear()
@@ -1077,6 +1143,92 @@ def _run_application() -> int:
     )
     settings_window.voice_output_test_requested.connect(
         voice_diagnostics_controller.toggle_output_test
+    )
+
+    def refresh_external_integration(service: str) -> None:
+        try:
+            external_integration_runtime.refresh(ExternalService(service))
+        except (KeyError, ValueError):
+            logger.warning("Ignored invalid external integration refresh request.")
+
+    def restart_external_integrations() -> None:
+        external_integration_runtime.apply_config(config.integrations)
+
+    settings_window.integration_refresh_requested.connect(refresh_external_integration)
+
+    def test_external_integration_notification(service: str) -> None:
+        now = datetime.now().astimezone()
+        if service == ExternalService.GMAIL.value:
+            event = ExternalEvent(
+                service=ExternalService.GMAIL,
+                external_id=f"diagnostic-{uuid4().hex}",
+                kind=ExternalEventKind.GMAIL_IMPORTANT_MESSAGE,
+                occurred_at=now,
+                sender_display="Akiha diagnostic",
+                context_label="Synthetic test",
+                classification=ExternalClassification.IMPORTANT,
+                priority=ExternalEventPriority.IMPORTANT,
+            )
+        elif service == ExternalService.DISCORD.value:
+            event = ExternalEvent(
+                service=ExternalService.DISCORD,
+                external_id=f"diagnostic-{uuid4().hex}",
+                kind=ExternalEventKind.DISCORD_MENTION,
+                occurred_at=now,
+                sender_display="Akiha diagnostic",
+                context_label="Synthetic test",
+                classification=ExternalClassification.GENERAL,
+                priority=ExternalEventPriority.IMPORTANT,
+            )
+        else:
+            logger.warning("Ignored invalid external notification test request.")
+            return
+        integration_notification_coordinator.submit(event)
+
+    settings_window.integration_test_notification_requested.connect(
+        test_external_integration_notification
+    )
+
+    def clear_external_integration_data(service: str) -> None:
+        services = (
+            (ExternalService.GMAIL, ExternalService.DISCORD)
+            if service == "all"
+            else (ExternalService(service),)
+        )
+        for external_service in services:
+            external_event_repository.clear_service_data(external_service)
+        logger.info("Cleared local external integration receipts and cursors.")
+
+    settings_window.integration_local_data_clear_requested.connect(
+        clear_external_integration_data
+    )
+    settings_window.gmail_session_changed.connect(restart_external_integrations)
+    settings_window.discord_session_changed.connect(restart_external_integrations)
+
+    def show_external_integration_health(event: Event) -> None:
+        service = event.payload.get("service")
+        status = event.payload.get("status")
+        checked_at = event.payload.get("checked_at")
+        if isinstance(service, str) and isinstance(status, str):
+            settings_window.set_integration_health(
+                service,
+                status,
+                checked_at if isinstance(checked_at, str) else None,
+            )
+
+    def show_external_integration_event(event: Event) -> None:
+        service = event.payload.get("service")
+        occurred_at = event.payload.get("occurred_at")
+        if isinstance(service, str) and isinstance(occurred_at, str):
+            settings_window.set_integration_last_event(service, occurred_at)
+
+    event_bus.subscribe(
+        EventType.EXTERNAL_INTEGRATION_HEALTH_CHANGED,
+        show_external_integration_health,
+    )
+    event_bus.subscribe(
+        EventType.EXTERNAL_EVENT_ACCEPTED,
+        show_external_integration_event,
     )
 
     def cleanup_pet_maintenance_thread(thread: PetMaintenanceThread) -> None:
@@ -3283,6 +3435,10 @@ def _run_application() -> int:
         spotify_authorization_stopped = settings_window.cancel_spotify_authorization()
         if not spotify_authorization_stopped:
             logger.warning("Spotify authorization did not stop before shutdown.")
+        gmail_authorization_stopped = settings_window.cancel_gmail_authorization()
+        if not gmail_authorization_stopped:
+            logger.warning("Gmail authorization did not stop before shutdown.")
+        external_integration_runtime.stop()
         translations_stopped = assistant_translation_controller.cancel()
         if not translations_stopped:
             logger.warning("Assistant translation did not stop before shutdown.")
@@ -3324,7 +3480,8 @@ def _run_application() -> int:
             "voice_synthesis_stopped=%s, voice_playback_stopped=%s, "
             "voice_engine_stopped=%s, "
             "ai_discovery_stopped=%s, spotify_authorization_stopped=%s, "
-            "translations_stopped=%s, live_memory_stopped=%s.",
+            "gmail_authorization_stopped=%s, translations_stopped=%s, "
+            "live_memory_stopped=%s.",
             result.position_saved,
             result.timer_stopped,
             result.cancelled_threads,
@@ -3337,6 +3494,7 @@ def _run_application() -> int:
             result.voice_engine_stopped,
             ai_discovery_stopped,
             spotify_authorization_stopped,
+            gmail_authorization_stopped,
             translations_stopped,
             live_memory_stopped,
         )
@@ -3392,6 +3550,7 @@ def _run_application() -> int:
         event_bus=event_bus,
         speech_controller=assistant_speech_controller,
     )
+    external_integration_runtime.start()
 
     def cleanup_pet_runtime_thread(thread: PetRuntimeEvaluationThread) -> None:
         if thread in active_pet_runtime_threads:

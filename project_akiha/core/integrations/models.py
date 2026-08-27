@@ -30,10 +30,6 @@ class ExternalEventKind(StrEnum):
     DISCORD_BOT_DIRECT_MESSAGE = "discord.bot_direct_message"
     DISCORD_MENTION = "discord.mention"
     DISCORD_AUTHORIZED_CHANNEL_MESSAGE = "discord.authorized_channel_message"
-    DISCORD_RELATIONSHIP_CHANGED = "discord.relationship_changed"
-    DISCORD_FRIEND_REQUEST_CANDIDATE = "discord.friend_request_candidate"
-    DISCORD_FRIEND_DIRECT_MESSAGE = "discord.friend_direct_message"
-    DISCORD_UNKNOWN_DIRECT_MESSAGE = "discord.unknown_direct_message"
 
 
 class ExternalClassification(StrEnum):
@@ -136,3 +132,9 @@ class ExternalEventRepository(Protocol):
         synchronized_at: datetime,
     ) -> None:
         """Atomically store one bounded provider cursor."""
+
+    def prune_receipts(self, *, older_than: datetime) -> int:
+        """Delete expired deduplication receipts and return the removed count."""
+
+    def clear_service_data(self, service: ExternalService) -> None:
+        """Clear local receipts and cursors for one integration service."""

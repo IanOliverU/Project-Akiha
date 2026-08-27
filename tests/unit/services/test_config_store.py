@@ -10,6 +10,9 @@ from project_akiha.config import (
     AIConfig,
     AppConfig,
     BehaviorConfig,
+    DiscordIntegrationConfig,
+    ExternalIntegrationsConfig,
+    GmailIntegrationConfig,
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
@@ -113,10 +116,29 @@ class UserConfigStoreTest(unittest.TestCase):
                         auto_launch_desktop_app=False,
                         request_timeout_seconds=20,
                     ),
+                    integrations=ExternalIntegrationsConfig(
+                        visual_notifications_enabled=True,
+                        voice_notifications_enabled=False,
+                        event_expiry_seconds=600,
+                        receipt_retention_days=45,
+                        gmail=GmailIntegrationConfig(
+                            enabled=True,
+                            client_id="akiha.apps.googleusercontent.com",
+                            poll_interval_seconds=120,
+                            notify_promotional=True,
+                        ),
+                        discord=DiscordIntegrationConfig(
+                            enabled=True,
+                            notify_authorized_channels=True,
+                            authorized_channel_ids=("123", "456"),
+                            reconnect_max_seconds=30,
+                        ),
+                    ),
                 )
             )
 
             config = load_config(config_path)
+            persisted = config_path.read_text(encoding="utf-8")
 
         self.assertEqual(config.pet_window.width, 240)
         self.assertEqual(config.pet_window.height, 260)
@@ -191,6 +213,19 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertEqual(config.spotify.client_id, "a" * 32)
         self.assertFalse(config.spotify.auto_launch_desktop_app)
         self.assertEqual(config.spotify.request_timeout_seconds, 20)
+        self.assertFalse(config.integrations.voice_notifications_enabled)
+        self.assertEqual(config.integrations.event_expiry_seconds, 600)
+        self.assertEqual(config.integrations.receipt_retention_days, 45)
+        self.assertTrue(config.integrations.gmail.enabled)
+        self.assertEqual(config.integrations.gmail.poll_interval_seconds, 120)
+        self.assertTrue(config.integrations.gmail.notify_promotional)
+        self.assertTrue(config.integrations.discord.enabled)
+        self.assertEqual(
+            config.integrations.discord.authorized_channel_ids,
+            ("123", "456"),
+        )
+        self.assertNotIn("refresh_token", persisted)
+        self.assertNotIn("bot_token", persisted)
 
     def test_escapes_manifest_path_for_toml(self) -> None:
         with TemporaryDirectory() as directory:

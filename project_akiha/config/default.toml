@@ -83,3 +83,33 @@ client_id = ""
 redirect_uri = "http://127.0.0.1:43821/callback"
 auto_launch_desktop_app = true
 request_timeout_seconds = 15
+
+[integrations]
+visual_notifications_enabled = true
+voice_notifications_enabled = true
+event_expiry_seconds = 300
+receipt_retention_days = 90
+
+[integrations.gmail]
+enabled = false
+client_id = ""
+redirect_uri = "http://127.0.0.1:43822/callback"
+poll_interval_seconds = 60
+request_timeout_seconds = 15
+notify_new_messages = true
+notify_important = true
+notify_interview = true
+notify_recruiter = true
+notify_work = true
+notify_personal = false
+notify_newsletter = false
+notify_promotional = false
+
+[integrations.discord]
+enabled = false
+mode = "bot_gateway"
+notify_bot_direct_messages = true
+notify_mentions = true
+notify_authorized_channels = false
+authorized_channel_ids = []
+reconnect_max_seconds = 60

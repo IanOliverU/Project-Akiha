@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from project_akiha.config import PrivacyConfig
 
-CURRENT_PRIVACY_NOTICE_VERSION = 5
+CURRENT_PRIVACY_NOTICE_VERSION = 6
 CURRENT_HOSTED_LIVE_PRIVACY_NOTICE_VERSION = 1
 
 

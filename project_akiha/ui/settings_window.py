@@ -47,6 +47,9 @@ from project_akiha.config import (
     AIConfig,
     AppConfig,
     BehaviorConfig,
+    DiscordIntegrationConfig,
+    ExternalIntegrationsConfig,
+    GmailIntegrationConfig,
     MemoryConfig,
     PersonalityConfig,
     PetWindowConfig,
@@ -64,6 +67,7 @@ from project_akiha.core.actions import (
     PermissionGrant,
 )
 from project_akiha.core.voice_session import VoiceProcessingMode
+from project_akiha.integrations.gmail.auth import GmailToken
 from project_akiha.integrations.spotify.auth import SpotifyToken
 from project_akiha.services.ai_provider_discovery import (
     AIProviderDiscoveryRequest,
@@ -85,6 +89,7 @@ from project_akiha.services.privacy_notice import (
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
+from project_akiha.ui.gmail_auth_worker import GmailAuthorizationThread
 from project_akiha.ui.privacy_notice import HostedLivePrivacyNoticeDialog
 from project_akiha.ui.spotify_auth_worker import SpotifyAuthorizationThread
 from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
@@ -149,6 +154,12 @@ _SETTINGS_PAGES = (
         "\ue90b",
     ),
     (
+        "Integrations",
+        "External Awareness",
+        "Connect read-only communication awareness with explicit privacy controls.",
+        "\ue774",
+    ),
+    (
         "Voice",
         "Voice Configuration",
         "Configure listening, live conversation, speech output, and diagnostics.",
@@ -177,6 +188,11 @@ class SettingsWindow(QWidget):
     spotify_playback_grant_requested = Signal()
     spotify_playback_revoke_requested = Signal()
     spotify_session_changed = Signal()
+    gmail_session_changed = Signal()
+    discord_session_changed = Signal()
+    integration_refresh_requested = Signal(str)
+    integration_test_notification_requested = Signal(str)
+    integration_local_data_clear_requested = Signal(str)
     assistant_permissions_reset_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
@@ -198,6 +214,7 @@ class SettingsWindow(QWidget):
         self._credential_store = credential_store
         self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
         self._spotify_auth_thread: SpotifyAuthorizationThread | None = None
+        self._gmail_auth_thread: GmailAuthorizationThread | None = None
         self._assistant_directories: tuple[ApprovedDirectory, ...] = ()
         self._assistant_applications: tuple[InstalledApplication, ...] = ()
         self._assistant_application_grants: tuple[PermissionGrant, ...] = ()
@@ -369,6 +386,119 @@ class SettingsWindow(QWidget):
         self._spotify_disconnect_button.clicked.connect(self._disconnect_spotify)
         self._spotify_connection_status = QLabel("Not connected")
         self._spotify_connection_status.setWordWrap(True)
+        integrations = config.integrations
+        gmail = integrations.gmail
+        discord = integrations.discord
+        self._integration_visual_notifications_input = _ToggleSwitch()
+        self._integration_visual_notifications_input.setChecked(
+            integrations.visual_notifications_enabled
+        )
+        self._integration_voice_notifications_input = _ToggleSwitch()
+        self._integration_voice_notifications_input.setChecked(
+            integrations.voice_notifications_enabled
+        )
+        self._integration_expiry_input = _build_spinbox(
+            30,
+            3600,
+            integrations.event_expiry_seconds,
+        )
+        self._integration_expiry_input.setSuffix(" sec")
+        self._integration_retention_input = _build_spinbox(
+            1,
+            365,
+            integrations.receipt_retention_days,
+        )
+        self._integration_retention_input.setSuffix(" days")
+        self._integration_clear_data_button = QPushButton("Clear local history")
+        self._integration_clear_data_button.clicked.connect(
+            self._request_integration_data_clear
+        )
+        self._gmail_enabled_input = _ToggleSwitch()
+        self._gmail_enabled_input.setChecked(gmail.enabled)
+        self._gmail_client_id_input = QLineEdit(gmail.client_id)
+        self._gmail_client_id_input.setPlaceholderText("Google Desktop OAuth client ID")
+        self._gmail_redirect_uri_input = QLineEdit(gmail.redirect_uri)
+        self._gmail_redirect_uri_input.setReadOnly(True)
+        self._gmail_poll_interval_input = _build_spinbox(
+            30,
+            3600,
+            gmail.poll_interval_seconds,
+        )
+        self._gmail_poll_interval_input.setSuffix(" sec")
+        self._gmail_timeout_input = _build_spinbox(
+            1,
+            60,
+            gmail.request_timeout_seconds,
+        )
+        self._gmail_timeout_input.setSuffix(" sec")
+        self._gmail_notify_new_input = _checked_toggle(gmail.notify_new_messages)
+        self._gmail_notify_important_input = _checked_toggle(gmail.notify_important)
+        self._gmail_notify_interview_input = _checked_toggle(gmail.notify_interview)
+        self._gmail_notify_recruiter_input = _checked_toggle(gmail.notify_recruiter)
+        self._gmail_notify_work_input = _checked_toggle(gmail.notify_work)
+        self._gmail_notify_personal_input = _checked_toggle(gmail.notify_personal)
+        self._gmail_notify_newsletter_input = _checked_toggle(gmail.notify_newsletter)
+        self._gmail_notify_promotional_input = _checked_toggle(gmail.notify_promotional)
+        self._gmail_connect_button = QPushButton("Connect Gmail")
+        self._gmail_connect_button.clicked.connect(self._connect_gmail)
+        self._gmail_disconnect_button = QPushButton("Disconnect")
+        self._gmail_disconnect_button.clicked.connect(self._disconnect_gmail)
+        self._gmail_test_button = QPushButton("Check now")
+        self._gmail_test_button.clicked.connect(
+            lambda: self._request_integration_refresh("gmail")
+        )
+        self._gmail_notification_test_button = QPushButton("Test notification")
+        self._gmail_notification_test_button.clicked.connect(
+            lambda: self._request_integration_test_notification("gmail")
+        )
+        self._gmail_connection_status = QLabel("Not connected")
+        self._gmail_connection_status.setWordWrap(True)
+        self._gmail_last_sync_status = QLabel("Never")
+        self._gmail_last_sync_status.setWordWrap(True)
+        self._discord_enabled_input = _ToggleSwitch()
+        self._discord_enabled_input.setChecked(discord.enabled)
+        self._discord_mode_input = QLineEdit("Official bot / Gateway")
+        self._discord_mode_input.setReadOnly(True)
+        self._discord_bot_token_input = QLineEdit()
+        self._discord_bot_token_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._discord_bot_token_input.setPlaceholderText(
+            "Leave blank to keep the encrypted bot token"
+        )
+        self._discord_notify_dm_input = _checked_toggle(
+            discord.notify_bot_direct_messages
+        )
+        self._discord_notify_mentions_input = _checked_toggle(discord.notify_mentions)
+        self._discord_notify_channels_input = _checked_toggle(
+            discord.notify_authorized_channels
+        )
+        self._discord_channel_ids_input = QLineEdit(
+            ", ".join(discord.authorized_channel_ids)
+        )
+        self._discord_channel_ids_input.setPlaceholderText(
+            "Authorized channel IDs, comma-separated"
+        )
+        self._discord_reconnect_input = _build_spinbox(
+            5,
+            300,
+            discord.reconnect_max_seconds,
+        )
+        self._discord_reconnect_input.setSuffix(" sec")
+        self._discord_connect_button = QPushButton("Save token and connect")
+        self._discord_connect_button.clicked.connect(self._connect_discord)
+        self._discord_disconnect_button = QPushButton("Disconnect")
+        self._discord_disconnect_button.clicked.connect(self._disconnect_discord)
+        self._discord_test_button = QPushButton("Reconnect")
+        self._discord_test_button.clicked.connect(
+            lambda: self._request_integration_refresh("discord")
+        )
+        self._discord_notification_test_button = QPushButton("Test notification")
+        self._discord_notification_test_button.clicked.connect(
+            lambda: self._request_integration_test_notification("discord")
+        )
+        self._discord_connection_status = QLabel("Not connected")
+        self._discord_connection_status.setWordWrap(True)
+        self._discord_last_event_status = QLabel("Never")
+        self._discord_last_event_status.setWordWrap(True)
         self._voice_enabled_input = _ToggleSwitch()
         self._voice_enabled_input.setChecked(config.voice.enabled)
         self._push_to_talk_enabled_input = _ToggleSwitch()
@@ -569,6 +699,7 @@ class SettingsWindow(QWidget):
             self._build_behavior_tab(),
             self._build_assistant_actions_tab(),
             self._build_spotify_tab(),
+            self._build_integrations_tab(),
             self._build_voice_tab(),
         )
         pages = QStackedWidget()
@@ -583,6 +714,7 @@ class SettingsWindow(QWidget):
         self._sync_ai_controls(config.ai.provider)
         self._sync_voice_controls(config.voice.enabled)
         self._refresh_spotify_connection_status()
+        self._refresh_integration_connection_statuses()
 
         save_button = QPushButton("Save Changes")
         save_button.setObjectName("primaryButton")
@@ -795,6 +927,42 @@ class SettingsWindow(QWidget):
         )
         self._spotify_timeout_input.setValue(config.spotify.request_timeout_seconds)
         self._refresh_spotify_connection_status()
+        integrations = config.integrations
+        gmail = integrations.gmail
+        discord = integrations.discord
+        self._integration_visual_notifications_input.setChecked(
+            integrations.visual_notifications_enabled
+        )
+        self._integration_voice_notifications_input.setChecked(
+            integrations.voice_notifications_enabled
+        )
+        self._integration_expiry_input.setValue(integrations.event_expiry_seconds)
+        self._integration_retention_input.setValue(integrations.receipt_retention_days)
+        self._gmail_enabled_input.setChecked(gmail.enabled)
+        self._gmail_client_id_input.setText(gmail.client_id)
+        self._gmail_redirect_uri_input.setText(gmail.redirect_uri)
+        self._gmail_poll_interval_input.setValue(gmail.poll_interval_seconds)
+        self._gmail_timeout_input.setValue(gmail.request_timeout_seconds)
+        self._gmail_notify_new_input.setChecked(gmail.notify_new_messages)
+        self._gmail_notify_important_input.setChecked(gmail.notify_important)
+        self._gmail_notify_interview_input.setChecked(gmail.notify_interview)
+        self._gmail_notify_recruiter_input.setChecked(gmail.notify_recruiter)
+        self._gmail_notify_work_input.setChecked(gmail.notify_work)
+        self._gmail_notify_personal_input.setChecked(gmail.notify_personal)
+        self._gmail_notify_newsletter_input.setChecked(gmail.notify_newsletter)
+        self._gmail_notify_promotional_input.setChecked(gmail.notify_promotional)
+        self._discord_enabled_input.setChecked(discord.enabled)
+        self._discord_notify_dm_input.setChecked(discord.notify_bot_direct_messages)
+        self._discord_notify_mentions_input.setChecked(discord.notify_mentions)
+        self._discord_notify_channels_input.setChecked(
+            discord.notify_authorized_channels
+        )
+        self._discord_channel_ids_input.setText(
+            ", ".join(discord.authorized_channel_ids)
+        )
+        self._discord_reconnect_input.setValue(discord.reconnect_max_seconds)
+        self._discord_bot_token_input.clear()
+        self._refresh_integration_connection_statuses()
         self._voice_enabled_input.setChecked(config.voice.enabled)
         self._push_to_talk_enabled_input.setChecked(config.voice.push_to_talk_enabled)
         self._voice_input_provider_input.setCurrentText(config.voice.input_provider)
@@ -1136,6 +1304,102 @@ class SettingsWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(buttons)
         layout.addWidget(self._spotify_connection_status)
+        row.setLayout(layout)
+        return row
+
+    def _build_integrations_tab(self) -> QWidget:
+        shared_layout = _build_form_layout()
+        shared_layout.addRow(
+            "Visual notifications",
+            self._integration_visual_notifications_input,
+        )
+        shared_layout.addRow(
+            "Voice notifications",
+            self._integration_voice_notifications_input,
+        )
+        shared_layout.addRow("Event expiry", self._integration_expiry_input)
+        shared_layout.addRow("Receipt retention", self._integration_retention_input)
+        shared_layout.addRow(
+            "Local receipts and cursors",
+            self._integration_clear_data_button,
+        )
+
+        gmail_layout = _build_form_layout(wrap_long_rows=True)
+        gmail_layout.addRow("Gmail enabled", self._gmail_enabled_input)
+        gmail_layout.addRow("Desktop OAuth client ID", self._gmail_client_id_input)
+        gmail_layout.addRow("Redirect URI", self._gmail_redirect_uri_input)
+        gmail_layout.addRow("Polling interval", self._gmail_poll_interval_input)
+        gmail_layout.addRow("Request timeout", self._gmail_timeout_input)
+        gmail_layout.addRow("New email", self._gmail_notify_new_input)
+        gmail_layout.addRow("Important", self._gmail_notify_important_input)
+        gmail_layout.addRow("Interview candidate", self._gmail_notify_interview_input)
+        gmail_layout.addRow("Recruiter candidate", self._gmail_notify_recruiter_input)
+        gmail_layout.addRow("Work candidate", self._gmail_notify_work_input)
+        gmail_layout.addRow("Personal", self._gmail_notify_personal_input)
+        gmail_layout.addRow("Newsletter", self._gmail_notify_newsletter_input)
+        gmail_layout.addRow("Promotional", self._gmail_notify_promotional_input)
+        gmail_layout.addRow("Connection", self._build_gmail_connection_row())
+        gmail_layout.addRow("Last synchronization", self._gmail_last_sync_status)
+
+        discord_layout = _build_form_layout(wrap_long_rows=True)
+        discord_layout.addRow("Discord enabled", self._discord_enabled_input)
+        discord_layout.addRow("Official mode", self._discord_mode_input)
+        discord_layout.addRow("Bot token", self._discord_bot_token_input)
+        discord_layout.addRow("DMs to bot", self._discord_notify_dm_input)
+        discord_layout.addRow("Mentions", self._discord_notify_mentions_input)
+        discord_layout.addRow(
+            "Authorized channels",
+            self._discord_notify_channels_input,
+        )
+        discord_layout.addRow("Channel IDs", self._discord_channel_ids_input)
+        discord_layout.addRow("Reconnect cap", self._discord_reconnect_input)
+        discord_layout.addRow("Connection", self._build_discord_connection_row())
+        discord_layout.addRow("Last authorized event", self._discord_last_event_status)
+
+        boundary = QLabel(
+            "Discord uses an authorized bot context only. It cannot monitor "
+            "your normal Discord friends list, private user DMs, or friend requests."
+        )
+        boundary.setWordWrap(True)
+        boundary.setObjectName("settingsBoundaryNote")
+        boundary_layout = QVBoxLayout()
+        boundary_layout.addWidget(boundary)
+        boundary_section = QGroupBox("Official capability boundary")
+        boundary_section.setObjectName("settingsSection")
+        boundary_section.setLayout(boundary_layout)
+
+        return _build_scroll_tab(
+            _build_section("Notifications", shared_layout),
+            _build_section("Gmail metadata", gmail_layout),
+            _build_section("Discord bot / Gateway", discord_layout),
+            boundary_section,
+        )
+
+    def _build_gmail_connection_row(self) -> QWidget:
+        buttons = QHBoxLayout()
+        buttons.addWidget(self._gmail_connect_button)
+        buttons.addWidget(self._gmail_disconnect_button)
+        buttons.addWidget(self._gmail_test_button)
+        buttons.addWidget(self._gmail_notification_test_button)
+        row = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(buttons)
+        layout.addWidget(self._gmail_connection_status)
+        row.setLayout(layout)
+        return row
+
+    def _build_discord_connection_row(self) -> QWidget:
+        buttons = QHBoxLayout()
+        buttons.addWidget(self._discord_connect_button)
+        buttons.addWidget(self._discord_disconnect_button)
+        buttons.addWidget(self._discord_test_button)
+        buttons.addWidget(self._discord_notification_test_button)
+        row = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(buttons)
+        layout.addWidget(self._discord_connection_status)
         row.setLayout(layout)
         return row
 
@@ -1627,8 +1891,14 @@ class SettingsWindow(QWidget):
             return False
         try:
             spotify_config = self._spotify_config_from_inputs()
+            integrations_config = self._integrations_config_from_inputs()
         except ValueError as error:
-            self._set_spotify_connection_status(str(error), is_error=True)
+            message = str(error)
+            if message.startswith("integrations."):
+                self._set_gmail_connection_status(message, is_error=True)
+                self._set_discord_connection_status(message, is_error=True)
+            else:
+                self._set_spotify_connection_status(message, is_error=True)
             return False
         if (
             self._selected_voice_session_provider() == "gemini_live"
@@ -1764,6 +2034,7 @@ class SettingsWindow(QWidget):
             )
         )
         config = config.with_spotify(spotify_config)
+        config = config.with_integrations(integrations_config)
         self.update_config(config)
         self.settings_saved.emit(config)
         return True
@@ -1775,6 +2046,49 @@ class SettingsWindow(QWidget):
             redirect_uri=self._spotify_redirect_uri_input.text().strip(),
             auto_launch_desktop_app=self._spotify_auto_launch_input.isChecked(),
             request_timeout_seconds=self._spotify_timeout_input.value(),
+        )
+
+    def _integrations_config_from_inputs(self) -> ExternalIntegrationsConfig:
+        channel_ids = tuple(
+            value.strip()
+            for value in self._discord_channel_ids_input.text().split(",")
+            if value.strip()
+        )
+        return ExternalIntegrationsConfig(
+            visual_notifications_enabled=(
+                self._integration_visual_notifications_input.isChecked()
+            ),
+            voice_notifications_enabled=(
+                self._integration_voice_notifications_input.isChecked()
+            ),
+            event_expiry_seconds=self._integration_expiry_input.value(),
+            receipt_retention_days=self._integration_retention_input.value(),
+            gmail=GmailIntegrationConfig(
+                enabled=self._gmail_enabled_input.isChecked(),
+                client_id=self._gmail_client_id_input.text().strip(),
+                redirect_uri=self._gmail_redirect_uri_input.text().strip(),
+                poll_interval_seconds=self._gmail_poll_interval_input.value(),
+                request_timeout_seconds=self._gmail_timeout_input.value(),
+                notify_new_messages=self._gmail_notify_new_input.isChecked(),
+                notify_important=self._gmail_notify_important_input.isChecked(),
+                notify_interview=self._gmail_notify_interview_input.isChecked(),
+                notify_recruiter=self._gmail_notify_recruiter_input.isChecked(),
+                notify_work=self._gmail_notify_work_input.isChecked(),
+                notify_personal=self._gmail_notify_personal_input.isChecked(),
+                notify_newsletter=self._gmail_notify_newsletter_input.isChecked(),
+                notify_promotional=(self._gmail_notify_promotional_input.isChecked()),
+            ),
+            discord=DiscordIntegrationConfig(
+                enabled=self._discord_enabled_input.isChecked(),
+                mode="bot_gateway",
+                notify_bot_direct_messages=self._discord_notify_dm_input.isChecked(),
+                notify_mentions=self._discord_notify_mentions_input.isChecked(),
+                notify_authorized_channels=(
+                    self._discord_notify_channels_input.isChecked()
+                ),
+                authorized_channel_ids=channel_ids,
+                reconnect_max_seconds=self._discord_reconnect_input.value(),
+            ),
         )
 
     def _connect_spotify(self) -> None:
@@ -1909,6 +2223,251 @@ class SettingsWindow(QWidget):
     def cancel_spotify_authorization(self, wait_ms: int = 2_000) -> bool:
         """Cancel and wait for an active Spotify callback listener."""
         thread = self._spotify_auth_thread
+        if thread is None:
+            return True
+        thread.cancel()
+        return thread.wait(wait_ms)
+
+    def _connect_gmail(self) -> None:
+        if self._gmail_auth_thread is not None:
+            return
+        self._gmail_enabled_input.setChecked(True)
+        if not self._save():
+            return
+        self._set_gmail_connection_status("Waiting for browser authorization...")
+        self._gmail_connect_button.setEnabled(False)
+        thread = GmailAuthorizationThread(self._config.integrations.gmail, self)
+        thread.authorization_url_ready.connect(self._open_gmail_authorization_url)
+        thread.authorization_ready.connect(self._handle_gmail_authorization_ready)
+        thread.authorization_failed.connect(self._handle_gmail_authorization_failed)
+        thread.finished.connect(self._finish_gmail_authorization)
+        self._gmail_auth_thread = thread
+        thread.start()
+
+    def _open_gmail_authorization_url(self, authorization_url: str) -> None:
+        if not QDesktopServices.openUrl(QUrl(authorization_url)):
+            self._set_gmail_connection_status(
+                "Gmail authorization could not open the browser.",
+                is_error=True,
+            )
+            thread = self._gmail_auth_thread
+            if thread is not None:
+                thread.cancel()
+
+    def _handle_gmail_authorization_ready(self, token: object) -> None:
+        if not isinstance(token, GmailToken):
+            self._set_gmail_connection_status(
+                "Google returned an invalid Gmail authorization result.",
+                is_error=True,
+            )
+            return
+        if self._credential_store is None:
+            self._set_gmail_connection_status(
+                "Secure Gmail token storage is unavailable.",
+                is_error=True,
+            )
+            return
+        try:
+            self._credential_store.set_named_secret(
+                "gmail",
+                "refresh_token",
+                token.refresh_token,
+            )
+        except CredentialStoreError:
+            self._set_gmail_connection_status(
+                "Gmail authorization could not be saved securely.",
+                is_error=True,
+            )
+            return
+        self._set_gmail_connection_status("Gmail connected securely.")
+        self.gmail_session_changed.emit()
+
+    def _handle_gmail_authorization_failed(self, message: str) -> None:
+        self._set_gmail_connection_status(message, is_error=True)
+
+    def _finish_gmail_authorization(self) -> None:
+        thread = self._gmail_auth_thread
+        self._gmail_auth_thread = None
+        self._gmail_connect_button.setEnabled(True)
+        if thread is not None:
+            thread.deleteLater()
+
+    def _disconnect_gmail(self) -> None:
+        if not self._delete_named_credential("gmail", "refresh_token"):
+            self._set_gmail_connection_status(
+                "Gmail authorization could not be removed.",
+                is_error=True,
+            )
+            return
+        self._gmail_enabled_input.setChecked(False)
+        self._save()
+        self._set_gmail_connection_status("Gmail disconnected.")
+        self.gmail_session_changed.emit()
+
+    def _connect_discord(self) -> None:
+        token = self._discord_bot_token_input.text().strip()
+        if not token and not self._named_credential_exists("discord", "bot_token"):
+            self._set_discord_connection_status(
+                "An authorized Discord bot token is required.",
+                is_error=True,
+            )
+            return
+        self._discord_enabled_input.setChecked(True)
+        if not self._save():
+            return
+        if token:
+            if self._credential_store is None:
+                self._set_discord_connection_status(
+                    "Secure Discord token storage is unavailable.",
+                    is_error=True,
+                )
+                return
+            try:
+                self._credential_store.set_named_secret(
+                    "discord",
+                    "bot_token",
+                    token,
+                )
+            except CredentialStoreError:
+                self._set_discord_connection_status(
+                    "Discord bot authorization could not be saved securely.",
+                    is_error=True,
+                )
+                return
+        self._discord_bot_token_input.clear()
+        self._set_discord_connection_status("Discord bot token saved securely.")
+        self.discord_session_changed.emit()
+
+    def _disconnect_discord(self) -> None:
+        if not self._delete_named_credential("discord", "bot_token"):
+            self._set_discord_connection_status(
+                "Discord authorization could not be removed.",
+                is_error=True,
+            )
+            return
+        self._discord_enabled_input.setChecked(False)
+        self._save()
+        self._set_discord_connection_status("Discord disconnected.")
+        self.discord_session_changed.emit()
+
+    def _request_integration_refresh(self, service: str) -> None:
+        if not self._save():
+            return
+        self.integration_refresh_requested.emit(service)
+
+    def _request_integration_test_notification(self, service: str) -> None:
+        if not self._save():
+            return
+        self.integration_test_notification_requested.emit(service)
+
+    def _request_integration_data_clear(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Clear integration history",
+            "Clear Gmail and Discord deduplication receipts and synchronization "
+            "cursors? Credentials and settings will remain. The next Gmail check "
+            "will establish a new baseline without announcing old messages.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.integration_local_data_clear_requested.emit("all")
+
+    def _refresh_integration_connection_statuses(self) -> None:
+        gmail_connected = self._named_credential_exists("gmail", "refresh_token")
+        discord_connected = self._named_credential_exists("discord", "bot_token")
+        self._set_gmail_connection_status(
+            "Gmail connected securely." if gmail_connected else "Not connected"
+        )
+        self._set_discord_connection_status(
+            "Discord bot token saved securely."
+            if discord_connected
+            else "Not connected"
+        )
+
+    def _named_credential_exists(self, namespace: str, name: str) -> bool:
+        if self._credential_store is None:
+            return False
+        try:
+            return self._credential_store.get_named_secret(namespace, name) is not None
+        except CredentialStoreError:
+            return False
+
+    def _delete_named_credential(self, namespace: str, name: str) -> bool:
+        if self._credential_store is None:
+            return False
+        try:
+            self._credential_store.delete_named_secret(namespace, name)
+        except CredentialStoreError:
+            return False
+        return True
+
+    def set_integration_health(
+        self,
+        service: str,
+        status: str,
+        checked_at: str | None = None,
+    ) -> None:
+        """Display one privacy-safe integration status code."""
+        label = status.replace("_", " ").capitalize()
+        is_error = status in {
+            "authentication_failure",
+            "permission_failure",
+            "network_failure",
+            "rate_limited",
+            "invalid_configuration",
+            "provider_unavailable",
+            "malformed_response",
+        }
+        if service == "gmail":
+            self._set_gmail_connection_status(label, is_error=is_error)
+            if checked_at is not None and status in {"available", "cursor_rebased"}:
+                self._gmail_last_sync_status.setText(checked_at)
+        elif service == "discord":
+            self._set_discord_connection_status(label, is_error=is_error)
+
+    def set_integration_last_event(self, service: str, occurred_at: str) -> None:
+        """Display an event timestamp without exposing communication content."""
+        if service == "discord":
+            self._discord_last_event_status.setText(occurred_at)
+
+    def _set_gmail_connection_status(
+        self,
+        status: str,
+        *,
+        is_error: bool = False,
+    ) -> None:
+        self._set_integration_status_label(
+            self._gmail_connection_status,
+            status,
+            is_error,
+        )
+
+    def _set_discord_connection_status(
+        self,
+        status: str,
+        *,
+        is_error: bool = False,
+    ) -> None:
+        self._set_integration_status_label(
+            self._discord_connection_status,
+            status,
+            is_error,
+        )
+
+    @staticmethod
+    def _set_integration_status_label(
+        label: QLabel,
+        status: str,
+        is_error: bool,
+    ) -> None:
+        label.setText(status.strip() or "Not connected")
+        color = AKIHA_PALETTE.error if is_error else AKIHA_PALETTE.success
+        label.setStyleSheet(f"color: {color};")
+
+    def cancel_gmail_authorization(self, wait_ms: int = 2_000) -> bool:
+        """Cancel and wait for an active Gmail callback listener."""
+        thread = self._gmail_auth_thread
         if thread is None:
             return True
         thread.cancel()
@@ -2569,6 +3128,12 @@ def _build_combo(
     combo.addItems(options)
     combo.setCurrentText(value)
     return combo
+
+
+def _checked_toggle(checked: bool) -> _ToggleSwitch:
+    toggle = _ToggleSwitch()
+    toggle.setChecked(checked)
+    return toggle
 
 
 def _build_device_combo(device_name: str) -> QComboBox:

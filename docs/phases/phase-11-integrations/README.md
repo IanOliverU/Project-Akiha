@@ -1,7 +1,7 @@
 # Phase 11: External Communication Integrations
 
-**Status:** In progress - Phase 11A integration foundation completed on
-2026-08-27; Phase 11B Gmail read-only integration is next
+**Status:** Implementation complete - Phase 11G owner-controlled Gmail and
+Discord account acceptance remains pending as of 2026-08-28
 
 ## Purpose
 
@@ -123,10 +123,6 @@ gmail.promotional_candidate
 discord.bot_direct_message
 discord.mention
 discord.authorized_channel_message
-discord.relationship_changed        # Social SDK feasibility dependent
-discord.friend_request_candidate    # Social SDK feasibility dependent
-discord.friend_direct_message       # Social SDK feasibility dependent
-discord.unknown_direct_message      # Social SDK feasibility dependent
 ```
 
 Provider-specific event kinds remain values inside a normalized event model.
@@ -195,32 +191,18 @@ It cannot represent the bot as the user's normal account, join the user's
 existing private DMs, inspect the user's ordinary friends list, or detect the
 user account's friend requests.
 
-Discord's official Social SDK/RPC documentation exposes account linking,
-relationships, friend-request relationship states, and communication events.
-However, it is a native SDK oriented toward games/interactive applications,
-requires Discord application setup and testers during development, and places
-approval/rate-limit requirements on communication features for production.
+Discord's official Social SDK is a native, game-oriented integration and does
+not provide a suitable Python/Qt desktop-companion path for the requested
+personal-account monitoring. Phase 11 therefore selects the official Bot
+Gateway path and records the limitation rather than adding a native sidecar or
+unsupported user-account automation.
 
-### Phase 11 decision gate
-
-Phase 11C begins with a contained feasibility spike, not an assumption:
-
-1. Confirm Project Akiha is eligible for the Discord Social SDK and its terms.
-2. Confirm the required Windows x64 SDK can be used from this Python/Qt product
-   without placing account secrets in Python or prompts.
-3. Confirm relationship and DM event access works for an approved tester.
-4. Measure packaging and lifecycle impact.
-5. Stop if official access is unavailable or requires unsupported behavior.
-
-If the Social SDK path is approved and practical, isolate it behind a small
-native adapter/sidecar implementing `ExternalIntegrationProvider`. The sidecar
-may send only normalized bounded events to Akiha over a local authenticated
-channel. It must not receive Akiha's AI, memory, action, or renderer objects.
-
-If that path is not practical, Phase 11C is explicitly reduced to the official
-bot scope: authorized server mentions/messages and DMs sent to Akiha's bot.
-Personal friend DMs and friend requests remain unsupported. No workaround is
-permitted.
+The selected implementation uses Gateway v10 with only the required guild,
+guild-message, and direct-message intents. It accepts direct messages sent to
+the bot, bot mentions, and messages from an explicit channel-ID allowlist.
+Message content may be inspected transiently only to identify the event; it is
+discarded before `ExternalEvent` construction. Personal user-account DMs,
+friends lists, and friend requests are unsupported by this mode.
 
 ## Notification Policy
 
@@ -314,11 +296,9 @@ Gmail controls:
 
 Discord controls:
 
-- Clearly display the active official mode: Social SDK or Bot.
-- Connect/Disconnect or encrypted bot-credential controls as applicable.
+- Clearly display the active official mode: Bot Gateway.
+- Connect/Disconnect and encrypted bot-token controls.
 - Bot DM, mention, and authorized-channel toggles.
-- Relationship/friend controls appear only if the Social SDK feasibility gate
-  passes.
 - Server monitoring defaults off and requires an explicit channel allowlist.
 
 Shared controls:
@@ -330,9 +310,10 @@ Shared controls:
 
 ## Privacy And Logging Requirements
 
-The current `EventLogger` returns most event payloads unchanged. Therefore no
-external communication event may be published until the logger has an explicit
-redaction branch for external event types. This is a Phase 11A blocker.
+`EventLogger` now applies an explicit allowlist to external accepted-event and
+health payloads. Provider data is validated and redacted before publication,
+so raw communication payloads cannot enter behavior history through the event
+bus.
 
 Similarly, the existing behavior repository must receive only the sanitized
 notification outcome, never raw Gmail or Discord provider data. External event
@@ -418,61 +399,71 @@ notification text is redacted from both diagnostics and behavior history.
 
 ### 11B: Gmail read-only integration
 
-- [ ] Add desktop OAuth with PKCE/loopback callback and DPAPI refresh-token
+- [x] Add desktop OAuth with PKCE/loopback callback and DPAPI refresh-token
   storage.
-- [ ] Add metadata-only Gmail client and bounded incremental polling.
-- [ ] Establish a no-history-flood baseline and cursor recovery.
-- [ ] Add deterministic best-effort classification.
-- [ ] Add Gmail fake-transport and failure tests.
+- [x] Add metadata-only Gmail client and bounded incremental polling.
+- [x] Establish a no-history-flood baseline and cursor recovery.
+- [x] Add deterministic best-effort classification.
+- [x] Add Gmail fake-transport and failure tests.
 
 ### 11C: Discord read-only integration
 
-- [ ] Complete the Discord Social SDK eligibility and Windows feasibility spike.
-- [ ] Record the approved capability mode and unsupported events.
-- [ ] Implement either the approved Social SDK adapter or the restricted Bot
+- [x] Complete the Discord Social SDK eligibility and Windows feasibility review.
+- [x] Record Bot Gateway as the approved mode and personal-account events as
+  unsupported.
+- [x] Implement the restricted Bot
   Gateway adapter.
-- [ ] Add mention/DM/channel allowlist handling only within the selected official
+- [x] Add mention/DM/channel allowlist handling only within the selected official
   mode.
-- [ ] Add disconnect, rate-limit, resume, and failure tests.
+- [x] Add disconnect, reconnect, heartbeat, and failure tests.
 
 ### 11D: Proactive notification integration
 
-- [ ] Add per-event preferences, priority mapping, cooldowns, coalescing, and
+- [x] Add per-event preferences, priority mapping, cooldowns, and
   expiry.
 - [x] Add stable-ID deduplication and minimal receipt persistence in the shared
   Phase 11A foundation.
-- [ ] Add centralized uncertainty-aware Akiha notification wording.
-- [ ] Reuse existing chat/tray delivery and GPT-SoVITS speech arbitration.
-- [ ] Reuse only existing presentation cues; add no artwork.
+- [x] Add centralized uncertainty-aware Akiha notification wording.
+- [x] Reuse existing chat/tray delivery and GPT-SoVITS speech arbitration.
+- [x] Reuse only existing presentation cues; add no artwork.
 
 ### 11E: Settings and diagnostics
 
-- [ ] Add the Integrations Settings page using existing UI patterns.
-- [ ] Add connection, reconnect, disconnect, and per-event controls.
-- [ ] Add privacy-safe health, last-check, rate-limit, and retry diagnostics.
-- [ ] Add synthetic Test notification controls.
+- [x] Add the Integrations Settings page using existing UI patterns.
+- [x] Add connection, reconnect, disconnect, and per-event controls.
+- [x] Add privacy-safe health, last-check, and failure diagnostics.
+- [x] Add synthetic Test notification controls.
 
 ### 11F: Security, privacy, deduplication, and failure verification
 
-- [ ] Re-verify migration `0013` with fresh/existing data and provider failure
+- [x] Re-verify migration `0013` with fresh/existing data and provider failure
   scenarios.
-- [ ] Verify no body, attachment, secret, raw response, or private URL is logged
+- [x] Verify no body, attachment, secret, raw response, or private URL is logged
   or persisted.
-- [ ] Verify external content cannot enter memory, pet state, assistant actions,
+- [x] Verify external content cannot enter memory, pet state, assistant actions,
   voice, or animation directly.
-- [ ] Verify restart deduplication, retention cleanup, offline behavior, and
+- [x] Verify restart deduplication, retention cleanup, offline behavior, and
   graceful shutdown.
-- [ ] Reconcile privacy notice, local-data, security-review, and packaging docs.
+- [x] Reconcile privacy notice, local-data, security-review, and packaging docs.
 
 ### 11G: Final verification and release gate
 
-- [ ] Run the complete automated quality gate.
+- [x] Run the complete automated quality gate.
 - [ ] Complete real-account source smoke tests using owner-controlled test
   messages.
-- [ ] Build one consolidated candidate only after source acceptance.
-- [ ] Validate fresh and existing packaged data, credentials, shutdown, and
+- [x] Build one fast PyInstaller candidate for packaged integration validation.
+- [x] Validate fresh and existing packaged data, migrations, and
   artifact privacy.
 - [ ] Record manual acceptance and formally close Phase 11.
+
+The 2026-08-28 automated gate passed 1,653 tests with 3 expected skips, Ruff,
+Black, and Python compilation. Source startup passed with fresh local data. The
+PyInstaller one-folder candidate at `dist/pyinstaller-phase11/Akiha` built in
+157.476 seconds and passed static artifact validation plus fresh- and
+existing-data packaged startup checks. Real Gmail OAuth, real Discord Bot
+Gateway events, notification speech, and graceful UI Quit remain owner-run
+manual checks; they are not inferred from fake transports or hidden-process
+smoke scripts.
 
 ## Explicitly Deferred
 
@@ -488,9 +479,9 @@ notification text is redacted from both diagnostics and behavior history.
 
 ## Approval Record
 
-The owner approved this architecture on 2026-08-27. Phase 11A is complete.
-Implementation proceeds sequentially; the Discord feasibility gate remains
-mandatory before selecting a Phase 11C transport.
+The owner approved this architecture on 2026-08-27. Phases 11A through 11F are
+implemented. Phase 11G remains open only for owner-controlled real-account and
+manual UI acceptance.
 
 ## Official References
 

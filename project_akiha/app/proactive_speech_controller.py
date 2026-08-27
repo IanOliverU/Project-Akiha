@@ -35,6 +35,11 @@ class ProactiveSpeechController:
         if not isinstance(kind, str):
             return
 
-        line = self._line_provider(kind)
+        message = event.payload.get("message")
+        line = (
+            message
+            if kind.startswith("external.") and isinstance(message, str)
+            else self._line_provider(kind)
+        )
         if line is not None:
             self._speech_controller.submit_proactive_suggestion(line)

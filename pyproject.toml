@@ -19,6 +19,9 @@ voice = [
 live = [
     "google-genai>=2.17,<3",
 ]
+integrations = [
+    "websocket-client>=1.8,<2",
+]
 package = [
     "black>=24.10",
     "pyinstaller>=6.15,<7",

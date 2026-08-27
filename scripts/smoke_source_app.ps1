@@ -30,6 +30,8 @@ import sys
 
 database_path = sys.argv[1]
 expected_tables = {
+    "external_event_receipts",
+    "integration_sync_state",
     "pet_appearance_selection",
     "behavior_events",
     "conversations",

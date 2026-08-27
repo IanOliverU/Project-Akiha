@@ -135,6 +135,35 @@ class SQLiteExternalEventRepository:
         finally:
             connection.close()
 
+    def prune_receipts(self, *, older_than: datetime) -> int:
+        """Bound retained receipts without touching active synchronization cursors."""
+        connection = self._connect()
+        try:
+            cursor = connection.execute(
+                "DELETE FROM external_event_receipts WHERE created_at < ?",
+                (_timestamp(older_than),),
+            )
+            connection.commit()
+            return cursor.rowcount
+        finally:
+            connection.close()
+
+    def clear_service_data(self, service: ExternalService) -> None:
+        """Delete only local receipts and cursors for one provider."""
+        connection = self._connect()
+        try:
+            connection.execute(
+                "DELETE FROM external_event_receipts WHERE service = ?",
+                (service.value,),
+            )
+            connection.execute(
+                "DELETE FROM integration_sync_state WHERE service = ?",
+                (service.value,),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.execute("PRAGMA foreign_keys = ON")

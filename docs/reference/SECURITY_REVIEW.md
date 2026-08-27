@@ -262,10 +262,31 @@ remote catalog, or remote marketplace. Autonomous activity selection is local,
 deterministic, data-driven, and lower priority than drag, voice, care, and direct
 user control.
 
+## Phase 11 External-Communication Boundary
+
+Gmail and Discord providers receive only their own transport/session objects
+and emit untrusted candidates. `ExternalEventValidator` rejects malformed,
+oversized, unsupported, stale, and secret-like metadata before publication.
+The event logger uses an explicit allowlist for integration events, while the
+deduplication repository hashes external IDs and account keys before storage.
+
+Gmail uses a Desktop OAuth public client with PKCE, exact loopback callback, and
+the metadata-only scope. No client secret is accepted. Discord uses only the
+official Bot Gateway; normal-user tokens, self-bots, browser cookies, personal
+friend monitoring, and account impersonation are excluded. Both credentials
+use separate DPAPI namespaces and never enter prompts, events, history, or
+diagnostics.
+
+External notifications reuse the existing `NotificationPolicy`, proactive
+delivery, GPT-SoVITS speech, and presentation arbitration. Providers receive no
+voice, animation, memory, pet-state, SQL, action-execution, or renderer
+references. No Phase 11 path sends, replies, deletes, archives, accepts,
+moderates, or otherwise mutates an external account.
+
 ## Deferred Before Public Distribution
 
 - Code signing.
 - Dependency auditing.
 - Installer-specific permissions and uninstall behavior.
-- A revised privacy-notice version before sync, plugins, persistent microphone
-  capture, or broader assistant-action capabilities are added.
+- A future privacy-notice revision before plugins, persistent microphone
+  capture, external write actions, or broader assistant capabilities are added.

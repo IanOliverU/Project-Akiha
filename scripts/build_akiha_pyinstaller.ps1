@@ -117,6 +117,7 @@ try {
         "--collect-all", "google.genai",
         "--copy-metadata", "google-genai",
         "--hidden-import", "av.utils",
+        "--hidden-import", "websocket",
         "project_akiha/app/main.py"
     )
     if ($Clean) {

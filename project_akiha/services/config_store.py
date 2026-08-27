@@ -35,6 +35,9 @@ def _serialize_config(config: AppConfig) -> str:
     behavior = config.behavior
     voice = config.voice
     spotify = config.spotify
+    integrations = config.integrations
+    gmail = integrations.gmail
+    discord = integrations.discord
     always_on_top = str(pet_window.always_on_top).lower()
     memory_enabled = str(memory.enabled).lower()
     behavior_enabled = str(behavior.enabled).lower()
@@ -69,6 +72,11 @@ def _serialize_config(config: AppConfig) -> str:
     hosted_live_voice_name = _escape_toml_string(voice.hosted_live_voice_name)
     spotify_client_id = _escape_toml_string(spotify.client_id)
     spotify_redirect_uri = _escape_toml_string(spotify.redirect_uri)
+    gmail_client_id = _escape_toml_string(gmail.client_id)
+    gmail_redirect_uri = _escape_toml_string(gmail.redirect_uri)
+    discord_channel_ids = ", ".join(
+        f'"{_escape_toml_string(value)}"' for value in discord.authorized_channel_ids
+    )
 
     return (
         "[pet_window]\n"
@@ -173,6 +181,40 @@ def _serialize_config(config: AppConfig) -> str:
         "auto_launch_desktop_app = "
         f"{str(spotify.auto_launch_desktop_app).lower()}\n"
         f"request_timeout_seconds = {spotify.request_timeout_seconds}\n"
+        "\n"
+        "[integrations]\n"
+        "visual_notifications_enabled = "
+        f"{str(integrations.visual_notifications_enabled).lower()}\n"
+        "voice_notifications_enabled = "
+        f"{str(integrations.voice_notifications_enabled).lower()}\n"
+        f"event_expiry_seconds = {integrations.event_expiry_seconds}\n"
+        f"receipt_retention_days = {integrations.receipt_retention_days}\n"
+        "\n"
+        "[integrations.gmail]\n"
+        f"enabled = {str(gmail.enabled).lower()}\n"
+        f'client_id = "{gmail_client_id}"\n'
+        f'redirect_uri = "{gmail_redirect_uri}"\n'
+        f"poll_interval_seconds = {gmail.poll_interval_seconds}\n"
+        f"request_timeout_seconds = {gmail.request_timeout_seconds}\n"
+        f"notify_new_messages = {str(gmail.notify_new_messages).lower()}\n"
+        f"notify_important = {str(gmail.notify_important).lower()}\n"
+        f"notify_interview = {str(gmail.notify_interview).lower()}\n"
+        f"notify_recruiter = {str(gmail.notify_recruiter).lower()}\n"
+        f"notify_work = {str(gmail.notify_work).lower()}\n"
+        f"notify_personal = {str(gmail.notify_personal).lower()}\n"
+        f"notify_newsletter = {str(gmail.notify_newsletter).lower()}\n"
+        f"notify_promotional = {str(gmail.notify_promotional).lower()}\n"
+        "\n"
+        "[integrations.discord]\n"
+        f"enabled = {str(discord.enabled).lower()}\n"
+        f'mode = "{_escape_toml_string(discord.mode)}"\n'
+        "notify_bot_direct_messages = "
+        f"{str(discord.notify_bot_direct_messages).lower()}\n"
+        f"notify_mentions = {str(discord.notify_mentions).lower()}\n"
+        "notify_authorized_channels = "
+        f"{str(discord.notify_authorized_channels).lower()}\n"
+        f"authorized_channel_ids = [{discord_channel_ids}]\n"
+        f"reconnect_max_seconds = {discord.reconnect_max_seconds}\n"
     )
 
 

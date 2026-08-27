@@ -39,6 +39,12 @@ class EventLogger:
 def _privacy_safe_payload(event: Event) -> dict[str, object]:
     if event.event_type == EventType.EXTERNAL_EVENT_ACCEPTED:
         return _external_event_audit_payload(event.payload)
+    if event.event_type == EventType.EXTERNAL_INTEGRATION_HEALTH_CHANGED:
+        return {
+            key: event.payload[key]
+            for key in ("service", "status", "checked_at")
+            if key in event.payload
+        }
     if event.event_type in {
         EventType.PROACTIVE_SUGGESTION_READY,
         EventType.PROACTIVE_SUGGESTION_DELIVERED,

@@ -372,6 +372,7 @@ try {
         "--include-qt-plugins=multimedia",
         "--include-module=av.utils",
         "--include-package=google.genai",
+        "--include-package=websocket",
         "--include-distribution-metadata=google-genai",
         "--include-data-dir=$GoogleGenaiMetadataDir=$GoogleGenaiMetadataName",
         "--include-package-data=faster_whisper",

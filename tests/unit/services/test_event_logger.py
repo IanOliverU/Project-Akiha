@@ -116,6 +116,27 @@ class EventLoggerTest(unittest.TestCase):
         self.assertNotIn("Private rendered notification.", logged_arguments)
         self.assertIn("message_present", logged_arguments)
 
+    def test_external_health_uses_strict_allowlist(self) -> None:
+        bus = EventBus()
+        logger = Mock(spec=logging.Logger)
+        EventLogger(bus, logger)
+
+        bus.publish(
+            EventType.EXTERNAL_INTEGRATION_HEALTH_CHANGED,
+            {
+                "service": "gmail",
+                "status": "available",
+                "checked_at": "2026-08-27T12:00:00+00:00",
+                "access_token": "private-token",
+                "raw_response": "private-response",
+            },
+        )
+
+        logged_arguments = repr(logger.info.call_args.args)
+        self.assertNotIn("private-token", logged_arguments)
+        self.assertNotIn("private-response", logged_arguments)
+        self.assertIn("available", logged_arguments)
+
 
 if __name__ == "__main__":
     unittest.main()

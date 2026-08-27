@@ -33,6 +33,8 @@ database_path = sys.argv[1]
 expected_tables = {
     "behavior_events",
     "conversations",
+    "external_event_receipts",
+    "integration_sync_state",
     "memories",
     "messages",
     "pet_appearance_selection",

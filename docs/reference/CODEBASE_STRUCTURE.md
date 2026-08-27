@@ -10,6 +10,8 @@ project_akiha/
 |-- core/                 # Framework-free domain models, policy, and state
 |-- database/             # SQLite repositories and ordered migrations
 |-- integrations/         # Optional external-product integrations
+|   |-- discord/          # Official bot Gateway and metadata normalization
+|   |-- gmail/            # Desktop OAuth, metadata polling, classification
 |   `-- spotify/          # Spotify OAuth, catalog, device, and playback logic
 |-- providers/            # Swappable AI, animation, voice, and hosted-live adapters
 |-- services/             # Cross-cutting application services
@@ -49,6 +51,18 @@ the existing action system, and its composition remains in `app/main.py`.
 
 This split keeps external API details out of framework-free core logic and does
 not grant Spotify or any AI provider direct execution authority.
+
+Gmail and Discord share provider-neutral contracts under
+`core/integrations/`. Their concrete transports remain under
+`integrations/gmail/` and `integrations/discord/`; lifecycle composition stays
+in `app/external_integration_runtime.py`. Candidates cross
+`ExternalEventValidator`, hashed receipt claiming, and the Qt application-thread
+handoff before the existing proactive delivery path can see them.
+`app/integration_notification_coordinator.py` owns preferences, expiry,
+deduplication, and trusted notification publication. It reuses the existing
+notification and speech controllers and has no renderer, memory, pet-state, or
+assistant-action authority. Migration `0013` stores only hashed receipts and
+sync cursors. The Settings OAuth worker and scheduler own Qt handoff only.
 
 Hosted-live provider contracts remain in `core/voice_session/`, Gemini and its
 Google SDK transport remain in `providers/live/`, and application ownership is

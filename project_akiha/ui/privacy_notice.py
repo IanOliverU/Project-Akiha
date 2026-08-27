@@ -52,6 +52,18 @@ class PrivacyNoticeDialog(QDialog):
             "requests are sent directly to Spotify only after you connect. "
             "The refresh token is encrypted for the current Windows user; "
             "personal listening exports stay local and are never packaged.</p>"
+            "<p><b>External awareness:</b> Gmail and Discord integrations are "
+            "optional and read-only. Gmail uses metadata-only access and may "
+            "read message IDs, sender, subject, labels, and timestamps, but not "
+            "message bodies or attachments. Discord uses an official bot context "
+            "and can see only DMs to that bot, mentions of it, and explicitly "
+            "approved channels. Akiha cannot inspect your private Discord account, "
+            "friends list, personal DMs, or friend requests.</p>"
+            "<p><b>External storage:</b> OAuth and bot credentials are encrypted "
+            "for the current Windows user. Local synchronization stores only "
+            "hashed identifiers, cursors, classifications, timestamps, and "
+            "notification status. Message bodies, attachments, raw provider "
+            "responses, and credentials are excluded from events and logs.</p>"
         )
         summary.setWordWrap(True)
         summary.setTextFormat(Qt.TextFormat.RichText)

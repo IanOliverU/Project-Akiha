@@ -10,6 +10,8 @@ from project_akiha.config import (
     SPOTIFY_REDIRECT_URI,
     AIConfig,
     BehaviorConfig,
+    DiscordIntegrationConfig,
+    GmailIntegrationConfig,
     PersonalityConfig,
     PrivacyConfig,
     SpotifyConfig,
@@ -76,6 +78,24 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(config.voice.hosted_live_max_duration_seconds, 600)
         self.assertFalse(config.voice.input_enabled)
         self.assertFalse(config.voice.output_enabled)
+        self.assertFalse(config.integrations.gmail.enabled)
+        self.assertFalse(config.integrations.discord.enabled)
+        self.assertTrue(config.integrations.visual_notifications_enabled)
+
+    def test_external_integration_settings_fail_closed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Desktop OAuth"):
+            GmailIntegrationConfig(enabled=True, client_id="not-a-google-client")
+        with self.assertRaisesRegex(ValueError, "self-bot"):
+            DiscordIntegrationConfig(mode="user_token")
+        with self.assertRaisesRegex(ValueError, "snowflake"):
+            DiscordIntegrationConfig(authorized_channel_ids=("not-an-id",))
+
+    def test_discord_channel_ids_are_trimmed_and_deduplicated(self) -> None:
+        config = DiscordIntegrationConfig(
+            authorized_channel_ids=(" 123 ", "", "123", "456")
+        )
+
+        self.assertEqual(config.authorized_channel_ids, ("123", "456"))
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:

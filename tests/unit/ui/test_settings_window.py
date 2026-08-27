@@ -117,10 +117,19 @@ class SettingsWindowTest(unittest.TestCase):
             if section.objectName() == "settingsSection"
         }
         self.assertEqual(window.objectName(), "akihaSettingsWindow")
-        self.assertEqual(window._tabs.count(), 7)
+        self.assertEqual(window._tabs.count(), 8)
         self.assertEqual(
             [button.text() for button in window._settings_nav_buttons],
-            ["Pet", "AI", "Memory", "Behavior", "Actions", "Spotify", "Voice"],
+            [
+                "Pet",
+                "AI",
+                "Memory",
+                "Behavior",
+                "Actions",
+                "Spotify",
+                "Integrations",
+                "Voice",
+            ],
         )
         self.assertTrue(window._settings_nav_buttons[0].isChecked())
         self.assertTrue(

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from project_akiha.app.integration_notification_coordinator import (
     IntegrationNotificationCoordinator,
 )
-from project_akiha.config import BehaviorConfig
+from project_akiha.config import BehaviorConfig, ExternalIntegrationsConfig
 from project_akiha.core.behavior import (
     ActivitySnapshot,
     ActivityState,
@@ -126,10 +126,61 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
         self.assertEqual(result, "repository_error")
         self.assertEqual(self.scheduled, [])
 
+    def test_expired_event_is_receipted_without_delivery(self) -> None:
+        coordinator = self._coordinator()
+
+        coordinator.submit(
+            _event(occurred_at=datetime(2026, 8, 27, 11, 50, tzinfo=UTC))
+        )
+        self._run_scheduled()
+
+        self.assertEqual(self.notifications, [])
+        self.assertEqual(self.repository.statuses, [ExternalNotificationStatus.EXPIRED])
+
+    def test_delivery_result_completes_receipt(self) -> None:
+        coordinator = self._coordinator()
+        coordinator.submit(_event())
+        self._run_scheduled()
+
+        self.bus.publish(
+            EventType.PROACTIVE_SUGGESTION_DELIVERED,
+            {
+                **self.notifications[0].payload,
+                "delivered": True,
+                "channel": "chat_notice",
+            },
+        )
+
+        self.assertEqual(
+            self.repository.statuses,
+            [
+                ExternalNotificationStatus.QUEUED,
+                ExternalNotificationStatus.DELIVERED,
+            ],
+        )
+
+    def test_disabled_visual_and_voice_notifications_are_suppressed(self) -> None:
+        coordinator = self._coordinator(
+            preferences=ExternalIntegrationsConfig(
+                visual_notifications_enabled=False,
+                voice_notifications_enabled=False,
+            )
+        )
+
+        coordinator.submit(_event())
+        self._run_scheduled()
+
+        self.assertEqual(self.notifications, [])
+        self.assertEqual(
+            self.repository.statuses,
+            [ExternalNotificationStatus.SUPPRESSED],
+        )
+
     def _coordinator(
         self,
         *,
         proactive_enabled: bool = True,
+        preferences: ExternalIntegrationsConfig | None = None,
     ) -> IntegrationNotificationCoordinator:
         return IntegrationNotificationCoordinator(
             event_bus=self.bus,
@@ -150,6 +201,7 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
             ),
             schedule_on_app_thread=self.scheduled.append,
             now_provider=lambda: self.now,
+            preference_provider=(lambda: preferences or ExternalIntegrationsConfig()),
         )
 
     def _run_scheduled(self) -> None:
@@ -164,6 +216,7 @@ class _Repository:
         self.raise_on_claim = False
         self.claim_calls = 0
         self.statuses: list[ExternalNotificationStatus] = []
+        self.prune_calls = 0
 
     def claim_event(self, event: ExternalEvent, *, received_at: datetime) -> bool:
         del event, received_at
@@ -199,6 +252,14 @@ class _Repository:
         synchronized_at: datetime,
     ) -> None:
         del service, account_key, cursor, synchronized_at
+
+    def prune_receipts(self, *, older_than: datetime) -> int:
+        del older_than
+        self.prune_calls += 1
+        return 0
+
+    def clear_service_data(self, service: ExternalService) -> None:
+        del service
 
 
 def _event(**changes: object) -> ExternalEvent:
