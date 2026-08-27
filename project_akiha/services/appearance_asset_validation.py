@@ -20,7 +20,14 @@ from project_akiha.providers.animation import (
 )
 
 _EXPECTED_FRAME_SIZE = (100, 100)
-_REQUIRED_STATES = frozenset(AnimationState)
+_REQUIRED_STATES = frozenset(
+    {
+        AnimationState.IDLE,
+        AnimationState.WALKING,
+        AnimationState.DRAGGING,
+        AnimationState.SLEEPING,
+    }
+)
 
 
 class AppearanceAssetIssueCode(StrEnum):
@@ -157,8 +164,8 @@ def validate_appearance_manifest(
 
     assets: dict[Path, tuple[int, int]] = {}
     frame_count = 0
-    for state in sorted(states, key=lambda item: item.value):
-        clip = provider.clip_for(state)
+    for clip in provider.clips_for_review():
+        state = clip.state
         frame_count += len(clip.frame_paths)
         if clip.scale_percent != 100:
             issues.append(
@@ -267,8 +274,7 @@ def _frame_geometry_valid(
     image_size: tuple[int, int],
 ) -> bool:
     found = False
-    for state in provider.available_states():
-        clip = provider.clip_for(state)
+    for clip in provider.clips_for_review():
         for index, frame_path in enumerate(clip.frame_paths):
             if frame_path != path:
                 continue

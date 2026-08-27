@@ -1,6 +1,11 @@
 """Core state machines."""
 
-from project_akiha.core.state.animation import AnimationState, AnimationStateMachine
+from project_akiha.core.state.animation import (
+    AnimationClipId,
+    AnimationSequenceId,
+    AnimationState,
+    AnimationStateMachine,
+)
 from project_akiha.core.state.voice import (
     InvalidVoiceTransitionError,
     VoiceState,
@@ -8,6 +13,8 @@ from project_akiha.core.state.voice import (
 )
 
 __all__ = [
+    "AnimationClipId",
+    "AnimationSequenceId",
     "AnimationState",
     "AnimationStateMachine",
     "InvalidVoiceTransitionError",

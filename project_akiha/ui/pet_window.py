@@ -18,6 +18,9 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QMenu, QWidget
 
+from project_akiha.app.animation_playback_controller import (
+    AnimationPlaybackController,
+)
 from project_akiha.config import PetWindowConfig
 from project_akiha.core.behavior import (
     CompanionMood,
@@ -51,6 +54,7 @@ class PetWindow(QWidget):
         self._event_bus = event_bus
         self._config = config
         self._animation_provider = animation_provider
+        self._animation_playback = AnimationPlaybackController(animation_provider)
         self._renderer = renderer
         self._current_state = AnimationState.IDLE
         self._drag_offset: QPoint | None = None
@@ -93,7 +97,14 @@ class PetWindow(QWidget):
     def set_animation_provider(self, animation_provider: AnimationProvider) -> None:
         """Replace the animation frame provider."""
         self._animation_provider = animation_provider
+        self._animation_playback.set_provider(animation_provider)
+        self._frame_number = self._animation_playback.frame_number
         self.update()
+
+    @property
+    def staged_sleep_available(self) -> bool:
+        """Return whether the active appearance has complete sleep/wake sequences."""
+        return self._animation_playback.staged_sleep_available
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """Start dragging the pet window."""
@@ -209,19 +220,26 @@ class PetWindow(QWidget):
         self._paint_mood_visual(painter, self._mood_visual_cue_for_current_mood())
 
     def _animation_frame_for_current_state(self) -> AnimationFrame:
-        animation_frame = self._animation_provider.frame_for(
-            state=self._current_state,
-            frame_number=self._frame_number,
-        )
+        animation_frame = self._animation_playback.frame()
         if self._current_state == AnimationState.WALKING and self._walk_direction < 0:
             return replace(animation_frame, mirrored_horizontally=True)
         return animation_frame
 
     def _advance_frame(self) -> None:
-        self._frame_number += 1
+        completion = self._animation_playback.advance_tick()
+        self._frame_number = self._animation_playback.frame_number
         if self._current_state == AnimationState.WALKING:
             self._advance_walking_position()
         self.update()
+        if completion is not None:
+            self._event_bus.publish(
+                EventType.ANIMATION_SEQUENCE_COMPLETED,
+                {
+                    "sequence_id": completion.sequence_id.value,
+                    "state": completion.state.value,
+                    "fallback_state": completion.fallback_state.value,
+                },
+            )
         self._frame_interval_index = (self._frame_interval_index + 1) % len(
             self._frame_intervals
         )
@@ -293,6 +311,8 @@ class PetWindow(QWidget):
             except ValueError:
                 return
             else:
+                self._animation_playback.start_state(self._current_state)
+                self._frame_number = 0
                 self.update()
 
     def _handle_mood_changed(self, event: Event) -> None:

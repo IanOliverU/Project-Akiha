@@ -7,7 +7,12 @@ import unittest
 from project_akiha.app.pet_controller import PetController
 from project_akiha.core.events.bus import Event, EventBus
 from project_akiha.core.events.types import EventType
-from project_akiha.core.state.animation import AnimationState, AnimationStateMachine
+from project_akiha.core.state.animation import (
+    AnimationSequenceId,
+    AnimationState,
+    AnimationStateMachine,
+)
+from project_akiha.core.state.voice import VoiceState
 
 
 class PetControllerTest(unittest.TestCase):
@@ -70,16 +75,82 @@ class PetControllerTest(unittest.TestCase):
 
         self.assertEqual(controller.animation_state, AnimationState.DRAGGING)
 
-    def test_invalid_transition_publishes_error(self) -> None:
+    def test_walk_request_uses_legacy_instant_wake_without_staged_assets(self) -> None:
         bus = EventBus()
-        errors: list[Event] = []
-        bus.subscribe(EventType.ERROR_OCCURRED, errors.append)
         controller = PetController(bus, AnimationStateMachine(AnimationState.SLEEPING))
 
         bus.publish(EventType.PET_WALK_REQUESTED)
 
-        self.assertEqual(controller.animation_state, AnimationState.SLEEPING)
-        self.assertEqual(errors[-1].event_type, EventType.ERROR_OCCURRED)
+        self.assertEqual(controller.animation_state, AnimationState.WALKING)
+
+    def test_staged_wake_waits_for_sequence_completion(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        controller.set_staged_sleep_enabled(True)
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        bus.publish(EventType.PET_WAKE_REQUESTED)
+
+        self.assertEqual(controller.animation_state, AnimationState.WAKING)
+        bus.publish(
+            EventType.ANIMATION_SEQUENCE_COMPLETED,
+            {"sequence_id": AnimationSequenceId.WAKE.value},
+        )
+        self.assertEqual(controller.animation_state, AnimationState.IDLE)
+
+    def test_staged_wake_queues_walk_until_completion(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        controller.set_staged_sleep_enabled(True)
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        bus.publish(EventType.PET_WALK_REQUESTED)
+
+        self.assertEqual(controller.animation_state, AnimationState.WAKING)
+        bus.publish(
+            EventType.ANIMATION_SEQUENCE_COMPLETED,
+            {"sequence_id": AnimationSequenceId.WAKE.value},
+        )
+        self.assertEqual(controller.animation_state, AnimationState.WALKING)
+
+    def test_click_release_wakes_to_idle_after_staged_sequence(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        controller.set_staged_sleep_enabled(True)
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        bus.publish(EventType.PET_DRAG_STARTED)
+        bus.publish(EventType.PET_DRAG_ENDED)
+
+        self.assertEqual(controller.animation_state, AnimationState.WAKING)
+        bus.publish(
+            EventType.ANIMATION_SEQUENCE_COMPLETED,
+            {"sequence_id": AnimationSequenceId.WAKE.value},
+        )
+        self.assertEqual(controller.animation_state, AnimationState.IDLE)
+
+    def test_voice_interaction_wakes_even_without_autonomous_session(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        controller.set_staged_sleep_enabled(True)
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        bus.publish(
+            EventType.VOICE_STATE_CHANGED,
+            {"state": VoiceState.LISTENING.value},
+        )
+
+        self.assertEqual(controller.animation_state, AnimationState.WAKING)
+
+    def test_care_interaction_wakes_even_without_autonomous_session(self) -> None:
+        bus = EventBus()
+        controller = PetController(bus, AnimationStateMachine())
+        controller.set_staged_sleep_enabled(True)
+        bus.publish(EventType.PET_SLEEP_REQUESTED)
+
+        bus.publish(EventType.PET_CARE_OPEN_REQUESTED)
+
+        self.assertEqual(controller.animation_state, AnimationState.WAKING)
 
 
 if __name__ == "__main__":

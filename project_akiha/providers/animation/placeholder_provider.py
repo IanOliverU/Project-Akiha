@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from project_akiha.core.state.animation import AnimationState
-from project_akiha.providers.animation.base import AnimationFrame
+from project_akiha.core.state.animation import (
+    AnimationClipId,
+    AnimationSequenceId,
+    AnimationState,
+)
+from project_akiha.providers.animation.base import AnimationFrame, AnimationSequence
 
 
 class PlaceholderAnimationProvider:
@@ -17,6 +21,31 @@ class PlaceholderAnimationProvider:
     def available_states(self) -> frozenset[AnimationState]:
         """Return animation states supported by this provider."""
         return self._available_states
+
+    def available_sequences(self) -> frozenset[AnimationSequenceId]:
+        """Return no staged sequences until trusted artwork is supplied."""
+        return frozenset()
+
+    def sequence_for(self, sequence_id: AnimationSequenceId) -> AnimationSequence:
+        """Reject unavailable staged sequences explicitly."""
+        raise KeyError(f"Animation sequence is not declared: {sequence_id.value}.")
+
+    def frame_for_clip(
+        self,
+        clip_id: AnimationClipId,
+        frame_number: int,
+    ) -> AnimationFrame:
+        """Reject unavailable staged clips explicitly."""
+        del frame_number
+        raise KeyError(f"Animation clip is not declared: {clip_id.value}.")
+
+    def clip_duration_ticks(self, clip_id: AnimationClipId) -> int:
+        """Reject unavailable staged clip timing explicitly."""
+        raise KeyError(f"Animation clip is not declared: {clip_id.value}.")
+
+    def clip_loops(self, clip_id: AnimationClipId) -> bool:
+        """Reject unavailable staged clip behavior explicitly."""
+        raise KeyError(f"Animation clip is not declared: {clip_id.value}.")
 
     def frame_for(
         self,

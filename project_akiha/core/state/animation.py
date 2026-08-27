@@ -12,6 +12,25 @@ class AnimationState(StrEnum):
     WALKING = "walking"
     DRAGGING = "dragging"
     SLEEPING = "sleeping"
+    WAKING = "waking"
+
+
+class AnimationClipId(StrEnum):
+    """Closed trusted clip identifiers accepted by staged playback."""
+
+    SLEEP_START = "sleep_start"
+    SLEEP_LOOP = "sleep_loop"
+    WAKE_START = "wake_start"
+    HALF_AWAKE = "half_awake"
+    SITTING_ON_FUTON = "sitting_on_futon"
+    GETTING_UP = "getting_up"
+
+
+class AnimationSequenceId(StrEnum):
+    """Closed staged animation sequences supported by the pet controller."""
+
+    SLEEP = "sleep"
+    WAKE = "wake"
 
 
 class InvalidAnimationTransitionError(ValueError):
@@ -35,7 +54,17 @@ class AnimationStateMachine:
         AnimationState.DRAGGING: frozenset(
             {AnimationState.IDLE, AnimationState.WALKING}
         ),
-        AnimationState.SLEEPING: frozenset({AnimationState.IDLE}),
+        AnimationState.SLEEPING: frozenset(
+            {AnimationState.IDLE, AnimationState.WAKING}
+        ),
+        AnimationState.WAKING: frozenset(
+            {
+                AnimationState.IDLE,
+                AnimationState.WALKING,
+                AnimationState.DRAGGING,
+                AnimationState.SLEEPING,
+            }
+        ),
     }
 
     def __init__(self, initial_state: AnimationState = AnimationState.IDLE) -> None:

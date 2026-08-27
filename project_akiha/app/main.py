@@ -703,6 +703,7 @@ def _run_application() -> int:
         animation_provider=animation_provider,
         renderer=SpritePetRenderer(fallback_renderer=PlaceholderPetRenderer()),
     )
+    pet_controller.set_staged_sleep_enabled(window.staged_sleep_available)
     window.move(start_position.x, start_position.y)
     window.show()
 
@@ -953,6 +954,7 @@ def _run_application() -> int:
         window.apply_config(updated_config.pet_window)
         manifest = appearance_service.current_manifest_path
         window.set_animation_provider(_build_animation_provider(manifest, logger))
+        pet_controller.set_staged_sleep_enabled(window.staged_sleep_available)
         ai_provider = _build_ai_provider(
             updated_config.ai,
             logger,
@@ -1309,6 +1311,7 @@ def _run_application() -> int:
                     logger,
                 )
             )
+            pet_controller.set_staged_sleep_enabled(window.staged_sleep_available)
 
     def handle_shop_failure(detail: str) -> None:
         logger.error("Shop operation failed: %s", detail)

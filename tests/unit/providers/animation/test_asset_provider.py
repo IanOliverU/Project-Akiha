@@ -6,7 +6,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from project_akiha.core.state.animation import AnimationState
+from project_akiha.core.state.animation import (
+    AnimationClipId,
+    AnimationSequenceId,
+    AnimationState,
+)
 from project_akiha.providers.animation import (
     AnimationManifestError,
     AssetAnimationProvider,
@@ -281,10 +285,155 @@ class AssetAnimationProviderTest(unittest.TestCase):
                     AssetAnimationProvider.from_manifest(manifest_path)
             outside.unlink()
 
+    def test_loads_validated_sleep_and_wake_sequences(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.toml"
+            for name in (
+                "idle.png",
+                "sleep-start.png",
+                "sleep-loop.png",
+                "wake-start.png",
+                "half-awake.png",
+                "sitting.png",
+                "getting-up.png",
+            ):
+                _touch(root / name)
+            manifest_path.write_text(_staged_manifest(), encoding="utf-8")
+
+            provider = AssetAnimationProvider.from_manifest(manifest_path)
+
+        self.assertEqual(
+            provider.available_sequences(),
+            frozenset({AnimationSequenceId.SLEEP, AnimationSequenceId.WAKE}),
+        )
+        self.assertTrue(provider.clip_loops(AnimationClipId.SLEEP_LOOP))
+        self.assertFalse(provider.clip_loops(AnimationClipId.GETTING_UP))
+        self.assertEqual(provider.clip_duration_ticks(AnimationClipId.WAKE_START), 2)
+        final = provider.frame_for_clip(AnimationClipId.GETTING_UP, 99)
+        self.assertEqual(final.frame_index, 0)
+
+    def test_rejects_staged_sequence_with_missing_clip(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.toml"
+            _touch(root / "idle.png")
+            manifest_path.write_text(
+                "[animations.idle]\n"
+                'frames = ["idle.png"]\n'
+                "[sequences.sleep]\n"
+                'state = "sleeping"\n'
+                'clips = ["sleep_start", "sleep_loop"]\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "missing clip"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_non_looping_sleep_terminal_clip(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.toml"
+            for name in (
+                "idle.png",
+                "sleep-start.png",
+                "sleep-loop.png",
+                "wake-start.png",
+                "half-awake.png",
+                "sitting.png",
+                "getting-up.png",
+            ):
+                _touch(root / name)
+            manifest_path.write_text(
+                _staged_manifest().replace(
+                    '[clips.sleep_loop]\nstate = "sleeping"\nloop = true',
+                    '[clips.sleep_loop]\nstate = "sleeping"\nloop = false',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "looping clip"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
+    def test_rejects_non_interruptible_staged_clip(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.toml"
+            for name in (
+                "idle.png",
+                "sleep-start.png",
+                "sleep-loop.png",
+                "wake-start.png",
+                "half-awake.png",
+                "sitting.png",
+                "getting-up.png",
+            ):
+                _touch(root / name)
+            manifest_path.write_text(
+                _staged_manifest().replace(
+                    '[clips.sleep_loop]\nstate = "sleeping"\nloop = true',
+                    '[clips.sleep_loop]\nstate = "sleeping"\nloop = true\n'
+                    "interruptible = false",
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(AnimationManifestError, "interruptible"):
+                AssetAnimationProvider.from_manifest(manifest_path)
+
 
 def _touch(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
+
+
+def _staged_manifest() -> str:
+    return """[animations.idle]
+frames = ["idle.png"]
+
+[clips.sleep_start]
+state = "sleeping"
+loop = false
+frames = ["sleep-start.png"]
+
+[clips.sleep_loop]
+state = "sleeping"
+loop = true
+frames = ["sleep-loop.png"]
+
+[clips.wake_start]
+state = "waking"
+loop = false
+frames = ["wake-start.png"]
+frame_durations = [2]
+
+[clips.half_awake]
+state = "waking"
+loop = false
+frames = ["half-awake.png"]
+
+[clips.sitting_on_futon]
+state = "waking"
+loop = false
+frames = ["sitting.png"]
+
+[clips.getting_up]
+state = "waking"
+loop = false
+frames = ["getting-up.png"]
+
+[sequences.sleep]
+state = "sleeping"
+clips = ["sleep_start", "sleep_loop"]
+fallback_state = "idle"
+interruptible = true
+
+[sequences.wake]
+state = "waking"
+clips = ["wake_start", "half_awake", "sitting_on_futon", "getting_up"]
+fallback_state = "idle"
+interruptible = true
+"""
 
 
 if __name__ == "__main__":

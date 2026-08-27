@@ -145,6 +145,20 @@ class PetWindowTest(unittest.TestCase):
         self.assertEqual(self._window._frame_number, 60)
         self.assertEqual(self._window._frame_interval_index, 0)
 
+    def test_state_change_resets_animation_frame_clock(self) -> None:
+        event_bus = EventBus()
+        self._window = self._make_window(event_bus)
+        self._window._advance_frame()
+        self._window._advance_frame()
+
+        event_bus.publish(EventType.STATE_CHANGED, {"state": "walking"})
+
+        self.assertEqual(self._window._frame_number, 0)
+        self.assertEqual(
+            self._window._animation_frame_for_current_state().state,
+            AnimationState.WALKING,
+        )
+
     def test_context_menu_behavior_history_action_publishes_request(self) -> None:
         event_bus = EventBus()
         self._window = self._make_window(event_bus)

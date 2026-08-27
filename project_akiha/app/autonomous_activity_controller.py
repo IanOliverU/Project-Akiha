@@ -332,11 +332,18 @@ class AutonomousActivityController:
     def _handle_direct_control(self, event: Event) -> None:
         if event.payload.get("source") == AUTONOMOUS_ACTIVITY_SOURCE:
             return
+        wake_for_interface = event.event_type in {
+            EventType.CHAT_OPEN_REQUESTED,
+            EventType.SETTINGS_OPEN_REQUESTED,
+            EventType.PET_STATUS_OPEN_REQUESTED,
+        }
         self._preempt(
             PetActivityPriority.DIRECT_CONTROL,
             PetActivityCancellationReason.DIRECT_CONTROL,
             _now(),
-            restore_idle=False,
+            restore_idle=wake_for_interface
+            and self._animation_state
+            in {AnimationState.SLEEPING, AnimationState.WAKING},
         )
 
 

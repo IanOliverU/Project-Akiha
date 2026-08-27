@@ -25,6 +25,7 @@ class EventType(StrEnum):
     PET_ACTIVITY_STARTED = "pet.activity_started"
     PET_ACTIVITY_COMPLETED = "pet.activity_completed"
     PET_ACTIVITY_CANCELLED = "pet.activity_cancelled"
+    ANIMATION_SEQUENCE_COMPLETED = "animation.sequence_completed"
     SHOP_PURCHASE_COMPLETED = "shop.purchase_completed"
     APPEARANCE_CHANGED = "appearance.changed"
     SHOP_OPEN_REQUESTED = "shop.open_requested"

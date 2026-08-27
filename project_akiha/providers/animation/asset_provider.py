@@ -7,8 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from project_akiha.core.state.animation import AnimationState
-from project_akiha.providers.animation.base import AnimationFrame
+from project_akiha.core.state.animation import (
+    AnimationClipId,
+    AnimationSequenceId,
+    AnimationState,
+)
+from project_akiha.providers.animation.base import AnimationFrame, AnimationSequence
 
 
 class AnimationManifestError(ValueError):
@@ -22,12 +26,23 @@ class AnimationClip:
     state: AnimationState
     frame_paths: tuple[Path, ...]
     ticks_per_frame: int
+    clip_id: AnimationClipId | None = None
+    loop: bool = True
+    interruptible: bool = True
+    fallback_state: AnimationState = AnimationState.IDLE
     x_offset: int = 0
     y_offset: int = 0
     scale_percent: int = 100
     source_rects: tuple[tuple[int, int, int, int] | None, ...] = ()
     frame_offsets: tuple[tuple[int, int], ...] = ()
     frame_durations: tuple[int, ...] = ()
+
+    @property
+    def duration_ticks(self) -> int:
+        """Return one complete logical pass through the clip."""
+        if self.frame_durations:
+            return sum(self.frame_durations)
+        return len(self.frame_paths) * self.ticks_per_frame
 
     def frame_for(self, frame_number: int) -> AnimationFrame:
         """Return the frame represented by the global clock tick."""
@@ -57,9 +72,15 @@ class AnimationClip:
 
     def _frame_index(self, frame_number: int) -> int:
         if not self.frame_durations:
-            return (frame_number // self.ticks_per_frame) % len(self.frame_paths)
+            index = frame_number // self.ticks_per_frame
+            if self.loop:
+                return index % len(self.frame_paths)
+            return min(index, len(self.frame_paths) - 1)
 
-        cycle_tick = frame_number % sum(self.frame_durations)
+        cycle_duration = sum(self.frame_durations)
+        if not self.loop and frame_number >= cycle_duration:
+            return len(self.frame_paths) - 1
+        cycle_tick = frame_number % cycle_duration
         elapsed_ticks = 0
         for frame_index, duration in enumerate(self.frame_durations):
             elapsed_ticks += duration
@@ -71,11 +92,19 @@ class AnimationClip:
 class AssetAnimationProvider:
     """Load animation frame paths from a TOML manifest."""
 
-    def __init__(self, clips: dict[AnimationState, AnimationClip]) -> None:
+    def __init__(
+        self,
+        clips: dict[AnimationState, AnimationClip],
+        *,
+        named_clips: dict[AnimationClipId, AnimationClip] | None = None,
+        sequences: dict[AnimationSequenceId, AnimationSequence] | None = None,
+    ) -> None:
         if not clips:
             message = "Animation manifest must define at least one clip."
             raise AnimationManifestError(message)
         self._clips = clips
+        self._named_clips = named_clips or {}
+        self._sequences = sequences or {}
         self._fallback_state = (
             AnimationState.IDLE if AnimationState.IDLE in clips else next(iter(clips))
         )
@@ -102,7 +131,16 @@ class AssetAnimationProvider:
             )
             for state_name, state_data in animations.items()
         }
-        return cls(clips=clips)
+        named_clips = _parse_named_clips(
+            manifest.get("clips"),
+            manifest_path.parent,
+        )
+        sequences = _parse_sequences(
+            manifest.get("sequences"),
+            named_clips,
+            clips,
+        )
+        return cls(clips=clips, named_clips=named_clips, sequences=sequences)
 
     def available_states(self) -> frozenset[AnimationState]:
         """Return animation states supported by this provider."""
@@ -117,6 +155,51 @@ class AssetAnimationProvider:
         except KeyError as error:
             raise KeyError(
                 f"Animation state is not declared: {state.value}."
+            ) from error
+
+    def clips_for_review(self) -> tuple[AnimationClip, ...]:
+        """Return every legacy and staged clip for trusted asset validation."""
+        return tuple(self._clips.values()) + tuple(self._named_clips.values())
+
+    def available_sequences(self) -> frozenset[AnimationSequenceId]:
+        """Return staged sequences supported by this appearance manifest."""
+        return frozenset(self._sequences)
+
+    def sequence_for(self, sequence_id: AnimationSequenceId) -> AnimationSequence:
+        """Return one validated staged sequence."""
+        if not isinstance(sequence_id, AnimationSequenceId):
+            raise TypeError("sequence_id must be an AnimationSequenceId value.")
+        try:
+            return self._sequences[sequence_id]
+        except KeyError as error:
+            raise KeyError(
+                f"Animation sequence is not declared: {sequence_id.value}."
+            ) from error
+
+    def frame_for_clip(
+        self,
+        clip_id: AnimationClipId,
+        frame_number: int,
+    ) -> AnimationFrame:
+        """Return a frame from one validated staged clip."""
+        return self._named_clip(clip_id).frame_for(frame_number)
+
+    def clip_duration_ticks(self, clip_id: AnimationClipId) -> int:
+        """Return one finite pass through a staged clip."""
+        return self._named_clip(clip_id).duration_ticks
+
+    def clip_loops(self, clip_id: AnimationClipId) -> bool:
+        """Return whether a staged clip loops indefinitely."""
+        return self._named_clip(clip_id).loop
+
+    def _named_clip(self, clip_id: AnimationClipId) -> AnimationClip:
+        if not isinstance(clip_id, AnimationClipId):
+            raise TypeError("clip_id must be an AnimationClipId value.")
+        try:
+            return self._named_clips[clip_id]
+        except KeyError as error:
+            raise KeyError(
+                f"Animation clip is not declared: {clip_id.value}."
             ) from error
 
     def frame_for(
@@ -141,6 +224,8 @@ def _parse_clip(
     state_name: str,
     state_data: Any,
     manifest_dir: Path,
+    *,
+    clip_id: AnimationClipId | None = None,
 ) -> AnimationClip:
     if not isinstance(state_data, dict):
         raise AnimationManifestError(f"Animation {state_name} must be a table.")
@@ -186,10 +271,27 @@ def _parse_clip(
         frame_count=len(frame_paths),
     )
 
+    loop = state_data.get("loop", True)
+    if type(loop) is not bool:
+        raise AnimationManifestError(f"Animation {state_name} loop must be a boolean.")
+    interruptible = state_data.get("interruptible", True)
+    if type(interruptible) is not bool:
+        raise AnimationManifestError(
+            f"Animation {state_name} interruptible must be a boolean."
+        )
+    fallback_state = _parse_optional_state(
+        state_data.get("fallback_state", AnimationState.IDLE.value),
+        f"Animation {state_name} fallback_state",
+    )
+
     return AnimationClip(
         state=_parse_state(state_name),
         frame_paths=frame_paths,
         ticks_per_frame=ticks_per_frame,
+        clip_id=clip_id,
+        loop=loop,
+        interruptible=interruptible,
+        fallback_state=fallback_state,
         x_offset=x_offset,
         y_offset=y_offset,
         scale_percent=scale_percent,
@@ -197,6 +299,157 @@ def _parse_clip(
         frame_offsets=frame_offsets,
         frame_durations=frame_durations,
     )
+
+
+def _parse_named_clips(
+    value: Any,
+    manifest_dir: Path,
+) -> dict[AnimationClipId, AnimationClip]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise AnimationManifestError("Manifest [clips] must be a table.")
+
+    clips: dict[AnimationClipId, AnimationClip] = {}
+    for clip_name, clip_data in value.items():
+        try:
+            clip_id = AnimationClipId(clip_name)
+        except ValueError as error:
+            raise AnimationManifestError(
+                f"Unknown staged animation clip: {clip_name}."
+            ) from error
+        if not isinstance(clip_data, dict):
+            raise AnimationManifestError(f"Animation clip {clip_name} must be a table.")
+        state_value = clip_data.get("state")
+        state = _parse_optional_state(state_value, f"Animation clip {clip_name} state")
+        clips[clip_id] = _parse_clip(
+            state_name=state.value,
+            state_data=clip_data,
+            manifest_dir=manifest_dir,
+            clip_id=clip_id,
+        )
+    return clips
+
+
+def _parse_sequences(
+    value: Any,
+    named_clips: dict[AnimationClipId, AnimationClip],
+    state_clips: dict[AnimationState, AnimationClip],
+) -> dict[AnimationSequenceId, AnimationSequence]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise AnimationManifestError("Manifest [sequences] must be a table.")
+
+    expected_states = {
+        AnimationSequenceId.SLEEP: AnimationState.SLEEPING,
+        AnimationSequenceId.WAKE: AnimationState.WAKING,
+    }
+    sequences: dict[AnimationSequenceId, AnimationSequence] = {}
+    for sequence_name, sequence_data in value.items():
+        try:
+            sequence_id = AnimationSequenceId(sequence_name)
+        except ValueError as error:
+            raise AnimationManifestError(
+                f"Unknown animation sequence: {sequence_name}."
+            ) from error
+        if not isinstance(sequence_data, dict):
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} must be a table."
+            )
+        state = _parse_optional_state(
+            sequence_data.get("state"),
+            f"Animation sequence {sequence_name} state",
+        )
+        if state is not expected_states[sequence_id]:
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} has an incompatible state."
+            )
+        clip_values = sequence_data.get("clips")
+        if not isinstance(clip_values, list) or not clip_values:
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} requires clips."
+            )
+        try:
+            clip_ids = tuple(AnimationClipId(item) for item in clip_values)
+        except (TypeError, ValueError) as error:
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} contains an unknown clip."
+            ) from error
+        if len(set(clip_ids)) != len(clip_ids):
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} repeats a clip."
+            )
+        for index, clip_id in enumerate(clip_ids):
+            clip = named_clips.get(clip_id)
+            if clip is None:
+                raise AnimationManifestError(
+                    f"Animation sequence {sequence_name} references missing clip "
+                    f"{clip_id.value}."
+                )
+            if clip.state is not state:
+                raise AnimationManifestError(
+                    f"Animation sequence {sequence_name} clip {clip_id.value} "
+                    "has an incompatible state."
+                )
+            if not clip.interruptible:
+                raise AnimationManifestError(
+                    f"Animation sequence {sequence_name} clip {clip_id.value} "
+                    "must remain interruptible."
+                )
+            if clip.loop and index != len(clip_ids) - 1:
+                raise AnimationManifestError(
+                    f"Animation sequence {sequence_name} can loop only on its "
+                    "final clip."
+                )
+        final_clip = named_clips[clip_ids[-1]]
+        if sequence_id is AnimationSequenceId.SLEEP and not final_clip.loop:
+            raise AnimationManifestError(
+                "Animation sequence sleep must end with a looping clip."
+            )
+        if sequence_id is AnimationSequenceId.WAKE and final_clip.loop:
+            raise AnimationManifestError(
+                "Animation sequence wake must end with a one-shot clip."
+            )
+        interruptible = sequence_data.get("interruptible", True)
+        if type(interruptible) is not bool:
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} interruptible must be a boolean."
+            )
+        if (
+            sequence_id in {AnimationSequenceId.SLEEP, AnimationSequenceId.WAKE}
+            and not interruptible
+        ):
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} must remain interruptible."
+            )
+        fallback_state = _parse_optional_state(
+            sequence_data.get("fallback_state", AnimationState.IDLE.value),
+            f"Animation sequence {sequence_name} fallback_state",
+        )
+        if fallback_state not in state_clips:
+            raise AnimationManifestError(
+                f"Animation sequence {sequence_name} fallback_state is unavailable."
+            )
+        sequences[sequence_id] = AnimationSequence(
+            sequence_id=sequence_id,
+            state=state,
+            clip_ids=clip_ids,
+            fallback_state=fallback_state,
+            interruptible=interruptible,
+        )
+    return sequences
+
+
+def _parse_optional_state(value: Any, label: str) -> AnimationState:
+    if not isinstance(value, str):
+        raise AnimationManifestError(f"{label} must be a known animation state.")
+    try:
+        return AnimationState(value)
+    except ValueError as error:
+        raise AnimationManifestError(
+            f"{label} must be a known animation state."
+        ) from error
 
 
 def _parse_frame_offsets(

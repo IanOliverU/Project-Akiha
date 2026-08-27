@@ -81,6 +81,32 @@ class AppearanceAssetValidationTest(unittest.TestCase):
             {issue.code for issue in report.issues},
         )
 
+    def test_staged_clips_are_included_in_whole_set_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _sprite(root / "base.png")
+            Image.new("RGBA", (50, 50), (0, 0, 0, 0)).save(root / "wake.png")
+            manifest = root / "manifest.toml"
+            legacy = "".join(
+                f'[animations.{state}]\nframes = ["base.png"]\n'
+                for state in ("idle", "walking", "dragging", "sleeping")
+            )
+            manifest.write_text(
+                legacy
+                + '[clips.wake_start]\nstate = "waking"\nloop = false\n'
+                + 'frames = ["wake.png"]\n',
+                encoding="utf-8",
+            )
+
+            report = validate_appearance_manifest(AppearanceId.DRESS, manifest)
+
+        self.assertFalse(report.technically_valid)
+        self.assertEqual(report.declared_frame_count, 5)
+        self.assertIn(
+            AppearanceAssetIssueCode.SOURCE_RECT_INVALID,
+            {issue.code for issue in report.issues},
+        )
+
 
 def _sprite(path: Path) -> None:
     image = Image.new("RGBA", (100, 100), (0, 0, 0, 0))

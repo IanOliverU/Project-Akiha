@@ -1,6 +1,7 @@
 # Project Akiha Pet Animation Architecture
 
-**Status:** Reconciled with the Phase 9 implementation on 2026-08-19
+**Status:** Architecture retained and artwork work paused on 2026-08-27;
+sleep/wake and revised walk assets remain pending owner approval
 
 ## Purpose
 
@@ -11,6 +12,11 @@ pet window, mood controller, or pet-state pipeline.
 
 The immediate goal is visual fidelity and predictable low-cost playback. Richer
 animation vocabulary may be added only when approved assets exist.
+
+Animation artwork development is intentionally paused while a higher-fidelity
+pixel-art workflow is researched. The rejected Stitch sleep/wake inputs were
+removed and never became active runtime assets. The state-machine, playback,
+validation, and fallback architecture remains available for later approved art.
 
 ## 1. Canonical Asset Rule
 
@@ -65,6 +71,7 @@ Typed application event
 - `walking`
 - `dragging`
 - `sleeping`
+- `waking`
 
 It also owns the explicit transition rules. Provider output and dialogue text
 cannot name arbitrary files or bypass those transitions.
@@ -108,7 +115,10 @@ crashing startup.
 
 ### Playback and rendering
 
-`PetWindow` owns one Qt timer and a monotonic frame number. Renderer FPS and
+`PetWindow` owns one Qt timer. `AnimationPlaybackController` owns the
+state-relative frame clock and optional staged clip progression without owning
+semantic pet state. Every state change resets the playback clock, preventing a
+new clip from inheriting an unrelated state's frame position. Renderer FPS and
 visual pose count are separate: a 60 FPS timer does not require 60 unique
 images per second.
 
@@ -161,6 +171,12 @@ same strip at render time so Akiha faces the travel direction.
 Dragging and sleeping currently resolve to the canonical standing sprite.
 Their mechanics are functional, but dedicated transition artwork is not yet
 available.
+
+The runtime now has dormant infrastructure for approved staged sleep and wake
+assets. The active manifest deliberately declares no staged clips or
+sequences, so current presentation remains unchanged. Staged sleep activates
+only when the selected appearance provides both a complete `sleep` sequence
+and a complete `wake` sequence.
 
 ### Inactive prototype artwork
 
@@ -233,12 +249,38 @@ approved asset
     + owner visual approval
 ```
 
-### Start / loop / end sequences
+### Staged sleep / wake sequences
 
-Sleep, wake, petting, or speaking may eventually need start/loop/end clips.
-Add that concept to `AnimationClip` and the existing state/controller model only
-after at least one approved asset set requires it. Do not build speculative
-transition machinery around missing artwork.
+The provider accepts optional closed `[clips.*]` and `[sequences.*]` manifest
+tables. This is infrastructure only; it does not authorize or add artwork.
+
+The accepted staged vocabulary is:
+
+```text
+sleep = sleep_start -> sleep_loop
+wake  = wake_start -> half_awake -> sitting_on_futon -> getting_up
+```
+
+Rules are mechanical and fail closed:
+
+- named clips use closed IDs and one known semantic state
+- only the final sequence clip may loop
+- `sleep_loop` must loop
+- `getting_up` must be finite
+- both sequences remain interruptible
+- every fallback names an available legacy state
+- every referenced PNG remains inside the trusted appearance root
+- every staged PNG must be included in the appearance approval fingerprint
+
+`PetController` remains semantic state authority. The playback controller emits
+one typed completion event for a terminal wake sequence; it cannot transition
+pet state itself. Drag, voice, care, and direct user control cancel autonomous
+sleep and request wake. Requests received during wake are queued as one bounded
+post-wake state. If either sequence is absent, the existing instant safe wake
+path remains active.
+
+Do not generalize this into arbitrary runtime clip IDs or a second animation
+controller when artwork is added.
 
 ### Multiple idle variants
 
@@ -354,6 +396,8 @@ Automated checks must cover:
 - per-frame offset and duration cardinality
 - filmstrip geometry
 - transition validity
+- staged clip ordering, loop rules, completion, and interruption
+- state-relative playback-clock reset
 - safe missing-asset fallback
 - canonical-only idle source paths
 - 600-tick/10-second experimental timeline
@@ -389,13 +433,24 @@ approval.
 - Typed pet-state, mood, proactive, voice, and animation reaction boundaries.
 - Safe fallback when dedicated reaction artwork is unavailable.
 
+### Architecture prepared after Phase 10
+
+- Closed `waking` state plus closed sleep/wake clip and sequence IDs.
+- Backward-compatible optional staged manifest metadata.
+- State-relative playback clock with finite one-shot completion.
+- Single-authority staged wake and bounded post-wake requests.
+- High-priority voice, care, drag, and direct-control interruption path.
+- Trusted appearance validation and approval coverage for future staged assets.
+- Legacy instant wake retained until both approved sequences exist.
+
 ### Deferred until approved assets exist
 
 - Dedicated sleep-start, sleep-loop, and wake clips.
+- Final staged-manifest activation and owner visual approval.
+- Replacement walking cycle and its owner visual approval.
 - Feeding, affection, attention, and level-up reactions.
 - Speaking mouth/expression frames.
 - Expanded idle variants.
-- Generalized start/loop/end clip support.
 - Richer animation arbitration.
 - Live2D, Spine, or 3D rendering.
 

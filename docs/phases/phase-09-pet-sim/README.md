@@ -317,7 +317,7 @@ checks, demonstrating why automated image-shape checks are necessary but not
 sufficient for identity approval. The active idle now reuses only the exact
 `standing/000.png` image with integer-position offsets. The reconciled current
 and future boundaries are recorded in
-[the pet animation architecture](../../../PROJECT_AKIHA_PET_ANIMATION_ARCHITECTURE.MD).
+[the pet animation architecture](../../reference/PET_ANIMATION_ARCHITECTURE.md).
 
 ### Minimum Reaction Matrix
 

@@ -32,6 +32,23 @@ class AnimationStateMachineTest(unittest.TestCase):
         with self.assertRaises(InvalidAnimationTransitionError):
             state_machine.transition_to(AnimationState.DRAGGING)
 
+    def test_sleeping_can_enter_staged_wake(self) -> None:
+        state_machine = AnimationStateMachine(AnimationState.SLEEPING)
+
+        result = state_machine.transition_to(AnimationState.WAKING)
+
+        self.assertEqual(result, AnimationState.WAKING)
+
+    def test_waking_can_finish_in_requested_direct_state(self) -> None:
+        for state in (
+            AnimationState.IDLE,
+            AnimationState.WALKING,
+            AnimationState.DRAGGING,
+        ):
+            with self.subTest(state=state):
+                state_machine = AnimationStateMachine(AnimationState.WAKING)
+                self.assertEqual(state_machine.transition_to(state), state)
+
 
 if __name__ == "__main__":
     unittest.main()

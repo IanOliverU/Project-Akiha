@@ -19,9 +19,15 @@ material is separated by purpose.
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 | 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 
-There is no active numbered phase. The scheduled consolidated FastBuild was
-completed on 2026-08-24 and includes the accumulated speech-batching
-improvements recorded in the Phase 10J manual smoke report.
+## Proposed Phase
+
+| Phase | Status | Documentation |
+| --- | --- | --- |
+| 11 - External Integrations | Architecture proposed; awaiting approval | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
+
+Phase 11 implementation has not started. Its architecture review preserves the
+read-only, optional, privacy-conscious boundaries requested for Gmail and
+Discord. Animation artwork work is paused without removing its infrastructure.
 
 ## Current Roadmap
 
@@ -42,6 +48,9 @@ improvements recorded in the Phase 10J manual smoke report.
   data and privacy behavior.
 - [`reference/SECURITY_REVIEW.md`](reference/SECURITY_REVIEW.md): maintained
   security posture.
+- [`reference/PET_ANIMATION_ARCHITECTURE.md`](reference/PET_ANIMATION_ARCHITECTURE.md):
+  retained animation boundaries and canonical-asset rules while artwork work is
+  paused.
 
 ## Archive
 

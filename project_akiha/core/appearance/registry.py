@@ -179,8 +179,11 @@ def _manifest_asset_paths(manifest_path: Path, approved_root: Path) -> frozenset
     animations = document.get("animations")
     if not isinstance(animations, dict) or not animations:
         raise AppearanceRegistryError("Appearance manifest has no animations.")
+    clips = document.get("clips", {})
+    if not isinstance(clips, dict):
+        raise AppearanceRegistryError("Appearance manifest clips are invalid.")
     paths: set[str] = set()
-    for clip in animations.values():
+    for clip in (*animations.values(), *clips.values()):
         if not isinstance(clip, dict):
             raise AppearanceRegistryError("Appearance manifest clip is invalid.")
         values = clip.get("frames")

@@ -111,6 +111,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
+| Phase 11 | Proposed | Read-only Gmail and officially supported Discord awareness |
 
 ## Tech Stack
 
