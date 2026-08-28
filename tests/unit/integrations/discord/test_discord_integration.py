@@ -18,6 +18,7 @@ class DiscordNormalizerTest(unittest.TestCase):
             DiscordIntegrationConfig(
                 notify_authorized_channels=True,
                 authorized_channel_ids=("222",),
+                owner_user_id="555",
             )
         )
         self.now = datetime(2026, 8, 27, 12, 0, tzinfo=UTC)
@@ -52,6 +53,36 @@ class DiscordNormalizerTest(unittest.TestCase):
             channel.kind,
             ExternalEventKind.DISCORD_AUTHORIZED_CHANNEL_MESSAGE,
         )
+
+    def test_owner_mention_and_reply_use_structured_user_ids(self) -> None:
+        mention = self.normalizer.normalize_message_create(
+            _message(guild_id="111", mentions=[{"id": "555"}]),
+            bot_user_id="999",
+            received_at=self.now,
+        )
+        reply = self.normalizer.normalize_message_create(
+            _message(
+                guild_id="111",
+                referenced_message={"author": {"id": "555"}},
+            ),
+            bot_user_id="999",
+            received_at=self.now,
+        )
+
+        self.assertEqual(mention.kind, ExternalEventKind.DISCORD_OWNER_MENTION)
+        self.assertEqual(reply.kind, ExternalEventKind.DISCORD_OWNER_REPLY)
+
+    def test_owner_username_without_matching_id_is_not_trusted(self) -> None:
+        event = self.normalizer.normalize_message_create(
+            _message(
+                guild_id="111",
+                mentions=[{"id": "444", "username": "hanekanyan"}],
+            ),
+            bot_user_id="999",
+            received_at=self.now,
+        )
+
+        self.assertIsNone(event)
 
     def test_unapproved_or_malformed_context_is_rejected(self) -> None:
         cases = (

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QGroupBox,
+    QLineEdit,
     QSpinBox,
     QTimeEdit,
 )
@@ -106,6 +107,27 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertTrue(emitted[0].behavior.quiet_hours_enabled)
         self.assertEqual(emitted[0].behavior.quiet_hours_start, "21:30")
         self.assertEqual(emitted[0].behavior.quiet_hours_end, "08:15")
+
+    def test_saves_discord_owner_notification_controls(self) -> None:
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(AppConfig(), log_dir=Path(directory))
+            emitted: list[AppConfig] = []
+            window.settings_saved.connect(emitted.append)
+            window._integration_cooldown_input.setValue(0)
+            window._discord_owner_user_id_input.setText("123456789")
+            window._discord_notify_owner_mentions_input.setChecked(True)
+            window._discord_notify_owner_replies_input.setChecked(True)
+
+            window._save()
+
+        self.assertEqual(len(emitted), 1)
+        self.assertEqual(emitted[0].integrations.notification_cooldown_seconds, 0)
+        self.assertEqual(
+            emitted[0].integrations.discord.owner_user_id,
+            "123456789",
+        )
+        self.assertTrue(emitted[0].integrations.discord.notify_owner_mentions)
+        self.assertTrue(emitted[0].integrations.discord.notify_owner_replies)
 
     def test_uniform_theme_and_sections_are_applied(self) -> None:
         with TemporaryDirectory() as directory:
@@ -358,6 +380,21 @@ class SettingsWindowTest(unittest.TestCase):
         self.assertEqual(emitted[0].spotify.client_id, "a" * 32)
         self.assertFalse(emitted[0].spotify.auto_launch_desktop_app)
         self.assertEqual(emitted[0].spotify.request_timeout_seconds, 22)
+
+    def test_gmail_client_secret_is_a_password_field_not_public_config(self) -> None:
+        credentials = _CredentialStore()
+        with TemporaryDirectory() as directory:
+            window = SettingsWindow(
+                AppConfig(),
+                log_dir=Path(directory),
+                credential_store=credentials,
+            )
+
+        self.assertEqual(
+            window._gmail_client_secret_input.echoMode(),
+            QLineEdit.EchoMode.Password,
+        )
+        self.assertFalse(hasattr(window._config.integrations.gmail, "client_secret"))
 
     def test_spotify_refresh_token_is_saved_separately(self) -> None:
         credentials = _CredentialStore()

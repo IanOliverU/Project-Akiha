@@ -438,6 +438,9 @@ class DiscordIntegrationConfig:
     mode: str = "bot_gateway"
     notify_bot_direct_messages: bool = True
     notify_mentions: bool = True
+    notify_owner_mentions: bool = True
+    notify_owner_replies: bool = True
+    owner_user_id: str = ""
     notify_authorized_channels: bool = False
     authorized_channel_ids: tuple[str, ...] = ()
     reconnect_max_seconds: int = 60
@@ -459,12 +462,18 @@ class DiscordIntegrationConfig:
                 "integrations.discord.authorized_channel_ids must contain "
                 "Discord snowflake IDs."
             )
+        owner_user_id = self.owner_user_id.strip()
+        if owner_user_id and (not owner_user_id.isdecimal() or len(owner_user_id) > 32):
+            raise ValueError(
+                "integrations.discord.owner_user_id must be a Discord snowflake ID."
+            )
         if not 5 <= self.reconnect_max_seconds <= 300:
             raise ValueError(
                 "integrations.discord.reconnect_max_seconds must be between 5 "
                 "and 300."
             )
         object.__setattr__(self, "authorized_channel_ids", normalized_ids)
+        object.__setattr__(self, "owner_user_id", owner_user_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -473,6 +482,7 @@ class ExternalIntegrationsConfig:
 
     visual_notifications_enabled: bool = True
     voice_notifications_enabled: bool = True
+    notification_cooldown_seconds: int = 1
     event_expiry_seconds: int = 300
     receipt_retention_days: int = 90
     gmail: GmailIntegrationConfig = GmailIntegrationConfig()
@@ -483,6 +493,11 @@ class ExternalIntegrationsConfig:
         if not 30 <= self.event_expiry_seconds <= 3600:
             raise ValueError(
                 "integrations.event_expiry_seconds must be between 30 and 3600."
+            )
+        if not 0 <= self.notification_cooldown_seconds <= 300:
+            raise ValueError(
+                "integrations.notification_cooldown_seconds must be between 0 "
+                "and 300."
             )
         if not 1 <= self.receipt_retention_days <= 365:
             raise ValueError(

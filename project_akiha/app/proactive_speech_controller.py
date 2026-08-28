@@ -30,16 +30,23 @@ class ProactiveSpeechController:
     def _handle_suggestion_delivered(self, event: Event) -> None:
         if event.payload.get("delivered") is not True:
             return
+        if event.payload.get("speech_enabled") is False:
+            return
 
         kind = event.payload.get("kind")
         if not isinstance(kind, str):
             return
 
         message = event.payload.get("message")
+        speech_message = event.payload.get("speech_message")
         line = (
-            message
-            if kind.startswith("external.") and isinstance(message, str)
-            else self._line_provider(kind)
+            speech_message
+            if kind.startswith("external.") and isinstance(speech_message, str)
+            else (
+                message
+                if kind.startswith("external.") and isinstance(message, str)
+                else self._line_provider(kind)
+            )
         )
         if line is not None:
             self._speech_controller.submit_proactive_suggestion(line)

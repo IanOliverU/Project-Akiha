@@ -270,12 +270,15 @@ oversized, unsupported, stale, and secret-like metadata before publication.
 The event logger uses an explicit allowlist for integration events, while the
 deduplication repository hashes external IDs and account keys before storage.
 
-Gmail uses a Desktop OAuth public client with PKCE, exact loopback callback, and
-the metadata-only scope. No client secret is accepted. Discord uses only the
-official Bot Gateway; normal-user tokens, self-bots, browser cookies, personal
-friend monitoring, and account impersonation are excluded. Both credentials
-use separate DPAPI namespaces and never enter prompts, events, history, or
-diagnostics.
+Gmail uses a Desktop OAuth client with PKCE, an exact loopback callback, and the
+metadata-only scope. Google currently requires the generated desktop client
+secret during token exchange. Akiha accepts it only through a password field,
+binds it to the matching client ID, and protects it with Windows DPAPI; it never
+enters TOML, logs, prompts, events, history, diagnostics, or packages. Discord
+uses only the official Bot Gateway and structured numeric IDs for owner
+mention/reply detection; normal-user tokens, self-bots, browser cookies,
+personal friend monitoring, and account impersonation are excluded. Integration
+credentials use separate DPAPI namespaces.
 
 External notifications reuse the existing `NotificationPolicy`, proactive
 delivery, GPT-SoVITS speech, and presentation arbitration. Providers receive no

@@ -52,13 +52,14 @@ class NotificationPolicy:
         activity: ActivitySnapshot,
         now: datetime,
         last_notification_at: datetime | None = None,
+        requires_proactive_enabled: bool = True,
     ) -> NotificationDecision:
         """Return whether the proactive request is allowed."""
         del request
 
         if not self._config.enabled:
             return NotificationDecision(False, "behavior_disabled")
-        if not self._config.proactive_enabled:
+        if requires_proactive_enabled and not self._config.proactive_enabled:
             return NotificationDecision(False, "proactive_disabled")
         if self._in_quiet_hours(now):
             return NotificationDecision(False, "quiet_hours")

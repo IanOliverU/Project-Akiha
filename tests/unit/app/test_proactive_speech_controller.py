@@ -52,7 +52,8 @@ class ProactiveSpeechControllerTest(unittest.TestCase):
             EventType.PROACTIVE_SUGGESTION_DELIVERED,
             _delivery_payload(
                 kind="external.gmail.interview_candidate",
-                message="Ian-sama, an interview email appears to have arrived.",
+                message="An interview email may have arrived.",
+                speech_message="Ian-sama, an interview email appears to have arrived.",
             ),
         )
 
@@ -180,8 +181,9 @@ def _delivery_payload(
     delivered: bool = True,
     kind: str = "idle_check_in",
     message: str = "Need a short break?",
+    speech_message: str | None = None,
 ) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "kind": kind,
         "delivered": delivered,
         "message": message,
@@ -190,6 +192,9 @@ def _delivery_payload(
         "channel": "chat_notice",
         "reason": "chat_visible",
     }
+    if speech_message is not None:
+        payload["speech_message"] = speech_message
+    return payload
 
 
 def _at(hour: int, minute: int) -> datetime:

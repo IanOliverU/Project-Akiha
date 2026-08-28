@@ -18,20 +18,19 @@ material is separated by purpose.
 | 8 - Assistant Actions | Complete | [`phases/phase-08-actions/`](phases/phase-08-actions/) |
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 | 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
+| 11 - External Integrations | Complete | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
 
 ## Active Phase
 
-| Phase | Status | Documentation |
-| --- | --- | --- |
-| 11 - External Integrations | Implementation complete; real-account manual acceptance pending | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
+No implementation phase is currently active.
 
-Phase 11A-11F now provide typed provider-neutral events, fail-closed validation,
+Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
 official Discord Bot Gateway adapter, proactive delivery through the existing
-voice/presentation system, and privacy-safe Settings diagnostics. The automated
-and packaged gates pass; Phase 11G remains open for owner-controlled real Gmail
-and Discord account checks. Animation artwork work remains paused without
-removing its infrastructure.
+voice/presentation system, and privacy-safe Settings diagnostics. Automated and
+packaged gates pass, and the owner accepted real Gmail and Discord delivery on
+2026-08-28. Animation artwork work remains paused without removing its
+infrastructure.
 
 ## Current Roadmap
 

@@ -87,6 +87,7 @@ request_timeout_seconds = 15
 [integrations]
 visual_notifications_enabled = true
 voice_notifications_enabled = true
+notification_cooldown_seconds = 1
 event_expiry_seconds = 300
 receipt_retention_days = 90
 
@@ -110,6 +111,9 @@ enabled = false
 mode = "bot_gateway"
 notify_bot_direct_messages = true
 notify_mentions = true
+notify_owner_mentions = true
+notify_owner_replies = true
+owner_user_id = ""
 notify_authorized_channels = false
 authorized_channel_ids = []
 reconnect_max_seconds = 60

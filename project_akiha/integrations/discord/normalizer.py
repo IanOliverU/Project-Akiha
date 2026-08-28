@@ -57,7 +57,17 @@ class DiscordEventNormalizer:
                 return None
             kind = ExternalEventKind.DISCORD_BOT_DIRECT_MESSAGE
             priority = ExternalEventPriority.NORMAL
-        elif _mentions_bot(payload.get("mentions"), bot_user_id):
+        elif _mentions_user(payload.get("mentions"), self._config.owner_user_id):
+            if not self._config.notify_owner_mentions:
+                return None
+            kind = ExternalEventKind.DISCORD_OWNER_MENTION
+            priority = ExternalEventPriority.IMPORTANT
+        elif _replies_to_user(payload, self._config.owner_user_id):
+            if not self._config.notify_owner_replies:
+                return None
+            kind = ExternalEventKind.DISCORD_OWNER_REPLY
+            priority = ExternalEventPriority.IMPORTANT
+        elif _mentions_user(payload.get("mentions"), bot_user_id):
             if not self._config.notify_mentions:
                 return None
             kind = ExternalEventKind.DISCORD_MENTION
@@ -105,13 +115,22 @@ def _display_name(author: dict[str, Any]) -> str | None:
     return None
 
 
-def _mentions_bot(value: object, bot_user_id: str) -> bool:
-    if not isinstance(value, list):
+def _mentions_user(value: object, user_id: str) -> bool:
+    if not user_id or not isinstance(value, list):
         return False
     return any(
-        isinstance(mention, dict) and mention.get("id") == bot_user_id
-        for mention in value
+        isinstance(mention, dict) and mention.get("id") == user_id for mention in value
     )
+
+
+def _replies_to_user(payload: dict[str, Any], user_id: str) -> bool:
+    if not user_id:
+        return False
+    referenced = payload.get("referenced_message")
+    if not isinstance(referenced, dict):
+        return False
+    author = referenced.get("author")
+    return isinstance(author, dict) and author.get("id") == user_id
 
 
 def _parse_timestamp(value: object, fallback: datetime | None) -> datetime:

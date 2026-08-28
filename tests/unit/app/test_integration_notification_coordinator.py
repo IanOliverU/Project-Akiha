@@ -91,8 +91,8 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
         self.assertEqual(self.repository.claim_calls, 0)
         self.assertEqual(self.scheduled, [])
 
-    def test_notification_policy_can_suppress_delivery(self) -> None:
-        coordinator = self._coordinator(proactive_enabled=False)
+    def test_disabled_behavior_policy_can_suppress_delivery(self) -> None:
+        coordinator = self._coordinator(behavior_enabled=False)
 
         coordinator.submit(_event())
         self._run_scheduled()
@@ -102,6 +102,46 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
         self.assertEqual(
             self.repository.statuses,
             [ExternalNotificationStatus.SUPPRESSED],
+        )
+
+    def test_proactive_check_in_toggle_does_not_disable_integrations(self) -> None:
+        coordinator = self._coordinator(proactive_enabled=False)
+
+        coordinator.submit(_event())
+        self._run_scheduled()
+
+        self.assertEqual(len(self.notifications), 1)
+
+    def test_external_cooldown_is_scoped_per_event_kind(self) -> None:
+        coordinator = self._coordinator(
+            preferences=ExternalIntegrationsConfig(
+                notification_cooldown_seconds=1,
+            )
+        )
+        coordinator.submit(_event(external_id="gmail-1"))
+        self._run_scheduled()
+        coordinator.submit(_event(external_id="gmail-2"))
+        self._run_scheduled()
+        coordinator.submit(
+            _event(
+                service=ExternalService.DISCORD,
+                external_id="discord-1",
+                kind=ExternalEventKind.DISCORD_BOT_DIRECT_MESSAGE,
+                subject=None,
+                classification=ExternalClassification.GENERAL,
+                priority=ExternalEventPriority.NORMAL,
+            )
+        )
+        self._run_scheduled()
+
+        self.assertEqual(len(self.notifications), 2)
+        self.assertEqual(
+            self.repository.statuses,
+            [
+                ExternalNotificationStatus.QUEUED,
+                ExternalNotificationStatus.SUPPRESSED,
+                ExternalNotificationStatus.QUEUED,
+            ],
         )
 
     def test_silent_event_is_receipted_without_rendering(self) -> None:
@@ -179,6 +219,7 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
     def _coordinator(
         self,
         *,
+        behavior_enabled: bool = True,
         proactive_enabled: bool = True,
         preferences: ExternalIntegrationsConfig | None = None,
     ) -> IntegrationNotificationCoordinator:
@@ -188,6 +229,7 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
             repository=self.repository,
             notification_policy=NotificationPolicy(
                 BehaviorConfig(
+                    enabled=behavior_enabled,
                     proactive_enabled=proactive_enabled,
                     minimum_seconds_between_notifications=60,
                 )

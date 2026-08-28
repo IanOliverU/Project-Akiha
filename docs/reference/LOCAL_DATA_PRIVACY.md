@@ -312,14 +312,17 @@ unrelated history.
 
 Gmail and Discord are optional and disabled until configured. Gmail requests
 only the `gmail.metadata` scope and polls bounded message metadata. Its access
-token remains in memory and its refresh token is protected by Windows DPAPI.
+token remains in memory; its refresh token and Google-generated Desktop OAuth
+client secret are protected by Windows DPAPI and excluded from ordinary config.
 The application may transiently inspect sender, subject, timestamp, and label
 metadata for deterministic local classification, but it does not request or
 persist message bodies, snippets, or attachments.
 
 Discord uses an official bot token protected by DPAPI. The Bot Gateway accepts
-DMs sent to the bot, mentions of the bot, and explicitly authorized channel
-events. Message content is discarded before the normalized event boundary.
+DMs sent to the bot, mentions of the bot, mentions of one configured owner user
+ID, structured replies to that owner, and explicitly authorized channel events.
+The numeric owner ID is ordinary local configuration, not a credential. Message
+content is discarded before the normalized event boundary.
 The integration cannot monitor a normal user's private DMs, friends list, or
 friend requests and does not use self-bots, browser cookies, or user tokens.
 
@@ -367,7 +370,7 @@ The notice explains:
 - optional provider classification of explicit app/media requests without
   local filesystem details
 - sanitized assistant-action audit history and prohibited action categories
-- optional Gmail metadata-only polling and encrypted OAuth refresh-token storage
+- optional Gmail metadata-only polling and encrypted OAuth credential storage
 - optional official Discord Bot Gateway scope and encrypted bot-token storage
 - hashed external-event deduplication receipts, bounded retention, and local
   clear controls
@@ -382,6 +385,6 @@ migrations, UI assets, and required runtime libraries. They do not copy the
 user's `%LOCALAPPDATA%\Akiha\` directory. The artifact validator rejects
 environment files, common secret files, private Spotify exports, and SQLite
 database files anywhere in the standalone folder. Gemini credentials,
-Spotify/Gmail refresh tokens, and Discord bot tokens remain in the current
-Windows user's DPAPI-protected local state and are never embedded in `Akiha.exe`
-or its adjacent data files.
+Spotify/Gmail refresh tokens, Gmail OAuth client secrets, and Discord bot tokens
+remain in the current Windows user's DPAPI-protected local state and are never
+embedded in `Akiha.exe` or its adjacent data files.

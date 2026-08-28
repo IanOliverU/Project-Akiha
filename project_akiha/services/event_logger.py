@@ -64,6 +64,10 @@ def _privacy_safe_payload(event: Event) -> dict[str, object]:
         }
         message = event.payload.get("message")
         payload["message_present"] = isinstance(message, str) and bool(message.strip())
+        speech_message = event.payload.get("speech_message")
+        payload["speech_message_present"] = isinstance(speech_message, str) and bool(
+            speech_message.strip()
+        )
         return payload
     if event.event_type == EventType.VOICE_SPEAK_REQUESTED:
         text = event.payload.get("text")

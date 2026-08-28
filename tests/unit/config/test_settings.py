@@ -11,6 +11,7 @@ from project_akiha.config import (
     AIConfig,
     BehaviorConfig,
     DiscordIntegrationConfig,
+    ExternalIntegrationsConfig,
     GmailIntegrationConfig,
     PersonalityConfig,
     PrivacyConfig,
@@ -89,13 +90,19 @@ class SettingsTest(unittest.TestCase):
             DiscordIntegrationConfig(mode="user_token")
         with self.assertRaisesRegex(ValueError, "snowflake"):
             DiscordIntegrationConfig(authorized_channel_ids=("not-an-id",))
+        with self.assertRaisesRegex(ValueError, "owner_user_id"):
+            DiscordIntegrationConfig(owner_user_id="hanekanyan")
+        with self.assertRaisesRegex(ValueError, "notification_cooldown_seconds"):
+            ExternalIntegrationsConfig(notification_cooldown_seconds=301)
 
     def test_discord_channel_ids_are_trimmed_and_deduplicated(self) -> None:
         config = DiscordIntegrationConfig(
-            authorized_channel_ids=(" 123 ", "", "123", "456")
+            authorized_channel_ids=(" 123 ", "", "123", "456"),
+            owner_user_id=" 789 ",
         )
 
         self.assertEqual(config.authorized_channel_ids, ("123", "456"))
+        self.assertEqual(config.owner_user_id, "789")
 
     def test_user_config_overlays_defaults(self) -> None:
         with TemporaryDirectory() as directory:

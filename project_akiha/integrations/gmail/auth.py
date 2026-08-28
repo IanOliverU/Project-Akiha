@@ -23,6 +23,7 @@ GMAIL_METADATA_SCOPE = "https://www.googleapis.com/auth/gmail.metadata"
 
 TokenTransport = Callable[[str, bytes, float], dict[str, Any]]
 _PKCE_VERIFIER_PATTERN = re.compile(r"[A-Za-z0-9._~-]{43,128}\Z")
+_OAUTH_ERROR_PATTERN = re.compile(r"[a-z0-9_]{1,64}\Z")
 
 
 class GmailOAuthError(RuntimeError):
@@ -129,19 +130,24 @@ def exchange_gmail_authorization_code(
     session: GmailAuthorizationSession,
     code: GmailAuthorizationCode,
     *,
+    client_secret: str = "",
     timeout_seconds: float,
     transport: TokenTransport | None = None,
     now: Callable[[], float] = time.time,
 ) -> GmailToken:
     """Exchange a validated PKCE code for metadata-only Gmail tokens."""
+    fields = {
+        "grant_type": "authorization_code",
+        "code": code.code,
+        "redirect_uri": session.redirect_uri,
+        "client_id": session.client_id,
+        "code_verifier": session.code_verifier,
+    }
+    normalized_secret = client_secret.strip()
+    if normalized_secret:
+        fields["client_secret"] = normalized_secret
     payload = _exchange_token(
-        {
-            "grant_type": "authorization_code",
-            "code": code.code,
-            "redirect_uri": session.redirect_uri,
-            "client_id": session.client_id,
-            "code_verifier": session.code_verifier,
-        },
+        fields,
         timeout_seconds=timeout_seconds,
         transport=transport,
     )
@@ -152,6 +158,7 @@ def refresh_gmail_access_token(
     config: GmailIntegrationConfig,
     refresh_token: str,
     *,
+    client_secret: str = "",
     transport: TokenTransport | None = None,
     now: Callable[[], float] = time.time,
 ) -> GmailToken:
@@ -159,12 +166,16 @@ def refresh_gmail_access_token(
     normalized = refresh_token.strip()
     if not normalized:
         raise GmailOAuthError("The saved Gmail authorization is empty.")
+    fields = {
+        "grant_type": "refresh_token",
+        "refresh_token": normalized,
+        "client_id": config.client_id.strip(),
+    }
+    normalized_secret = client_secret.strip()
+    if normalized_secret:
+        fields["client_secret"] = normalized_secret
     payload = _exchange_token(
-        {
-            "grant_type": "refresh_token",
-            "refresh_token": normalized,
-            "client_id": config.client_id.strip(),
-        },
+        fields,
         timeout_seconds=config.request_timeout_seconds,
         transport=transport,
     )
@@ -205,8 +216,43 @@ def _post_token(url: str, data: bytes, timeout_seconds: float) -> dict[str, Any]
         with urlopen(request, timeout=timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as error:
-        if error.code in {400, 401}:
-            detail = "Google rejected Gmail authorization. Please connect again."
+        provider_error, provider_reason = _read_oauth_error(error)
+        if provider_error == "invalid_client":
+            detail = (
+                "Google rejected the OAuth client. Use a Desktop app OAuth "
+                "client ID from Google Cloud."
+            )
+        elif provider_error == "invalid_grant":
+            detail = (
+                "Google rejected the one-time authorization code. Please "
+                "connect Gmail again."
+            )
+        elif provider_error == "redirect_uri_mismatch":
+            detail = (
+                "Google rejected the Gmail callback address. The OAuth client "
+                "must allow Akiha's loopback redirect."
+            )
+        elif provider_error == "unauthorized_client":
+            detail = (
+                "Google rejected this OAuth client type. Create a Desktop app "
+                "OAuth client for Akiha."
+            )
+        elif provider_error == "invalid_scope":
+            detail = (
+                "Google rejected the Gmail metadata permission. Enable the "
+                "Gmail API and allow its metadata scope."
+            )
+        elif (
+            provider_error == "invalid_request"
+            and provider_reason == "client_secret_required"
+        ):
+            detail = (
+                "This Google OAuth client requires a client secret. Create a "
+                "Desktop app OAuth client and paste its Client ID instead."
+            )
+        elif error.code in {400, 401}:
+            suffix = f" ({provider_error})" if provider_error else ""
+            detail = f"Google rejected Gmail authorization{suffix}."
         elif error.code == 429:
             detail = "Google temporarily rate-limited Gmail authorization."
         else:
@@ -219,6 +265,28 @@ def _post_token(url: str, data: bytes, timeout_seconds: float) -> dict[str, Any]
     if not isinstance(payload, dict):
         raise GmailOAuthError("Google returned an invalid authorization response.")
     return payload
+
+
+def _read_oauth_error(error: HTTPError) -> tuple[str | None, str | None]:
+    """Extract bounded OAuth categories without returning Google's raw response."""
+    try:
+        raw_payload = error.read(16_384)
+        payload = json.loads(raw_payload.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    provider_error = payload.get("error")
+    if not isinstance(provider_error, str):
+        return None, None
+    normalized = provider_error.strip().casefold()
+    if _OAUTH_ERROR_PATTERN.fullmatch(normalized) is None:
+        return None, None
+    description = payload.get("error_description")
+    reason = None
+    if isinstance(description, str) and "client_secret" in description.casefold():
+        reason = "client_secret_required"
+    return normalized, reason
 
 
 def _parse_token(

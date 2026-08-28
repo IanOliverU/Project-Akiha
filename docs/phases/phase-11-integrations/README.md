@@ -1,7 +1,7 @@
 # Phase 11: External Communication Integrations
 
-**Status:** Implementation complete - Phase 11G owner-controlled Gmail and
-Discord account acceptance remains pending as of 2026-08-28
+**Status:** Complete - owner-controlled Gmail and Discord acceptance recorded
+on 2026-08-28
 
 ## Purpose
 
@@ -122,6 +122,8 @@ gmail.promotional_candidate
 
 discord.bot_direct_message
 discord.mention
+discord.owner_mention
+discord.owner_reply
 discord.authorized_channel_message
 ```
 
@@ -138,8 +140,11 @@ Use the Gmail REST API with a Google **Desktop app** OAuth client and a loopback
 redirect on `127.0.0.1`. Request the narrow
 `https://www.googleapis.com/auth/gmail.metadata` scope. Access tokens remain
 memory-only; the refresh token is DPAPI-encrypted in the existing credential
-store. The OAuth client ID is public configuration, not a password. No client
-secret is embedded in the package.
+store. The OAuth client ID is public configuration, not a password. Google
+currently requires the generated Desktop OAuth client secret during token
+exchange; Akiha collects it through a password field, binds it to the client
+ID, and stores it only in the DPAPI credential store. It is never written to
+TOML or embedded in the package.
 
 Google classifies `gmail.metadata` as a restricted scope. Personal development
 can use an explicitly configured OAuth test user, but test-mode authorization
@@ -199,10 +204,12 @@ unsupported user-account automation.
 
 The selected implementation uses Gateway v10 with only the required guild,
 guild-message, and direct-message intents. It accepts direct messages sent to
-the bot, bot mentions, and messages from an explicit channel-ID allowlist.
-Message content may be inspected transiently only to identify the event; it is
-discarded before `ExternalEvent` construction. Personal user-account DMs,
-friends lists, and friend requests are unsupported by this mode.
+the bot, bot mentions, mentions of one configured owner Discord user ID,
+structured replies to that owner, and messages from an explicit channel-ID
+allowlist. Owner matching uses the immutable numeric Discord user ID rather
+than a mutable display name or username. Message content is not copied into the
+typed event. Personal user-account DMs, friends lists, and friend requests are
+unsupported by this mode.
 
 ## Notification Policy
 
@@ -218,10 +225,15 @@ old behavior system remains compatible:
 | `silent` | none | Record receipt only |
 
 The integration policy checks event-specific settings, duplicate status,
-coalescing, expiry, current activity, current voice ownership, quiet hours, and
-the existing global cooldown. Multiple low-priority events should form one
-summary instead of repeated announcements. Important events may use a separate
-configurable cooldown but must never interrupt active user speech.
+expiry, current activity, current voice ownership, quiet hours, and
+an integration-specific cooldown. The cooldown is scoped by event kind, so a
+bot mention cannot suppress a direct message or owner mention. Exact Discord
+message IDs remain deduplicated across restarts. The general proactive check-in
+toggle does not disable explicitly enabled external integrations.
+
+Desktop notification text is deterministic English. The existing GPT-SoVITS
+path receives a separate short Japanese line, reducing synthesis latency while
+keeping the visual notification useful when voice is unavailable.
 
 The first renderer uses centralized local wording such as "This appears to be
 an interview invitation." It never presents a heuristic classification as a
@@ -290,6 +302,7 @@ Gmail controls:
 
 - Enable/disable, Connect, Disconnect, connection health, and last successful
   check.
+- Desktop OAuth client ID plus a DPAPI-protected client-secret input.
 - New, important, recruiter, interview, work, personal, newsletter, and
   promotional notification toggles.
 - Poll interval within a safe bounded range.
@@ -449,21 +462,29 @@ notification text is redacted from both diagnostics and behavior history.
 ### 11G: Final verification and release gate
 
 - [x] Run the complete automated quality gate.
-- [ ] Complete real-account source smoke tests using owner-controlled test
+- [x] Complete real-account source smoke tests using owner-controlled test
   messages.
 - [x] Build one fast PyInstaller candidate for packaged integration validation.
 - [x] Validate fresh and existing packaged data, migrations, and
   artifact privacy.
-- [ ] Record manual acceptance and formally close Phase 11.
+- [x] Record manual acceptance and formally close Phase 11.
 
-The 2026-08-28 automated gate passed 1,653 tests with 3 expected skips, Ruff,
-Black, and Python compilation. Source startup passed with fresh local data. The
+The final 2026-08-28 automated gate passed 1,665 tests with 3 expected skips,
+Ruff, Black, and Python compilation. Source startup passed with fresh local data. The
 PyInstaller one-folder candidate at `dist/pyinstaller-phase11/Akiha` built in
 157.476 seconds and passed static artifact validation plus fresh- and
-existing-data packaged startup checks. Real Gmail OAuth, real Discord Bot
-Gateway events, notification speech, and graceful UI Quit remain owner-run
-manual checks; they are not inferred from fake transports or hidden-process
-smoke scripts.
+existing-data packaged startup checks. The owner then accepted the official
+Discord Bot Gateway path using real bot events and accepted Gmail using real
+Desktop OAuth, metadata synchronization, and a newly delivered test-email
+notification. Extended destructive and failure-path checks remain documented in
+the manual smoke record and are backed by deterministic automated coverage; they
+were not misrepresented as owner-run checks.
+
+The accepted real-account corrections postdate that PyInstaller candidate. The
+next scheduled consolidated package must therefore include the final Discord
+notification and Gmail OAuth-secret changes and repeat focused packaged-provider
+smoke checks. This release-artifact carry-forward does not reopen the completed
+Phase 11 source scope.
 
 ## Explicitly Deferred
 
@@ -479,9 +500,10 @@ smoke scripts.
 
 ## Approval Record
 
-The owner approved this architecture on 2026-08-27. Phases 11A through 11F are
-implemented. Phase 11G remains open only for owner-controlled real-account and
-manual UI acceptance.
+The owner approved this architecture on 2026-08-27. Phases 11A through 11G are
+implemented and Phase 11 was formally accepted on 2026-08-28 after real Discord
+and Gmail source-mode smoke tests. No autonomous external-account write access
+was added.
 
 ## Official References
 

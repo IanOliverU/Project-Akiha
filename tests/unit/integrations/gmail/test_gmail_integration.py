@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime
+from io import BytesIO
+from unittest.mock import patch
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 from project_akiha.config import GmailIntegrationConfig
@@ -19,6 +22,7 @@ from project_akiha.integrations.gmail.auth import (
     create_gmail_authorization_session,
     exchange_gmail_authorization_code,
     parse_gmail_callback,
+    refresh_gmail_access_token,
 )
 from project_akiha.integrations.gmail.classification import classify_gmail_metadata
 from project_akiha.integrations.gmail.client import (
@@ -77,6 +81,131 @@ class GmailAuthorizationTest(unittest.TestCase):
                     "scope": "openid",
                 },
             )
+
+    def test_token_exchange_reports_invalid_desktop_client_without_raw_detail(
+        self,
+    ) -> None:
+        session = create_gmail_authorization_session(
+            self.config,
+            code_verifier="a" * 64,
+            state="expected",
+        )
+        response = BytesIO(
+            b'{"error":"invalid_client","error_description":"private detail"}'
+        )
+        error = HTTPError(
+            "https://oauth2.googleapis.com/token",
+            401,
+            "Unauthorized",
+            {},
+            response,
+        )
+
+        with patch(
+            "project_akiha.integrations.gmail.auth.urlopen",
+            side_effect=error,
+        ):
+            with self.assertRaisesRegex(GmailOAuthError, "Desktop app") as raised:
+                exchange_gmail_authorization_code(
+                    session,
+                    GmailAuthorizationCode("code"),
+                    timeout_seconds=5,
+                )
+
+        self.assertNotIn("private detail", str(raised.exception))
+
+    def test_token_exchange_reports_invalid_grant_without_raw_detail(self) -> None:
+        session = create_gmail_authorization_session(
+            self.config,
+            code_verifier="a" * 64,
+            state="expected",
+        )
+        response = BytesIO(
+            b'{"error":"invalid_grant","error_description":"private detail"}'
+        )
+        error = HTTPError(
+            "https://oauth2.googleapis.com/token",
+            400,
+            "Bad Request",
+            {},
+            response,
+        )
+
+        with patch(
+            "project_akiha.integrations.gmail.auth.urlopen",
+            side_effect=error,
+        ):
+            with self.assertRaisesRegex(GmailOAuthError, "one-time") as raised:
+                exchange_gmail_authorization_code(
+                    session,
+                    GmailAuthorizationCode("code"),
+                    timeout_seconds=5,
+                )
+
+        self.assertNotIn("private detail", str(raised.exception))
+
+    def test_token_exchange_identifies_non_desktop_client_safely(self) -> None:
+        session = create_gmail_authorization_session(
+            self.config,
+            code_verifier="a" * 64,
+            state="expected",
+        )
+        response = BytesIO(
+            b'{"error":"invalid_request",'
+            b'"error_description":"client_secret is missing."}'
+        )
+        error = HTTPError(
+            "https://oauth2.googleapis.com/token",
+            400,
+            "Bad Request",
+            {},
+            response,
+        )
+
+        with patch(
+            "project_akiha.integrations.gmail.auth.urlopen",
+            side_effect=error,
+        ):
+            with self.assertRaisesRegex(GmailOAuthError, "Desktop app"):
+                exchange_gmail_authorization_code(
+                    session,
+                    GmailAuthorizationCode("code"),
+                    timeout_seconds=5,
+                )
+
+    def test_client_secret_is_sent_for_code_exchange_and_refresh(self) -> None:
+        requests: list[dict[str, list[str]]] = []
+
+        def transport(_url: str, data: bytes, _timeout: float):
+            requests.append(parse_qs(data.decode("ascii")))
+            return {
+                "access_token": "access",
+                "refresh_token": "refresh",
+                "expires_in": 3600,
+                "scope": GMAIL_METADATA_SCOPE,
+            }
+
+        session = create_gmail_authorization_session(
+            self.config,
+            code_verifier="a" * 64,
+            state="expected",
+        )
+        exchange_gmail_authorization_code(
+            session,
+            GmailAuthorizationCode("code"),
+            client_secret="desktop-secret",
+            timeout_seconds=5,
+            transport=transport,
+        )
+        refresh_gmail_access_token(
+            self.config,
+            "refresh",
+            client_secret="desktop-secret",
+            transport=transport,
+        )
+
+        self.assertEqual(requests[0]["client_secret"], ["desktop-secret"])
+        self.assertEqual(requests[1]["client_secret"], ["desktop-secret"])
 
 
 class GmailClientTest(unittest.TestCase):

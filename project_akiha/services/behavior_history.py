@@ -89,4 +89,8 @@ def _privacy_safe_behavior_payload(event: Event) -> dict[str, object]:
     ):
         message = payload.pop("message", None)
         payload["message_present"] = isinstance(message, str) and bool(message.strip())
+        speech_message = payload.pop("speech_message", None)
+        payload["speech_message_present"] = isinstance(speech_message, str) and bool(
+            speech_message.strip()
+        )
     return payload

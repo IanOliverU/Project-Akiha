@@ -119,6 +119,7 @@ class UserConfigStoreTest(unittest.TestCase):
                     integrations=ExternalIntegrationsConfig(
                         visual_notifications_enabled=True,
                         voice_notifications_enabled=False,
+                        notification_cooldown_seconds=2,
                         event_expiry_seconds=600,
                         receipt_retention_days=45,
                         gmail=GmailIntegrationConfig(
@@ -129,6 +130,7 @@ class UserConfigStoreTest(unittest.TestCase):
                         ),
                         discord=DiscordIntegrationConfig(
                             enabled=True,
+                            owner_user_id="789",
                             notify_authorized_channels=True,
                             authorized_channel_ids=("123", "456"),
                             reconnect_max_seconds=30,
@@ -214,12 +216,14 @@ class UserConfigStoreTest(unittest.TestCase):
         self.assertFalse(config.spotify.auto_launch_desktop_app)
         self.assertEqual(config.spotify.request_timeout_seconds, 20)
         self.assertFalse(config.integrations.voice_notifications_enabled)
+        self.assertEqual(config.integrations.notification_cooldown_seconds, 2)
         self.assertEqual(config.integrations.event_expiry_seconds, 600)
         self.assertEqual(config.integrations.receipt_retention_days, 45)
         self.assertTrue(config.integrations.gmail.enabled)
         self.assertEqual(config.integrations.gmail.poll_interval_seconds, 120)
         self.assertTrue(config.integrations.gmail.notify_promotional)
         self.assertTrue(config.integrations.discord.enabled)
+        self.assertEqual(config.integrations.discord.owner_user_id, "789")
         self.assertEqual(
             config.integrations.discord.authorized_channel_ids,
             ("123", "456"),

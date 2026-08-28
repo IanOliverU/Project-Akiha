@@ -12,7 +12,7 @@ from project_akiha.integrations.gmail.auth import GmailOAuthError, GmailToken
 from project_akiha.integrations.gmail.oauth_flow import authorize_gmail
 
 AuthorizationService = Callable[
-    [GmailIntegrationConfig, Callable[[str], None], threading.Event],
+    [GmailIntegrationConfig, Callable[[str], None], threading.Event, str],
     GmailToken,
 ]
 
@@ -27,12 +27,14 @@ class GmailAuthorizationThread(QThread):
     def __init__(
         self,
         config: GmailIntegrationConfig,
+        client_secret: str,
         parent: QObject | None = None,
         *,
         service: AuthorizationService = authorize_gmail,
     ) -> None:
         super().__init__(parent)
         self._config = config
+        self._client_secret = client_secret
         self._service = service
         self._cancel_event = threading.Event()
 
@@ -43,6 +45,7 @@ class GmailAuthorizationThread(QThread):
                 self._config,
                 self.authorization_url_ready.emit,
                 self._cancel_event,
+                self._client_secret,
             )
         except GmailOAuthError as error:
             self.authorization_failed.emit(str(error))

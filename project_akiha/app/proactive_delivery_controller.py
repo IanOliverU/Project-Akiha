@@ -45,20 +45,33 @@ class ProactiveDeliveryController:
         request = _request_from_payload(event.payload)
         if request is None:
             return
-        self.deliver_request(request)
+        result = self._delivery_service.deliver(request, self._surface)
+        self._publish_result(result, source_payload=event.payload)
 
-    def _publish_result(self, result: ProactiveDeliveryResult) -> None:
+    def _publish_result(
+        self,
+        result: ProactiveDeliveryResult,
+        *,
+        source_payload: dict[str, object] | None = None,
+    ) -> None:
+        payload: dict[str, object] = {
+            "kind": result.request.kind,
+            "message": result.request.message,
+            "urgency": result.request.urgency.value,
+            "created_at": result.request.created_at.isoformat(),
+            "delivered": result.delivered,
+            "channel": result.channel.value,
+            "reason": result.reason,
+        }
+        if source_payload is not None:
+            speech_message = source_payload.get("speech_message")
+            if isinstance(speech_message, str) and speech_message.strip():
+                payload["speech_message"] = speech_message
+            if source_payload.get("speech_enabled") is False:
+                payload["speech_enabled"] = False
         self._event_bus.publish(
             EventType.PROACTIVE_SUGGESTION_DELIVERED,
-            {
-                "kind": result.request.kind,
-                "message": result.request.message,
-                "urgency": result.request.urgency.value,
-                "created_at": result.request.created_at.isoformat(),
-                "delivered": result.delivered,
-                "channel": result.channel.value,
-                "reason": result.reason,
-            },
+            payload,
         )
 
 

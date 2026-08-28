@@ -15,6 +15,8 @@ from project_akiha.services.credential_store import NamedSecretStore
 
 _NAMESPACE = "gmail"
 _REFRESH_TOKEN_NAME = "refresh_token"
+_CLIENT_SECRET_NAME = "client_secret"
+_CLIENT_ID_NAME = "client_id"
 
 
 class GmailSession:
@@ -47,7 +49,24 @@ class GmailSession:
             )
             if refresh_token is None:
                 raise GmailOAuthError("Gmail is not connected.")
-            token = refresh_gmail_access_token(self._config, refresh_token)
+            client_secret = self._credential_store.get_named_secret(
+                _NAMESPACE,
+                _CLIENT_SECRET_NAME,
+            )
+            saved_client_id = self._credential_store.get_named_secret(
+                _NAMESPACE,
+                _CLIENT_ID_NAME,
+            )
+            if client_secret is None or saved_client_id != self._config.client_id:
+                raise GmailOAuthError(
+                    "The Gmail OAuth client secret is missing or belongs to a "
+                    "different Client ID. Reconnect Gmail."
+                )
+            token = refresh_gmail_access_token(
+                self._config,
+                refresh_token,
+                client_secret=client_secret,
+            )
             if token.refresh_token != refresh_token:
                 self._credential_store.set_named_secret(
                     _NAMESPACE,

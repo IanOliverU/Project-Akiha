@@ -397,6 +397,12 @@ class SettingsWindow(QWidget):
         self._integration_voice_notifications_input.setChecked(
             integrations.voice_notifications_enabled
         )
+        self._integration_cooldown_input = _build_spinbox(
+            0,
+            300,
+            integrations.notification_cooldown_seconds,
+        )
+        self._integration_cooldown_input.setSuffix(" sec")
         self._integration_expiry_input = _build_spinbox(
             30,
             3600,
@@ -417,6 +423,11 @@ class SettingsWindow(QWidget):
         self._gmail_enabled_input.setChecked(gmail.enabled)
         self._gmail_client_id_input = QLineEdit(gmail.client_id)
         self._gmail_client_id_input.setPlaceholderText("Google Desktop OAuth client ID")
+        self._gmail_client_secret_input = QLineEdit()
+        self._gmail_client_secret_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._gmail_client_secret_input.setPlaceholderText(
+            "Leave blank to keep the encrypted client secret"
+        )
         self._gmail_redirect_uri_input = QLineEdit(gmail.redirect_uri)
         self._gmail_redirect_uri_input.setReadOnly(True)
         self._gmail_poll_interval_input = _build_spinbox(
@@ -468,6 +479,16 @@ class SettingsWindow(QWidget):
             discord.notify_bot_direct_messages
         )
         self._discord_notify_mentions_input = _checked_toggle(discord.notify_mentions)
+        self._discord_owner_user_id_input = QLineEdit(discord.owner_user_id)
+        self._discord_owner_user_id_input.setPlaceholderText(
+            "Your numeric Discord user ID"
+        )
+        self._discord_notify_owner_mentions_input = _checked_toggle(
+            discord.notify_owner_mentions
+        )
+        self._discord_notify_owner_replies_input = _checked_toggle(
+            discord.notify_owner_replies
+        )
         self._discord_notify_channels_input = _checked_toggle(
             discord.notify_authorized_channels
         )
@@ -936,6 +957,9 @@ class SettingsWindow(QWidget):
         self._integration_voice_notifications_input.setChecked(
             integrations.voice_notifications_enabled
         )
+        self._integration_cooldown_input.setValue(
+            integrations.notification_cooldown_seconds
+        )
         self._integration_expiry_input.setValue(integrations.event_expiry_seconds)
         self._integration_retention_input.setValue(integrations.receipt_retention_days)
         self._gmail_enabled_input.setChecked(gmail.enabled)
@@ -954,6 +978,13 @@ class SettingsWindow(QWidget):
         self._discord_enabled_input.setChecked(discord.enabled)
         self._discord_notify_dm_input.setChecked(discord.notify_bot_direct_messages)
         self._discord_notify_mentions_input.setChecked(discord.notify_mentions)
+        self._discord_owner_user_id_input.setText(discord.owner_user_id)
+        self._discord_notify_owner_mentions_input.setChecked(
+            discord.notify_owner_mentions
+        )
+        self._discord_notify_owner_replies_input.setChecked(
+            discord.notify_owner_replies
+        )
         self._discord_notify_channels_input.setChecked(
             discord.notify_authorized_channels
         )
@@ -1317,6 +1348,7 @@ class SettingsWindow(QWidget):
             "Voice notifications",
             self._integration_voice_notifications_input,
         )
+        shared_layout.addRow("Notification cooldown", self._integration_cooldown_input)
         shared_layout.addRow("Event expiry", self._integration_expiry_input)
         shared_layout.addRow("Receipt retention", self._integration_retention_input)
         shared_layout.addRow(
@@ -1327,6 +1359,7 @@ class SettingsWindow(QWidget):
         gmail_layout = _build_form_layout(wrap_long_rows=True)
         gmail_layout.addRow("Gmail enabled", self._gmail_enabled_input)
         gmail_layout.addRow("Desktop OAuth client ID", self._gmail_client_id_input)
+        gmail_layout.addRow("OAuth client secret", self._gmail_client_secret_input)
         gmail_layout.addRow("Redirect URI", self._gmail_redirect_uri_input)
         gmail_layout.addRow("Polling interval", self._gmail_poll_interval_input)
         gmail_layout.addRow("Request timeout", self._gmail_timeout_input)
@@ -1346,7 +1379,19 @@ class SettingsWindow(QWidget):
         discord_layout.addRow("Official mode", self._discord_mode_input)
         discord_layout.addRow("Bot token", self._discord_bot_token_input)
         discord_layout.addRow("DMs to bot", self._discord_notify_dm_input)
-        discord_layout.addRow("Mentions", self._discord_notify_mentions_input)
+        discord_layout.addRow(
+            "Mentions of Akiha Bot",
+            self._discord_notify_mentions_input,
+        )
+        discord_layout.addRow("Your Discord user ID", self._discord_owner_user_id_input)
+        discord_layout.addRow(
+            "Mentions of you",
+            self._discord_notify_owner_mentions_input,
+        )
+        discord_layout.addRow(
+            "Replies to you",
+            self._discord_notify_owner_replies_input,
+        )
         discord_layout.addRow(
             "Authorized channels",
             self._discord_notify_channels_input,
@@ -2061,6 +2106,7 @@ class SettingsWindow(QWidget):
             voice_notifications_enabled=(
                 self._integration_voice_notifications_input.isChecked()
             ),
+            notification_cooldown_seconds=self._integration_cooldown_input.value(),
             event_expiry_seconds=self._integration_expiry_input.value(),
             receipt_retention_days=self._integration_retention_input.value(),
             gmail=GmailIntegrationConfig(
@@ -2083,6 +2129,13 @@ class SettingsWindow(QWidget):
                 mode="bot_gateway",
                 notify_bot_direct_messages=self._discord_notify_dm_input.isChecked(),
                 notify_mentions=self._discord_notify_mentions_input.isChecked(),
+                notify_owner_mentions=(
+                    self._discord_notify_owner_mentions_input.isChecked()
+                ),
+                notify_owner_replies=(
+                    self._discord_notify_owner_replies_input.isChecked()
+                ),
+                owner_user_id=self._discord_owner_user_id_input.text().strip(),
                 notify_authorized_channels=(
                     self._discord_notify_channels_input.isChecked()
                 ),
@@ -2234,9 +2287,50 @@ class SettingsWindow(QWidget):
         self._gmail_enabled_input.setChecked(True)
         if not self._save():
             return
+        if self._credential_store is None:
+            self._set_gmail_connection_status(
+                "Secure Gmail credential storage is unavailable.",
+                is_error=True,
+            )
+            return
+        client_id = self._config.integrations.gmail.client_id
+        client_secret = self._gmail_client_secret_input.text().strip()
+        try:
+            if client_secret:
+                self._credential_store.set_named_secret(
+                    "gmail", "client_secret", client_secret
+                )
+                self._credential_store.set_named_secret("gmail", "client_id", client_id)
+            else:
+                client_secret = (
+                    self._credential_store.get_named_secret("gmail", "client_secret")
+                    or ""
+                )
+                saved_client_id = self._credential_store.get_named_secret(
+                    "gmail", "client_id"
+                )
+                if saved_client_id != client_id:
+                    client_secret = ""
+        except CredentialStoreError:
+            self._set_gmail_connection_status(
+                "The Gmail OAuth client secret could not be stored securely.",
+                is_error=True,
+            )
+            return
+        if not client_secret:
+            self._set_gmail_connection_status(
+                "Enter the OAuth client secret for this Gmail Client ID.",
+                is_error=True,
+            )
+            return
+        self._gmail_client_secret_input.clear()
         self._set_gmail_connection_status("Waiting for browser authorization...")
         self._gmail_connect_button.setEnabled(False)
-        thread = GmailAuthorizationThread(self._config.integrations.gmail, self)
+        thread = GmailAuthorizationThread(
+            self._config.integrations.gmail,
+            client_secret,
+            self,
+        )
         thread.authorization_url_ready.connect(self._open_gmail_authorization_url)
         thread.authorization_ready.connect(self._handle_gmail_authorization_ready)
         thread.authorization_failed.connect(self._handle_gmail_authorization_failed)
@@ -2293,7 +2387,11 @@ class SettingsWindow(QWidget):
             thread.deleteLater()
 
     def _disconnect_gmail(self) -> None:
-        if not self._delete_named_credential("gmail", "refresh_token"):
+        removed = all(
+            self._delete_named_credential("gmail", name)
+            for name in ("refresh_token", "client_secret", "client_id")
+        )
+        if not removed:
             self._set_gmail_connection_status(
                 "Gmail authorization could not be removed.",
                 is_error=True,
@@ -2374,7 +2472,10 @@ class SettingsWindow(QWidget):
             self.integration_local_data_clear_requested.emit("all")
 
     def _refresh_integration_connection_statuses(self) -> None:
-        gmail_connected = self._named_credential_exists("gmail", "refresh_token")
+        gmail_connected = all(
+            self._named_credential_exists("gmail", name)
+            for name in ("refresh_token", "client_secret", "client_id")
+        )
         discord_connected = self._named_credential_exists("discord", "bot_token")
         self._set_gmail_connection_status(
             "Gmail connected securely." if gmail_connected else "Not connected"

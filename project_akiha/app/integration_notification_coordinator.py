@@ -66,7 +66,7 @@ class IntegrationNotificationCoordinator:
         self._now_provider = now_provider or (lambda: datetime.now(tz=UTC))
         self._logger = logger or logging.getLogger("project_akiha.integrations")
         self._preference_provider = preference_provider or ExternalIntegrationsConfig
-        self._last_notification_at: datetime | None = None
+        self._last_notification_at_by_kind: dict[str, datetime] = {}
         self._last_receipt_prune_at: datetime | None = None
         self._pending_receipts: dict[str, deque[ExternalEvent]] = defaultdict(deque)
         event_bus.subscribe(
@@ -136,17 +136,30 @@ class IntegrationNotificationCoordinator:
 
         try:
             message = self._renderer.render(event)
+            speech_message = self._renderer.render_speech(event)
             urgency = _URGENCY_BY_PRIORITY[event.priority]
             request = NotificationRequest(
                 kind=_notification_kind(event),
                 message=message,
                 urgency=urgency,
             )
+            last_notification_at = self._last_notification_at_by_kind.get(request.kind)
+            if (
+                last_notification_at is not None
+                and (now - last_notification_at).total_seconds()
+                < preferences.notification_cooldown_seconds
+            ):
+                self._safe_set_status(
+                    event,
+                    ExternalNotificationStatus.SUPPRESSED,
+                )
+                return
             decision = self._notification_policy.evaluate(
                 request,
                 activity=self._activity_provider(),
                 now=now,
-                last_notification_at=self._last_notification_at,
+                last_notification_at=None,
+                requires_proactive_enabled=False,
             )
         except Exception:
             self._logger.exception("External notification preparation failed.")
@@ -157,12 +170,14 @@ class IntegrationNotificationCoordinator:
             self._safe_set_status(event, ExternalNotificationStatus.SUPPRESSED)
             return
 
-        self._last_notification_at = now
+        self._last_notification_at_by_kind[request.kind] = now
         self._safe_set_status(event, ExternalNotificationStatus.QUEUED)
         self._pending_receipts[request.kind].append(event)
         payload = {
             "kind": request.kind,
             "message": request.message,
+            "speech_message": speech_message,
+            "speech_enabled": preferences.voice_notifications_enabled,
             "urgency": request.urgency.value,
             "created_at": now.isoformat(),
             "source": "external_integration",
@@ -280,6 +295,8 @@ def _event_notification_enabled(
     return {
         "discord.bot_direct_message": discord.notify_bot_direct_messages,
         "discord.mention": discord.notify_mentions,
+        "discord.owner_mention": discord.notify_owner_mentions,
+        "discord.owner_reply": discord.notify_owner_replies,
         "discord.authorized_channel_message": (discord.notify_authorized_channels),
     }.get(event.kind.value, False)
 

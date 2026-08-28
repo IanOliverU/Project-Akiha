@@ -111,7 +111,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
-| Phase 11 | Manual acceptance | Read-only Gmail metadata and official Discord Bot Gateway awareness; implementation/package gates complete |
+| Phase 11 | Done | Read-only Gmail metadata and official Discord Bot Gateway awareness |
 
 ## Tech Stack
 
@@ -405,8 +405,9 @@ Akiha autonomous account control.
 - Migration `0013` stores only hashed deduplication receipts and bounded sync
   cursors.
 
-Phase 11A-11F are implemented and the source/package quality gates pass. Final
-closure waits for owner-controlled Gmail OAuth and Discord bot smoke checks.
+Phase 11A-11G are complete. The source/package quality gates pass, and the owner
+accepted real Gmail Desktop OAuth, metadata synchronization, test-email
+notification, and official Discord Bot Gateway event delivery on 2026-08-28.
 
 Details: `docs/phases/phase-11-integrations/README.md`
 

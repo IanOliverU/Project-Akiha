@@ -29,6 +29,8 @@ class ExternalEventKind(StrEnum):
     GMAIL_PROMOTIONAL_CANDIDATE = "gmail.promotional_candidate"
     DISCORD_BOT_DIRECT_MESSAGE = "discord.bot_direct_message"
     DISCORD_MENTION = "discord.mention"
+    DISCORD_OWNER_MENTION = "discord.owner_mention"
+    DISCORD_OWNER_REPLY = "discord.owner_reply"
     DISCORD_AUTHORIZED_CHANNEL_MESSAGE = "discord.authorized_channel_message"
 
 

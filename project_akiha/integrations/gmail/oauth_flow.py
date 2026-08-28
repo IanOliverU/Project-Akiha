@@ -22,6 +22,7 @@ def authorize_gmail(
     config: GmailIntegrationConfig,
     on_authorization_url: Callable[[str], None],
     cancel_event: threading.Event,
+    client_secret: str,
     *,
     wait_seconds: float = 180.0,
 ) -> GmailToken:
@@ -41,7 +42,9 @@ def authorize_gmail(
             body = (
                 b"<!doctype html><meta charset=utf-8>"
                 b"<title>Project Akiha</title>"
-                b"<p>Gmail authorization received. You may close this tab.</p>"
+                b"<p>Gmail authorization response received.</p>"
+                b"<p>Return to Akiha Settings to confirm the connection.</p>"
+                b"<p>You may close this tab.</p>"
             )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -85,5 +88,6 @@ def authorize_gmail(
     return exchange_gmail_authorization_code(
         session,
         code,
+        client_secret=client_secret,
         timeout_seconds=config.request_timeout_seconds,
     )
