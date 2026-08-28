@@ -41,7 +41,7 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
 
 ## Voice Runtime Hardening
 
-- Add a Project Akiha single-instance guard before relying on one managed local
+- [x] Add a Project Akiha single-instance guard before relying on one managed local
   engine process across multiple launches.
 - Decide whether the managed GPT-SoVITS API that crashes mid-session should
   restart automatically or require an explicit user retry.

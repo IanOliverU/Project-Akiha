@@ -112,6 +112,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
 | Phase 11 | Done | Read-only Gmail metadata and official Discord Bot Gateway awareness |
+| Phase 12 | In progress | Runtime and notification reliability |
 
 ## Tech Stack
 
@@ -410,6 +411,15 @@ accepted real Gmail Desktop OAuth, metadata synchronization, test-email
 notification, and official Discord Bot Gateway event delivery on 2026-08-28.
 
 Details: `docs/phases/phase-11-integrations/README.md`
+
+### Phase 12: Runtime And Notification Reliability
+
+Prevent duplicate Akiha runtimes, add a sanitized notification inbox and
+aggregation path, make delivery channels configurable by event type, recover
+the optional GPT-SoVITS runtime safely, and consolidate provider health and
+startup diagnostics.
+
+Details: `docs/phases/phase-12-runtime-notifications/README.md`
 
 ## Architecture
 

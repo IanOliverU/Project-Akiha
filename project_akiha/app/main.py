@@ -59,6 +59,12 @@ from project_akiha.app.rolling_voice_transcription_controller import (
 )
 from project_akiha.app.scheduled_check_in_controller import ScheduledCheckInController
 from project_akiha.app.shutdown import shutdown_runtime
+from project_akiha.app.single_instance import (
+    SingleInstanceCoordinator,
+    SingleInstanceError,
+    SingleInstanceRole,
+    build_single_instance_name,
+)
 from project_akiha.app.streaming_voice_output_controller import (
     StreamingVoiceOutputController,
 )
@@ -469,6 +475,18 @@ def _run_application() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     paths = get_app_paths()
+    instance_coordinator = SingleInstanceCoordinator(
+        build_single_instance_name(paths.data_dir),
+        app,
+    )
+    try:
+        instance_role = instance_coordinator.start()
+    except SingleInstanceError as error:
+        QMessageBox.critical(None, "Project Akiha", str(error))
+        return 1
+    if instance_role == SingleInstanceRole.SECONDARY:
+        return 0
+
     log_path = configure_logging(paths.log_dir)
     logger = logging.getLogger("project_akiha.app")
     logger.info("Starting Project Akiha. Log path: %s", log_path)
@@ -3500,6 +3518,7 @@ def _run_application() -> int:
         )
 
     app.aboutToQuit.connect(shutdown_app)
+    app.aboutToQuit.connect(instance_coordinator.close)
 
     # Cloud tool calls can arrive before Settings or typed chat has refreshed
     # the local approved-directory display names.
@@ -3511,6 +3530,27 @@ def _run_application() -> int:
         settings_window=settings_window,
         quit_callback=app.quit,
     )
+
+    def activate_existing_instance() -> None:
+        active_window = app.activeWindow()
+        target_window = (
+            active_window
+            if active_window is not None and active_window.isVisible()
+            else next(
+                (
+                    candidate
+                    for candidate in (chat_window, settings_window, window)
+                    if candidate.isVisible()
+                ),
+                window,
+            )
+        )
+        target_window.show()
+        target_window.raise_()
+        target_window.activateWindow()
+        app.alert(target_window, 1500)
+
+    instance_coordinator.activation_requested.connect(activate_existing_instance)
 
     def apply_presence(event: Event) -> None:
         mood_value = event.payload.get("mood")
