@@ -1,6 +1,6 @@
 # Phase 13: Everyday Assistant Utilities
 
-**Status:** Planned - Phase 13A is next
+**Status:** In progress - Phase 13A complete; Phase 13B is next
 
 ## Purpose
 
@@ -47,14 +47,101 @@ filesystem APIs, network providers, or export writers directly.
 
 ### 13A: Product, safety, and utility contract
 
-- [ ] Audit the existing action registry, permission policy, event bus,
+- [x] Audit the existing action registry, permission policy, event bus,
   notification system, Settings architecture, and SQLite boundaries.
-- [ ] Define typed utility commands, results, reason codes, and capability
+- [x] Define typed utility commands, results, reason codes, and capability
   ownership.
-- [ ] Define timezone, clock, restart, expiry, and privacy rules.
-- [ ] Explicitly prohibit arbitrary command execution and silent external or
+- [x] Define timezone, clock, restart, expiry, and privacy rules.
+- [x] Explicitly prohibit arbitrary command execution and silent external or
   filesystem mutation.
-- [ ] Record the Phase 13 migration and package-data contract before coding.
+- [x] Record the Phase 13 migration and package-data contract before coding.
+
+## Phase 13A Architecture Record
+
+### Reused boundaries
+
+| Existing component | Phase 13 responsibility |
+| --- | --- |
+| `ActionRequest` and `ActionRegistry` | Remain the only typed command envelope and executable allowlist. |
+| `ProviderActionProposalGateway` | Retains active-turn, replay, and opaque local-result protection for provider proposals. |
+| `AssistantActionService` | Remains the validation, permission, confirmation, execution, cancellation, and audit coordinator. |
+| `ActionPermissionPolicy` and `ProtectedPathPolicy` | Continue to own approved-directory scope and protected-path rejection. |
+| `EventBus` | Remains the only in-process event transport. |
+| `NotificationPolicy`, proactive delivery, and Notification Center | Remain the only reminder/timer presentation path. |
+| `UserConfigStore` and Settings | Remain the only user-editable configuration boundary. |
+| `DatabaseMigrator` | Remains the only ordered schema-change mechanism. |
+
+Phase 13 does not introduce another command bus, permission service, scheduler
+per utility, notification controller, voice path, or provider-controlled
+executor.
+
+### New framework-free contracts
+
+`project_akiha/core/utilities/` contains a non-executable contract catalog. It
+declares each approved operation's owner, maximum side effect, authorization,
+network access, storage surface, approved-root requirement, and scheduled
+notification capability. Merely appearing in this catalog does not expose an
+operation to an AI provider or add it to the action registry.
+
+The approved ownership matrix is:
+
+| Utility group | Owner | Authorization | Maximum effect | Network | Storage |
+| --- | --- | --- | --- | --- | --- |
+| Timers and reminders | One schedule service | Active request | Local schedule only | None | Minimal schedule metadata |
+| Current weather/forecast | Current-information provider | Active request | Read-only | Read-only | None |
+| Directory search/open | Existing approved navigation | Scoped grant | Read-only/user-visible | None | None |
+| Conversation/memory export | Export service | Confirm every time | User-selected local file write | None | User-selected export only |
+
+`UtilityResult` permits only bounded summaries, scalar metadata, and closed
+status/reason combinations. Raw provider payloads, nested objects, credentials,
+message bodies, unrestricted paths, and arbitrary commands cannot cross this
+result boundary.
+
+### Clock and timezone rules
+
+- Durable timestamps and due times use timezone-aware UTC.
+- A reminder also retains the explicit user timezone used to interpret its
+  local date/time. Ambiguous or nonexistent daylight-saving times require
+  clarification instead of guessing.
+- The monotonic clock is used only for elapsed time, active-process timers,
+  cooldowns, and expiring proposals. Monotonic values are never persisted.
+- While Akiha is running, a timer uses the monotonic clock to avoid wall-clock
+  jumps. Its UTC due time is retained for restart recovery.
+- Restart recovery compares persisted UTC due times with the current UTC wall
+  clock and uses an explicit missed-delivery policy defined in 13D.
+- Clarification and confirmation leases are request-bound, expiring, and replay
+  protected. Their exact bounded lifetime is implemented in 13B, not stored as
+  conversation memory.
+
+`UtilityClock` is injectable so clock changes, restart, expiry, and timezone
+behavior can be tested deterministically.
+
+### Migration and package contract
+
+Phase 13A adds no migration and persists no new user data. Migration `0015` is
+reserved for 13C/13D and may contain only minimal timer/reminder schedule state
+and delivery receipts: an opaque identifier, utility kind, bounded user label,
+UTC due/created timestamps, explicit timezone, bounded status, and delivery or
+cancellation timestamp. It must not contain prompts, transcripts, provider
+responses, credentials, weather payloads, file contents, or export contents.
+
+Clarification leases remain in memory. Weather responses are transient.
+Navigation keeps the existing permission and sanitized audit tables. Exports
+are written only to the destination selected by the user and are not copied
+into SQLite.
+
+When migration `0015` exists, both packaging paths must include it and the
+artifact validator must require it. Any new weather dependency must be pinned,
+explicitly collected, and exercised by package validation. Packages must never
+include generated exports, local databases, credentials, location history, or
+personal communication content.
+
+### Explicit safety exclusions
+
+The Phase 13 contract rejects arbitrary shell or script execution, unrestricted
+URLs, provider-selected filesystem paths, traversal outside approved roots,
+silent exports, external-account mutation, autonomous utility creation, and
+direct LLM access to schedulers, network transports, repositories, or writers.
 
 ### 13B: Ambiguity and confirmation handling
 

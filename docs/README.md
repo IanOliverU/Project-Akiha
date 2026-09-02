@@ -21,11 +21,11 @@ material is separated by purpose.
 | 11 - External Integrations | Complete | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
 | 12 - Runtime And Notification Reliability | Complete | [`phases/phase-12-runtime-notifications/`](phases/phase-12-runtime-notifications/) |
 
-## Next Phase
+## Active Phase
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 13 - Everyday Assistant Utilities | Planned; 13A next | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
+| 13 - Everyday Assistant Utilities | 13A complete; 13B next | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
 
 Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
@@ -41,9 +41,10 @@ recovery, unified provider diagnostics, and a consolidated PyInstaller
 candidate. Automated and owner packaged verification passed, and Phase 12
 formally closed on 2026-09-02.
 
-Phase 13 is planned around safe everyday utility work: clarification and
-confirmation, one-shot timers and reminders, read-only weather/current
-information, approved-directory navigation, and privacy-safe backup/export.
+Phase 13A establishes the non-executable utility ownership/safety catalog and
+reuses the existing action, permission, event, notification, Settings, and
+migration boundaries. Phase 13B is next and will add request-bound clarification
+and confirmation handling before any utility executor is exposed.
 
 ## Current Roadmap
 

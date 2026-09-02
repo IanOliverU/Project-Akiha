@@ -113,7 +113,7 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
 | Phase 11 | Done | Read-only Gmail metadata and official Discord Bot Gateway awareness |
 | Phase 12 | Done | Runtime and notification reliability |
-| Phase 13 | Planned | Everyday assistant utilities |
+| Phase 13 | In progress | Everyday assistant utilities; 13A complete |
 
 ## Tech Stack
 
@@ -431,6 +431,11 @@ Details: `docs/phases/phase-12-runtime-notifications/README.md`
 Improve clarification and confirmation, then add one-shot timers, durable
 reminders, read-only weather/current information, contextual navigation inside
 approved directories, and privacy-safe conversation/memory export.
+
+Phase 13A is complete. It defines a non-executable utility ownership catalog,
+bounded result/reason contracts, injected wall/monotonic clock boundaries, and
+the migration/package safety contract while retaining the existing action and
+permission pipeline. Phase 13B is next.
 
 Details: `docs/phases/phase-13-assistant-utilities/README.md`
 

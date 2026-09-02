@@ -313,3 +313,18 @@ durations without credentials, content, prompts, transcripts, or private paths.
 - Installer-specific permissions and uninstall behavior.
 - A future privacy-notice revision before plugins, persistent microphone
   capture, external write actions, or broader assistant capabilities are added.
+
+## Phase 13 Utility Foundation
+
+Phase 13A adds no executable utility, provider tool, credential, network call,
+or database migration. The framework-free utility catalog is deliberately
+non-executable and does not bypass the existing `ActionRequest`, registry,
+permission, confirmation, execution, cancellation, or audit boundary.
+
+Timer/reminder declarations permit only local schedule metadata; weather is
+read-only; navigation retains approved-root grants and protected-path checks;
+exports require current confirmation and a user-selected local destination.
+The contract prohibits arbitrary commands, unrestricted URLs, provider-selected
+paths, silent exports, external-account mutation, and nested/raw provider data
+in utility results. Migration `0015` remains reserved and must satisfy the
+minimal schedule schema recorded in the Phase 13 plan before it is added.

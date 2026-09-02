@@ -1,0 +1,1 @@
+"""Utility contract tests."""

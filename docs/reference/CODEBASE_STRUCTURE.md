@@ -8,6 +8,7 @@ project_akiha/
 |-- app/                  # Composition root and application coordinators
 |-- config/               # Typed settings and bundled defaults
 |-- core/                 # Framework-free domain models, policy, and state
+|   `-- utilities/        # Non-executable utility ownership, result, and clock contracts
 |-- database/             # SQLite repositories and ordered migrations
 |-- integrations/         # Optional external-product integrations
 |   |-- discord/          # Official bot Gateway and metadata normalization
@@ -72,6 +73,13 @@ Settings OAuth worker and scheduler own Qt handoff only.
 `app/single_instance.py` claims the user-scoped local activation endpoint before
 runtime composition. A secondary process can request only activation and exits
 without opening SQLite or starting providers.
+
+Phase 13 utility declarations live under `core/utilities/`. They do not execute
+actions or replace `core/actions/`: future utility proposals still cross
+`ActionRequest`, the application-owned registry, permissions, confirmation,
+execution, and audit. The utility catalog only fixes operation ownership,
+allowed effects, network/storage limits, sanitized results, and clock injection
+before implementations are exposed.
 
 Hosted-live provider contracts remain in `core/voice_session/`, Gemini and its
 Google SDK transport remain in `providers/live/`, and application ownership is
