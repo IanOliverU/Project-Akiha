@@ -381,6 +381,19 @@ class SpotifyConfig:
             )
 
 
+def _validate_notification_channel_mode(value: str, label: str) -> None:
+    allowed = {
+        "visual_chat_voice",
+        "visual_chat",
+        "visual_only",
+        "chat_only",
+        "voice_only",
+        "silent",
+    }
+    if value not in allowed:
+        raise ValueError(f"{label} must be one of: {', '.join(sorted(allowed))}.")
+
+
 @dataclass(frozen=True, slots=True)
 class GmailIntegrationConfig:
     """Settings for optional metadata-only Gmail awareness."""
@@ -398,6 +411,8 @@ class GmailIntegrationConfig:
     notify_personal: bool = False
     notify_newsletter: bool = False
     notify_promotional: bool = False
+    general_channel_mode: str = "visual_chat"
+    important_channel_mode: str = "visual_chat_voice"
 
     def __post_init__(self) -> None:
         """Validate public desktop OAuth configuration."""
@@ -428,6 +443,14 @@ class GmailIntegrationConfig:
                 "integrations.gmail.request_timeout_seconds must be between 1 "
                 "and 60."
             )
+        _validate_notification_channel_mode(
+            self.general_channel_mode,
+            "integrations.gmail.general_channel_mode",
+        )
+        _validate_notification_channel_mode(
+            self.important_channel_mode,
+            "integrations.gmail.important_channel_mode",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -444,6 +467,9 @@ class DiscordIntegrationConfig:
     notify_authorized_channels: bool = False
     authorized_channel_ids: tuple[str, ...] = ()
     reconnect_max_seconds: int = 60
+    direct_message_channel_mode: str = "visual_chat_voice"
+    mention_channel_mode: str = "visual_chat_voice"
+    authorized_channel_mode: str = "visual_chat"
 
     def __post_init__(self) -> None:
         """Reject unsupported personal-account modes and invalid channel IDs."""
@@ -472,6 +498,21 @@ class DiscordIntegrationConfig:
                 "integrations.discord.reconnect_max_seconds must be between 5 "
                 "and 300."
             )
+        for value, label in (
+            (
+                self.direct_message_channel_mode,
+                "integrations.discord.direct_message_channel_mode",
+            ),
+            (
+                self.mention_channel_mode,
+                "integrations.discord.mention_channel_mode",
+            ),
+            (
+                self.authorized_channel_mode,
+                "integrations.discord.authorized_channel_mode",
+            ),
+        ):
+            _validate_notification_channel_mode(value, label)
         object.__setattr__(self, "authorized_channel_ids", normalized_ids)
         object.__setattr__(self, "owner_user_id", owner_user_id)
 
@@ -481,6 +522,7 @@ class ExternalIntegrationsConfig:
     """Shared external-awareness preferences and provider settings."""
 
     visual_notifications_enabled: bool = True
+    chat_notifications_enabled: bool = True
     voice_notifications_enabled: bool = True
     notification_cooldown_seconds: int = 1
     event_expiry_seconds: int = 300

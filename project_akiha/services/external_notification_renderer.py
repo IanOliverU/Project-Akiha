@@ -29,6 +29,23 @@ class ExternalNotificationRenderer:
             return _render_discord_speech(event)
         raise ValueError("Unsupported external notification service.")
 
+    def render_aggregate(self, event: ExternalEvent, count: int) -> str:
+        """Return one bounded English summary for compatible queued events."""
+        if not 2 <= count <= 100:
+            return self.render(event)
+        service = (
+            "emails" if event.service == ExternalService.GMAIL else "Discord notices"
+        )
+        return f"You have {count} new {service} of the same type."
+
+    def render_aggregate_speech(self, event: ExternalEvent, count: int) -> str:
+        """Return one short Japanese summary for compatible queued events."""
+        if not 2 <= count <= 100:
+            return self.render_speech(event)
+        if event.service == ExternalService.GMAIL:
+            return f"Ian-sama、同じ種類のメールが{count}件届いています。"
+        return f"Ian-sama、Discordに同じ種類の通知が{count}件あります。"
+
 
 def _render_gmail_display(event: ExternalEvent) -> str:
     sender = _english_sender(event.sender_display)

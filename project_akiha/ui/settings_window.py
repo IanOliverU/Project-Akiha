@@ -193,6 +193,7 @@ class SettingsWindow(QWidget):
     integration_refresh_requested = Signal(str)
     integration_test_notification_requested = Signal(str)
     integration_local_data_clear_requested = Signal(str)
+    notification_center_requested = Signal()
     assistant_permissions_reset_requested = Signal()
     voice_health_check_requested = Signal()
     voice_microphone_test_requested = Signal()
@@ -393,6 +394,10 @@ class SettingsWindow(QWidget):
         self._integration_visual_notifications_input.setChecked(
             integrations.visual_notifications_enabled
         )
+        self._integration_chat_notifications_input = _ToggleSwitch()
+        self._integration_chat_notifications_input.setChecked(
+            integrations.chat_notifications_enabled
+        )
         self._integration_voice_notifications_input = _ToggleSwitch()
         self._integration_voice_notifications_input.setChecked(
             integrations.voice_notifications_enabled
@@ -419,6 +424,15 @@ class SettingsWindow(QWidget):
         self._integration_clear_data_button.clicked.connect(
             self._request_integration_data_clear
         )
+        self._notification_center_button = QPushButton("Open notifications")
+        self._notification_center_button.clicked.connect(
+            self.notification_center_requested.emit
+        )
+        self._provider_health_summary = QLabel(
+            "Optional provider health has not been checked yet."
+        )
+        self._provider_health_summary.setWordWrap(True)
+        self._provider_health_summary.setObjectName("settingsBoundaryNote")
         self._gmail_enabled_input = _ToggleSwitch()
         self._gmail_enabled_input.setChecked(gmail.enabled)
         self._gmail_client_id_input = QLineEdit(gmail.client_id)
@@ -450,6 +464,12 @@ class SettingsWindow(QWidget):
         self._gmail_notify_personal_input = _checked_toggle(gmail.notify_personal)
         self._gmail_notify_newsletter_input = _checked_toggle(gmail.notify_newsletter)
         self._gmail_notify_promotional_input = _checked_toggle(gmail.notify_promotional)
+        self._gmail_general_channel_input = _build_notification_channel_combo(
+            gmail.general_channel_mode
+        )
+        self._gmail_important_channel_input = _build_notification_channel_combo(
+            gmail.important_channel_mode
+        )
         self._gmail_connect_button = QPushButton("Connect Gmail")
         self._gmail_connect_button.clicked.connect(self._connect_gmail)
         self._gmail_disconnect_button = QPushButton("Disconnect")
@@ -502,6 +522,15 @@ class SettingsWindow(QWidget):
             5,
             300,
             discord.reconnect_max_seconds,
+        )
+        self._discord_dm_channel_input = _build_notification_channel_combo(
+            discord.direct_message_channel_mode
+        )
+        self._discord_mention_channel_input = _build_notification_channel_combo(
+            discord.mention_channel_mode
+        )
+        self._discord_authorized_channel_input = _build_notification_channel_combo(
+            discord.authorized_channel_mode
         )
         self._discord_reconnect_input.setSuffix(" sec")
         self._discord_connect_button = QPushButton("Save token and connect")
@@ -954,6 +983,9 @@ class SettingsWindow(QWidget):
         self._integration_visual_notifications_input.setChecked(
             integrations.visual_notifications_enabled
         )
+        self._integration_chat_notifications_input.setChecked(
+            integrations.chat_notifications_enabled
+        )
         self._integration_voice_notifications_input.setChecked(
             integrations.voice_notifications_enabled
         )
@@ -975,6 +1007,14 @@ class SettingsWindow(QWidget):
         self._gmail_notify_personal_input.setChecked(gmail.notify_personal)
         self._gmail_notify_newsletter_input.setChecked(gmail.notify_newsletter)
         self._gmail_notify_promotional_input.setChecked(gmail.notify_promotional)
+        _set_notification_channel_combo(
+            self._gmail_general_channel_input,
+            gmail.general_channel_mode,
+        )
+        _set_notification_channel_combo(
+            self._gmail_important_channel_input,
+            gmail.important_channel_mode,
+        )
         self._discord_enabled_input.setChecked(discord.enabled)
         self._discord_notify_dm_input.setChecked(discord.notify_bot_direct_messages)
         self._discord_notify_mentions_input.setChecked(discord.notify_mentions)
@@ -990,6 +1030,18 @@ class SettingsWindow(QWidget):
         )
         self._discord_channel_ids_input.setText(
             ", ".join(discord.authorized_channel_ids)
+        )
+        _set_notification_channel_combo(
+            self._discord_dm_channel_input,
+            discord.direct_message_channel_mode,
+        )
+        _set_notification_channel_combo(
+            self._discord_mention_channel_input,
+            discord.mention_channel_mode,
+        )
+        _set_notification_channel_combo(
+            self._discord_authorized_channel_input,
+            discord.authorized_channel_mode,
         )
         self._discord_reconnect_input.setValue(discord.reconnect_max_seconds)
         self._discord_bot_token_input.clear()
@@ -1345,6 +1397,10 @@ class SettingsWindow(QWidget):
             self._integration_visual_notifications_input,
         )
         shared_layout.addRow(
+            "Chat notifications",
+            self._integration_chat_notifications_input,
+        )
+        shared_layout.addRow(
             "Voice notifications",
             self._integration_voice_notifications_input,
         )
@@ -1355,6 +1411,8 @@ class SettingsWindow(QWidget):
             "Local receipts and cursors",
             self._integration_clear_data_button,
         )
+        shared_layout.addRow("Notification Center", self._notification_center_button)
+        shared_layout.addRow("Runtime health", self._provider_health_summary)
 
         gmail_layout = _build_form_layout(wrap_long_rows=True)
         gmail_layout.addRow("Gmail enabled", self._gmail_enabled_input)
@@ -1371,6 +1429,11 @@ class SettingsWindow(QWidget):
         gmail_layout.addRow("Personal", self._gmail_notify_personal_input)
         gmail_layout.addRow("Newsletter", self._gmail_notify_newsletter_input)
         gmail_layout.addRow("Promotional", self._gmail_notify_promotional_input)
+        gmail_layout.addRow("General channels", self._gmail_general_channel_input)
+        gmail_layout.addRow(
+            "Important channels",
+            self._gmail_important_channel_input,
+        )
         gmail_layout.addRow("Connection", self._build_gmail_connection_row())
         gmail_layout.addRow("Last synchronization", self._gmail_last_sync_status)
 
@@ -1398,6 +1461,15 @@ class SettingsWindow(QWidget):
         )
         discord_layout.addRow("Channel IDs", self._discord_channel_ids_input)
         discord_layout.addRow("Reconnect cap", self._discord_reconnect_input)
+        discord_layout.addRow("DM channels", self._discord_dm_channel_input)
+        discord_layout.addRow(
+            "Mention channels",
+            self._discord_mention_channel_input,
+        )
+        discord_layout.addRow(
+            "Authorized activity channels",
+            self._discord_authorized_channel_input,
+        )
         discord_layout.addRow("Connection", self._build_discord_connection_row())
         discord_layout.addRow("Last authorized event", self._discord_last_event_status)
 
@@ -2103,6 +2175,9 @@ class SettingsWindow(QWidget):
             visual_notifications_enabled=(
                 self._integration_visual_notifications_input.isChecked()
             ),
+            chat_notifications_enabled=(
+                self._integration_chat_notifications_input.isChecked()
+            ),
             voice_notifications_enabled=(
                 self._integration_voice_notifications_input.isChecked()
             ),
@@ -2123,6 +2198,12 @@ class SettingsWindow(QWidget):
                 notify_personal=self._gmail_notify_personal_input.isChecked(),
                 notify_newsletter=self._gmail_notify_newsletter_input.isChecked(),
                 notify_promotional=(self._gmail_notify_promotional_input.isChecked()),
+                general_channel_mode=_selected_notification_channel_mode(
+                    self._gmail_general_channel_input
+                ),
+                important_channel_mode=_selected_notification_channel_mode(
+                    self._gmail_important_channel_input
+                ),
             ),
             discord=DiscordIntegrationConfig(
                 enabled=self._discord_enabled_input.isChecked(),
@@ -2141,6 +2222,15 @@ class SettingsWindow(QWidget):
                 ),
                 authorized_channel_ids=channel_ids,
                 reconnect_max_seconds=self._discord_reconnect_input.value(),
+                direct_message_channel_mode=_selected_notification_channel_mode(
+                    self._discord_dm_channel_input
+                ),
+                mention_channel_mode=_selected_notification_channel_mode(
+                    self._discord_mention_channel_input
+                ),
+                authorized_channel_mode=_selected_notification_channel_mode(
+                    self._discord_authorized_channel_input
+                ),
             ),
         )
 
@@ -2526,6 +2616,12 @@ class SettingsWindow(QWidget):
                 self._gmail_last_sync_status.setText(checked_at)
         elif service == "discord":
             self._set_discord_connection_status(label, is_error=is_error)
+
+    def set_provider_health_summary(self, summary: str) -> None:
+        """Display one privacy-safe unified optional-provider snapshot."""
+        self._provider_health_summary.setText(
+            summary.strip() or "Optional provider health has not been checked yet."
+        )
 
     def set_integration_last_event(self, service: str, occurred_at: str) -> None:
         """Display an event timestamp without exposing communication content."""
@@ -3229,6 +3325,34 @@ def _build_combo(
     combo.addItems(options)
     combo.setCurrentText(value)
     return combo
+
+
+_NOTIFICATION_CHANNEL_OPTIONS = (
+    ("Visual, chat, and voice", "visual_chat_voice"),
+    ("Visual and chat", "visual_chat"),
+    ("Visual only", "visual_only"),
+    ("Chat only", "chat_only"),
+    ("Voice only", "voice_only"),
+    ("Silent", "silent"),
+)
+
+
+def _build_notification_channel_combo(value: str) -> QComboBox:
+    combo = _ChevronComboBox()
+    for label, mode in _NOTIFICATION_CHANNEL_OPTIONS:
+        combo.addItem(label, mode)
+    _set_notification_channel_combo(combo, value)
+    return combo
+
+
+def _set_notification_channel_combo(combo: QComboBox, value: str) -> None:
+    index = combo.findData(value)
+    combo.setCurrentIndex(index if index >= 0 else 0)
+
+
+def _selected_notification_channel_mode(combo: QComboBox) -> str:
+    value = combo.currentData()
+    return str(value) if isinstance(value, str) else "visual_chat"
 
 
 def _checked_toggle(checked: bool) -> _ToggleSwitch:

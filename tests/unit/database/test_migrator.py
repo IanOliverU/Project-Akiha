@@ -62,6 +62,7 @@ class DatabaseMigratorTest(unittest.TestCase):
         self.assertIn("pet_appearance_selection", table_names)
         self.assertIn("external_event_receipts", table_names)
         self.assertIn("integration_sync_state", table_names)
+        self.assertIn("notification_inbox", table_names)
         self.assertIn("summary", conversation_columns)
         self.assertIn("archived_at", memory_columns)
         self.assertIn("embedding_json", memory_columns)
@@ -82,6 +83,7 @@ class DatabaseMigratorTest(unittest.TestCase):
                 (11,),
                 (12,),
                 (13,),
+                (14,),
             ],
         )
 
@@ -93,7 +95,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             project_root = Path(__file__).resolve().parents[3]
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
-                if source.name.startswith("0013_"):
+                if source.name.startswith(("0013_", "0014_")):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)
 
@@ -263,7 +265,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             project_root = Path(__file__).resolve().parents[3]
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
-                if source.name.startswith(("0011_", "0012_", "0013_")):
+                if source.name.startswith(("0011_", "0012_", "0013_", "0014_")):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)
 

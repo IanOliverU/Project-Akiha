@@ -69,6 +69,7 @@ class ProactiveDeliveryController:
                 payload["speech_message"] = speech_message
             if source_payload.get("speech_enabled") is False:
                 payload["speech_enabled"] = False
+            payload["aggregate_count"] = source_payload.get("aggregate_count", 1)
         self._event_bus.publish(
             EventType.PROACTIVE_SUGGESTION_DELIVERED,
             payload,
@@ -98,9 +99,16 @@ def _request_from_payload(
     except ValueError:
         return None
 
+    allow_chat = payload.get("chat_enabled", True)
+    allow_tray = payload.get("visual_enabled", True)
+    if not isinstance(allow_chat, bool) or not isinstance(allow_tray, bool):
+        return None
+
     return ProactiveDeliveryRequest(
         kind=kind,
         message=message,
         urgency=parsed_urgency,
         created_at=parsed_created_at,
+        allow_chat=allow_chat,
+        allow_tray=allow_tray,
     )

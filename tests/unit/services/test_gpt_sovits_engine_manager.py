@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from project_akiha.config import VoiceConfig
 from project_akiha.services.gpt_sovits_engine_manager import (
     GptSoVitsEngineManager,
+    GptSoVitsEngineStatus,
 )
 
 
@@ -222,6 +223,40 @@ class GptSoVitsEngineManagerTest(unittest.TestCase):
         )
 
         self.assertFalse(ready)
+
+    def test_monitor_reports_healthy_and_resets_recovery(self) -> None:
+        manager = GptSoVitsEngineManager(
+            Path.cwd(),
+            endpoint_probe=lambda _url: True,
+        )
+        manager._recovery_attempts = 2
+
+        status = manager.monitor_and_recover(_managed_config())
+
+        self.assertEqual(status.state, "healthy")
+        self.assertEqual(manager.recovery_attempts, 0)
+
+    def test_monitor_degrades_then_attempts_bounded_recovery(self) -> None:
+        manager = GptSoVitsEngineManager(
+            Path.cwd(),
+            endpoint_probe=lambda _url: False,
+            maximum_recovery_attempts=1,
+        )
+        manager._process = _Process()
+        manager.apply_config = lambda _config: GptSoVitsEngineStatus(
+            "starting", "starting"
+        )  # type: ignore[method-assign]
+
+        first = manager.monitor_and_recover(_managed_config(), monotonic_now=0.0)
+        second = manager.monitor_and_recover(_managed_config(), monotonic_now=0.0)
+        recovery = manager.monitor_and_recover(_managed_config(), monotonic_now=0.0)
+        exhausted = manager.monitor_and_recover(_managed_config(), monotonic_now=5.0)
+
+        self.assertEqual(first.state, "degraded")
+        self.assertEqual(second.state, "degraded")
+        self.assertEqual(recovery.state, "recovering")
+        self.assertEqual(exhausted.state, "unavailable")
+        self.assertEqual(manager.recovery_attempts, 1)
 
 
 class _Process:

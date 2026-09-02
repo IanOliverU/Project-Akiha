@@ -24,7 +24,7 @@ material is separated by purpose.
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 12 - Runtime And Notification Reliability | 12A complete; 12B next | [`phases/phase-12-runtime-notifications/`](phases/phase-12-runtime-notifications/) |
+| 12 - Runtime And Notification Reliability | Automated package gate complete; owner acceptance pending | [`phases/phase-12-runtime-notifications/`](phases/phase-12-runtime-notifications/) |
 
 Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
@@ -34,9 +34,11 @@ packaged gates pass, and the owner accepted real Gmail and Discord delivery on
 2026-08-28. Animation artwork work remains paused without removing its
 infrastructure.
 
-Phase 12 begins with a pre-runtime single-instance guard, then adds a sanitized
+Phase 12 now provides the pre-runtime single-instance guard, sanitized
 Notification Center, bounded aggregation and channel policy, GPT-SoVITS
-recovery, unified provider diagnostics, and a consolidated release candidate.
+recovery, unified provider diagnostics, and a consolidated PyInstaller
+candidate. Automated packaged verification passes; final owner interaction and
+tray-shutdown acceptance remain open.
 
 ## Current Roadmap
 

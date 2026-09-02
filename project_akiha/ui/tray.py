@@ -13,6 +13,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
     """Tray icon with basic Phase 1 window controls."""
 
     behavior_history_requested = Signal()
+    notification_center_requested = Signal()
     pet_care_requested = Signal()
     pet_status_requested = Signal()
     shop_requested = Signal()
@@ -70,6 +71,10 @@ class AkihaTrayIcon(QSystemTrayIcon):
         behavior_history_action = QAction("Behavior history", menu)
         behavior_history_action.triggered.connect(self.behavior_history_requested.emit)
         menu.addAction(behavior_history_action)
+
+        notifications_action = QAction("Notifications", menu)
+        notifications_action.triggered.connect(self.notification_center_requested.emit)
+        menu.addAction(notifications_action)
 
         menu.addSeparator()
 

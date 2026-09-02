@@ -26,6 +26,8 @@ class ProactiveDeliveryRequest:
     message: str
     urgency: NotificationUrgency
     created_at: datetime
+    allow_chat: bool = True
+    allow_tray: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +75,7 @@ class ProactiveDeliveryService:
                 request=request,
             )
 
-        if surface.is_chat_visible():
+        if request.allow_chat and surface.is_chat_visible():
             surface.append_chat_suggestion(request.kind, request.message)
             return ProactiveDeliveryResult(
                 delivered=True,
@@ -82,7 +84,7 @@ class ProactiveDeliveryService:
                 request=request,
             )
 
-        if surface.can_show_tray_message():
+        if request.allow_tray and surface.can_show_tray_message():
             surface.show_tray_message(self._title, request.message)
             return ProactiveDeliveryResult(
                 delivered=True,

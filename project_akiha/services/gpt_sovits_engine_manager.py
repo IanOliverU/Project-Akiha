@@ -8,7 +8,9 @@ import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
+from threading import RLock
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -41,6 +43,16 @@ class GptSoVitsEngineStatus:
     is_error: bool = False
 
 
+class GptSoVitsHealthState(StrEnum):
+    """Stable runtime-health vocabulary used by Phase 12 diagnostics."""
+
+    STARTING = "starting"
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNAVAILABLE = "unavailable"
+    RECOVERING = "recovering"
+
+
 ProcessFactory = Callable[
     [Sequence[str], Path, Mapping[str, str]],
     ManagedEngineProcess,
@@ -67,7 +79,13 @@ class GptSoVitsEngineManager:
         process_factory: ProcessFactory | None = None,
         endpoint_probe: EndpointProbe | None = None,
         environment: Mapping[str, str] | None = None,
+        maximum_recovery_attempts: int = 3,
+        recovery_backoff_seconds: float = 2.0,
     ) -> None:
+        if maximum_recovery_attempts < 1:
+            raise ValueError("maximum_recovery_attempts must be positive.")
+        if recovery_backoff_seconds <= 0:
+            raise ValueError("recovery_backoff_seconds must be positive.")
         self._project_root = project_root
         self._process_factory = process_factory or _start_hidden_process
         self._endpoint_probe = endpoint_probe or _probe_gpt_sovits_endpoint
@@ -75,14 +93,25 @@ class GptSoVitsEngineManager:
         self._process: ManagedEngineProcess | None = None
         self._launch_signature: tuple[Path, Path, str, int] | None = None
         self._stop_on_exit = True
+        self._maximum_recovery_attempts = maximum_recovery_attempts
+        self._recovery_backoff_seconds = recovery_backoff_seconds
+        self._recovery_attempts = 0
+        self._consecutive_health_failures = 0
+        self._next_recovery_at = 0.0
+        self._lock = RLock()
 
     @property
     def owns_running_process(self) -> bool:
         """Return whether Akiha owns a running GPT-SoVITS process."""
-        return self._process is not None and self._process.poll() is None
+        with self._lock:
+            return self._process is not None and self._process.poll() is None
 
     def apply_config(self, config: VoiceConfig) -> GptSoVitsEngineStatus:
         """Start GPT-SoVITS for the active local Akiha voice configuration."""
+        with self._lock:
+            return self._apply_config(config)
+
+    def _apply_config(self, config: VoiceConfig) -> GptSoVitsEngineStatus:
         self._stop_on_exit = config.output_engine_stop_on_exit
         if not config.enabled or config.output_provider != "gpt-sovits":
             self.stop()
@@ -166,6 +195,10 @@ class GptSoVitsEngineManager:
 
     def refresh_status(self, base_url: str) -> GptSoVitsEngineStatus:
         """Return current endpoint and owned-process status."""
+        with self._lock:
+            return self._refresh_status(base_url)
+
+    def _refresh_status(self, base_url: str) -> GptSoVitsEngineStatus:
         if self._endpoint_probe(base_url):
             detail = (
                 "The managed GPT-SoVITS API is running."
@@ -183,6 +216,101 @@ class GptSoVitsEngineManager:
             "GPT-SoVITS API is not reachable.",
             True,
         )
+
+    @property
+    def recovery_attempts(self) -> int:
+        """Return the current bounded recovery-attempt count."""
+        with self._lock:
+            return self._recovery_attempts
+
+    def monitor_and_recover(
+        self,
+        config: VoiceConfig,
+        *,
+        monotonic_now: float | None = None,
+    ) -> GptSoVitsEngineStatus:
+        """Probe health and recover a failed managed runtime within fixed bounds."""
+        with self._lock:
+            return self._monitor_and_recover(config, monotonic_now=monotonic_now)
+
+    def _monitor_and_recover(
+        self,
+        config: VoiceConfig,
+        *,
+        monotonic_now: float | None,
+    ) -> GptSoVitsEngineStatus:
+        if not config.enabled or config.output_provider != "gpt-sovits":
+            self._reset_health_tracking()
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.UNAVAILABLE.value,
+                "GPT-SoVITS voice output is disabled.",
+            )
+
+        if self._endpoint_probe(config.output_base_url):
+            self._reset_health_tracking()
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.HEALTHY.value,
+                (
+                    "The managed GPT-SoVITS API is healthy."
+                    if self.owns_running_process
+                    else "The external GPT-SoVITS API is healthy."
+                ),
+            )
+
+        self._consecutive_health_failures += 1
+        now = time.monotonic() if monotonic_now is None else monotonic_now
+        if self.owns_running_process and self._consecutive_health_failures <= 2:
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.DEGRADED.value,
+                "GPT-SoVITS did not answer its health probe; Akiha remains available.",
+                True,
+            )
+        if not config.output_engine_auto_start:
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.UNAVAILABLE.value,
+                "GPT-SoVITS API is unavailable and automatic recovery is disabled.",
+                True,
+            )
+        if self._recovery_attempts >= self._maximum_recovery_attempts:
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.UNAVAILABLE.value,
+                "GPT-SoVITS recovery limit was reached; use Retry in Settings.",
+                True,
+            )
+        if now < self._next_recovery_at:
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.DEGRADED.value,
+                "GPT-SoVITS recovery is waiting for its bounded backoff.",
+                True,
+            )
+
+        self.stop()
+        self._recovery_attempts += 1
+        self._next_recovery_at = now + min(
+            self._recovery_backoff_seconds * (2 ** (self._recovery_attempts - 1)),
+            30.0,
+        )
+        status = self.apply_config(config)
+        if status.state == "starting":
+            return GptSoVitsEngineStatus(
+                GptSoVitsHealthState.RECOVERING.value,
+                "Restarting the managed GPT-SoVITS API in the background.",
+            )
+        return GptSoVitsEngineStatus(
+            GptSoVitsHealthState.UNAVAILABLE.value,
+            status.detail,
+            True,
+        )
+
+    def reset_recovery(self) -> None:
+        """Allow an explicit user-requested recovery cycle."""
+        with self._lock:
+            self._reset_health_tracking()
+
+    def _reset_health_tracking(self) -> None:
+        self._recovery_attempts = 0
+        self._consecutive_health_failures = 0
+        self._next_recovery_at = 0.0
 
     def wait_until_ready(
         self,
@@ -210,6 +338,10 @@ class GptSoVitsEngineManager:
 
     def stop(self, timeout_seconds: float = 5.0) -> bool:
         """Stop the owned process without touching an external API process."""
+        with self._lock:
+            return self._stop(timeout_seconds)
+
+    def _stop(self, timeout_seconds: float) -> bool:
         process = self._process
         self._process = None
         self._launch_signature = None
@@ -227,11 +359,12 @@ class GptSoVitsEngineManager:
 
     def shutdown(self) -> bool:
         """Apply the configured exit policy to the owned API process."""
-        if not self._stop_on_exit:
-            self._process = None
-            self._launch_signature = None
-            return True
-        return self.stop()
+        with self._lock:
+            if not self._stop_on_exit:
+                self._process = None
+                self._launch_signature = None
+                return True
+            return self._stop(5.0)
 
     def _resolve_runtime(self) -> _GptSoVitsRuntime | None:
         support_roots = self._support_roots()

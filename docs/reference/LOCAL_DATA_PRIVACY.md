@@ -17,9 +17,9 @@ available without subscriptions or API keys.
 | Data | Location | Purpose |
 | --- | --- | --- |
 | User config | `%LOCALAPPDATA%\Akiha\user_config.toml` | User-editable settings saved from the Settings window. |
-| SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, behavior history, assistant-action grants, and sanitized action history. |
+| SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` | Conversations, messages, summaries, memories, embeddings, behavior history, assistant-action grants, sanitized action history, hashed external-event receipts, and sanitized notification records. |
 | Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` | Last saved pet position. |
-| Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys and Spotify refresh token scoped to the current Windows user. |
+| Encrypted credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` | DPAPI-encrypted hosted AI keys, Spotify/Gmail OAuth credentials, and the Discord bot token scoped to the current Windows user. |
 | Logs | `%LOCALAPPDATA%\Akiha\logs\app.log` | Startup, diagnostics, provider failures, migration failures, and runtime support logs. |
 | Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` | Optional downloaded speech-recognition model files. |
 
@@ -333,6 +333,21 @@ cleared from Settings. External communication is not added to chat memory or
 sent to an LLM. Diagnostics use allowlisted service/status fields and omit
 sender data, subjects, channel names, raw responses, and credentials.
 
+## Phase 12 Notification Reliability
+
+Migration `0014` adds a bounded Notification Center containing only service,
+event kind, priority, rendered sanitized display text, timestamps, read/delivery
+state, and aggregate count. It does not contain provider IDs, message bodies,
+attachments, raw responses, OAuth credentials, bot tokens, or unrestricted
+payloads. Pending delivery is kept in a bounded in-memory queue and resumes
+through the existing proactive policy and presentation arbitration.
+
+The single-instance endpoint accepts only the fixed local activation command
+and derives its user-scoped name from a hash of Akiha's local-data location.
+Provider health diagnostics expose closed state/reason codes and bounded startup
+durations. GPT-SoVITS recovery applies only to a process Akiha owns; an external
+engine is never terminated or restarted by the application.
+
 ## Reset
 
 To reset all local Project Akiha data, quit the app first, then remove:
@@ -374,6 +389,8 @@ The notice explains:
 - optional official Discord Bot Gateway scope and encrypted bot-token storage
 - hashed external-event deduplication receipts, bounded retention, and local
   clear controls
+- sanitized Notification Center records, bounded aggregation, and per-event
+  channel controls
 
 Revisit and version the notice again before adding persistent or always-listening
 capture, sync, plugins, file-content ingestion, or broader local commands.

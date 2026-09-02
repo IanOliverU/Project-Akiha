@@ -13,6 +13,9 @@ from project_akiha.database.sqlite_external_event_repository import (
     SQLiteExternalEventRepository,
 )
 from project_akiha.database.sqlite_memory_repository import SQLiteMemoryRepository
+from project_akiha.database.sqlite_notification_repository import (
+    SQLiteNotificationRepository,
+)
 from project_akiha.database.sqlite_pet_repository import SQLitePetStateRepository
 from project_akiha.database.sqlite_shop_repository import SQLiteShopRepository
 
@@ -24,6 +27,7 @@ __all__ = [
     "SQLiteConversationRepository",
     "SQLiteExternalEventRepository",
     "SQLiteMemoryRepository",
+    "SQLiteNotificationRepository",
     "SQLitePetStateRepository",
     "SQLiteShopRepository",
 ]

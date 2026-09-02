@@ -286,6 +286,26 @@ voice, animation, memory, pet-state, SQL, action-execution, or renderer
 references. No Phase 11 path sends, replies, deletes, archives, accepts,
 moderates, or otherwise mutates an external account.
 
+## Phase 12 Runtime And Notification Boundary
+
+The single-instance coordinator claims a user-scoped local Qt endpoint before
+SQLite, integrations, voice, timers, or tray ownership begins. It accepts only
+the fixed `activate` request; arbitrary IPC commands and payload-driven actions
+are rejected.
+
+Validated external events can create only allowlisted, rendered Notification
+Center records. Migration `0014` excludes provider identifiers, raw content,
+attachments, credentials, and provider payloads. Queue capacity is bounded,
+overflow preserves higher-priority events, and compatible events aggregate
+before returning to the existing proactive-delivery path. Per-event channel
+policy can narrow delivery to tray, chat, voice, or silence but cannot bypass
+quiet hours, deduplication, expiry, or presentation arbitration.
+
+GPT-SoVITS monitoring uses bounded health probes, retry count, and backoff. It
+can recover only a managed child process and leaves externally owned runtimes
+untouched. Unified provider diagnostics expose closed reason codes and startup
+durations without credentials, content, prompts, transcripts, or private paths.
+
 ## Deferred Before Public Distribution
 
 - Code signing.

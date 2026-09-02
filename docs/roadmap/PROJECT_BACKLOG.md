@@ -6,7 +6,7 @@ and manual smoke validation.
 
 ## Immediate Release Follow-Up
 
-- [ ] Include the accepted Phase 11 Discord notification and Gmail OAuth-secret
+- [x] Include the accepted Phase 11 Discord notification and Gmail OAuth-secret
   corrections in the next consolidated package, then repeat focused real-account
   provider smoke checks.
 - Review the first manual packaged smoke report.

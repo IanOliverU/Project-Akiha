@@ -419,6 +419,11 @@ aggregation path, make delivery channels configurable by event type, recover
 the optional GPT-SoVITS runtime safely, and consolidate provider health and
 startup diagnostics.
 
+Phase 12A-12H implementation and automated verification are complete. The
+current candidate is `dist/pyinstaller-phase12/Akiha`; final packaged Gmail,
+Discord, Local Modular voice, Notification Center, and tray-shutdown owner
+acceptance remains pending before formal closure.
+
 Details: `docs/phases/phase-12-runtime-notifications/README.md`
 
 ## Architecture

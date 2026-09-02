@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from project_akiha.app.integration_notification_coordinator import (
     IntegrationNotificationCoordinator,
@@ -22,6 +22,10 @@ from project_akiha.core.integrations import (
     ExternalEventPriority,
     ExternalNotificationStatus,
     ExternalService,
+)
+from project_akiha.core.notifications import (
+    NotificationInboxStatus,
+    SanitizedNotification,
 )
 from project_akiha.services.external_event_validation import ExternalEventValidator
 from project_akiha.services.external_notification_renderer import (
@@ -112,7 +116,7 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
 
         self.assertEqual(len(self.notifications), 1)
 
-    def test_external_cooldown_is_scoped_per_event_kind(self) -> None:
+    def test_cooldown_defers_same_kind_without_blocking_other_kind(self) -> None:
         coordinator = self._coordinator(
             preferences=ExternalIntegrationsConfig(
                 notification_cooldown_seconds=1,
@@ -139,10 +143,11 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
             self.repository.statuses,
             [
                 ExternalNotificationStatus.QUEUED,
-                ExternalNotificationStatus.SUPPRESSED,
+                ExternalNotificationStatus.QUEUED,
                 ExternalNotificationStatus.QUEUED,
             ],
         )
+        self.assertEqual(coordinator.pending_count, 1)
 
     def test_silent_event_is_receipted_without_rendering(self) -> None:
         coordinator = self._coordinator()
@@ -199,10 +204,11 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
             ],
         )
 
-    def test_disabled_visual_and_voice_notifications_are_suppressed(self) -> None:
+    def test_disabled_delivery_channels_are_recorded_as_silent(self) -> None:
         coordinator = self._coordinator(
             preferences=ExternalIntegrationsConfig(
                 visual_notifications_enabled=False,
+                chat_notifications_enabled=False,
                 voice_notifications_enabled=False,
             )
         )
@@ -213,8 +219,45 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
         self.assertEqual(self.notifications, [])
         self.assertEqual(
             self.repository.statuses,
-            [ExternalNotificationStatus.SUPPRESSED],
+            [ExternalNotificationStatus.SILENT],
         )
+
+    def test_busy_notifications_aggregate_into_one_sanitized_inbox_record(
+        self,
+    ) -> None:
+        busy = [True]
+        inbox = _InboxRepository()
+        coordinator = self._coordinator(
+            inbox_repository=inbox,
+            presentation_busy_provider=lambda: busy[0],
+        )
+        coordinator.submit(_event(external_id="gmail-1"))
+        self._run_scheduled()
+        coordinator.submit(_event(external_id="gmail-2"))
+        self._run_scheduled()
+
+        self.assertEqual(coordinator.pending_count, 2)
+        self.assertEqual(inbox.added, [])
+
+        busy[0] = False
+        self.now += timedelta(seconds=1)
+        self.assertEqual(coordinator.flush_pending(), 1)
+
+        self.assertEqual(len(self.notifications), 1)
+        self.assertEqual(self.notifications[0].payload["aggregate_count"], 2)
+        self.assertEqual(len(inbox.added), 1)
+        self.assertEqual(inbox.added[0].aggregate_count, 2)
+        self.assertEqual(inbox.prune_calls, 1)
+
+        self.bus.publish(
+            EventType.PROACTIVE_SUGGESTION_DELIVERED,
+            {
+                **self.notifications[0].payload,
+                "delivered": True,
+                "channel": "chat_notice",
+            },
+        )
+        self.assertEqual(inbox.statuses, [(1, NotificationInboxStatus.DELIVERED)])
 
     def _coordinator(
         self,
@@ -222,6 +265,8 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
         behavior_enabled: bool = True,
         proactive_enabled: bool = True,
         preferences: ExternalIntegrationsConfig | None = None,
+        inbox_repository: object | None = None,
+        presentation_busy_provider: object | None = None,
     ) -> IntegrationNotificationCoordinator:
         return IntegrationNotificationCoordinator(
             event_bus=self.bus,
@@ -244,6 +289,8 @@ class IntegrationNotificationCoordinatorTest(unittest.TestCase):
             schedule_on_app_thread=self.scheduled.append,
             now_provider=lambda: self.now,
             preference_provider=(lambda: preferences or ExternalIntegrationsConfig()),
+            inbox_repository=inbox_repository,  # type: ignore[arg-type]
+            presentation_busy_provider=presentation_busy_provider,  # type: ignore[arg-type]
         )
 
     def _run_scheduled(self) -> None:
@@ -302,6 +349,30 @@ class _Repository:
 
     def clear_service_data(self, service: ExternalService) -> None:
         del service
+
+
+class _InboxRepository:
+    def __init__(self) -> None:
+        self.added: list[SanitizedNotification] = []
+        self.statuses: list[tuple[int, NotificationInboxStatus]] = []
+        self.prune_calls = 0
+
+    def add(self, notification: SanitizedNotification) -> int:
+        self.added.append(notification)
+        return len(self.added)
+
+    def update_status(
+        self,
+        record_id: int,
+        status: NotificationInboxStatus,
+    ) -> None:
+        self.statuses.append((record_id, status))
+
+    def prune(self, *, maximum_records: int, older_than: datetime) -> int:
+        self.prune_calls += 1
+        self.last_maximum_records = maximum_records
+        self.last_older_than = older_than
+        return 0
 
 
 def _event(**changes: object) -> ExternalEvent:

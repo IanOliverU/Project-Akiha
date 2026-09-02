@@ -37,6 +37,7 @@ expected_tables = {
     "integration_sync_state",
     "memories",
     "messages",
+    "notification_inbox",
     "pet_appearance_selection",
     "pet_reward_grants",
     "pet_state",

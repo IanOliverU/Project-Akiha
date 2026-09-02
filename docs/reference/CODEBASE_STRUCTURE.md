@@ -59,10 +59,19 @@ in `app/external_integration_runtime.py`. Candidates cross
 `ExternalEventValidator`, hashed receipt claiming, and the Qt application-thread
 handoff before the existing proactive delivery path can see them.
 `app/integration_notification_coordinator.py` owns preferences, expiry,
-deduplication, and trusted notification publication. It reuses the existing
-notification and speech controllers and has no renderer, memory, pet-state, or
-assistant-action authority. Migration `0013` stores only hashed receipts and
-sync cursors. The Settings OAuth worker and scheduler own Qt handoff only.
+deduplication, bounded deferral/aggregation, per-event channels, and trusted
+notification publication. It reuses the existing notification and speech
+controllers and has no renderer, memory, pet-state, or assistant-action
+authority. Migration `0013` stores only hashed receipts and sync cursors;
+migration `0014` stores only rendered sanitized Notification Center records.
+`ui/notification_center_window.py` owns read/clear presentation, while
+`services/provider_health_registry.py` and `ui/provider_health_worker.py` expose
+bounded optional-provider health without blocking application readiness. The
+Settings OAuth worker and scheduler own Qt handoff only.
+
+`app/single_instance.py` claims the user-scoped local activation endpoint before
+runtime composition. A secondary process can request only activation and exits
+without opening SQLite or starting providers.
 
 Hosted-live provider contracts remain in `core/voice_session/`, Gemini and its
 Google SDK transport remain in `providers/live/`, and application ownership is

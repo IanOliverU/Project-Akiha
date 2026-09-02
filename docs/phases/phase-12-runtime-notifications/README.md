@@ -1,6 +1,7 @@
 # Phase 12: Runtime And Notification Reliability
 
-**Status:** In progress - Phase 12A complete; Phase 12B is next
+**Status:** Implementation and automated package gate complete; owner packaged
+acceptance pending
 
 ## Purpose
 
@@ -54,14 +55,14 @@ voice engines, assistant actions, pet state, or rendering directly.
 
 ## Privacy Boundary
 
-The future Notification Center may persist only bounded, rendered notification
-records needed by the user-facing inbox, such as service, event kind, priority,
-sanitized display text, timestamps, and read/delivery state. It must not persist
+The Notification Center persists only bounded, rendered notification records
+needed by the user-facing inbox: service, event kind, priority, sanitized display
+text, timestamps, aggregate count, and read/delivery state. It does not persist
 email bodies, Discord message content, attachments, OAuth credentials, bot
 tokens, raw provider responses, or unrestricted external payloads.
 
-Migration `0014`, if required by Phase 12B, is reserved for this bounded inbox
-and queue state. Phase 12A requires no database migration.
+Migration `0014` owns only this bounded inbox. Deferred queue contents remain
+bounded and in memory; Phase 12A requires no database migration.
 
 ## Plan And Todo
 
@@ -83,59 +84,78 @@ when no application window is currently active.
 
 ### 12B: Sanitized Notification Center
 
-- [ ] Define the bounded user-facing notification record.
-- [ ] Add migration `0014` only if durable inbox state is approved and required.
-- [ ] Add repository retention, read/unread state, and explicit clear controls.
-- [ ] Build the Notification Center with existing UI patterns and semantic
+- [x] Define the bounded user-facing notification record.
+- [x] Add migration `0014` for durable sanitized inbox state.
+- [x] Add repository retention, read/unread state, and explicit clear controls.
+- [x] Build the Notification Center with existing UI patterns and semantic
   priority states.
-- [ ] Prove that raw communication content and credentials cannot enter it.
+- [x] Prove that raw communication content and credentials cannot enter it.
 
 ### 12C: Pending-notification queue and aggregation
 
-- [ ] Queue notifications while higher-priority presentation owns the surface.
-- [ ] Aggregate compatible events by service, kind, and bounded time window.
-- [ ] Preserve important events without repeatedly announcing low-priority
+- [x] Queue notifications while higher-priority presentation owns the surface.
+- [x] Aggregate compatible events by service, kind, and bounded time window.
+- [x] Preserve important events without repeatedly announcing low-priority
   activity.
-- [ ] Resume delivery through the existing proactive path.
+- [x] Resume delivery through the existing proactive path.
 
 ### 12D: Per-event visual, chat, and voice policy
 
-- [ ] Add explicit channel policy without replacing `NotificationPolicy`.
-- [ ] Support visual-only, chat, voice, and silent outcomes per event category.
-- [ ] Preserve quiet hours, event preferences, cooldowns, deduplication, and
+- [x] Add explicit channel policy without replacing `NotificationPolicy`.
+- [x] Support visual-only, chat, voice, and silent outcomes per event category.
+- [x] Preserve quiet hours, event preferences, cooldowns, deduplication, and
   voice arbitration.
 
 ### 12E: GPT-SoVITS crash detection and bounded recovery
 
-- [ ] Add starting, healthy, degraded, unavailable, and recovering health states.
-- [ ] Detect managed-process and API health failure without crashing Akiha.
-- [ ] Attempt bounded recovery with backoff and an explicit retry limit.
-- [ ] Keep chat, integrations, pet state, memory, and assistant actions available
+- [x] Add starting, healthy, degraded, unavailable, and recovering health states.
+- [x] Detect managed-process and API health failure without crashing Akiha.
+- [x] Attempt bounded recovery with backoff and an explicit retry limit.
+- [x] Keep chat, integrations, pet state, memory, and assistant actions available
   when speech is degraded.
 
 ### 12F: Unified provider health and startup diagnostics
 
-- [ ] Define one bounded health snapshot for optional providers.
-- [ ] Report startup duration and actionable unavailable/auth/network states.
-- [ ] Reuse Settings and privacy-safe logs rather than adding a blocking startup
+- [x] Define one bounded health snapshot for optional providers.
+- [x] Report startup duration and actionable unavailable/auth/network states.
+- [x] Reuse Settings and privacy-safe logs rather than adding a blocking startup
   screen.
-- [ ] Keep optional providers from delaying core application readiness.
+- [x] Keep optional providers from delaying core application readiness.
 
 ### 12G: Consolidated package
 
-- [ ] Include the final accepted Phase 11 Gmail and Discord source corrections.
-- [ ] Include completed Phase 12 runtime changes.
-- [ ] Build a fast development candidate before any clean release candidate.
-- [ ] Validate package privacy and dependency completeness.
+- [x] Include the final accepted Phase 11 Gmail and Discord source corrections.
+- [x] Include completed Phase 12 runtime changes.
+- [x] Build a fast development candidate before any clean release candidate.
+- [x] Validate package privacy and dependency completeness.
 
 ### 12H: Reliability and packaged verification
 
-- [ ] Run the complete automated quality gate.
-- [ ] Verify second-launch activation in the packaged application.
-- [ ] Verify notification persistence, aggregation, and channel policy.
-- [ ] Verify GPT-SoVITS failure and bounded recovery.
-- [ ] Verify Gmail, Discord, local voice, Gemini Live, and graceful shutdown.
+- [x] Run the complete automated quality gate.
+- [x] Verify second-launch activation in the packaged application.
+- [x] Verify notification persistence, aggregation, and channel policy.
+- [x] Verify GPT-SoVITS failure and bounded recovery.
+- [x] Verify packaged Gemini Live and GPT-SoVITS with real provider smoke.
+- [ ] Verify packaged Gmail, Discord, Local Modular voice, and tray shutdown with
+  owner-controlled interactions.
 - [ ] Record owner acceptance and formally close Phase 12.
+
+## Verification Record
+
+On 2026-09-02, the corrected source tree passed 1,684 tests with 3 expected
+skips, Ruff, Black, Python compilation, migration coverage, and source startup
+smoke. The cached PyInstaller one-folder candidate at
+`dist/pyinstaller-phase12/Akiha` built in 114.570 seconds. It passed artifact
+privacy/dependency validation, Windows GUI-subsystem validation, migration
+`0014` on fresh and existing data, clean startup logs, and packaged
+second-launch activation.
+
+The packaged provider runtime smoke also passed the real Gemini SDK/session
+boundary, GPT-SoVITS health, and real in-memory GPT-SoVITS synthesis. The
+remaining owner checks are recorded in
+`PHASE12_MANUAL_SMOKE_2026-09-02.md`; they are not represented as complete until
+the packaged UI, account-event, Local Modular voice, and tray-exit behavior are
+accepted.
 
 ## Exit Criteria
 

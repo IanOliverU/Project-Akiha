@@ -185,6 +185,8 @@ def _serialize_config(config: AppConfig) -> str:
         "[integrations]\n"
         "visual_notifications_enabled = "
         f"{str(integrations.visual_notifications_enabled).lower()}\n"
+        "chat_notifications_enabled = "
+        f"{str(integrations.chat_notifications_enabled).lower()}\n"
         "voice_notifications_enabled = "
         f"{str(integrations.voice_notifications_enabled).lower()}\n"
         "notification_cooldown_seconds = "
@@ -206,6 +208,10 @@ def _serialize_config(config: AppConfig) -> str:
         f"notify_personal = {str(gmail.notify_personal).lower()}\n"
         f"notify_newsletter = {str(gmail.notify_newsletter).lower()}\n"
         f"notify_promotional = {str(gmail.notify_promotional).lower()}\n"
+        "general_channel_mode = "
+        f'"{_escape_toml_string(gmail.general_channel_mode)}"\n'
+        "important_channel_mode = "
+        f'"{_escape_toml_string(gmail.important_channel_mode)}"\n'
         "\n"
         "[integrations.discord]\n"
         f"enabled = {str(discord.enabled).lower()}\n"
@@ -222,6 +228,12 @@ def _serialize_config(config: AppConfig) -> str:
         f"{str(discord.notify_authorized_channels).lower()}\n"
         f"authorized_channel_ids = [{discord_channel_ids}]\n"
         f"reconnect_max_seconds = {discord.reconnect_max_seconds}\n"
+        "direct_message_channel_mode = "
+        f'"{_escape_toml_string(discord.direct_message_channel_mode)}"\n'
+        "mention_channel_mode = "
+        f'"{_escape_toml_string(discord.mention_channel_mode)}"\n'
+        "authorized_channel_mode = "
+        f'"{_escape_toml_string(discord.authorized_channel_mode)}"\n'
     )
 
 

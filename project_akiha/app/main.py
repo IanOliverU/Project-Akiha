@@ -10,6 +10,7 @@ import traceback
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Protocol
 from uuid import uuid4
 
@@ -198,6 +199,7 @@ from project_akiha.database import (
     SQLiteConversationRepository,
     SQLiteExternalEventRepository,
     SQLiteMemoryRepository,
+    SQLiteNotificationRepository,
     SQLitePetStateRepository,
     SQLiteShopRepository,
 )
@@ -333,6 +335,12 @@ from project_akiha.services.provider_action_dispatcher import (
 from project_akiha.services.provider_action_proposal_gateway import (
     ProviderActionProposalGateway,
 )
+from project_akiha.services.provider_health_registry import (
+    ProviderHealthRegistry,
+    ProviderHealthState,
+    provider_health_state_from_code,
+    render_provider_health_summary,
+)
 from project_akiha.services.provider_runtime_smoke import (
     run_provider_runtime_smoke,
     write_provider_runtime_smoke_report,
@@ -380,6 +388,7 @@ from project_akiha.ui.chat_worker import ChatResponseThread
 from project_akiha.ui.hosted_live_session_worker import HostedLiveSessionThread
 from project_akiha.ui.integration_scheduler import QtAppThreadScheduler
 from project_akiha.ui.memory_window import MemoryWindow
+from project_akiha.ui.notification_center_window import NotificationCenterWindow
 from project_akiha.ui.ollama_tool_worker import OllamaNativeToolThread
 from project_akiha.ui.pet_care_window import PetCareWindow
 from project_akiha.ui.pet_care_worker import (
@@ -395,6 +404,7 @@ from project_akiha.ui.pet_status_window import PetStatusWindow
 from project_akiha.ui.pet_window import PetWindow
 from project_akiha.ui.privacy_notice import PrivacyNoticeDialog
 from project_akiha.ui.proactive_delivery import QtProactiveDeliverySurface
+from project_akiha.ui.provider_health_worker import GptSoVitsHealthThread
 from project_akiha.ui.settings_window import SettingsWindow
 from project_akiha.ui.shop_window import ShopWindow
 from project_akiha.ui.shop_worker import (
@@ -502,6 +512,7 @@ def _run_application() -> int:
         else None
     )
     credential_store = EncryptedCredentialStore(paths.credential_path)
+    provider_health_registry = ProviderHealthRegistry()
     event_bus = EventBus()
     event_logger = EventLogger(event_bus)
     activity_controller = ActivityController(event_bus, config.behavior)
@@ -526,6 +537,7 @@ def _run_application() -> int:
     presence_mapper = CompanionPresenceMapper()
     notification_policy = NotificationPolicy(config.behavior)
     external_event_repository = SQLiteExternalEventRepository(paths.database_path)
+    notification_repository = SQLiteNotificationRepository(paths.database_path)
     integration_scheduler = QtAppThreadScheduler()
     integration_notification_coordinator = IntegrationNotificationCoordinator(
         event_bus=event_bus,
@@ -536,6 +548,11 @@ def _run_application() -> int:
         activity_provider=lambda: activity_controller.snapshot,
         schedule_on_app_thread=integration_scheduler.schedule,
         preference_provider=lambda: config.integrations,
+        inbox_repository=notification_repository,
+        presentation_busy_provider=lambda: (
+            voice_controller.state != VoiceState.IDLE
+            or voice_controller.operation != "none"
+        ),
     )
 
     def publish_integration_health(
@@ -543,6 +560,15 @@ def _run_application() -> int:
         status: str,
         checked_at: datetime,
     ) -> None:
+        try:
+            provider_health_registry.update(
+                service.value,
+                provider_health_state_from_code(status),
+                status,
+                checked_at=checked_at,
+            )
+        except ValueError:
+            logger.warning("Rejected invalid integration health status code.")
         integration_notification_coordinator.publish_health(
             service.value,
             status,
@@ -568,6 +594,24 @@ def _run_application() -> int:
         gmail_provider,
         discord_provider,
         integration_notification_coordinator.submit,
+    )
+    provider_health_registry.update(
+        "gmail",
+        (
+            ProviderHealthState.STARTING
+            if config.integrations.gmail.enabled
+            else ProviderHealthState.DISABLED
+        ),
+        "configured" if config.integrations.gmail.enabled else "disabled",
+    )
+    provider_health_registry.update(
+        "discord",
+        (
+            ProviderHealthState.STARTING
+            if config.integrations.discord.enabled
+            else ProviderHealthState.DISABLED
+        ),
+        "configured" if config.integrations.discord.enabled else "disabled",
     )
     proactive_controller = ProactiveController(
         event_bus,
@@ -680,6 +724,33 @@ def _run_application() -> int:
         event_bus=event_bus,
     )
     ai_provider = _build_ai_provider(config.ai, logger, credential_store)
+    provider_health_registry.update(
+        "ai_provider",
+        ProviderHealthState.HEALTHY,
+        "configured",
+    )
+    provider_health_registry.update(
+        "voice_input",
+        (
+            ProviderHealthState.HEALTHY
+            if config.voice.input_enabled
+            else ProviderHealthState.DISABLED
+        ),
+        "configured" if config.voice.input_enabled else "disabled",
+    )
+    provider_health_registry.update(
+        "gemini_live",
+        (
+            ProviderHealthState.STARTING
+            if config.voice.session_provider == "gemini_live"
+            else ProviderHealthState.DISABLED
+        ),
+        (
+            "configured"
+            if config.voice.session_provider == "gemini_live"
+            else "disabled"
+        ),
+    )
     ollama_native_provider = (
         ai_provider if isinstance(ai_provider, OllamaProvider) else None
     )
@@ -828,7 +899,15 @@ def _run_application() -> int:
     gpt_sovits_engine_manager = GptSoVitsEngineManager(paths.project_root)
 
     def apply_voice_engine_config(voice_config: VoiceConfig) -> None:
+        started_at = perf_counter()
         status = gpt_sovits_engine_manager.apply_config(voice_config)
+        duration_ms = round((perf_counter() - started_at) * 1000)
+        provider_health_registry.update(
+            "gpt_sovits",
+            provider_health_state_from_code(status.state),
+            status.state if status.state.isidentifier() else "unavailable",
+            startup_duration_ms=duration_ms,
+        )
         status_label = "GPT-SoVITS"
         settings_window.set_voice_engine_status(status.detail, status.is_error)
         logger.info("%s engine management state: %s.", status_label, status.state)
@@ -859,7 +938,7 @@ def _run_application() -> int:
 
             QTimer.singleShot(3_000, refresh_voice_engine_status)
 
-    apply_voice_engine_config(config.voice)
+    QTimer.singleShot(0, lambda: apply_voice_engine_config(config.voice))
     chat_window = ChatWindow()
     chat_window.set_voice_conversation_lane(
         "cloud" if config.voice.session_provider == "gemini_live" else "local",
@@ -986,6 +1065,7 @@ def _run_application() -> int:
         surface=settings_window,
     )
     memory_window = MemoryWindow()
+    notification_center_window = NotificationCenterWindow()
     behavior_history_window = BehaviorHistoryWindow()
     assistant_action_history_window = AssistantActionHistoryWindow()
     pet_care_window = PetCareWindow()
@@ -1645,6 +1725,33 @@ def _run_application() -> int:
         behavior_history_window.show()
         behavior_history_window.raise_()
         behavior_history_window.activateWindow()
+
+    def refresh_notification_center() -> None:
+        notification_center_window.update_records(
+            notification_repository.list_recent(limit=200)
+        )
+
+    def show_notification_center() -> None:
+        refresh_notification_center()
+        notification_center_window.show()
+        notification_center_window.raise_()
+        notification_center_window.activateWindow()
+
+    def mark_notifications_read(record_ids: tuple[int, ...]) -> None:
+        notification_repository.mark_read(
+            tuple(int(value) for value in record_ids),
+            read_at=datetime.now().astimezone(),
+        )
+        refresh_notification_center()
+
+    def mark_all_notifications_read() -> None:
+        notification_repository.mark_all_read(read_at=datetime.now().astimezone())
+        refresh_notification_center()
+
+    def clear_notifications() -> None:
+        notification_repository.clear()
+        refresh_notification_center()
+        notification_center_window.append_notice("Notification history cleared.")
 
     def refresh_assistant_action_history_window() -> None:
         audits = asyncio.run(action_repository.get_recent_action_audits(limit=200))
@@ -3411,6 +3518,12 @@ def _run_application() -> int:
     behavior_history_window.clear_matching_requested.connect(
         clear_matching_behavior_history
     )
+    notification_center_window.refresh_requested.connect(refresh_notification_center)
+    notification_center_window.mark_read_requested.connect(mark_notifications_read)
+    notification_center_window.mark_all_read_requested.connect(
+        mark_all_notifications_read
+    )
+    notification_center_window.clear_requested.connect(clear_notifications)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, show_pet_care)
@@ -3422,6 +3535,7 @@ def _run_application() -> int:
     event_bus.subscribe(EventType.APP_QUIT_REQUESTED, lambda event: app.quit())
     settings_window.memory_manager_requested.connect(show_memory_manager)
     settings_window.behavior_history_requested.connect(show_behavior_history)
+    settings_window.notification_center_requested.connect(show_notification_center)
     settings_window.assistant_action_history_requested.connect(
         show_assistant_action_history
     )
@@ -3438,9 +3552,64 @@ def _run_application() -> int:
     activity_tick_timer.timeout.connect(tick_behavior)
     activity_tick_timer.start(30_000)
 
+    notification_queue_timer = QTimer()
+    notification_queue_timer.setInterval(1_000)
+    notification_queue_timer.timeout.connect(
+        integration_notification_coordinator.flush_pending
+    )
+    notification_queue_timer.start()
+
+    gpt_health_thread: GptSoVitsHealthThread | None = None
+
+    def update_provider_health_display() -> None:
+        settings_window.set_provider_health_summary(
+            render_provider_health_summary(provider_health_registry.snapshot())
+        )
+
+    def complete_gpt_health_check(status: object) -> None:
+        nonlocal gpt_health_thread
+        if hasattr(status, "state") and hasattr(status, "detail"):
+            state = str(status.state)
+            provider_health_registry.update(
+                "gpt_sovits",
+                provider_health_state_from_code(state),
+                state if state.isidentifier() else "unavailable",
+            )
+            settings_window.set_voice_engine_status(
+                str(status.detail),
+                bool(getattr(status, "is_error", False)),
+            )
+            update_provider_health_display()
+        thread = gpt_health_thread
+        gpt_health_thread = None
+        if thread is not None:
+            thread.deleteLater()
+
+    def check_optional_provider_health() -> None:
+        nonlocal gpt_health_thread
+        if gpt_health_thread is not None and gpt_health_thread.isRunning():
+            return
+        gpt_health_thread = GptSoVitsHealthThread(
+            gpt_sovits_engine_manager,
+            config.voice,
+        )
+        gpt_health_thread.completed.connect(complete_gpt_health_check)
+        gpt_health_thread.start()
+        update_provider_health_display()
+
+    provider_health_timer = QTimer()
+    provider_health_timer.setInterval(15_000)
+    provider_health_timer.timeout.connect(check_optional_provider_health)
+    provider_health_timer.start()
+    QTimer.singleShot(5_000, check_optional_provider_health)
+
     def shutdown_app() -> None:
         provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
+        notification_queue_timer.stop()
+        provider_health_timer.stop()
+        if gpt_health_thread is not None and gpt_health_thread.isRunning():
+            gpt_health_thread.wait(2_000)
         pet_runtime_tick_timer.stop()
         autonomous_activity_tick_timer.stop()
         autonomous_activity_controller.shutdown()
@@ -3572,6 +3741,7 @@ def _run_application() -> int:
     )
     tray_icon.set_presence_text(presence_mapper.text_for(mood_controller.snapshot.mood))
     tray_icon.behavior_history_requested.connect(show_behavior_history)
+    tray_icon.notification_center_requested.connect(show_notification_center)
     tray_icon.pet_care_requested.connect(show_pet_care)
     tray_icon.pet_status_requested.connect(show_pet_status)
     tray_icon.shop_requested.connect(show_shop)
@@ -3663,6 +3833,7 @@ def _run_application() -> int:
         assistant_tool_gateway,
         assistant_tool_result_store,
         behavior_history_window,
+        notification_center_window,
         behavior_history_recorder,
         behavior_repository,
         chat_voice_presenter,
