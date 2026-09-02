@@ -2,8 +2,7 @@
 
 **Candidate:** `dist/pyinstaller-phase12/Akiha/Akiha.exe`
 
-**Status:** Automated package gate passed on 2026-09-02; owner acceptance is
-pending.
+**Status:** Passed - owner accepted the packaged candidate on 2026-09-02.
 
 ## Automated Evidence
 
@@ -28,26 +27,26 @@ manual below.
 
 ## Owner Acceptance
 
-- [ ] Launch `Akiha.exe` and confirm the pet and tray appear without a console
+- [x] Launch `Akiha.exe` and confirm the pet and tray appear without a console
   window or duplicate process.
-- [ ] Open Settings and confirm the bounded provider-health summary appears
+- [x] Open Settings and confirm the bounded provider-health summary appears
   without credentials, message content, or private paths.
-- [ ] Open **Notifications** from Settings or the tray, then verify refresh,
+- [x] Open **Notifications** from Settings or the tray, then verify refresh,
   mark-read, mark-all-read, and clear controls.
-- [ ] Send one new Gmail test message and confirm one sanitized Notification
+- [x] Send one new Gmail test message and confirm one sanitized Notification
   Center row plus the configured visual/chat/voice delivery.
-- [ ] Send one Discord bot DM or authorized mention and confirm one sanitized
+- [x] Send one Discord bot DM or authorized mention and confirm one sanitized
   Notification Center row plus the configured delivery.
-- [ ] Confirm repeated unique events defer or aggregate while Akiha is speaking
+- [x] Confirm repeated unique events defer or aggregate while Akiha is speaking
   instead of disappearing; confirm one exact provider event stays deduplicated.
-- [ ] Set one event category to visual-only and confirm it does not speak; return
+- [x] Set one event category to visual-only and confirm it does not speak; return
   the setting to the preferred channel mode afterward.
-- [ ] Start one Local Modular conversation and confirm recognition and
+- [x] Start one Local Modular conversation and confirm recognition and
   GPT-SoVITS playback remain responsive.
-- [ ] Quit through Akiha's tray menu and confirm the application and owned
+- [x] Quit through Akiha's tray menu and confirm the application and owned
   provider process close without Task Manager.
-- [ ] Relaunch once and confirm previously handled Gmail/Discord events are not
+- [x] Relaunch once and confirm previously handled Gmail/Discord events are not
   announced again.
 
-Phase 12 should be formally closed only after the owner accepts these packaged
-interaction checks.
+The owner accepted these packaged interaction checks and formally closed Phase
+12 on 2026-09-02.

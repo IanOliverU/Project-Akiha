@@ -43,8 +43,8 @@ post-Phase-6 backlog work, not part of the core voice-layer scope.
 
 - [x] Add a Project Akiha single-instance guard before relying on one managed local
   engine process across multiple launches.
-- Decide whether the managed GPT-SoVITS API that crashes mid-session should
-  restart automatically or require an explicit user retry.
+- [x] Add bounded automatic recovery for a managed GPT-SoVITS API while leaving
+  externally owned runtimes untouched.
 - Replace short segmented Hosted Live WAV playback with a continuous PCM output
   path if V8 listening tests still expose audible seams or crackle.
 - Evaluate an identity-preserving local voice backend or user-trained voice

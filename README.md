@@ -112,7 +112,8 @@ simulation remains planned after the completed Voice Intelligence roadmap.
 | Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
 | Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
 | Phase 11 | Done | Read-only Gmail metadata and official Discord Bot Gateway awareness |
-| Phase 12 | In progress | Runtime and notification reliability |
+| Phase 12 | Done | Runtime and notification reliability |
+| Phase 13 | Planned | Everyday assistant utilities |
 
 ## Tech Stack
 
@@ -419,12 +420,19 @@ aggregation path, make delivery channels configurable by event type, recover
 the optional GPT-SoVITS runtime safely, and consolidate provider health and
 startup diagnostics.
 
-Phase 12A-12H implementation and automated verification are complete. The
-current candidate is `dist/pyinstaller-phase12/Akiha`; final packaged Gmail,
-Discord, Local Modular voice, Notification Center, and tray-shutdown owner
-acceptance remains pending before formal closure.
+Phase 12A-12H are complete. The owner accepted the consolidated candidate at
+`dist/pyinstaller-phase12/Akiha` on 2026-09-02 after automated and packaged
+interaction verification.
 
 Details: `docs/phases/phase-12-runtime-notifications/README.md`
+
+### Phase 13: Everyday Assistant Utilities
+
+Improve clarification and confirmation, then add one-shot timers, durable
+reminders, read-only weather/current information, contextual navigation inside
+approved directories, and privacy-safe conversation/memory export.
+
+Details: `docs/phases/phase-13-assistant-utilities/README.md`
 
 ## Architecture
 

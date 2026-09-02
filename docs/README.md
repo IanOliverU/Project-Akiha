@@ -19,12 +19,13 @@ material is separated by purpose.
 | 9 - Pet Simulation | Complete | [`phases/phase-09-pet-sim/`](phases/phase-09-pet-sim/) |
 | 10 - Shop And Visual Expansion | Complete | [`phases/phase-10-shop-visual/`](phases/phase-10-shop-visual/) |
 | 11 - External Integrations | Complete | [`phases/phase-11-integrations/`](phases/phase-11-integrations/) |
+| 12 - Runtime And Notification Reliability | Complete | [`phases/phase-12-runtime-notifications/`](phases/phase-12-runtime-notifications/) |
 
-## Active Phase
+## Next Phase
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 12 - Runtime And Notification Reliability | Automated package gate complete; owner acceptance pending | [`phases/phase-12-runtime-notifications/`](phases/phase-12-runtime-notifications/) |
+| 13 - Everyday Assistant Utilities | Planned; 13A next | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
 
 Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
@@ -34,11 +35,15 @@ packaged gates pass, and the owner accepted real Gmail and Discord delivery on
 2026-08-28. Animation artwork work remains paused without removing its
 infrastructure.
 
-Phase 12 now provides the pre-runtime single-instance guard, sanitized
+Phase 12 provides the pre-runtime single-instance guard, sanitized
 Notification Center, bounded aggregation and channel policy, GPT-SoVITS
 recovery, unified provider diagnostics, and a consolidated PyInstaller
-candidate. Automated packaged verification passes; final owner interaction and
-tray-shutdown acceptance remain open.
+candidate. Automated and owner packaged verification passed, and Phase 12
+formally closed on 2026-09-02.
+
+Phase 13 is planned around safe everyday utility work: clarification and
+confirmation, one-shot timers and reminders, read-only weather/current
+information, approved-directory navigation, and privacy-safe backup/export.
 
 ## Current Roadmap
 

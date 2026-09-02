@@ -1,7 +1,6 @@
 # Phase 12: Runtime And Notification Reliability
 
-**Status:** Implementation and automated package gate complete; owner packaged
-acceptance pending
+**Status:** Complete - owner accepted the final packaged candidate on 2026-09-02
 
 ## Purpose
 
@@ -136,9 +135,9 @@ when no application window is currently active.
 - [x] Verify notification persistence, aggregation, and channel policy.
 - [x] Verify GPT-SoVITS failure and bounded recovery.
 - [x] Verify packaged Gemini Live and GPT-SoVITS with real provider smoke.
-- [ ] Verify packaged Gmail, Discord, Local Modular voice, and tray shutdown with
+- [x] Verify packaged Gmail, Discord, Local Modular voice, and tray shutdown with
   owner-controlled interactions.
-- [ ] Record owner acceptance and formally close Phase 12.
+- [x] Record owner acceptance and formally close Phase 12.
 
 ## Verification Record
 
@@ -151,11 +150,17 @@ privacy/dependency validation, Windows GUI-subsystem validation, migration
 second-launch activation.
 
 The packaged provider runtime smoke also passed the real Gemini SDK/session
-boundary, GPT-SoVITS health, and real in-memory GPT-SoVITS synthesis. The
-remaining owner checks are recorded in
-`PHASE12_MANUAL_SMOKE_2026-09-02.md`; they are not represented as complete until
-the packaged UI, account-event, Local Modular voice, and tray-exit behavior are
-accepted.
+boundary, GPT-SoVITS health, and real in-memory GPT-SoVITS synthesis. The owner
+accepted the packaged UI, Gmail and Discord event delivery, Local Modular voice,
+Notification Center, deduplication behavior, and tray shutdown on 2026-09-02.
+The acceptance record is retained in `PHASE12_MANUAL_SMOKE_2026-09-02.md`.
+
+## Closure Record
+
+Phase 12 was formally closed on 2026-09-02. One Akiha process owns runtime
+resources, notifications remain bounded and privacy-safe, optional voice failure
+cannot take down the companion, provider diagnostics remain sanitized, and the
+consolidated PyInstaller candidate passed automated and owner acceptance.
 
 ## Exit Criteria
 
