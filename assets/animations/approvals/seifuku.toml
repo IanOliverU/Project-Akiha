@@ -1,15 +1,33 @@
 schema_version = 1
 appearance_id = "seifuku"
-manifest_sha256 = "c860738ebd6669d5eaeacb8565c29b967160c8085946fd91519128a00e4fc3f3"
+manifest_sha256 = "918af2a589fea3480a6aa856dab25bc5cc323b3473ebf435f99d6175e870b033"
 
 [[assets]]
-path = "akiha/standing/000.png"
-sha256 = "b74a30f8a198658a09478d12b98fe66cc075ab775bb7d7239b65bb5676c4cf81"
-width = 100
-height = 100
+path = "akiha/seifuku-256/base.png"
+sha256 = "0082d8d17df60cdda252fed6437ef1e5988366d740f420eb17b95c55d9a2c00b"
+width = 256
+height = 256
 
 [[assets]]
-path = "akiha/walking/Akiha-Walking.png"
-sha256 = "2a9934ae4279e2a36f35cce4a450a58719f89835f18b441c0d775e3b469e698d"
-width = 800
-height = 100
+path = "akiha/seifuku-256/sleep-loop.png"
+sha256 = "a3db9a6ed98ae06d71a0ded3c9c1e8f8a58a3e4a920709808a8be8ce94b36280"
+width = 3072
+height = 256
+
+[[assets]]
+path = "akiha/seifuku-256/sleep-start.png"
+sha256 = "330dd1dac02c9d4aa4f4d588ba8ea7ee9985a230a7cee50c512da8aeec3f42c4"
+width = 6144
+height = 256
+
+[[assets]]
+path = "akiha/seifuku-256/wake.png"
+sha256 = "5b9e334975d453ffd58aed021696632741fb8d404b9b3beb480e994de5a8ef59"
+width = 3072
+height = 256
+
+[[assets]]
+path = "akiha/seifuku-256/walking.png"
+sha256 = "13559878d86d267c2a135c66b24924edc1d6b9248294594839ac35b2ff5d470c"
+width = 2048
+height = 256

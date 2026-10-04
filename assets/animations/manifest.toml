@@ -1,65 +1,74 @@
+[asset_profile]
+frame_width = 256
+frame_height = 256
+alpha_mode = "full"
+
 [animations.idle]
-frames = [
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-    "akiha/standing/000.png",
-]
-frame_offsets = [
-    [0, 0],
-    [0, 0],
-    [0, 0],
-    [0, 0],
-    [0, -1],
-    [0, -1],
-    [0, -1],
-    [0, -1],
-    [0, -2],
-    [0, -2],
-    [0, -2],
-    [0, -1],
-    [0, -1],
-    [0, -1],
-    [0, 0],
-    [0, 0],
-]
-ticks_per_frame = 3
-x_offset = 0
-y_offset = 0
+frames = ["akiha/seifuku-256/base.png"]
+ticks_per_frame = 24
 scale_percent = 100
 
 [animations.dragging]
-frames = ["akiha/standing/000.png"]
+frames = ["akiha/seifuku-256/base.png"]
 ticks_per_frame = 24
-x_offset = 0
-y_offset = 0
 scale_percent = 100
 
 [animations.walking]
-filmstrip = "akiha/walking/Akiha-Walking.png"
-frame_width = 100
-frame_height = 100
+filmstrip = "akiha/seifuku-256/walking.png"
+frame_width = 256
+frame_height = 256
 frame_count = 8
-ticks_per_frame = 3
-x_offset = 0
-y_offset = 0
+ticks_per_frame = 6
 scale_percent = 100
 
+# Normal runtime entry uses sleep_start -> sleep_loop. This direct state clip is
+# the safe looping fallback for providers without staged playback.
 [animations.sleeping]
-frames = ["akiha/standing/000.png"]
-ticks_per_frame = 24
-x_offset = 0
-y_offset = 0
+filmstrip = "akiha/seifuku-256/sleep-loop.png"
+frame_width = 256
+frame_height = 256
+frame_count = 12
+ticks_per_frame = 15
 scale_percent = 100
+
+[clips.sleep_start]
+state = "sleeping"
+loop = false
+filmstrip = "akiha/seifuku-256/sleep-start.png"
+frame_width = 256
+frame_height = 256
+frame_count = 24
+ticks_per_frame = 12
+scale_percent = 100
+
+[clips.sleep_loop]
+state = "sleeping"
+loop = true
+filmstrip = "akiha/seifuku-256/sleep-loop.png"
+frame_width = 256
+frame_height = 256
+frame_count = 12
+ticks_per_frame = 15
+scale_percent = 100
+
+[clips.wake_start]
+state = "waking"
+loop = false
+filmstrip = "akiha/seifuku-256/wake.png"
+frame_width = 256
+frame_height = 256
+frame_count = 12
+ticks_per_frame = 18
+scale_percent = 100
+
+[sequences.sleep]
+state = "sleeping"
+clips = ["sleep_start", "sleep_loop"]
+fallback_state = "idle"
+interruptible = true
+
+[sequences.wake]
+state = "waking"
+clips = ["wake_start"]
+fallback_state = "idle"
+interruptible = true

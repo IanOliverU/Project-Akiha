@@ -17,7 +17,7 @@ from scripts.review_appearance_assets import generate_review_artifacts
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _REGISTRY_PATH = _PROJECT_ROOT / "assets/animations/appearances.toml"
-_CANONICAL_PATH = _PROJECT_ROOT / "assets/animations/akiha/standing/000.png"
+_CANONICAL_PATH = _PROJECT_ROOT / "assets/animations/akiha/seifuku-256/base.png"
 
 
 class AppearanceReviewArtifactTest(unittest.TestCase):
@@ -35,7 +35,7 @@ class AppearanceReviewArtifactTest(unittest.TestCase):
             with Image.open(Path(directory) / "contact-sheet.png") as contact:
                 self.assertGreater(contact.width, 0)
             with Image.open(Path(directory) / "idle.gif") as idle:
-                self.assertEqual(idle.size, (100, 100))
+                self.assertEqual(idle.size, (256, 256))
             self.assertTrue(all(path.is_file() for path in outputs))
 
         after = hashlib.sha256(_CANONICAL_PATH.read_bytes()).hexdigest()

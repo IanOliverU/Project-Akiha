@@ -24,7 +24,6 @@ from project_akiha.services.appearance_asset_validation import (
 from project_akiha.ui.pet_renderer import PlaceholderPetRenderer, SpritePetRenderer
 
 _REVIEW_FPS = 30
-_FRAME_SIZE = 100
 _CONTACT_SCALE = 4
 _LABEL_HEIGHT = 28
 
@@ -42,6 +41,7 @@ def generate_review_artifacts(
     app = QApplication.instance() or QApplication([])
     _ = app
     provider = AssetAnimationProvider.from_manifest(manifest_path)
+    frame_size = _provider_frame_size(provider)
     renderer = SpritePetRenderer(PlaceholderPetRenderer())
     output_dir.mkdir(parents=True, exist_ok=True)
     generated: list[Path] = []
@@ -55,7 +55,7 @@ def generate_review_artifacts(
         durations: list[int] = []
         for pose_index, tick in enumerate(_pose_ticks(clip)):
             frame = provider.frame_for(state, tick)
-            image = _render_frame(renderer, frame)
+            image = _render_frame(renderer, frame, frame_size)
             path = state_dir / f"{pose_index:03d}.png"
             if not image.save(str(path), "PNG"):
                 raise OSError("unable to write appearance review frame.")
@@ -73,7 +73,7 @@ def generate_review_artifacts(
         generated.append(gif_path)
 
     contact_path = output_dir / "contact-sheet.png"
-    _write_contact_sheet(contact_frames, contact_path)
+    _write_contact_sheet(contact_frames, contact_path, frame_size)
     generated.append(contact_path)
 
     report_path = output_dir / "validation-report.json"
@@ -96,10 +96,12 @@ def _pose_ticks(clip) -> tuple[int, ...]:  # noqa: ANN001
     return tuple(index * clip.ticks_per_frame for index in range(len(clip.frame_paths)))
 
 
-def _render_frame(renderer: SpritePetRenderer, frame) -> QImage:  # noqa: ANN001
+def _render_frame(  # noqa: ANN001
+    renderer: SpritePetRenderer, frame, frame_size: tuple[int, int]
+) -> QImage:
     image = QImage(
-        _FRAME_SIZE,
-        _FRAME_SIZE,
+        frame_size[0],
+        frame_size[1],
         QImage.Format.Format_ARGB32,
     )
     image.fill(Qt.GlobalColor.transparent)
@@ -124,11 +126,16 @@ def _write_gif(paths: list[Path], durations: list[int], output: Path) -> None:
         image.close()
 
 
-def _write_contact_sheet(frames: list[tuple[str, QImage]], output: Path) -> None:
+def _write_contact_sheet(
+    frames: list[tuple[str, QImage]],
+    output: Path,
+    frame_size: tuple[int, int],
+) -> None:
     columns = 4
     rows = (len(frames) + columns - 1) // columns
-    cell_width = _FRAME_SIZE * _CONTACT_SCALE
-    cell_height = cell_width + _LABEL_HEIGHT
+    cell_width = frame_size[0] * _CONTACT_SCALE
+    image_height = frame_size[1] * _CONTACT_SCALE
+    cell_height = image_height + _LABEL_HEIGHT
     sheet = QImage(
         columns * cell_width,
         rows * cell_height,
@@ -143,7 +150,7 @@ def _write_contact_sheet(frames: list[tuple[str, QImage]], output: Path) -> None
         y = row * cell_height
         enlarged = frame.scaled(
             cell_width,
-            cell_width,
+            image_height,
             Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.FastTransformation,
         )
@@ -159,7 +166,7 @@ def _write_contact_sheet(frames: list[tuple[str, QImage]], output: Path) -> None
         column = index % columns
         row = index // columns
         x = column * cell_width
-        y = row * cell_height + cell_width
+        y = row * cell_height + image_height
         draw.rectangle((x, y, x + cell_width, y + _LABEL_HEIGHT), fill="#171a22")
         bounds = draw.textbbox((0, 0), label, font=font)
         text_width = bounds[2] - bounds[0]
@@ -174,6 +181,14 @@ def _write_contact_sheet(frames: list[tuple[str, QImage]], output: Path) -> None
             font=font,
         )
     labeled.save(output, "PNG")
+
+
+def _provider_frame_size(provider: AssetAnimationProvider) -> tuple[int, int]:
+    clip = provider.clips_for_review()[0]
+    if clip.source_rects:
+        return clip.source_rects[0][2], clip.source_rects[0][3]
+    with Image.open(clip.frame_paths[0]) as image:
+        return image.size
 
 
 def _serialize_report(report: AppearanceAssetReport) -> dict[str, object]:

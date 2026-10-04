@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -19,7 +20,7 @@ from project_akiha.providers.animation import (
     AssetAnimationProvider,
 )
 
-_EXPECTED_FRAME_SIZE = (100, 100)
+_LEGACY_FRAME_SIZE = (100, 100)
 _REQUIRED_STATES = frozenset(
     {
         AnimationState.IDLE,
@@ -144,7 +145,8 @@ def validate_appearance_manifest(
     issues: list[AppearanceAssetIssue] = []
     try:
         provider = AssetAnimationProvider.from_manifest(manifest_path)
-    except AnimationManifestError:
+        expected_frame_size, alpha_mode = _asset_profile(manifest_path)
+    except (AnimationManifestError, OSError, tomllib.TOMLDecodeError, ValueError):
         return AppearanceAssetReport(
             appearance_id,
             manifest_path,
@@ -175,11 +177,11 @@ def validate_appearance_manifest(
                 )
             )
         for index, path in enumerate(clip.frame_paths):
-            expected = _EXPECTED_FRAME_SIZE
+            expected = expected_frame_size
             source_rect = clip.source_rects[index] if clip.source_rects else None
             if source_rect is not None:
                 expected = (source_rect[2], source_rect[3])
-                if expected != _EXPECTED_FRAME_SIZE:
+                if expected != expected_frame_size:
                     issues.append(
                         AppearanceAssetIssue(
                             AppearanceAssetIssueCode.FRAME_SIZE_INVALID,
@@ -204,22 +206,21 @@ def validate_appearance_manifest(
             )
             continue
         alpha_values = set(image.getchannel("A").get_flattened_data())
-        if (
+        alpha_invalid = (
             not alpha_values
-            or not alpha_values.issubset({0, 255})
             or 0 not in alpha_values
-        ):
+            or not any(alpha > 0 for alpha in alpha_values)
+        )
+        if alpha_mode == "binary":
+            alpha_invalid = alpha_invalid or not alpha_values.issubset({0, 255})
+        if alpha_invalid:
             issues.append(
                 AppearanceAssetIssue(
                     AppearanceAssetIssueCode.ALPHA_INVALID,
                     asset_name=path.name,
                 )
             )
-        if expected_frame_size == _EXPECTED_FRAME_SIZE and not _frame_geometry_valid(
-            provider,
-            path,
-            image.size,
-        ):
+        if not _frame_geometry_valid(provider, path, image.size, expected_frame_size):
             issues.append(
                 AppearanceAssetIssue(
                     AppearanceAssetIssueCode.SOURCE_RECT_INVALID,
@@ -272,6 +273,7 @@ def _frame_geometry_valid(
     provider: AssetAnimationProvider,
     path: Path,
     image_size: tuple[int, int],
+    expected_frame_size: tuple[int, int],
 ) -> bool:
     found = False
     for clip in provider.clips_for_review():
@@ -282,17 +284,38 @@ def _frame_geometry_valid(
             if clip.source_rects:
                 x, y, width, height = clip.source_rects[index]  # type: ignore[misc]
                 if (
-                    width != _EXPECTED_FRAME_SIZE[0]
-                    or height != _EXPECTED_FRAME_SIZE[1]
+                    width != expected_frame_size[0]
+                    or height != expected_frame_size[1]
                     or x < 0
                     or y < 0
                     or x + width > image_size[0]
                     or y + height > image_size[1]
                 ):
                     return False
-            elif image_size != _EXPECTED_FRAME_SIZE:
+            elif image_size != expected_frame_size:
                 return False
     return found
+
+
+def _asset_profile(manifest_path: Path) -> tuple[tuple[int, int], str]:
+    document = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    profile = document.get("asset_profile")
+    if profile is None:
+        return _LEGACY_FRAME_SIZE, "binary"
+    if not isinstance(profile, dict) or set(profile) != {
+        "frame_width",
+        "frame_height",
+        "alpha_mode",
+    }:
+        raise ValueError("asset profile is invalid")
+    width = profile["frame_width"]
+    height = profile["frame_height"]
+    alpha_mode = profile["alpha_mode"]
+    if type(width) is not int or type(height) is not int or width <= 0 or height <= 0:
+        raise ValueError("asset profile dimensions are invalid")
+    if alpha_mode not in {"binary", "full"}:
+        raise ValueError("asset profile alpha mode is invalid")
+    return (width, height), alpha_mode
 
 
 def _approval_matches(

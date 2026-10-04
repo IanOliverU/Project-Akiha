@@ -1,615 +1,217 @@
 <p align="center">
-  <img
-    src="assets/animations/akiha/Akiha.gif"
-    alt="Animated pixel-art Akiha sitting at a table"
-    width="256"
-  />
+  <img src="docs/assets/project-akiha-banner.png" alt="Project Akiha — Your desktop companion; illustrated chat and care windows with pixel-art Akiha" width="960" />
 </p>
 
 # Project Akiha
 
-Project Akiha is a Windows-first desktop companion: a small animated character
-that lives on the desktop, can chat with the user, remembers durable facts with
-approval-aware memory tools, and gradually becomes more context-aware through
-activity, mood, and proactive behavior systems.
-
-The project is built as a local-first companion foundation. The goal is not just
-to make a chatbot with a sprite attached, but to build a reliable desktop
-presence with clear architecture: UI surfaces, companion state, memory,
-behavior, persistence, and future assistant capabilities stay separated enough
-that the app can grow without turning into one giant service file.
-
-## What We Are Building
-
-Akiha is intended to become a personal desktop companion that can:
-
-- Stay visible as a draggable, animated desktop pet.
-- Offer tray, pet-menu, settings, chat, and memory-management controls.
-- Chat through a provider interface using local mock/Ollama modes or an
-  explicitly selected hosted OpenAI-compatible service.
-- Persist conversations, summaries, memories, settings, window state, and
-  behavior history locally.
-- Extract, validate, store, retrieve, and inject memory through a memory
-  pipeline instead of a single monolithic memory service.
-- React to user activity with mood-aware behavior, idle/away awareness,
-  proactive check-ins, reminders, delivery guardrails, and behavior logging.
-- Perform a shallow set of permission-gated desktop actions through typed
-  validation, revocable grants, confirmations, and sanitized audit history.
-
-## Current Status
-
-Phases 1 through 8 are complete. Akiha now supports local microphone capture,
-faster-whisper STT, provider-neutral TTS orchestration, local GPT-SoVITS playback,
-automatic reply speech, and a minimal speech identity. Chat can switch between
-mock, Ollama, Gemini, OpenAI, OpenRouter, Kimi, Grok, and custom
-OpenAI-compatible endpoints. Hosted API keys are encrypted for the current
-Windows user and never stored in ordinary TOML configuration. Phase 8 is
-complete with permission-gated file discovery, approved-root and descendant
-directory navigation, passive-file and local-media opening, allowlisted
-application launch/close, revocable grants, confirmation surfaces, and
-sanitized action history. The optional Spotify extension provides PKCE account
-connection, permission-gated playback,
-artist/track/album/playlist workflows, Liked Songs and favorite mixes, and
-ephemeral local preference ranking. Post-Phase 8 Voice Intelligence milestones
-V0 through V5 are complete: Akiha now owns a provider-neutral, pipelined local
-voice coordinator with rolling recognition, contextual intent correction,
-streamed GPT-SoVITS speech, interruption, and bounded multi-turn Conversation
-Sessions. The final Python 3.13 V5 standalone passed automated fresh/existing
-data smoke checks and the complete manual voice, provider, conversation,
-context, action, and shutdown checklist. V6 is complete: V6A established
-the provider-neutral hosted-live contracts, V6B added the optional concrete
-Gemini SDK and bounded native-audio transport, V6C added ordered live transcript
-projection with final-only canonical persistence, and V6D added provider-native
-barge-in with immediate local playback cancellation and stale-output rejection.
-V6E now adds explicit hosted-session ownership, a hard logical deadline,
-memory-only resumption handles, `GoAway` handling, and bounded reconnects that
-cannot extend the session. V6F adds separate cloud-audio consent, hosted model,
-native voice, duration, and local-only readiness diagnostics. V6G now wires the
-explicit Local/Cloud runtime selector, direct Gemini microphone streaming,
-canonical final transcript persistence, native playback, visible lane state,
-provider-native barge-in, and fail-closed behavior with no silent local or cloud
-fallback. These additions do not weaken or replace the complete local modular
-lane. V6H completed fake-protocol and real Gemini verification, including
-continuous multi-turn conversation and automatic return to listening. Native
-audio crackle remains release-quality follow-up work, while final hosted-live
-packaging remains intentionally deferred to V8. V7A now adds an explicit
-provider-facing tool-schema catalog that exposes only separately opted-in
-Phase 8 actions and never grants execution authority. V7B now adds session- and
-turn-owned conversion from a ready provider proposal into one untrusted Phase
-8 request, with stale, duplicate, ambiguous, and unexposed proposals rejected
-before validation. V7C now routes accepted proposals through the existing
-permission, confirmation, execution, and audit boundary and returns only
-generic provider-safe results. V7D now declares the explicit action catalog to
-Gemini Live, translates SDK function calls into untrusted proposals, pauses
-confirmation-required calls for a trusted local dialog, and returns only
-ID-matched sanitized results. V7E now gives compatible Ollama models the same
-native proposal path through an ephemeral local turn authority, while keeping
-permission checks, confirmations, execution, and audit entirely application
-owned. V7F now mechanically preserves deterministic-first routing and permits
-only one constrained JSON fallback callback for an owned turn, with compound
-desktop requests clarified locally. V7G now closes the provider-tool
-milestone: automated verification passes across the shared Gemini/Ollama
-permission, execution, sanitization, replay, and audit boundary, and the real
-Gemini Live source roundup passed application, Spotify, approved-directory,
-local-media, result-selection, and continued-conversation checks. Packaged
-hosted-live verification is now closed by the final V8 standalone. The package
-passed fresh/existing-data automation and real-device microphone, Gemini Live,
-provider-tool, Spotify, transcript, and graceful-shutdown checks. Pet
-simulation remains planned after the completed Voice Intelligence roadmap.
-
-| Phase | Status | Focus |
-| --- | --- | --- |
-| Phase 1 | Done | Desktop pet foundation |
-| Phase 2 | Done | Chat foundation and AI provider wiring |
-| Phase 3 | Done | Memory pipeline and memory management |
-| Phase 4 | Done | Activity awareness, mood, proactive behavior |
-| Phase 5 | Done | Companion experience polish and interaction depth |
-| Phase 6 | Done | Packaging, release hardening, and maintainability |
-| Phase 7 | Done | Local-first voice plumbing and Akiha voice identity |
-| Phase 8 | Done | Permission-gated files and allowlisted app lifecycle actions |
-| Post-Phase 8 V0-V5 | Done | Modular pipelined voice intelligence and local conversation |
-| Post-Phase 8 V6-V8 | Done | Gemini Live, provider tools, and final standalone release verification |
-| Phase 9 | Done | Pet statistics, care actions, progression, and attention behavior |
-| Phase 10 | Done | Shop, fixed appearances, and autonomous pet activity |
-| Phase 11 | Done | Read-only Gmail metadata and official Discord Bot Gateway awareness |
-| Phase 12 | Done | Runtime and notification reliability |
-| Phase 13 | In progress | Everyday assistant utilities; 13A complete |
-
-## Tech Stack
-
-### Runtime And App Framework
-
-![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
-![PySide6](https://img.shields.io/badge/PySide6-Qt_6-41CD52?logo=qt&logoColor=white)
-![Windows](https://img.shields.io/badge/Windows-first-0078D4?logo=windows&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-local_storage-003B57?logo=sqlite&logoColor=white)
-
-- **Python 3.12+** is the application language.
-- **PySide6 / Qt 6** powers the desktop pet, tray, settings, chat, memory, and
-  delivery UI.
-- **SQLite** stores conversations, messages, summaries, memories, embeddings,
-  and behavior history locally.
-- **TOML** is used for project metadata, default app configuration, user
-  configuration, and animation manifests.
-
-### AI And Companion Systems
-
-![Ollama](https://img.shields.io/badge/Ollama-optional_local_AI-000000?logo=ollama&logoColor=white)
-![Gemini](https://img.shields.io/badge/Gemini-optional_hosted_AI-4285F4?logo=googlegemini&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-compatible_API-000000?logo=openai&logoColor=white)
-![faster-whisper](https://img.shields.io/badge/faster--whisper-local_STT-2E7D32)
-![Local First](https://img.shields.io/badge/Local--first-companion-2E7D32)
-![Event Driven](https://img.shields.io/badge/Event--driven-core-5B5BD6)
-
-- **MockAIProvider** keeps development deterministic and usable without a model.
-- **OllamaProvider** supports optional local non-cloud chat streaming.
-- **OpenAICompatibleProvider** supports hosted and self-hosted Chat Completions
-  endpoints through one streaming adapter.
-- **Google Gen AI SDK** is an optional, lazily loaded transport for Gemini Live;
-  its SDK objects remain behind Akiha's provider-neutral voice contracts.
-- **Windows DPAPI** encrypts API keys for the current Windows user separately
-  from ordinary application configuration.
-- **faster-whisper** provides optional local push-to-talk transcription on the
-  Python 3.13 voice environment.
-- **EventBus** connects UI, app controllers, memory, behavior, mood, and
-  animation changes without direct cross-module coupling.
-- **Provider and repository interfaces** keep AI and persistence swappable.
-
-### Development, Quality, And Packaging
-
-![setuptools](https://img.shields.io/badge/setuptools-packaging-4B8BBE?logo=python&logoColor=white)
-![Ruff](https://img.shields.io/badge/Ruff-linting-D7FF64?logo=ruff&logoColor=black)
-![Black](https://img.shields.io/badge/Black-formatting-000000?logo=python&logoColor=white)
-![unittest](https://img.shields.io/badge/unittest-test_suite-336791)
-![Nuitka](https://img.shields.io/badge/Nuitka-Windows_package-6A4BBC?logo=python&logoColor=white)
-
-- **setuptools** builds and installs the package from `pyproject.toml`.
-- **unittest** is the current test framework.
-- **Ruff** and **Black** are used for linting and formatting.
-- **Nuitka** builds the first Windows standalone package. Release-candidate
-  packaging uses Python 3.13 because Python 3.14 support is still experimental
-  in the current Nuitka toolchain.
-
-## Roadmap Phases
-
-### Phase 1: Desktop Pet Foundation
-
-Build the non-AI foundation that makes Akiha feel present on the desktop.
-
-- Transparent frameless PySide6 pet window.
-- Dragging and screen-bound position persistence.
-- Right-click pet menu with walking, sleeping, settings, and hide controls.
-- System tray controls for show, hide, settings, chat, and quit.
-- Settings window for desktop pet behavior.
-- Logging under `%LOCALAPPDATA%\Akiha\logs\`.
-- Sprite animation manifest loading with placeholder fallback.
-- Walking animation filmstrip support and mirrored left/right walking.
-
-Details: `docs/phases/phase-01-desktop-pet/README.md`
-
-### Phase 2: Chat Foundation
-
-Add the first companion conversation surface while keeping model access behind a
-provider interface.
-
-- Chat window opened from tray and pet menu.
-- `AIProvider` interface.
-- Deterministic `MockAIProvider`.
-- Optional local `OllamaProvider`.
-- Optional Gemini, OpenAI, OpenRouter, Kimi, and custom compatible endpoints.
-- Encrypted bring-your-own-key storage with environment-variable alternatives.
-- Streaming responses through a QThread/asyncio bridge.
-- Configurable companion name and system prompt.
-- SQLite conversation and message persistence.
-- New chat, clear chat, export transcript, status labels, and cancellation.
-
-Details: `docs/phases/phase-02-chat/README.md`
-
-### Phase 3: Memory Pipeline
-
-Turn raw conversations into durable, reviewable memory.
-
-- `MemoryEntry`, `MemoryCandidate`, repository, extractor, normalizer, policy,
-  and pipeline components.
-- SQLite memory tables, migration runner, archiving, source references, and
-  local hashing embeddings.
-- Relevant memory retrieval with lexical, vector, importance, and recency
-  scoring.
-- Hidden memory context injection before provider calls.
-- Relationship and emotional context derived from retrieved memories.
-- Pending memory approval workflow.
-- Memory manager UI for search, edit, archive, restore, delete, and clear.
-- Closed-conversation summaries and hidden summary prompt context.
-
-Details: `docs/phases/phase-03-memory/README.md`
-
-### Phase 4: Activity, Mood, And Proactive Behavior
-
-Make Akiha aware of user activity and capable of careful proactive behavior.
-
-- Activity tracker for active, idle, and away states.
-- Behavior configuration in Settings.
-- Notification policy with quiet hours, cooldowns, enabled flags, and away
-  guardrails.
-- Proactive suggestion generation for idle check-ins and scheduled check-ins.
-- Safe delivery layer for chat notices and tray messages.
-- Mood model for calm, attentive, waiting, resting, checking-in, and sleepy
-  states.
-- Mood-to-animation mapping so behavior can influence the pet.
-- Behavior event history stored in SQLite.
-- Behavior history recording for proactive suggestions and delivery outcomes.
-
-Details: `docs/phases/phase-04-behavior/README.md`
-
-### Phase 5: Companion Experience Polish And Interaction Depth
-
-Improve the user-facing companion experience now that the core systems exist.
-
-- Behavior/history viewer UI.
-- Better chat UX around proactive suggestions.
-- User-facing behavior history cleanup controls.
-- More 2D model and animation polish.
-- More mood-aware visual behavior.
-- Improved tray/menu controls for behavior features.
-- Richer companion presence and interaction polish.
-- Integration tests for the full proactive flow.
-- Startup and shutdown robustness review.
-- Phase 6 packaging checklist.
-
-Details: `docs/phases/phase-05-polish/README.md`
-
-### Phase 6: Packaging, Release Hardening, And Maintainability
-
-Prepare Akiha for longer-term use and eventual distribution.
-
-- Nuitka packaging validation for the Windows desktop app.
-- Installer and release workflow preparation.
-- Startup/shutdown and error recovery hardening.
-- Logging, diagnostics, and supportability improvements.
-- Dependency, privacy, and local-data review.
-- Security checklist for future assistant capabilities.
-- Final documentation pass and release notes.
-- Python 3.13 standalone packaging and smoke workflow established.
-- Pet-menu fallback controls for Behavior History and Quit.
-
-Details: `docs/phases/phase-06-packaging/README.md`
-
-### Phase 7: Voice Layer
-
-Give Akiha an optional local-first voice without coupling character identity to
-one speech engine.
-
-- Push-to-talk input through a local Whisper-compatible provider.
-- Optional live transcription, silence endpointing, and final-transcript
-  auto-send.
-- Japanese speech through the local GPT-SoVITS Akiha voice provider.
-- Optional background launch and owned-process shutdown for the managed
-  GPT-SoVITS API.
-- Replaceable speech-to-text and text-to-speech provider interfaces.
-- Listening, thinking, speaking, muted, and error states.
-- Voice settings, diagnostics, device selection, and failure recovery.
-- A minimal Akiha speech identity derived from `docs/reference/AKIHA.md`.
-- Raw-text fallback when speech styling fails.
-- Japanese canonical assistant responses with optional persisted English
-  subtitles.
-- A versioned first-run privacy notice for microphone and hosted processing.
-- Japanese deterministic memory fallback for mock or unavailable AI providers.
-- Custom voice training and cloud voice providers deferred.
-
-Details: `docs/phases/phase-07-voice/README.md`
-
-### Phase 8: Permission-Gated Assistant Actions
-
-Give Akiha a deliberately shallow set of safe desktop capabilities without
-granting unrestricted operating-system access.
-
-- Treat AI action proposals as untrusted structured requests.
-- Validate every request through an application-owned action registry.
-- Store capability- and target-specific permission grants.
-- Search filenames and metadata only inside user-approved directories.
-- Open approved directories and safe files through validated actions.
-- Navigate ordinary child directories under an approved root using natural
-  requests such as `Open Compressed inside Downloads`, without granting each
-  child separately.
-- Launch explicitly enabled applications such as Discord, Chrome, Spotify, and
-  Visual Studio Code through a trusted application catalog.
-- Gracefully close separately enabled applications such as VLC without shell
-  commands or forceful process termination.
-- Optionally let the selected AI provider interpret natural app-launch and
-  local-media requests without disclosing filesystem paths, listings, results,
-  metadata, or file contents.
-- Record permission decisions and sanitized outcomes in an action audit.
-- Deny shell commands, elevation, file mutation, system-critical access,
-  arbitrary executables, arguments, and autonomous background actions.
-
-Details: `docs/phases/phase-08-actions/README.md`
-
-### Phase 9: Pet Sim Layer
-
-Add persistent pet statistics, care actions, progression, and attention
-behavior. Pet state is structured and language-neutral: dialogue reflects
-stored state but never determines it through keyword or sentiment parsing.
-Phase 9A approved the gameplay pressure, care-loop behavior, reaction matrix,
-asset contract, and fallback policy. Phase 9B adds immutable pet-state models,
-validated invariants, typed interaction inputs, partial decay progress, and
-pure clock-independent elapsed-time rules. Phase 9C adds migration `0009`, a
-revisioned SQLite repository, atomic typed history, bounded startup catch-up,
-and the sole injected-clock pet-state service mutation boundary. Phase 9D adds
-pure typed care actions, durable floor recovery, capped no-op handling, and
-specific care history records. Phase 9E adds restart-safe reward history,
-typed conversation-event rewards, XP-derived levels, currency accrual,
-cooldowns, rolling daily caps, and duplicate-event protection. Phase 9F adds a
-compact `Akiha Care` window with persisted need bars, level and currency
-progress, and typed Feed, Rest, and Spend time controls available from the pet
-and tray menus. Phase 9G settles runtime decay once per minute off the Qt UI
-thread, emits only typed need-band transitions, maps the selected transition to
-mood, and routes at most one edge-triggered check-in through the existing
-quiet-hours, away-state, and cooldown policy. The active idle loop references
-only the authoritative standing sprite and applies restrained integer-pixel
-motion; nearest-neighbor rendering preserves its original hard pixel edges.
-Phase 9H publishes sanitized care, affection, and level events only from
-committed typed outcomes, then routes bounded local voice lines and safe
-sleep/idle fallbacks through the existing voice, mood, animation, proactive,
-and behavior-history systems. Phase 9I adds read-only pet diagnostics and a
-confirmed, atomic reset operation that restores only pet state and progression
-while preserving chat, memories, settings, permissions, Spotify data, and
-general behavior history. The reset remains unavailable to AI providers and
-assistant-action tools. Phase 9J passes the full automated source gate. Owner
-source acceptance and real Gemini/GPT-SoVITS runtime smoke passed on 2026-08-20.
-One corrected standalone, real packaged provider smoke, and final visual, voice,
-interaction, and graceful-Quit approval are consolidated into the post-Phase 10
-release gate so Phase 10 feature work is not blocked by repeated multi-hour builds.
-
-Details: `docs/phases/phase-09-pet-sim/README.md`
-
-### Phase 10: Shop, Appearance, And Autonomous Pet Expansion
-
-Add a lightweight visual and economic payoff after the care loop without
-turning Akiha into a wardrobe manager or demanding virtual-pet game.
-
-- Trusted optional shop, durable ownership, and atomic currency spending.
-- Three complete canonical appearances: Seifuku, Dress, and Vermillion.
-- Simple whole-appearance selection with no clothing slots or layered cosmetics.
-- An Akiha-specific Status surface built from useful existing state.
-- Data-driven autonomous activities controlled by pet behavior rather than an
-  LLM.
-- Expanded reactions only when owner-approved sprite assets exist.
-
-Phase 10 is specified in `docs/phases/phase-10-shop-visual/README.md`. Phases
-10A-10J provide the economy, trusted catalog, persistence, Shop/Appearance
-UI, whole-manifest selection, fingerprinted owner approvals, production-
-renderer preview validation, and deterministic autonomous idle/wander/rest
-behavior. The activity controller uses typed local state and remains
-independent from dialogue and AI providers. The canonical Akiha sprite remains
-immutable; Dress and Vermillion stay unavailable until their complete asset
-sets pass validation and owner visual approval. Phase 10 formally closed on
-2026-08-24 after source and packaged owner acceptance. The scheduled
-consolidated FastBuild completed the same day and now includes the accumulated
-speech-batching and GPT-SoVITS synthesis-normalization improvements in the
-accepted `dist/nuitka-development/main.dist` candidate.
-
-### Phase 11: External Communication Awareness
-
-Add optional, read-only awareness of external communication without granting
-Akiha autonomous account control.
-
-- Gmail uses Desktop OAuth with PKCE, the metadata-only scope, a DPAPI-encrypted
-  refresh token, incremental history polling, and deterministic local
-  classification.
-- Discord uses the official Bot Gateway for DMs sent to the bot, bot mentions,
-  and explicitly authorized channels. It does not monitor a normal user's
-  private DMs, friends list, or friend requests.
-- Both providers cross a strict validation/redaction boundary before entering
-  the existing event bus, proactive policy, chat/tray delivery, and GPT-SoVITS
-  speech path.
-- Raw message bodies, attachments, provider responses, tokens, and OAuth
-  credentials are not persisted or sent to an LLM.
-- Migration `0013` stores only hashed deduplication receipts and bounded sync
-  cursors.
-
-Phase 11A-11G are complete. The source/package quality gates pass, and the owner
-accepted real Gmail Desktop OAuth, metadata synchronization, test-email
-notification, and official Discord Bot Gateway event delivery on 2026-08-28.
-
-Details: `docs/phases/phase-11-integrations/README.md`
-
-### Phase 12: Runtime And Notification Reliability
-
-Prevent duplicate Akiha runtimes, add a sanitized notification inbox and
-aggregation path, make delivery channels configurable by event type, recover
-the optional GPT-SoVITS runtime safely, and consolidate provider health and
-startup diagnostics.
-
-Phase 12A-12H are complete. The owner accepted the consolidated candidate at
-`dist/pyinstaller-phase12/Akiha` on 2026-09-02 after automated and packaged
-interaction verification.
-
-Details: `docs/phases/phase-12-runtime-notifications/README.md`
-
-### Phase 13: Everyday Assistant Utilities
-
-Improve clarification and confirmation, then add one-shot timers, durable
-reminders, read-only weather/current information, contextual navigation inside
-approved directories, and privacy-safe conversation/memory export.
-
-Phase 13A is complete. It defines a non-executable utility ownership catalog,
-bounded result/reason contracts, injected wall/monotonic clock boundaries, and
-the migration/package safety contract while retaining the existing action and
-permission pipeline. Phase 13B is next.
-
-Details: `docs/phases/phase-13-assistant-utilities/README.md`
+A Windows-first, local-first AI desktop companion with an animated pet,
+persistent memory, optional voice, and permission-gated assistant actions.
+
+[Quick start](#quick-start) · [Architecture](#architecture) ·
+[Privacy](#security-and-privacy) · [Documentation](docs/README.md) ·
+[Roadmap](#roadmap)
+
+> **Status:** Personal project under active development. Phases 1–12 are
+> complete; Phase 13 (everyday assistant utilities) is in progress.
+
+## Meet Akiha
+
+Akiha lives on your desktop as a draggable, animated companion. Chat with her,
+review what she remembers, care for her, and enable the voice or desktop
+integrations you want to use. Activity awareness, mood, progression, and
+quiet-hours controls help her feel present without demanding constant attention.
+
+The app starts with a deterministic mock chat provider, so you can explore the
+pet and UI without an API key. Connect a local model or explicitly choose a
+hosted provider when you want AI conversation.
+
+## Features
+
+- **Desktop companion:** transparent pet window, tray controls, pixel-art
+  animation, and staged sleep and wake transitions.
+- **Streaming chat and memory:** swappable AI providers, conversation history,
+  summaries, and durable memories with configurable approval and management tools.
+- **Optional voice:** local faster-whisper recognition and streamed Japanese
+  GPT-SoVITS speech, interruption, multi-turn conversation, and optional English
+  subtitles. Gemini Live offers a separately enabled cloud-audio mode.
+- **Pet care and progression:** persistent needs, care actions, levels, currency,
+  a shop/appearance system, and locally controlled idle, wander, and rest behavior.
+  Additional appearances depend on validated, approved artwork.
+- **Scoped desktop assistance:** discover files inside approved directories,
+  open supported files and local media, and launch or gracefully close
+  allowlisted applications.
+- **Optional integrations:** Spotify playback, read-only Gmail metadata
+  notifications, and Discord awareness through an official bot account.
+- **Notification controls:** a notification inbox, aggregation, quiet hours,
+  cooldowns, and configurable delivery channels.
+
+Timers, durable reminders, and weather/current-information utilities are planned
+in Phase 13; they are not available features yet.
+
+## What Makes Akiha Different
+
+**The application owns execution authority.** AI providers can propose actions,
+but every proposal is untrusted. Typed validation, scoped permissions,
+confirmation rules, allowlisted executors, and sanitized audit history sit
+between a model response and a desktop action.
+
+**Companion behavior has its own state.** Pet needs, progression, and autonomous
+activities follow structured local rules rather than being inferred from model
+dialogue. Chat, memory, voice, and integrations can evolve independently.
+
+**You choose where processing happens.** Local, hybrid, and hosted voice modes
+are explicit choices. A provider failure never silently switches processing to
+another local or cloud service.
 
 ## Architecture
 
-Akiha follows a layered, event-driven structure:
+Akiha uses a layered, event-driven architecture with a framework-free core:
 
 ```text
-UI Layer (PySide6)
-    -> Application Controllers
-        -> Framework-free Core
-            -> Providers, Integrations, Repositories, Services
+PySide6 UI  <-->  Application controllers
+                         |
+                 Core models and policy
+                         |
+          Providers · Repositories · Services · Integrations
 ```
 
-Important architectural rules:
+- `core/` contains domain models and policy without Qt, concrete providers,
+  or Windows API dependencies.
+- `app/` wires dependencies and coordinates use cases; `ui/` owns presentation.
+- Providers handle AI and voice; repositories isolate SQLite persistence.
+- Memory flows through extraction, normalization, validation, storage, retrieval,
+  and prompt-context assembly.
+- External integrations enter through typed service boundaries. Assistant
+  actions always pass through the application-owned permission pipeline.
 
-- `core/` stays framework-free and does not import Qt.
-- UI sends and receives app events instead of directly owning companion logic.
-- AI access goes through provider interfaces.
-- Database access goes through repository classes.
-- External product integrations live under `project_akiha/integrations/` and
-  still enter the app through typed service and permission boundaries.
-- Memory is a pipeline: extraction, normalization, validation, storage,
-  retrieval, and prompt context assembly.
-- Behavior is built from small components: activity, policy, proactive
-  suggestions, delivery, mood, animation mapping, and history.
-- Assistant actions pass through a typed registry, validation, scoped
-  permissions, capability-specific executors, and an audit repository.
+See the [codebase map](docs/reference/CODEBASE_STRUCTURE.md) for module ownership.
 
-## Local Data
+## Security and Privacy
 
-Runtime data is stored under `%LOCALAPPDATA%\Akiha\`.
+- **Local persistence:** settings, conversations, memories, pet state, and logs
+  live under `%LOCALAPPDATA%\Akiha\`. There is no cloud sync.
+- **Explicit off-device processing:** hosted chat can receive prompts, recent
+  messages, retrieved memories, and summaries. Hosted live voice requires
+  separate consent to stream microphone audio. Remote provider URLs also send
+  data off-device.
+- **Protected credentials:** credentials entered in Settings use Windows DPAPI
+  encryption for the current Windows user, separate from ordinary TOML settings.
+- **Limited action scope:** grants are revocable. The assistant action system
+  rejects arbitrary shell execution, elevation, arbitrary executables, and
+  filesystem mutation.
+- **Bounded communication awareness:** Gmail uses metadata-only access. Discord
+  uses bot DMs, mentions, and authorized channels; it cannot monitor a normal
+  user's private DMs. Raw message bodies and attachments are neither persisted
+  nor sent to an LLM by these integrations.
 
-| Data | Location |
+Details: [local data and privacy](docs/reference/LOCAL_DATA_PRIVACY.md) ·
+[security review](docs/reference/SECURITY_REVIEW.md).
+
+## Tech Stack
+
+| Layer | Technologies |
 | --- | --- |
-| User config | `%LOCALAPPDATA%\Akiha\user_config.toml` |
-| SQLite database | `%LOCALAPPDATA%\Akiha\akiha.sqlite3` |
-| Pet window state | `%LOCALAPPDATA%\Akiha\state\pet_window.json` |
-| Encrypted API credentials | `%LOCALAPPDATA%\Akiha\state\credentials.json` |
-| App logs | `%LOCALAPPDATA%\Akiha\logs\app.log` |
-| Local voice models | `%LOCALAPPDATA%\Akiha\models\faster-whisper\` |
+| Desktop | Python 3.12+, PySide6 / Qt 6 |
+| Persistence | SQLite, TOML configuration |
+| AI | Mock provider, Ollama, OpenAI-compatible endpoints |
+| Optional voice | faster-whisper, GPT-SoVITS, Google Gen AI SDK for Gemini Live |
+| Quality | unittest, Ruff, Black |
+| Windows packaging | PyInstaller for development, Nuitka for release candidates |
 
-Details: `docs/reference/LOCAL_DATA_PRIVACY.md`
+## Quick Start
 
-Provider setup: `docs/reference/AI_PROVIDERS.md`
+Use **Windows and Python 3.13** for the documented setup below. The base app
+supports Python 3.12+; Python 3.13 is the project's voice and packaging environment.
 
-## Run
-
-Install the app in editable mode:
-
-```powershell
-pip install -e .[dev]
-```
-
-For optional local speech recognition, use Python 3.13:
-
-```powershell
-.\.venv313\Scripts\python.exe -m pip install -e ".[voice]"
-```
-
-For the optional Discord Bot Gateway integration, install the integrations
-extra. Gmail uses the standard-library HTTP transport:
-
-```powershell
-.\.venv313\Scripts\python.exe -m pip install -e ".[integrations]"
-```
-
-Start Akiha:
-
-```powershell
-python -m project_akiha.app.main
-```
-
-To run speech, open **Settings > Voice**, select **GPT-SoVITS**, and enable
-automatic local TTS startup. Project Akiha starts and stops its managed
-GPT-SoVITS API process without requiring a third-party desktop application.
-
-After installation, the console script is also available:
-
-```powershell
-akiha
-```
-
-## Test And Quality Checks
-
-```powershell
-python -m unittest discover tests
-python -m ruff check project_akiha tests
-python -m black --check project_akiha tests
-python -m compileall project_akiha tests
-```
-
-## Package Build
-
-Packaging tools are available through the package extras and require Python
-3.13. PyInstaller one-folder is the fast development loop; it preserves the
-same artifact/privacy validation without compiling the dependency graph to C:
+From a local checkout of this repository, run these commands in PowerShell:
 
 ```powershell
 py -3.13 -m venv .venv313
-.\.venv313\Scripts\python.exe -m pip install -e ".[package,voice,live,integrations]"
-.\scripts\build_akiha_pyinstaller.ps1
+.\.venv313\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv313\Scripts\python.exe -m project_akiha.app.main
 ```
 
-The candidate is written to `dist\pyinstaller-development\Akiha`. Its first
-Phase 10 build completed in about 2 minutes 35 seconds, and an unchanged cached
-rebuild completed in about 12 seconds on the development machine. PyInstaller
-is intentionally one-folder/windowed; it is not the public release format.
+No environment activation is required. The first launch uses mock chat with
+voice and external integrations disabled. Open **Settings** from the pet menu
+or tray to configure a provider. Ollama requires a separately installed local
+server and model; hosted providers require your own credentials.
 
-Nuitka remains the release-candidate path. Cached development candidates are
-used to verify packaged behavior without repeating a clean multi-hour compile:
+See [AI provider setup](docs/reference/AI_PROVIDERS.md) for configuration.
+
+### Optional Voice and Integrations
+
+Install only the extras you need into the same environment:
 
 ```powershell
-$env:PATH = (Resolve-Path '.\.venv313\Scripts').Path + ';' + $env:PATH
-.\scripts\build_akiha_nuitka.ps1 `
-  -FastBuild `
-  -RequireBuildReuse
+# Local speech recognition
+.\.venv313\Scripts\python.exe -m pip install -e ".[voice]"
+
+# Gemini Live cloud audio
+.\.venv313\Scripts\python.exe -m pip install -e ".[live]"
+
+# Discord Bot Gateway transport
+.\.venv313\Scripts\python.exe -m pip install -e ".[integrations]"
 ```
 
-Use a clean build only when closing a phase or preparing a release candidate:
+The `voice` extra installs speech recognition; GPT-SoVITS needs a separate
+runtime, models, and reference audio. Once configured, select **GPT-SoVITS**
+and **Start local TTS automatically** in **Settings > Voice** to let Akiha manage
+its local API process. See the [voice documentation](docs/phases/phase-07-voice/README.md)
+and [voice-mode architecture](docs/roadmap/VOICE_INTELLIGENCE_V0_V8.md).
+
+Gmail uses the standard-library HTTP transport. Gmail, Discord, and Spotify each
+need separate account/application setup and explicit enablement; installing an
+extra does not connect an account. See [communication integrations](docs/phases/phase-11-integrations/README.md)
+and [Spotify setup](docs/phases/phase-08-actions/SPOTIFY_INTEGRATION.md).
+
+## Testing
+
+After installing the `dev` extra, run from the repository root:
 
 ```powershell
-.\scripts\build_akiha_nuitka.ps1 `
-  -CleanRelease `
-  -OutputDir dist\nuitka-release
+.\.venv313\Scripts\python.exe -m unittest discover tests
+.\.venv313\Scripts\python.exe -m ruff check project_akiha tests
+.\.venv313\Scripts\python.exe -m black --check project_akiha tests
+.\.venv313\Scripts\python.exe -m compileall project_akiha tests
 ```
 
-Development and release builds use separate Nuitka caches. Every invocation
-records stage timings under the output directory's `build-reports` folder, and
-packaged builds also create a Nuitka XML compilation report.
-FastBuild uses the persistent `dist\nuitka-development` workspace with 10 jobs,
-managed Zig 0.16.0, LTO disabled, and the unsafe Nuitka bytecode cache disabled.
-It retains the expensive C-object cache and pins Zig's native caches beneath
-`dist\build-cache\nuitka-dev`; reserve CleanRelease for phase closure and
-release verification.
+Packaging commands, build caches, and release verification are documented in the
+[build and release workflow](docs/phases/phase-06-packaging/BUILD_RELEASE.md).
+Real-device checks are covered by the
+[packaged smoke checklist](docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md).
 
-Automated release readiness for the current standalone package:
+## Documentation
 
-```powershell
-.\scripts\phase6_release_readiness.ps1 `
-  -ExePath dist\nuitka-v8-final\main.dist\Akiha.exe `
-  -RunExistingDataPass
-```
+| Guide | Contents |
+| --- | --- |
+| [Documentation index](docs/README.md) | Phase records, shared references, and historical evidence |
+| [Codebase structure](docs/reference/CODEBASE_STRUCTURE.md) | Source layout and ownership boundaries |
+| [AI providers](docs/reference/AI_PROVIDERS.md) | Local and hosted chat configuration |
+| [Local data and privacy](docs/reference/LOCAL_DATA_PRIVACY.md) | Stored data and provider disclosures |
+| [Assistant actions](docs/phases/phase-08-actions/README.md) | Permissions, supported actions, and audit behavior |
+| [Build and release](docs/phases/phase-06-packaging/BUILD_RELEASE.md) | Packaging and verification workflows |
 
-Documentation index: `docs/README.md`
+## Roadmap
 
-Build and release workflow details:
-`docs/phases/phase-06-packaging/BUILD_RELEASE.md`
+| Area | Status |
+| --- | --- |
+| Desktop companion, chat, memory, and proactive behavior | Implemented |
+| Local voice, Gemini Live, and provider-proposed actions | Implemented |
+| Pet care, progression, shop, and autonomous activity | Implemented; additional appearance artwork remains gated |
+| Gmail/Discord awareness and runtime/notification reliability | Implemented |
+| Everyday assistant utilities | In progress: contracts complete; clarification and confirmation next |
 
-Distribution decision: `docs/phases/phase-06-packaging/DISTRIBUTION_DECISION.md`
+The [Phase 13 plan](docs/phases/phase-13-assistant-utilities/README.md) covers
+timers, reminders, read-only weather/current information, contextual directory
+navigation, and privacy-safe export. Detailed milestones and acceptance records
+live in the [documentation index](docs/README.md); deferred work lives in the
+[project backlog](docs/roadmap/PROJECT_BACKLOG.md).
 
-Security review: `docs/reference/SECURITY_REVIEW.md`
+## Project and License Notes
 
-Project backlog: `docs/roadmap/PROJECT_BACKLOG.md`
+Project Akiha is a personal project inspired by Akiha Tohno from *Tsukihime*.
+It is not an official TYPE-MOON product. Character and third-party asset rights
+remain with their respective owners.
 
-Phase 8 plan: `docs/phases/phase-08-actions/README.md`
-
-Assistant-action improvement backlog: `docs/phases/phase-08-actions/BACKLOG.md`
-
-Spotify integration and closure record:
-`docs/phases/phase-08-actions/SPOTIFY_INTEGRATION.md`
-
-Post-Phase 8 Voice Intelligence V0-V8 architecture and evidence:
-`docs/roadmap/VOICE_INTELLIGENCE_V0_V8.md`
-
-Phase 9 plan: `docs/phases/phase-09-pet-sim/README.md`
-
-Manual packaged smoke checklist:
-`docs/phases/phase-06-packaging/MANUAL_PACKAGED_SMOKE.md`
-
-Manual smoke report template:
-`docs/phases/phase-06-packaging/MANUAL_SMOKE_REPORT_TEMPLATE.md`
-
-Final V8 manual smoke report:
-`docs/phases/phase-06-packaging/V8_MANUAL_SMOKE_2026-08-13.md`
-
-Release notes draft: `docs/phases/phase-06-packaging/RELEASE_NOTES_DRAFT.md`
+This repository does not currently include a license file. No open-source
+license is declared here for the code or bundled assets.

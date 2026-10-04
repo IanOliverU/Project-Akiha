@@ -60,7 +60,7 @@ class AppearanceRegistryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             copied = Path(directory) / "animations"
             shutil.copytree(Path("assets/animations"), copied)
-            canonical = copied / "akiha/standing/000.png"
+            canonical = copied / "akiha/seifuku-256/base.png"
             canonical.write_bytes(canonical.read_bytes() + b"changed")
 
             with self.assertRaisesRegex(AppearanceRegistryError, "hash changed"):

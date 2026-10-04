@@ -13,21 +13,21 @@ pet window, mood controller, or pet-state pipeline.
 The immediate goal is visual fidelity and predictable low-cost playback. Richer
 animation vocabulary may be added only when approved assets exist.
 
-Animation artwork development is intentionally paused while a higher-fidelity
-pixel-art workflow is researched. The rejected Stitch sleep/wake inputs were
-removed and never became active runtime assets. The state-machine, playback,
-validation, and fallback architecture remains available for later approved art.
+The active Seifuku appearance uses an owner-approved 256 px asset profile with
+a dedicated base sprite, staged sleep entry, sleeping loop, and wake sequence.
+The checked-in source sheets remain untouched; deterministic preparation writes
+the transparent runtime filmstrips under `akiha/seifuku-256/`.
 
 ## 1. Canonical Asset Rule
 
-`assets/animations/akiha/standing/000.png` is the authoritative Akiha sprite.
+`assets/animations/akiha/seifuku-256/base.png` is the authoritative active Akiha
+sprite. `standing/000.png` remains only as the legacy 100 px experiment source.
 
 This is a hard rule:
 
 - Do not redraw, regenerate, recolor, retouch, rescale, or reinterpret it.
-- Do not introduce AI-generated pixels into canonical runtime frames.
 - Preserve its dimensions, palette, shading, line art, proportions, silhouette,
-  binary transparency, and pixel edges.
+  transparency, and pixel edges.
 - Motion derived from this file may use only declared integer-position offsets,
   frame reuse, cropping of an approved filmstrip, or other explicitly reviewed
   lossless operations.
@@ -38,11 +38,10 @@ The current contract test fixes the canonical sprite at:
 
 | Property | Required value |
 |---|---|
-| Dimensions | 100 x 100 pixels |
+| Dimensions | 256 x 256 pixels |
 | Format | RGBA PNG |
-| Alpha | Binary transparent/opaque pixels |
-| Opaque RGB palette | 27 colors |
-| SHA-256 | `b74a30f8a198658a09478d12b98fe66cc075ab775bb7d7239b65bb5676c4cf81` |
+| Alpha | Full alpha channel with transparent background |
+| SHA-256 | `0082d8d17df60cdda252fed6437ef1e5988366d740f420eb17b95c55d9a2c00b` |
 
 Visual fidelity takes priority over frame count. Repeating the canonical image
 is preferable to inventing inaccurate artwork.
@@ -138,13 +137,8 @@ window size.
 
 ### Canonical idle
 
-The active idle clip references only `standing/000.png`. Its 16 timeline poses
-reuse that exact file with restrained vertical offsets of `0`, `-1`, and `-2`
-pixels. No alternate artwork or interpolated pixels are used.
-
-At the default 30 FPS renderer rate and three ticks per pose, the active cycle
-is approximately 1.6 seconds. The movement is intentionally subtle; visual
-review remains authoritative.
+The active idle and dragging clips reference only the new 256 px base sprite.
+No runtime resampling is needed to mix them with the staged 256 px sequences.
 
 ### 60 FPS experiment
 
@@ -162,21 +156,17 @@ The experiment tests timing feel, not 600 unique drawings.
 
 ### Walking
 
-The active walking clip uses the approved eight-frame 100 x 100 filmstrip.
+The active walking clip uses the approved eight-frame filmstrip normalized to
+256 x 256 per frame.
 Movement speed and pose playback remain separate. Left movement mirrors the
 same strip at render time so Akiha faces the travel direction.
 
-### Dragging and sleeping
+### Dragging, sleeping, and waking
 
-Dragging and sleeping currently resolve to the canonical standing sprite.
-Their mechanics are functional, but dedicated transition artwork is not yet
-available.
-
-The runtime now has dormant infrastructure for approved staged sleep and wake
-assets. The active manifest deliberately declares no staged clips or
-sequences, so current presentation remains unchanged. Staged sleep activates
-only when the selected appearance provides both a complete `sleep` sequence
-and a complete `wake` sequence.
+Dragging uses the new base sprite. Sleeping plays the 24-frame `sleep_start`
+clip once, then the 12-frame `sleep_loop` indefinitely. A wake request plays
+the 12-frame `wake_start` clip once before the state authority returns Akiha to
+idle or the pending direct-control state.
 
 ### Inactive prototype artwork
 
@@ -318,7 +308,8 @@ An available appearance also names a checked-in approval record under
 referenced PNG by SHA-256, dimensions, and trusted relative path. Runtime
 registry loading rejects any mismatch before selection. The current complete
 set contract requires `idle`, `walking`, `dragging`, and `sleeping`, with every
-rendered frame remaining 100 by 100 RGBA pixels with binary transparency.
+rendered frame matching the manifest-declared profile. The active Seifuku set
+uses 256 by 256 RGBA frames with full alpha transparency.
 
 There are no equipment slots, z-order rules, wardrobe loadouts, or runtime
 compositing paths. Every appearance owns its whole approved animation set, and
@@ -467,5 +458,5 @@ approval.
 Akiha should gain an extensible animation vocabulary without losing her visual
 identity or becoming coupled to an AI provider.
 
-`standing/000.png` remains the source of truth. Animation brings that approved
-character to life; it does not redesign her.
+`seifuku-256/base.png` is the active source of truth. Animation brings that
+approved character to life; it does not redesign her.

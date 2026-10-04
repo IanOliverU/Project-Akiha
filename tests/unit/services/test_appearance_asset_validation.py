@@ -29,8 +29,8 @@ class AppearanceAssetValidationTest(unittest.TestCase):
         self.assertTrue(report.approval_present)
         self.assertTrue(report.approval_matches)
         self.assertTrue(report.activation_ready)
-        self.assertEqual(report.unique_asset_count, 2)
-        self.assertEqual(report.declared_frame_count, 26)
+        self.assertEqual(report.unique_asset_count, 5)
+        self.assertEqual(report.declared_frame_count, 70)
         self.assertEqual(report.issues, ())
 
     def test_unavailable_appearance_stays_inactive(self) -> None:
