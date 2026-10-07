@@ -109,3 +109,17 @@ selects one deterministic priority cue, and reuses the existing notification
 policy and delivery pipeline; `app/mood_controller.py` consumes only the
 selected typed edge. Dialogue and provider modules have no reference to the
 pet-state service or this mutation path.
+
+
+Phase 13B introduces framework-free readiness/lease contracts in
+`core/actions/clarification.py`. `services/action_clarification.py` owns one
+process-local foreground clarification, atomic transitions, separate confirmation
+leases and bounded sanitized evidence. `app/action_clarification_controller.py`
+prepares existing requests and assembles local choices; it never executes or
+authorizes. `ui/action_clarification_panel.py` presents questions outside the
+transcript and marshals worker updates to Qt. The composition root shares this
+owner with chat, modular speech, JSON, Ollama native tools and Gemini Live.
+Provider adapters annotate compound batches; the existing gateway/dispatcher
+and action service retain their validation, grant, confirmation and execution
+roles. Gemini worker/runtime boundaries exclude clarification turns from
+canonical persistence and pause cloud microphone forwarding.

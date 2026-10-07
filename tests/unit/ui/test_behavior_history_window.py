@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QCoreApplication, QEvent, QThread
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from project_akiha.core.behavior import BehaviorEvent
@@ -32,8 +33,29 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication(sys.argv)
 
-    def test_updates_events_and_selects_latest_event(self) -> None:
+    def make_window(self) -> BehaviorHistoryWindow:
         window = BehaviorHistoryWindow()
+        self.addCleanup(self.destroy_window, window)
+        return window
+
+    def destroy_window(self, window: BehaviorHistoryWindow) -> None:
+        self.assertEqual(QThread.currentThread(), self._app.thread())
+        window.close()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    def test_window_cleanup_destroys_on_gui_thread(self) -> None:
+        from shiboken6 import isValid
+
+        window = BehaviorHistoryWindow()
+        destroyed_on = []
+        window.destroyed.connect(lambda: destroyed_on.append(QThread.currentThread()))
+        self.destroy_window(window)
+        self.assertFalse(isValid(window))
+        self.assertEqual(destroyed_on, [self._app.thread()])
+
+    def test_updates_events_and_selects_latest_event(self) -> None:
+        window = self.make_window()
 
         window.update_events(
             (
@@ -52,7 +74,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window._status_label.text(), "2 behavior events")
 
     def test_presents_behavior_with_semantic_status_metadata(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (_event(7, "proactive.suggestion_delivered", {"channel": "tray"}),)
         )
@@ -79,7 +101,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         )
 
     def test_filters_events_by_payload_text(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {"reason": "idle"}),
@@ -95,7 +117,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window.selected_event_id(), 2)
 
     def test_filters_events_by_event_type(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {"reason": "idle"}),
@@ -113,7 +135,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window._status_label.text(), "1 of 2 behavior events")
 
     def test_filters_events_by_kind(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {}, kind="idle_check_in"),
@@ -128,7 +150,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window.selected_kind_filter(), "scheduled_check_in")
 
     def test_update_events_preserves_available_filters(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {}, kind="idle_check_in"),
@@ -153,7 +175,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertTrue(window._event_list.item(1).isHidden())
 
     def test_filter_clears_selection_when_no_events_match(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events((_event(1, "proactive.suggestion_ready", {}),))
 
         window._filter_input.setText("missing")
@@ -163,7 +185,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window._details_input.toPlainText(), "")
 
     def test_filter_can_select_first_visible_row(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {"reason": "idle"}),
@@ -177,7 +199,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(window.selected_event_id(), 1)
 
     def test_selected_event_returns_full_event(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         window.update_events(
             (
                 _event(1, "proactive.suggestion_ready", {"reason": "idle"}),
@@ -193,7 +215,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         self.assertEqual(selected.payload["channel"], "tray")
 
     def test_clear_matching_requires_a_dropdown_filter(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
 
         window._request_clear_matching()
 
@@ -203,7 +225,7 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
         )
 
     def test_clear_matching_emits_selected_filters_after_confirmation(self) -> None:
-        window = BehaviorHistoryWindow()
+        window = self.make_window()
         emitted: list[tuple[str, str]] = []
         window.clear_matching_requested.connect(
             lambda event_type, kind: emitted.append((event_type, kind))
@@ -220,8 +242,10 @@ class BehaviorHistoryWindowTest(unittest.TestCase):
             QMessageBox,
             "question",
             return_value=QMessageBox.StandardButton.Yes,
-        ):
+        ) as question:
             window._request_clear_matching()
+            # QMessageBox's parent argument otherwise survives in a Mock cycle.
+            question.reset_mock()
 
         self.assertEqual(emitted, [("proactive.suggestion_ready", "")])
 

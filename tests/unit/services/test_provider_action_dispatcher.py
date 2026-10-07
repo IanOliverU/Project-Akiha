@@ -56,6 +56,7 @@ class ProviderActionDispatcherTest(unittest.TestCase):
             build_default_provider_action_catalog(build_default_action_registry()),
             self.coordinator,
         )
+        self.gateway.set_directory_aliases({"private": r"C:\Users\Private"})
         self.action_service = _ActionService()
         self.dispatcher = ProviderActionDispatcher(
             self.action_service,
@@ -522,10 +523,10 @@ class ProviderActionDispatcherTest(unittest.TestCase):
 
     def _conversion(self, *, action_name: str = "applications.launch"):
         if action_name == "files.open":
-            arguments = {"path": r"C:\Users\Private\notes.txt"}
+            arguments = {"path": "private/notes.txt"}
         elif action_name == "files.search":
             arguments = {
-                "root": r"C:\Users\Private\Downloads\Video",
+                "root": "private/Downloads/Video",
                 "query": "avatar",
                 "media_only": True,
                 "result_mode": "open_unique",

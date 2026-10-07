@@ -11,6 +11,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from project_akiha.core.actions import (
     ActionCancellationToken,
     ActionRequest,
+    ActionStatus,
     DirectorySearchMatch,
     FileSearchMatch,
 )
@@ -35,6 +36,8 @@ class MediaSearchOutcome:
 
     matches: tuple[FileSearchMatch, ...]
     searched_roots: int
+    complete: bool = True
+    limited: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +46,8 @@ class DirectorySearchOutcome:
 
     matches: tuple[DirectorySearchMatch, ...]
     searched_roots: int
+    complete: bool = True
+    limited: bool = False
 
 
 class AssistantToolProposalThread(QThread):
@@ -137,6 +142,8 @@ class AssistantMediaSearchThread(QThread):
     async def _search(self) -> MediaSearchOutcome:
         collected: list[FileSearchMatch] = []
         searched_roots: set[str] = set()
+        complete = True
+        limited = False
         for query in build_media_search_queries(self._proposal):
             for root in self._roots:
                 if self._is_cancelled():
@@ -156,8 +163,11 @@ class AssistantMediaSearchThread(QThread):
                     cancellation_token=self._cancellation_token,
                 )
                 searched_roots.add(root)
+                complete = complete and dispatch.result.status is ActionStatus.SUCCESS
+                limited = limited or dispatch.result.metadata.get("limited") is True
                 matches = dispatch.result.metadata.get("matches")
                 if not isinstance(matches, tuple):
+                    complete = False
                     continue
                 collected.extend(
                     match for match in matches if isinstance(match, FileSearchMatch)
@@ -167,11 +177,15 @@ class AssistantMediaSearchThread(QThread):
                 return MediaSearchOutcome(
                     matches=filtered,
                     searched_roots=len(searched_roots),
+                    complete=complete,
+                    limited=limited,
                 )
 
         return MediaSearchOutcome(
             matches=(),
             searched_roots=len(searched_roots),
+            complete=complete,
+            limited=limited,
         )
 
     def _is_cancelled(self) -> bool:
@@ -221,6 +235,8 @@ class AssistantDirectorySearchThread(QThread):
     async def _search(self) -> DirectorySearchOutcome:
         collected: list[DirectorySearchMatch] = []
         searched_roots: set[str] = set()
+        complete = True
+        limited = False
         for match_all in (False, True):
             for root in self._roots:
                 if self._is_cancelled():
@@ -240,8 +256,11 @@ class AssistantDirectorySearchThread(QThread):
                     cancellation_token=self._cancellation_token,
                 )
                 searched_roots.add(root)
+                complete = complete and dispatch.result.status is ActionStatus.SUCCESS
+                limited = limited or dispatch.result.metadata.get("limited") is True
                 matches = dispatch.result.metadata.get("matches")
                 if not isinstance(matches, tuple):
+                    complete = False
                     continue
                 collected.extend(
                     match
@@ -256,10 +275,14 @@ class AssistantDirectorySearchThread(QThread):
                 return DirectorySearchOutcome(
                     matches=filtered,
                     searched_roots=len(searched_roots),
+                    complete=complete,
+                    limited=limited,
                 )
         return DirectorySearchOutcome(
             matches=(),
             searched_roots=len(searched_roots),
+            complete=complete,
+            limited=limited,
         )
 
     def _is_cancelled(self) -> bool:

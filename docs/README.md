@@ -25,7 +25,7 @@ material is separated by purpose.
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 13 - Everyday Assistant Utilities | 13A complete; 13B next | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
+| 13 - Everyday Assistant Utilities | 13A complete; 13B awaiting independent audit | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
 
 Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
@@ -43,19 +43,23 @@ formally closed on 2026-09-02.
 
 Phase 13A establishes the non-executable utility ownership/safety catalog and
 reuses the existing action, permission, event, notification, Settings, and
-migration boundaries. Phase 13B is next and will add request-bound clarification
+migration boundaries. Phase 13B implementation is awaiting independent audit and owner acceptance.
+Its [implementation record](phases/phase-13-assistant-utilities/PHASE13B.md) documents request-bound clarification
 and confirmation handling before any utility executor is exposed.
 
 ## Current Roadmap
 
 - [`roadmap/VOICE_INTELLIGENCE_V0_V8.md`](roadmap/VOICE_INTELLIGENCE_V0_V8.md)
   is the single authoritative plan and progress record for Post-Phase 8 Voice
-  Intelligence. V0 through V7 are complete; V8 owns the final standalone
-  hosted-live build and packaged smoke gate.
+  Intelligence. V0 through V8 are complete; the hosted-live release gate
+  closed on 2026-08-13.
 - [`roadmap/PROJECT_BACKLOG.md`](roadmap/PROJECT_BACKLOG.md) contains deferred
   project work that does not belong to an active phase.
 
 ## Shared Reference
+
+- [`audits/PHASES_01_12_REGRESSION_ARCHITECTURE_AUDIT.md`](audits/PHASES_01_12_REGRESSION_ARCHITECTURE_AUDIT.md):
+  dedicated Phases 1–12 audit, findings, ownership, and bounded stabilization.
 
 - [`reference/CODEBASE_STRUCTURE.md`](reference/CODEBASE_STRUCTURE.md):
   maintained source and test ownership map.

@@ -125,7 +125,7 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
                 self.turn.session_id,
                 self.turn.turn_id,
                 action_name="files.open_directory",
-                arguments={"path": "Downloads folder"},
+                arguments={"path": " Downloads "},
             )
         )
 
@@ -183,11 +183,8 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
             )
         )
 
-        assert result.request is not None
-        self.assertEqual(
-            result.request.parameters,
-            {"path": "Downloads/../Windows"},
-        )
+        self.assertFalse(result.decision.accepted)
+        self.assertIsNone(result.request)
 
     def test_approved_root_relative_passive_file_resolves_for_confirmation(
         self,
@@ -217,7 +214,7 @@ class ProviderActionProposalGatewayTest(unittest.TestCase):
                 self.turn.session_id,
                 self.turn.turn_id,
                 action_name="directories.search",
-                arguments={"root": "Downloads folder", "query": "Video"},
+                arguments={"root": " Downloads ", "query": "Video"},
             )
         )
 

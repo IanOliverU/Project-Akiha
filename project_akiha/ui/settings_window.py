@@ -51,6 +51,7 @@ from project_akiha.config import (
     ExternalIntegrationsConfig,
     GmailIntegrationConfig,
     MemoryConfig,
+    MusicFilesConfig,
     PersonalityConfig,
     PetWindowConfig,
     PrivacyConfig,
@@ -65,6 +66,7 @@ from project_akiha.core.actions import (
     ApprovedDirectory,
     InstalledApplication,
     PermissionGrant,
+    ProtectedPathPolicy,
 )
 from project_akiha.core.voice_session import VoiceProcessingMode
 from project_akiha.integrations.gmail.auth import GmailToken
@@ -80,6 +82,7 @@ from project_akiha.services.credential_store import (
 from project_akiha.services.hosted_live_diagnostics import (
     build_hosted_live_diagnostics,
 )
+from project_akiha.services.music_file_catalog import MusicFileCatalog
 from project_akiha.services.pet_diagnostics import PetDiagnosticsSnapshot
 from project_akiha.services.pet_status import PetStatusSnapshot
 from project_akiha.services.privacy_notice import (
@@ -90,6 +93,7 @@ from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
 from project_akiha.ui.gmail_auth_worker import GmailAuthorizationThread
+from project_akiha.ui.music_files_panel import MusicFilesPanel
 from project_akiha.ui.privacy_notice import HostedLivePrivacyNoticeDialog
 from project_akiha.ui.spotify_auth_worker import SpotifyAuthorizationThread
 from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
@@ -165,6 +169,12 @@ _SETTINGS_PAGES = (
         "Configure listening, live conversation, speech output, and diagnostics.",
         "\ue720",
     ),
+    (
+        "Music files",
+        "Local Music Files",
+        "Register your local music and choose exactly which file to open.",
+        "\ue8d6",
+    ),
 )
 
 
@@ -172,6 +182,9 @@ class SettingsWindow(QWidget):
     """Settings surface for companion, behavior, and voice configuration."""
 
     settings_saved = Signal(object)
+    music_files_changed = Signal(object)
+    music_registration_requested = Signal(object, object)
+    music_file_open_requested = Signal(str)
     position_reset_requested = Signal()
     pet_diagnostics_requested = Signal()
     pet_reset_requested = Signal()
@@ -207,12 +220,19 @@ class SettingsWindow(QWidget):
         data_dir: Path | None = None,
         credential_store: CredentialStore | None = None,
         parent: QWidget | None = None,
+        *,
+        music_catalog: MusicFileCatalog | None = None,
     ) -> None:
         super().__init__(parent)
         self._config = config
         self._log_dir = log_dir
         self._data_dir = data_dir or log_dir.parent
         self._credential_store = credential_store
+        self._music_catalog = music_catalog or MusicFileCatalog(
+            ProtectedPathPolicy.for_current_windows(
+                credential_path=self._data_dir / "state" / "credentials.json"
+            )
+        )
         self._ai_discovery_thread: AIProviderDiscoveryThread | None = None
         self._spotify_auth_thread: SpotifyAuthorizationThread | None = None
         self._gmail_auth_thread: GmailAuthorizationThread | None = None
@@ -751,6 +771,7 @@ class SettingsWindow(QWidget):
             self._build_spotify_tab(),
             self._build_integrations_tab(),
             self._build_voice_tab(),
+            self._build_music_files_tab(),
         )
         pages = QStackedWidget()
         pages.setObjectName("settingsPages")
@@ -917,6 +938,7 @@ class SettingsWindow(QWidget):
     def update_config(self, config: AppConfig) -> None:
         """Refresh controls from the current config."""
         self._config = config
+        self._music_files_panel.set_config(config.music_files)
         self._width_input.setValue(config.pet_window.width)
         self._height_input.setValue(config.pet_window.height)
         self._fps_input.setValue(config.pet_window.frames_per_second)
@@ -1520,6 +1542,27 @@ class SettingsWindow(QWidget):
         row.setLayout(layout)
         return row
 
+    def _build_music_files_tab(self) -> QWidget:
+        self._music_files_panel = MusicFilesPanel(
+            self._config.music_files, self._music_catalog, self
+        )
+        self._music_files_panel.files_changed.connect(self.music_files_changed.emit)
+        self._music_files_panel.registration_requested.connect(
+            self.music_registration_requested.emit
+        )
+        self._music_files_panel.open_requested.connect(
+            self.music_file_open_requested.emit
+        )
+        self._music_files_panel.permissions_requested.connect(
+            lambda: self._settings_nav_buttons[4].click()
+        )
+        return self._music_files_panel
+
+    def update_music_files(self, music_files: MusicFilesConfig) -> None:
+        """Refresh this page without discarding unsaved changes on other pages."""
+        self._config = self._config.with_music_files(music_files)
+        self._music_files_panel.set_config(music_files)
+
     def _build_assistant_actions_tab(self) -> QWidget:
         self._assistant_permission_status = QLabel(
             "Approve only directories and applications you trust."
@@ -1770,6 +1813,7 @@ class SettingsWindow(QWidget):
     ) -> None:
         """Refresh directory and application permission controls."""
         self._assistant_directories = directories
+        self._music_files_panel.set_directories(directories)
         self._assistant_applications = applications
         self._assistant_application_grants = application_grants
 

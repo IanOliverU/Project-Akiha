@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -11,6 +12,24 @@ from project_akiha.services.assistant_action_bridge import (
     AssistantActionBridge,
     AssistantActionDispatch,
 )
+
+
+class _OwnedActionCancellationToken(ActionCancellationToken):
+    """Keep captured local authority active at executor cancellation checkpoints."""
+
+    def __init__(self, guard: Callable[[], bool] | None) -> None:
+        super().__init__()
+        self._guard = guard
+
+    @property
+    def is_cancelled(self) -> bool:
+        if super().is_cancelled:
+            return True
+        try:
+            return self._guard is not None and not self._guard()
+        except Exception:
+            # Authority that cannot be checked must not reach an executor.
+            return True
 
 
 class AssistantActionThread(QThread):
@@ -26,12 +45,15 @@ class AssistantActionThread(QThread):
         request: ActionRequest,
         confirmed: bool = False,
         parent: QObject | None = None,
+        *,
+        ownership_guard: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(parent)
         self._bridge = bridge
         self._request = request
         self._confirmed = confirmed
-        self._cancellation_token = ActionCancellationToken()
+        self._cancellation_token = _OwnedActionCancellationToken(ownership_guard)
+        self._ownership_guard = ownership_guard
 
     def run(self) -> None:
         """Dispatch the request and emit a typed result."""
@@ -62,4 +84,8 @@ class AssistantActionThread(QThread):
         )
 
     def _is_cancelled(self) -> bool:
-        return self._cancellation_token.is_cancelled or self.isInterruptionRequested()
+        return (
+            self._cancellation_token.is_cancelled
+            or self.isInterruptionRequested()
+            or (self._ownership_guard is not None and not self._ownership_guard())
+        )

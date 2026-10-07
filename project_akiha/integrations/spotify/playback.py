@@ -531,8 +531,13 @@ class SpotifyArtistPlaybackExecutor:
             selected = _select_artist(query, candidates)
             if selected is None:
                 if not candidates:
-                    return _unavailable(
-                        f'I could not find a Spotify artist matching "{query}".'
+                    return ActionExecutionResult(
+                        status=ActionStatus.UNAVAILABLE,
+                        summary=(
+                            f"I could not find a Spotify artist " f'matching "{query}".'
+                        ),
+                        failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                        metadata={"artist_candidates": ()},
                     )
                 return ActionExecutionResult(
                     status=ActionStatus.FAILED,
@@ -624,8 +629,13 @@ class SpotifyArtistOpenExecutor:
             selected = _select_artist(query, candidates)
             if selected is None:
                 if not candidates:
-                    return _unavailable(
-                        f'I could not find a Spotify artist matching "{query}".'
+                    return ActionExecutionResult(
+                        status=ActionStatus.UNAVAILABLE,
+                        summary=(
+                            f"I could not find a Spotify artist " f'matching "{query}".'
+                        ),
+                        failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                        metadata={"artist_candidates": ()},
                     )
                 return ActionExecutionResult(
                     status=ActionStatus.FAILED,

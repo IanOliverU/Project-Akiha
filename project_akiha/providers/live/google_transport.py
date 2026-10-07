@@ -445,7 +445,14 @@ def _translate_sdk_message(
                 LiveSessionErrorCode.PROTOCOL_ERROR,
                 "Gemini Live returned an invalid tool request.",
             )
-        for function_call in function_calls:
+        if len(function_calls) > 32:
+            raise LiveSessionError(
+                LiveSessionErrorCode.PROTOCOL_ERROR, "Tool batch exceeds its bound."
+            )
+        batch_id = _provider_proposal_id(
+            "batch:" + ":".join(str(getattr(call, "id", "")) for call in function_calls)
+        )
+        for batch_index, function_call in enumerate(function_calls):
             provider_name = str(getattr(function_call, "name", "") or "").strip()
             provider_call_id = str(getattr(function_call, "id", "") or "").strip()
             action_id = tool_action_ids.get(provider_name)
@@ -468,6 +475,9 @@ def _translate_sdk_message(
                     action_arguments=dict(arguments),
                     provider_call_id=provider_call_id,
                     provider_function_name=provider_name,
+                    batch_id=batch_id,
+                    batch_size=len(function_calls),
+                    batch_index=batch_index,
                 )
             )
     resumption = getattr(message, "session_resumption_update", None)

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
+import re
+import sqlite3
 import sys
 import traceback
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
@@ -17,6 +22,9 @@ from uuid import uuid4
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from project_akiha.app.action_clarification_controller import (
+    ActionClarificationController,
+)
 from project_akiha.app.activity_controller import ActivityController
 from project_akiha.app.assistant_speech_controller import AssistantSpeechController
 from project_akiha.app.assistant_translation_controller import (
@@ -86,11 +94,13 @@ from project_akiha.app.voice_transcription_controller import (
 from project_akiha.config import (
     AIConfig,
     AppConfig,
+    MusicFilesConfig,
     PrivacyConfig,
     VoiceConfig,
     load_config,
 )
 from project_akiha.core.actions import (
+    FILE_OPEN_CAPABILITY,
     ActionPermissionPolicy,
     ActionRequest,
     ActionRequestValidator,
@@ -99,7 +109,6 @@ from project_akiha.core.actions import (
     ApplicationCatalog,
     CloseAllowlistedApplicationExecutor,
     DirectorySearchExecutor,
-    DirectorySearchMatch,
     FileSearchExecutor,
     FileSearchMatch,
     OpenDirectoryExecutor,
@@ -108,8 +117,16 @@ from project_akiha.core.actions import (
     build_default_action_registry,
     build_default_provider_action_catalog,
 )
+from project_akiha.core.actions.clarification import (
+    ClarificationOutcome,
+    LocalSearchOutcome,
+    LocalTargetChoices,
+    approved_directory_aliases,
+)
+from project_akiha.core.actions.path_input import looks_like_private_path
 from project_akiha.core.actions.registry import (
     APPLICATION_CLOSE_CAPABILITY,
+    APPLICATION_LAUNCH_CAPABILITY,
     CLOSE_APPLICATION_ACTION,
     DIRECTORY_SEARCH_ACTION,
     FILE_SEARCH_ACTION,
@@ -126,6 +143,7 @@ from project_akiha.core.actions.registry import (
     SPOTIFY_PLAY_ARTIST_ACTION,
     SPOTIFY_PLAY_PLAYLIST_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
+    SPOTIFY_PLAYBACK_CAPABILITY,
     SPOTIFY_PREVIOUS_ACTION,
     SPOTIFY_RESUME_ACTION,
     SPOTIFY_SEARCH_ALBUMS_ACTION,
@@ -218,6 +236,10 @@ from project_akiha.integrations.spotify.devices import (
 from project_akiha.integrations.spotify.favorites import (
     build_spotify_favorites_executors,
 )
+from project_akiha.integrations.spotify.history import (
+    SpotifyHistorySnapshot,
+    history_choices,
+)
 from project_akiha.integrations.spotify.playback import (
     SpotifyArtistSelectionStore,
     build_spotify_playback_executors,
@@ -256,6 +278,7 @@ from project_akiha.providers.voice import (
     QtMicrophoneCapture,
     UnavailableVoiceOutputProvider,
 )
+from project_akiha.services.action_clarification import ActionClarificationService
 from project_akiha.services.app_paths import get_app_paths
 from project_akiha.services.appearance import (
     AppearanceService,
@@ -275,7 +298,6 @@ from project_akiha.services.assistant_tool_gateway import (
     SpotifyPlaybackOperation,
     directory_name_matches,
     parse_directory_navigation_proposal,
-    render_assistant_tool_clarification,
     should_request_tool_proposal,
 )
 from project_akiha.services.assistant_translation import AssistantTranslationService
@@ -314,6 +336,7 @@ from project_akiha.services.intent_arbitration import (
 )
 from project_akiha.services.logging import configure_logging
 from project_akiha.services.memory_extraction import AIMemoryExtractor
+from project_akiha.services.music_file_catalog import MusicFileCatalog
 from project_akiha.services.pet_diagnostics import (
     PetDiagnosticsSnapshot,
     build_pet_diagnostics,
@@ -371,6 +394,7 @@ from project_akiha.services.window_placement import (
     clamp_window_position,
 )
 from project_akiha.services.window_state import WindowPosition, WindowStateStore
+from project_akiha.ui.action_clarification_panel import ActionClarificationPanel
 from project_akiha.ui.assistant_action_history_window import (
     AssistantActionHistoryWindow,
 )
@@ -412,6 +436,7 @@ from project_akiha.ui.shop_worker import (
     ShopWorkerOperation,
     ShopWorkerResult,
 )
+from project_akiha.ui.spotify_history_worker import SpotifyHistoryThread
 from project_akiha.ui.tray import AkihaTrayIcon
 
 _AI_KEY_ENVIRONMENT_VARIABLES = {
@@ -631,6 +656,7 @@ def _run_application() -> int:
         credential_path=paths.credential_path,
     )
     application_catalog = ApplicationCatalog()
+    music_catalog = MusicFileCatalog(action_path_policy)
     spotify_session = SpotifySession(config.spotify, credential_store)
     spotify_client = SpotifyClient(config.spotify, spotify_session)
     spotify_preference_ranker = SpotifyPreferenceRanker(spotify_client)
@@ -680,10 +706,125 @@ def _run_application() -> int:
         ),
     )
     spotify_activator.apply_service(assistant_action_service)
+    action_clarification = ActionClarificationController(
+        ActionClarificationService(build_default_action_registry())
+    )
     assistant_permission_service = AssistantPermissionService(
         action_repository,
         action_path_policy,
+        on_change=action_clarification.invalidate,
     )
+
+    def local_target_choices(request: ActionRequest) -> LocalTargetChoices:
+        """Snapshot eligible local targets; providers never receive this catalog."""
+        if request.action_id == OPEN_FILE_ACTION and request.source == "chat.music":
+            try:
+                directories = asyncio.run(
+                    assistant_permission_service.get_approved_directories()
+                )
+            except (OSError, ValueError):
+                directories = ()
+            statuses = tuple(
+                music_catalog.status(path, directories)
+                for path in config.music_files.paths
+            )
+            return LocalTargetChoices(
+                tuple(
+                    ActionRequest(
+                        request.correlation_id,
+                        request.action_id,
+                        request.source,
+                        {"path": path},
+                    )
+                    for path in config.music_files.paths
+                ),
+                tuple(
+                    (
+                        f"{Path(path).name} — {Path(path).parent.name}"[:95]
+                        + (f" — {status}" if status != "Ready" else "")
+                    )
+                    for path, status in zip(
+                        config.music_files.paths, statuses, strict=True
+                    )
+                ),
+                "No ready registered music files. Add files in Music files settings "
+                "and approve their folders for opening in Actions settings.",
+                enabled=tuple(status == "Ready" for status in statuses),
+            )
+        empty_message = (
+            "No available allowlisted apps have launch permission. "
+            "Install an allowlisted app and enable its launch permission in Settings."
+            if request.action_id == LAUNCH_APPLICATION_ACTION
+            else "No available approved folders have open permission. "
+            "Configure an approved folder with open permission in Settings."
+        )
+        try:
+            if request.action_id == LAUNCH_APPLICATION_ACTION:
+                grants = asyncio.run(
+                    assistant_permission_service.get_active_permissions(
+                        APPLICATION_LAUNCH_CAPABILITY
+                    )
+                )
+                targets = tuple(
+                    (app.display_name, {"application_id": app.application_id})
+                    for app in application_catalog.discover()
+                    if app.is_available
+                    and any(
+                        grant.target.casefold() == app.application_id
+                        for grant in grants
+                    )
+                )
+            else:
+                directories = asyncio.run(
+                    assistant_permission_service.get_approved_directories()
+                )
+                roots = tuple(
+                    directory.root
+                    for directory in directories
+                    if directory.can_open and directory.is_available
+                )
+                # Ambiguous configured aliases fail deterministically, as elsewhere.
+                aliases = approved_directory_aliases(roots)
+                targets = tuple(
+                    (Path(root).name, {"path": root}) for root in aliases.values()
+                )
+            bounded = targets[:10]
+            return LocalTargetChoices(
+                tuple(
+                    ActionRequest(
+                        request.correlation_id,
+                        request.action_id,
+                        request.source,
+                        params,
+                    )
+                    for _, params in bounded
+                ),
+                tuple(label for label, _ in bounded),
+                empty_message,
+                len(targets) > 10,
+            )
+        except (OSError, ValueError):
+            return LocalTargetChoices(
+                (),
+                (),
+                "Local choices are unavailable or ambiguous. "
+                "Check app and approved-folder permissions in Settings.",
+            )
+
+    def validate_local_choice(request: ActionRequest) -> bool:
+        """Recheck catalog availability and grants while resolving the bound lease."""
+        try:
+            current = local_target_choices(request)
+            return any(
+                choice.parameters == request.parameters
+                and (not current.enabled or current.enabled[index])
+                for index, choice in enumerate(current.requests)
+            )
+        except (OSError, ValueError):
+            return False
+
+    action_clarification.local_target_choices = local_target_choices
+    action_clarification.validate_local_choice = validate_local_choice
     assistant_action_bridge = AssistantActionBridge(assistant_action_service)
     behavior_history_recorder = BehaviorHistoryRecorder(
         event_bus=event_bus,
@@ -775,6 +916,7 @@ def _run_application() -> int:
         assistant_action_service,
         voice_session_coordinator,
         intent_arbiter,
+        clarification_controller=action_clarification,
     )
     memory_pipeline = MemoryPipeline(
         memory_repository,
@@ -866,7 +1008,100 @@ def _run_application() -> int:
         log_dir=paths.log_dir,
         data_dir=paths.data_dir,
         credential_store=credential_store,
+        music_catalog=music_catalog,
     )
+
+    def update_registered_music(
+        updated: MusicFilesConfig, selected_paths: tuple[str, ...] = ()
+    ) -> None:
+        nonlocal config
+        old = config.music_files
+        try:
+            if not isinstance(updated, MusicFilesConfig):
+                raise ValueError("Invalid local music registrations.")
+            if selected_paths:
+                checked = music_catalog.register(old, selected_paths)
+                if checked.config != updated:
+                    raise ValueError("Music selections changed during validation.")
+                approval_roots = checked.approval_roots
+            else:
+                if any(path not in old.paths for path in updated.paths):
+                    raise ValueError("New music needs an explicit local selection.")
+                approval_roots = ()
+            next_config = config.with_music_files(updated)
+            user_config_store.save_config(next_config)
+        except (OSError, ValueError):
+            settings_window.update_music_files(old)
+            settings_window._music_files_panel.set_status(
+                "The registered list could not be saved. Check the files and retry."
+            )
+            logger.warning("Local music registration update failed safely.")
+            return
+        config = next_config
+        action_clarification.invalidate()
+        settings_window.update_music_files(updated)
+        if approval_roots:
+            failed = False
+            for root in approval_roots:
+                try:
+                    # Add only open permission. Preserve existing search scopes.
+                    asyncio.run(
+                        assistant_permission_service.grant_directory(
+                            FILE_OPEN_CAPABILITY, root
+                        )
+                    )
+                except (OSError, ValueError, sqlite3.Error):
+                    failed = True
+            try:
+                directories = asyncio.run(
+                    assistant_permission_service.get_approved_directories()
+                )
+                grants = asyncio.run(
+                    assistant_permission_service.get_active_permissions()
+                )
+                settings_window.update_assistant_permissions(
+                    directories, application_catalog.discover(), grants
+                )
+                refresh_assistant_action_aliases()
+            except (OSError, ValueError, sqlite3.Error):
+                failed = True
+                settings_window._music_files_panel.set_directories(())
+            if failed:
+                settings_window._music_files_panel.set_status(
+                    "Music was registered, but some folder approvals could not be "
+                    "saved or refreshed. Check folder permissions in Actions."
+                )
+                logger.warning("Local music folder approval failed safely.")
+
+    def open_registered_music(path: str) -> None:
+        try:
+            directories = asyncio.run(
+                assistant_permission_service.get_approved_directories()
+            )
+        except (OSError, ValueError):
+            directories = ()
+        if (
+            path not in config.music_files.paths
+            or music_catalog.status(path, directories) != "Ready"
+        ):
+            settings_window._music_files_panel.set_status(
+                "This file is unavailable or needs folder approval in Actions settings."
+            )
+            return
+        request = ActionRequest(
+            f"settings-music-{uuid4().hex}",
+            OPEN_FILE_ACTION,
+            "settings.music",
+            {"path": path},
+        )
+        if action_clarification.prepare(request):
+            epoch = action_clarification.leases.capture_owner(request)
+            if epoch is not None:
+                start_action_thread(request, captured_owner_epoch=epoch)
+
+    settings_window.music_files_changed.connect(update_registered_music)
+    settings_window.music_registration_requested.connect(update_registered_music)
+    settings_window.music_file_open_requested.connect(open_registered_music)
     privacy_notice = PrivacyNoticeDialog()
 
     def acknowledge_privacy_notice() -> None:
@@ -1089,6 +1324,7 @@ def _run_application() -> int:
         | AssistantMediaSearchThread
         | AssistantDirectorySearchThread
         | OllamaNativeToolThread
+        | SpotifyHistoryThread
     ] = []
 
     def update_chat_busy_state() -> None:
@@ -1103,6 +1339,7 @@ def _run_application() -> int:
     conversation_runtime_router: ConversationRuntimeRouter | None = None
 
     def apply_settings(updated_config: AppConfig) -> None:
+        action_clarification.invalidate()
         nonlocal config, speech_input_service, speech_output_service
         nonlocal ollama_native_provider
         previous_session_provider = config.voice.session_provider
@@ -1776,15 +2013,15 @@ def _run_application() -> int:
             directories = asyncio.run(
                 assistant_permission_service.get_approved_directories()
             )
-            aliases = {
-                Path(directory.root).name.casefold(): directory.root
-                for directory in directories
-                if Path(directory.root).name
-            }
+            aliases = approved_directory_aliases(
+                tuple(directory.root for directory in directories)
+            )
             assistant_action_bridge.set_directory_aliases(aliases)
             provider_action_gateway.set_directory_aliases(aliases)
         except Exception:
-            logger.exception("Could not refresh assistant action aliases.")
+            assistant_action_bridge.set_directory_aliases({})
+            provider_action_gateway.set_directory_aliases({})
+            logger.warning("Approved directory aliases are unavailable or ambiguous.")
 
     def refresh_assistant_permissions() -> None:
         try:
@@ -2005,6 +2242,7 @@ def _run_application() -> int:
     settings_window.spotify_playback_grant_requested.connect(grant_spotify_playback)
     settings_window.spotify_playback_revoke_requested.connect(revoke_spotify_playback)
     settings_window.spotify_session_changed.connect(spotify_session.clear_access_token)
+    settings_window.spotify_session_changed.connect(action_clarification.invalidate)
     settings_window.spotify_session_changed.connect(
         spotify_preference_ranker.invalidate
     )
@@ -2018,19 +2256,153 @@ def _run_application() -> int:
         assistant_action_history_window.raise_()
         assistant_action_history_window.activateWindow()
 
+    clarification_panel = ActionClarificationPanel(
+        action_clarification,
+        lambda request: start_action_thread(request),
+        chat_window,
+        on_owned_resolved=lambda request, epoch: start_action_thread(
+            request, captured_owner_epoch=epoch
+        ),
+    )
+    chat_window.layout().insertWidget(2, clarification_panel)
+    clarification_panel.normal_chat_requested.connect(
+        lambda identity: continue_as_normal_chat(identity)
+    )
+
+    def spotify_history_allowed(generation: int) -> bool:
+        """Recheck account and local playback grant without exposing track metadata."""
+        if not config.spotify.enabled or spotify_session.generation != generation:
+            return False
+        try:
+            return spotify_session.is_connected and any(
+                grant.target.casefold() == "spotify"
+                for grant in asyncio.run(
+                    assistant_permission_service.get_active_permissions(
+                        SPOTIFY_PLAYBACK_CAPABILITY
+                    )
+                )
+            )
+        except (OSError, ValueError, sqlite3.Error, CredentialStoreError):
+            return False
+
+    def start_spotify_history(identity) -> None:
+        captured = action_clarification.leases.start_spotify_history(
+            identity, spotify_session.generation
+        )
+        if captured is None:
+            return
+
+        def guard() -> bool:
+            return spotify_history_allowed(captured.account_generation)
+
+        # No HTTP call without an existing enabled integration and local grant.
+        if not guard():
+            targets = LocalTargetChoices(
+                (),
+                (),
+                "Connect Spotify and enable Spotify playback permission in Settings, "
+                "or search for a song instead.",
+                spotify_history=True,
+            )
+            # The empty explanation is safe to publish without a playback grant;
+            # its selection guard remains fail-closed and it has no choices.
+            if action_clarification.leases.publish_spotify_history(
+                captured,
+                targets,
+                account_guard=lambda: spotify_session.generation
+                == captured.account_generation,
+            ):
+                clarification_panel.refresh()
+            return
+        thread = SpotifyHistoryThread(spotify_client, spotify_session, captured)
+        active_tool_threads.append(thread)
+
+        def receive_history(snapshot: SpotifyHistorySnapshot) -> None:
+            if thread.isInterruptionRequested():
+                return
+            targets = history_choices(captured.request, snapshot)
+            if action_clarification.leases.publish_spotify_history(
+                captured,
+                targets,
+                account_guard=guard,
+                execution_guard=lambda: (
+                    spotify_session.generation == captured.account_generation
+                    and spotify_session.is_connected
+                ),
+            ):
+                clarification_panel.refresh()
+
+        def finish_history() -> None:
+            if thread in active_tool_threads:
+                active_tool_threads.remove(thread)
+            thread.deleteLater()
+            update_chat_busy_state()
+
+        thread.result_ready.connect(receive_history)
+        thread.finished.connect(finish_history)
+        thread.start()
+
+    clarification_panel.spotify_history_requested.connect(start_spotify_history)
+
+    def refresh_clarification() -> None:
+        # Qt panel owns presentation; no question or answer enters history or EventBus.
+        clarification_panel.refresh_requested.emit()
+        assistant_tool_result_store.clear()
+        spotify_track_selection_store.clear()
+        spotify_playlist_selection_store.clear_candidates()
+        spotify_album_selection_store.clear_candidates()
+        spotify_artist_selection_store.clear()
+        ephemeral_action_context.clear_selection()
+        provider_action_gateway.clear_local_results()
+
+    action_clarification.on_pending = refresh_clarification
+
     def start_action_thread(
         action_request: ActionRequest,
         *,
         confirmed: bool = False,
+        captured_owner_epoch: int | None = None,
     ) -> None:
+        if (
+            captured_owner_epoch is None
+            and not confirmed
+            and not action_clarification.prepare(action_request)
+        ):
+            if action_clarification.leases.pending is None:
+                clarification_panel.show_notice(
+                    "The action request is invalid. "
+                    "Issue one explicit action with a valid target."
+                )
+            return
+        if not action_clarification.leases.owns(action_request, captured_owner_epoch):
+            return
+        owner_epoch = action_clarification.leases.capture_owner(action_request)
+        if owner_epoch is None or (
+            captured_owner_epoch is not None and owner_epoch != captured_owner_epoch
+        ):
+            return
         chat_window.set_busy(True)
+        worker_options = {}
+        if captured_owner_epoch is not None:
+            worker_options["ownership_guard"] = (
+                lambda: action_clarification.leases.execution_owned(
+                    action_request, captured_owner_epoch
+                )
+            )
         action_thread = AssistantActionThread(
             assistant_action_bridge,
             action_request,
             confirmed=confirmed,
+            **worker_options,
         )
         active_action_threads.append(action_thread)
-        action_thread.result_ready.connect(handle_action_dispatch)
+        action_thread.result_ready.connect(
+            lambda dispatch: (
+                handle_action_dispatch(dispatch, owner_epoch=owner_epoch)
+                if owner_epoch == action_clarification.leases.owner_epoch
+                else None
+            )
+        )
         action_thread.failed.connect(handle_action_failure)
         action_thread.cancelled.connect(
             lambda: chat_window.append_notice("Desktop action stopped.")
@@ -2077,8 +2449,29 @@ def _run_application() -> int:
         if accept_intent(turn_id, action_request.action_id, source):
             start_action_thread(action_request)
 
-    def handle_action_dispatch(dispatch: AssistantActionDispatch) -> None:
+    def handle_action_dispatch(
+        dispatch: AssistantActionDispatch, *, owner_epoch: int
+    ) -> None:
+        if not action_clarification.leases.owns(dispatch.request, owner_epoch):
+            return
         result = dispatch.result
+        if action_clarification.leases.is_spotify_history_selection(
+            dispatch.request, owner_epoch
+        ):
+            result = replace(
+                result,
+                metadata={},
+                summary=(
+                    "Spotify started the selected recent entry."
+                    if result.status.value == "success"
+                    else "Spotify could not play the selected recent entry. "
+                    "Check connection, device and permissions."
+                ),
+            )
+        if action_clarification.handle_local_result(
+            dispatch.request, result, owner_epoch=owner_epoch
+        ):
+            return
         matches = result.metadata.get("matches")
         if isinstance(matches, tuple):
             assistant_action_history_window.update_search_results(
@@ -2410,6 +2803,9 @@ def _run_application() -> int:
                 target = str(
                     dispatch.request.parameters.get("path", "the selected file")
                 )
+                lease = action_clarification.leases.issue_confirmation(
+                    dispatch.request, owner_epoch=owner_epoch
+                )
                 answer = QMessageBox.question(
                     chat_window,
                     "Confirm file opening",
@@ -2417,7 +2813,11 @@ def _run_application() -> int:
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No,
                 )
-                if answer == QMessageBox.StandardButton.Yes:
+                if action_clarification.leases.consume_confirmation(
+                    lease,
+                    dispatch.request,
+                    approved=answer == QMessageBox.StandardButton.Yes,
+                ):
                     start_action_thread(dispatch.request, confirmed=True)
                 else:
                     chat_window.append_notice("File opening was not confirmed.")
@@ -2598,85 +2998,90 @@ def _run_application() -> int:
             return (navigation_context,)
         return _collapse_nested_roots(tuple(directory.root for directory in eligible))
 
-    def start_directory_search(
+    def start_local_search(
         proposal: AssistantToolProposal,
         *,
         turn_id: str,
         source: IntentProposalSource,
+        directory: bool,
     ) -> None:
-        if not accept_intent(turn_id, "files.navigate_directory", source):
+        roots = (
+            directory_navigation_roots(proposal)
+            if directory
+            else searchable_assistant_roots()
+        )
+        category = "files.navigate_directory" if directory else "files.search_media"
+        if not accept_intent(turn_id, category, source):
             update_chat_busy_state()
             return
-        roots = directory_navigation_roots(proposal)
+        # Bind ALL search inputs before launching the asynchronous worker. The
+        # executable operation is fixed; discovery arguments are local-only.
+        request = ActionRequest(
+            turn_id,
+            OPEN_DIRECTORY_ACTION if directory else OPEN_FILE_ACTION,
+            "local_search." + source.name.lower(),
+            {
+                "roots_digest": hashlib.sha256(json.dumps(roots).encode()).hexdigest(),
+                "directory_name": proposal.directory_name,
+                "parent_name": proposal.parent_name,
+                "title": proposal.title,
+                "artist": proposal.artist,
+                "media_kind": proposal.media_kind.value,
+            },
+        )
+        identity = action_clarification.leases.start_local_search(request)
+        refresh_clarification()
         if not roots:
-            chat_window.append_error(
-                "Action unavailable: The parent directory is not an approved "
-                "search-and-open location."
+            action_clarification.leases.cancel_local_search(identity)
+            clarification_panel.show_notice(
+                "No approved search location is available. "
+                "Check permissions and retry explicitly."
             )
             update_chat_busy_state()
             return
-
         chat_window.set_busy(True)
-        thread = AssistantDirectorySearchThread(
-            assistant_action_bridge,
-            proposal,
-            roots,
+        thread_class = (
+            AssistantDirectorySearchThread if directory else AssistantMediaSearchThread
         )
+        thread = thread_class(assistant_action_bridge, proposal, roots)
         active_tool_threads.append(thread)
 
-        def handle_result(outcome: DirectorySearchOutcome) -> None:
-            matches = outcome.matches[:10]
-            assistant_tool_result_store.replace_directories(matches)
-            ephemeral_action_context.record_selection(
-                EphemeralSelectionKind.DIRECTORY,
-                len(matches),
-                allowed_verbs=frozenset(("open",)),
+        def handle_result(outcome: DirectorySearchOutcome | MediaSearchOutcome) -> None:
+            resolution = action_clarification.leases.continue_local_search(
+                identity,
+                tuple(match.path for match in outcome.matches),
+                complete=outcome.complete,
+                limited=outcome.limited,
+                before_publish=action_clarification.before_pending,
             )
-            noun = "directory" if len(matches) == 1 else "directories"
-            assistant_action_history_window.update_search_results(
-                matches,
-                summary=f"Found {len(matches)} matching {noun}.",
-            )
-            refresh_assistant_action_history_window()
-            if not matches:
-                chat_window.append_message(
-                    config.personality.character_name,
-                    "I could not find that directory beneath the approved " "location.",
+            if resolution.outcome is LocalSearchOutcome.STALE:
+                return
+            if resolution.outcome is LocalSearchOutcome.REJECTED:
+                clarification_panel.show_notice(
+                    "The search result could not be used safely. Retry explicitly."
                 )
                 return
-            if len(matches) == 1:
-                selected = matches[0]
-                chat_window.append_message(
-                    config.personality.character_name,
-                    f"I found the {selected.name} directory.",
+            refresh_clarification()
+            if resolution.outcome is LocalSearchOutcome.READY_TO_EXECUTE:
+                action_clarification.leases.enqueue_local_search(
+                    resolution,
+                    lambda request, epoch: start_action_thread(
+                        request, captured_owner_epoch=epoch
+                    ),
                 )
-                request = ActionRequest(
-                    correlation_id=f"directory-open-{uuid4().hex}",
-                    action_id=OPEN_DIRECTORY_ACTION,
-                    source="directory_navigation",
-                    parameters={"path": selected.path},
-                )
-                start_action_thread(request)
-                return
-            lines = [
-                f"{index}. {match.name}" for index, match in enumerate(matches, start=1)
-            ]
-            chat_window.append_message(
-                config.personality.character_name,
-                "I found several matching directories:\n"
-                + "\n".join(lines)
-                + '\nSay "Open result 1" with the number you want.',
-            )
-            show_assistant_action_history()
 
         def handle_failure(error_message: str) -> None:
-            logger.error("Directory navigation failed: %s", error_message)
-            chat_window.append_error(
-                "Akiha could not complete the approved directory search."
-            )
+            # Worker exception text can contain private paths; use a closed notice.
+            if action_clarification.leases.cancel_local_search(identity):
+                refresh_clarification()
+                clarification_panel.show_notice(
+                    "The approved search was unavailable. Retry explicitly."
+                )
 
         def handle_cancelled() -> None:
-            chat_window.append_notice("Directory search stopped.")
+            if action_clarification.leases.cancel_local_search(identity):
+                refresh_clarification()
+                clarification_panel.show_notice("Search stopped.")
 
         def cleanup_thread() -> None:
             if thread in active_tool_threads:
@@ -2689,99 +3094,16 @@ def _run_application() -> int:
         thread.cancelled.connect(handle_cancelled)
         thread.finished.connect(cleanup_thread)
         thread.start()
+
+    def start_directory_search(
+        proposal: AssistantToolProposal, *, turn_id: str, source: IntentProposalSource
+    ) -> None:
+        start_local_search(proposal, turn_id=turn_id, source=source, directory=True)
 
     def start_media_search(
-        proposal: AssistantToolProposal,
-        *,
-        turn_id: str,
-        source: IntentProposalSource,
+        proposal: AssistantToolProposal, *, turn_id: str, source: IntentProposalSource
     ) -> None:
-        if not accept_intent(turn_id, "files.search_media", source):
-            update_chat_busy_state()
-            return
-        roots = searchable_assistant_roots()
-        if not roots:
-            chat_window.append_error(
-                "Action unavailable: No approved searchable directory is available."
-            )
-            chat_window.set_busy(False)
-            return
-
-        chat_window.set_busy(True)
-        thread = AssistantMediaSearchThread(
-            assistant_action_bridge,
-            proposal,
-            roots,
-        )
-        active_tool_threads.append(thread)
-
-        def handle_result(outcome: MediaSearchOutcome) -> None:
-            matches = outcome.matches[:10]
-            assistant_tool_result_store.replace(matches)
-            ephemeral_action_context.record_selection(
-                EphemeralSelectionKind.FILE,
-                len(matches),
-                allowed_verbs=frozenset(("open", "play")),
-            )
-            assistant_action_history_window.update_search_results(
-                matches,
-                summary=f"Found {len(matches)} matching media file(s).",
-            )
-            refresh_assistant_action_history_window()
-            if not matches:
-                chat_window.append_message(
-                    config.personality.character_name,
-                    "I could not find matching audio or video in the approved "
-                    "directories.",
-                )
-                return
-            if len(matches) == 1:
-                selected = matches[0]
-                chat_window.append_message(
-                    config.personality.character_name,
-                    f"I found {selected.name}.",
-                )
-                request = ActionRequest(
-                    correlation_id=f"llm-media-open-{uuid4().hex}",
-                    action_id=OPEN_FILE_ACTION,
-                    source="llm_proposal",
-                    parameters={"path": selected.path},
-                )
-                start_action_thread(request)
-                return
-
-            lines = [
-                f"{index}. {match.name}"
-                for index, match in enumerate(matches[:10], start=1)
-            ]
-            chat_window.append_message(
-                config.personality.character_name,
-                "I found several matching media files:\n"
-                + "\n".join(lines)
-                + '\nSay "Play result 1" with the number you want.',
-            )
-            show_assistant_action_history()
-
-        def handle_failure(error_message: str) -> None:
-            logger.error("AI-assisted media search failed: %s", error_message)
-            chat_window.append_error(
-                "Akiha could not complete the approved media search."
-            )
-
-        def handle_cancelled() -> None:
-            chat_window.append_notice("Media search stopped.")
-
-        def cleanup_thread() -> None:
-            if thread in active_tool_threads:
-                active_tool_threads.remove(thread)
-            update_chat_busy_state()
-            thread.deleteLater()
-
-        thread.result_ready.connect(handle_result)
-        thread.failed.connect(handle_failure)
-        thread.cancelled.connect(handle_cancelled)
-        thread.finished.connect(cleanup_thread)
-        thread.start()
+        start_local_search(proposal, turn_id=turn_id, source=source, directory=False)
 
     def start_ollama_native_tool_proposal(
         message: str,
@@ -2805,6 +3127,7 @@ def _run_application() -> int:
             catalog=provider_action_catalog,
             action_service=assistant_action_service,
             intent_arbiter=intent_arbiter,
+            clarification_controller=action_clarification,
         )
         active_tool_threads.append(thread)
 
@@ -2871,6 +3194,21 @@ def _run_application() -> int:
             update_chat_busy_state()
             thread.deleteLater()
 
+        thread.action_result.connect(
+            lambda result: (
+                clarification_panel.show_notice(
+                    "The action was rejected. "
+                    "Issue one explicit action with a valid target."
+                )
+                if result.status == "denied"
+                else None
+            )
+        )
+        thread.local_action_result.connect(
+            lambda request, result: present_hosted_local_action_result(
+                request, result, cloud_origin=False
+            )
+        )
         thread.response_ready.connect(handle_response)
         thread.confirmation_requested.connect(handle_confirmation)
         thread.native_tools_unavailable.connect(handle_unavailable)
@@ -2910,9 +3248,8 @@ def _run_application() -> int:
                 start_chat_response(message)
                 return
             if proposal.kind is AssistantToolKind.CLARIFY:
-                chat_window.append_message(
-                    config.personality.character_name,
-                    render_assistant_tool_clarification(proposal),
+                clarification_panel.show_notice(
+                    "Please issue one explicit action with its exact target."
                 )
                 return
             if proposal.kind is AssistantToolKind.LAUNCH_APPLICATION:
@@ -3005,7 +3342,36 @@ def _run_application() -> int:
         thread.finished.connect(cleanup_thread)
         thread.start()
 
+    def continue_as_normal_chat(identity) -> None:
+        # Only the dedicated local button reaches this path; provider and voice
+        # submissions cannot arm or consume a future composer bypass.
+        message = chat_window._input.text().strip()
+        if not action_clarification.allows_normal_chat(identity):
+            return
+        if not message or len(message) > 4096:
+            clarification_panel.show_privacy_notice()
+            return
+        chat_window._input.clear()
+        chat_window.append_message("You", message)
+        start_chat_response(message)
+
     def submit_chat_message(message: str) -> None:
+        continuation = action_clarification.route_answer(message)
+        if continuation is not None:
+            if (
+                continuation.outcome is ClarificationOutcome.RESOLVED
+                and continuation.request is not None
+            ):
+                start_action_thread(continuation.request)
+            if continuation.outcome is ClarificationOutcome.INVALID:
+                clarification_panel.show_privacy_notice()
+            return
+        incomplete = action_clarification.incomplete_command(
+            message, f"clarification-request-{uuid4().hex}"
+        )
+        if incomplete is not None:
+            action_clarification.prepare(incomplete)
+            return
         turn_id = f"intent-turn-{uuid4().hex}"
         refresh_assistant_action_aliases()
         selection_error = None
@@ -3063,6 +3429,14 @@ def _run_application() -> int:
                 message,
                 has_context=ephemeral_action_context.current_directory is not None,
             )
+        if action_request is None and (
+            looks_like_private_path(message)
+            or re.search(r"(?:[a-zA-Z]:[\\/]|\\\\)", message)
+        ):
+            clarification_panel.show_notice(
+                "Supply private local paths through the local action panel."
+            )
+            return
         chat_window.append_message("You", message)
         if selection_error is not None:
             intent_arbiter.complete_local_routing(turn_id)
@@ -3089,6 +3463,7 @@ def _run_application() -> int:
             message,
             context=ephemeral_action_context.intent_context_snapshot(),
         ):
+            action_clarification.supersede()
             intent_arbiter.complete_local_routing(turn_id)
             fallback_token = provider_tool_fallback_gate.open_turn(turn_id)
             if ollama_native_provider is not None:
@@ -3108,6 +3483,7 @@ def _run_application() -> int:
         start_chat_response(message)
 
     def cancel_active_chat() -> None:
+        action_clarification.invalidate()
         for thread in tuple(active_chat_threads):
             thread.cancel()
         for thread in tuple(active_action_threads):
@@ -3130,6 +3506,7 @@ def _run_application() -> int:
         return bool(active_chat_threads or active_action_threads or active_tool_threads)
 
     def start_new_chat() -> None:
+        action_clarification.invalidate()
         if has_active_operations():
             chat_window.append_notice(
                 "Stop the current response before starting a new chat."
@@ -3156,6 +3533,7 @@ def _run_application() -> int:
         logger.info("Started a new chat conversation.")
 
     def clear_current_chat() -> None:
+        action_clarification.invalidate()
         if has_active_operations():
             chat_window.append_notice("Stop the current response before clearing chat.")
             return
@@ -3298,48 +3676,19 @@ def _run_application() -> int:
     def present_hosted_local_action_result(
         request: ActionRequest,
         result: ActionResult,
+        *,
+        cloud_origin: bool = True,
     ) -> None:
-        track_candidates = result.metadata.get("track_candidates")
-        if request.action_id in {
-            SPOTIFY_PLAY_TRACK_ACTION,
-            SPOTIFY_SEARCH_TRACKS_ACTION,
-        } and isinstance(track_candidates, tuple):
-            candidates = tuple(
-                candidate
-                for candidate in track_candidates
-                if isinstance(candidate, SpotifyCatalogItem)
-            )[:5]
-            try:
-                spotify_track_selection_store.replace(candidates)
-                provider_action_gateway.set_spotify_track_results(
-                    tuple(
-                        _spotify_track_result_parameters(track) for track in candidates
-                    )
-                )
-                ephemeral_action_context.record_selection(
-                    EphemeralSelectionKind.SPOTIFY_TRACK,
-                    len(candidates),
-                    allowed_verbs=frozenset(("play",)),
-                )
-            except ValueError:
-                chat_window.append_error(
-                    "Akiha could not safely present those Spotify tracks."
-                )
-                return
-            if not candidates:
-                return
-            lines = []
-            for index, track in enumerate(candidates, start=1):
-                label = track.display_label
-                if track.album_name:
-                    label = f"{label} [{track.album_name}]"
-                lines.append(f"{index}. {label}")
-            chat_window.append_message(
-                config.personality.character_name,
-                "I found several possible Spotify tracks:\n"
-                + "\n".join(lines)
-                + '\nSay "Play track result 1" with the number you want.',
+        if (
+            result.metadata.get(
+                "_clarification_epoch", action_clarification.leases.owner_epoch
             )
+            != action_clarification.leases.owner_epoch
+        ):
+            return
+        if action_clarification.handle_local_result(
+            request, result, cloud_origin=cloud_origin
+        ):
             return
 
         raw_matches = result.metadata.get("matches")
@@ -3349,76 +3698,36 @@ def _run_application() -> int:
             matches = tuple(
                 match for match in raw_matches if isinstance(match, FileSearchMatch)
             )[:10]
-            assistant_tool_result_store.replace(matches)
-            provider_action_gateway.set_file_results(matches)
-            ephemeral_action_context.record_selection(
-                EphemeralSelectionKind.FILE,
-                len(matches),
-                allowed_verbs=frozenset(("open", "play")),
-            )
-            noun = "media file" if len(matches) == 1 else "media files"
+            if request.parameters.get("result_mode", "present") != "open_unique":
+                clarification_panel.show_notice(
+                    "Search finished. Issue an explicit open request "
+                    "to choose a target locally."
+                )
+                return
+            operation = OPEN_FILE_ACTION
         elif result.action_id == DIRECTORY_SEARCH_ACTION:
-            matches = tuple(
-                match
-                for match in raw_matches
-                if isinstance(match, DirectorySearchMatch)
-            )[:10]
-            assistant_tool_result_store.replace_directories(matches)
-            provider_action_gateway.set_directory_results(matches)
-            ephemeral_action_context.record_selection(
-                EphemeralSelectionKind.DIRECTORY,
-                len(matches),
-                allowed_verbs=frozenset(("open",)),
+            clarification_panel.show_notice(
+                "Directory search finished. Issue an explicit open request "
+                "to choose a target locally."
             )
-            noun = "directory" if len(matches) == 1 else "directories"
+            return
         else:
             return
-
-        assistant_action_history_window.update_search_results(
-            matches,
-            summary=f"Found {len(matches)} matching {noun}.",
+        pending_request = ActionRequest(
+            request.correlation_id, operation, request.source, {}
         )
-        refresh_assistant_action_history_window()
-        if not matches:
-            chat_window.append_message(
-                config.personality.character_name,
-                f"I could not find matching {noun} in that approved location.",
+        choices = tuple(
+            ActionRequest(
+                pending_request.correlation_id,
+                operation,
+                request.source,
+                {"path": match.path},
             )
-            return
-        result_mode = str(request.parameters.get("result_mode", "present"))
-        if result.action_id == FILE_SEARCH_ACTION and (
-            (result_mode == "open_unique" and len(matches) == 1)
-            or (result_mode == "open_any" and matches)
-        ):
-            selected = matches[0]
-            chat_window.append_message(
-                config.personality.character_name,
-                f"I found {selected.name} and will ask before opening it.",
-            )
-            start_action_thread(
-                ActionRequest(
-                    correlation_id=f"hosted-media-open-{uuid4().hex}",
-                    action_id=OPEN_FILE_ACTION,
-                    source="provider_search_selection",
-                    parameters={"path": selected.path},
-                )
-            )
-            return
-        lines = [
-            f"{index}. {match.name}" for index, match in enumerate(matches, start=1)
-        ]
-        follow_up = (
-            "\nPlease name one exact result to open."
-            if result.action_id == FILE_SEARCH_ACTION
-            and result_mode == "open_unique"
-            and len(matches) > 1
-            else ""
+            for match in matches
         )
-        chat_window.append_message(
-            config.personality.character_name,
-            f"I found these matching {noun}:\n" + "\n".join(lines) + follow_up,
+        action_clarification.choices(
+            pending_request, choices, cloud_origin=cloud_origin
         )
-        show_assistant_action_history()
 
     hosted_conversation_runtime = HostedConversationRuntime(
         event_bus=event_bus,
@@ -3431,6 +3740,10 @@ def _run_application() -> int:
         on_commit=present_hosted_commit,
         on_action_confirmation=confirm_hosted_action,
         on_local_action_result=present_hosted_local_action_result,
+        clarification_controller=action_clarification,
+    )
+    action_clarification.before_pending = (
+        hosted_conversation_runtime.suspend_for_clarification
     )
     conversation_runtime_router = ConversationRuntimeRouter(
         selection_provider=lambda: config.voice.session_provider,
@@ -3488,6 +3801,7 @@ def _run_application() -> int:
     chat_window.voice_listen_stop_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_LISTEN_STOP_REQUESTED)
     )
+    chat_window.voice_listen_cancel_requested.connect(action_clarification.invalidate)
     chat_window.voice_listen_cancel_requested.connect(
         lambda: event_bus.publish(EventType.VOICE_LISTEN_CANCEL_REQUESTED)
     )
@@ -3498,7 +3812,14 @@ def _run_application() -> int:
         lambda: event_bus.publish(EventType.VOICE_REPLAY_REQUESTED)
     )
     chat_window.voice_conversation_start_requested.connect(
-        conversation_runtime_router.start
+        lambda: (
+            conversation_runtime_router.start()
+            if not (action_clarification.leases.pending is not None)
+            else clarification_panel.refresh()
+        )
+    )
+    chat_window.voice_conversation_end_requested.connect(
+        action_clarification.invalidate
     )
     chat_window.voice_conversation_end_requested.connect(
         conversation_runtime_router.end
@@ -3604,6 +3925,7 @@ def _run_application() -> int:
     QTimer.singleShot(5_000, check_optional_provider_health)
 
     def shutdown_app() -> None:
+        action_clarification.invalidate()
         provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
         notification_queue_timer.stop()

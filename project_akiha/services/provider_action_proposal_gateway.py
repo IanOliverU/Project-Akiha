@@ -22,6 +22,7 @@ from project_akiha.core.actions import (
     FileSearchMatch,
     ProviderActionToolCatalog,
 )
+from project_akiha.core.actions.path_input import ambiguous_provider_path
 from project_akiha.core.actions.registry import (
     FILE_SEARCH_ACTION,
     SPOTIFY_PLAY_TRACK_ACTION,
@@ -49,6 +50,8 @@ class ProposalGatewayReason(StrEnum):
     DUPLICATE = "duplicate"
     NOT_READY = "not_ready"
     NOT_EXPOSED = "not_exposed"
+    INVALID_ARGUMENTS = "invalid_arguments"
+    COMPOUND = "compound"
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +158,47 @@ class ProviderActionProposalGateway:
                     ProposalGatewayReason.NOT_EXPOSED,
                 )
 
+            if proposal.batch_size != 1:
+                return self._reject_locked(proposal, ProposalGatewayReason.COMPOUND)
+            target_name = {
+                FILE_SEARCH_ACTION: "root",
+                DIRECTORY_SEARCH_ACTION: "root",
+                OPEN_DIRECTORY_ACTION: "path",
+                OPEN_FILE_ACTION: "path",
+            }.get(schema.action_id)
+            raw_target = proposal.arguments.get(target_name) if target_name else None
+            result_mode = proposal.arguments.get("result_mode")
+            if isinstance(raw_target, str):
+                if any(ord(char) < 32 for char in raw_target):
+                    return self._reject_locked(
+                        proposal, ProposalGatewayReason.INVALID_ARGUMENTS
+                    )
+                raw_target = raw_target.strip(" ")
+            if (isinstance(result_mode, str) and result_mode.strip() == "open_any") or (
+                isinstance(raw_target, str) and ambiguous_provider_path(raw_target)
+            ):
+                return self._reject_locked(
+                    proposal, ProposalGatewayReason.INVALID_ARGUMENTS
+                )
+
+            if isinstance(raw_target, str) and raw_target:
+                try:
+                    alias = _directory_alias_key(re.split(r"[/\\]", raw_target)[0])
+                except ValueError:
+                    return self._reject_locked(
+                        proposal, ProposalGatewayReason.INVALID_ARGUMENTS
+                    )
+                if (
+                    any(
+                        alias != configured and alias.startswith(configured + " ")
+                        for configured in self._directory_aliases
+                    )
+                    and alias not in self._directory_aliases
+                ):
+                    return self._reject_locked(
+                        proposal, ProposalGatewayReason.INVALID_ARGUMENTS
+                    )
+
             request = ActionRequest(
                 correlation_id=_correlation_id(proposal),
                 action_id=schema.action_id,
@@ -178,6 +222,8 @@ class ProviderActionProposalGateway:
         for alias, path in aliases.items():
             key = _directory_alias_key(alias)
             if key and isinstance(path, str) and path.strip():
+                if key in normalized:
+                    raise ValueError("approved directory aliases are ambiguous")
                 normalized[key] = path.strip()
         with self._lock:
             self._directory_aliases = normalized
@@ -380,11 +426,17 @@ def _provider_source(source: str) -> str:
 
 
 def _directory_alias_key(value: str) -> str:
-    normalized = re.sub(r"[\W_]+", " ", value.casefold()).strip()
-    tokens = normalized.split()
-    while tokens and tokens[-1] in {"directory", "folder"}:
-        tokens.pop()
-    return " ".join(tokens)
+    candidate = value.strip(" ")
+    if (
+        not candidate
+        or len(value) > 128
+        or len(candidate) > 64
+        or "  " in candidate
+        or ambiguous_provider_path(value)
+        or any(not (c.isalnum() or c == " ") for c in candidate)
+    ):
+        raise ValueError("invalid directory alias syntax")
+    return candidate.casefold()
 
 
 def _resolve_approved_path(
@@ -393,9 +445,13 @@ def _resolve_approved_path(
     *,
     allow_descendant: bool,
 ) -> str | None:
-    exact = aliases.get(_directory_alias_key(value))
-    if exact is not None:
-        return exact
+    if ambiguous_provider_path(value):
+        return None
+    if not any(c in value for c in "/\\"):
+        try:
+            return aliases.get(_directory_alias_key(value))
+        except ValueError:
+            return None
 
     if not allow_descendant:
         return None
@@ -405,7 +461,10 @@ def _resolve_approved_path(
     parts = [part.strip() for part in normalized.split("/")]
     if len(parts) < 2 or any(not _safe_relative_part(part) for part in parts):
         return None
-    root = aliases.get(_directory_alias_key(parts[0]))
+    try:
+        root = aliases.get(_directory_alias_key(parts[0]))
+    except ValueError:
+        return None
     if root is None:
         return None
     return str(Path(root).joinpath(*parts[1:]))

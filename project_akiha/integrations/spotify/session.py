@@ -34,6 +34,19 @@ class SpotifySession:
         self._now = now
         self._access_token: SpotifyToken | None = None
         self._lock = threading.RLock()
+        self._generation = 0
+
+    @property
+    def generation(self) -> int:
+        """Invalidate transient account-bound pickers after reconnect or disconnect."""
+        with self._lock:
+            return self._generation
+
+    def has_scope(self, scope: str) -> bool:
+        """Inspect granted token scopes; never request additional authorization."""
+        self.get_access_token()
+        with self._lock:
+            return self._access_token is not None and scope in self._access_token.scopes
 
     @property
     def is_connected(self) -> bool:
@@ -47,6 +60,7 @@ class SpotifySession:
         with self._lock:
             if config.client_id != self._config.client_id or not config.enabled:
                 self._access_token = None
+                self._generation += 1
             self._config = config
 
     def get_access_token(self) -> str:
@@ -80,9 +94,11 @@ class SpotifySession:
         """Discard the in-memory token after an authorization failure."""
         with self._lock:
             self._access_token = None
+            self._generation += 1
 
     def disconnect(self) -> None:
         """Remove Spotify authorization without changing public settings."""
         with self._lock:
             self._access_token = None
+            self._generation += 1
             self._secret_store.delete_named_secret("spotify", "refresh_token")

@@ -133,6 +133,11 @@ class AssistantActionService:
         cancellation_token: ActionCancellationToken,
     ) -> ActionExecutionResult:
         """Execute only the registered executor that owns this exact action."""
+        if cancellation_token.is_cancelled:
+            return ActionExecutionResult(
+                status=ActionStatus.CANCELLED,
+                summary="The assistant action was cancelled.",
+            )
         executor = self._executors.get(action.definition.executor_id)
         if executor is None or executor.action_id != action.definition.action_id:
             return ActionExecutionResult(

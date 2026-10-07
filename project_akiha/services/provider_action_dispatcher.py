@@ -7,9 +7,12 @@ import json
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
+from project_akiha.app.action_clarification_controller import (
+    ActionClarificationController,
+)
 from project_akiha.core.actions import (
     SPOTIFY_CURRENT_PLAYBACK_ACTION,
     ActionCancellationToken,
@@ -18,7 +21,12 @@ from project_akiha.core.actions import (
     ActionStatus,
     PermissionDecision,
 )
+from project_akiha.core.actions.clarification import (
+    ActionReadinessStatus,
+    ConfirmationLease,
+)
 from project_akiha.core.voice_session import SanitizedActionResult
+from project_akiha.services.action_clarification import ActionClarificationService
 from project_akiha.services.intent_arbitration import (
     IntentArbiter,
     IntentDecision,
@@ -67,6 +75,7 @@ class ProviderActionDispatcher:
         intent_arbiter: IntentArbiter,
         *,
         max_pending_confirmations: int = 32,
+        clarification_controller: ActionClarificationController | None = None,
     ) -> None:
         if max_pending_confirmations <= 0:
             raise ValueError("pending confirmation bound must be positive.")
@@ -74,17 +83,27 @@ class ProviderActionDispatcher:
         self._turn_authority = turn_authority
         self._intent_arbiter = intent_arbiter
         self._max_pending_confirmations = max_pending_confirmations
+        self.clarification_controller = (
+            clarification_controller
+            or ActionClarificationController(ActionClarificationService())
+        )
         self._lock = threading.RLock()
         self._pending: OrderedDict[
             tuple[str, str, str],
-            ActionRequest,
+            tuple[ActionRequest, ConfirmationLease],
         ] = OrderedDict()
 
     @property
     def pending_confirmation_count(self) -> int:
         """Return only a count; pending request arguments remain private."""
         with self._lock:
+            self._prune_pending()
             return len(self._pending)
+
+    def _prune_pending(self) -> None:
+        for key, (_, lease) in tuple(self._pending.items()):
+            if not self.clarification_controller.leases.confirmation_active(lease):
+                del self._pending[key]
 
     def complete_local_routing(self, session_id: str, turn_id: str) -> None:
         """Declare that deterministic routing found no action for this turn."""
@@ -125,6 +144,7 @@ class ProviderActionDispatcher:
         conversion: ProposalGatewayResult,
         *,
         on_local_result: Callable[[ActionRequest, ActionResult], None] | None = None,
+        before_clarification: Callable[[], None] | None = None,
     ) -> SanitizedActionResult:
         """Dispatch a proposal and optionally present its raw result locally."""
         decision, request = _require_accepted_conversion(conversion)
@@ -156,13 +176,79 @@ class ProviderActionDispatcher:
         if not arbitration.accepted:
             return _arbitration_result(conversion, arbitration.reason)
 
-        result = await self._evaluate(request, confirmed=False)
-        if on_local_result is not None and (
-            "matches" in result.metadata or "track_candidates" in result.metadata
+        if (
+            before_clarification is not None
+            and self.clarification_controller.readiness(request).status
+            is ActionReadinessStatus.CLARIFICATION_REQUIRED
         ):
-            on_local_result(request, result)
+            before_clarification()
+        if not self.clarification_controller.prepare(
+            request, cloud_origin=request.source.startswith("provider.gemini")
+        ):
+            pending = self.clarification_controller.leases.pending
+            return _sanitized(
+                conversion,
+                status="clarification_required" if pending else "denied",
+                message=(
+                    "Akiha requires a trusted local clarification."
+                    if pending
+                    else "The action proposal was rejected safely."
+                ),
+            )
+
+        owner_epoch = self.clarification_controller.leases.owner_epoch
+        if not self.clarification_controller.leases.owns(request, owner_epoch):
+            return _sanitized(
+                conversion, status="cancelled", message="The action ownership changed."
+            )
+        result = await self._evaluate(request, confirmed=False)
+        if owner_epoch != self.clarification_controller.leases.owner_epoch:
+            return _sanitized(
+                conversion,
+                status="cancelled",
+                message="The action continuation was invalidated.",
+            )
+        if before_clarification is not None and any(
+            name in result.metadata
+            for name in (
+                "matches",
+                "track_candidates",
+                "playlist_candidates",
+                "album_candidates",
+                "artist_candidates",
+            )
+        ):
+            before_clarification()
+        self.clarification_controller.handle_local_result(
+            request,
+            result,
+            cloud_origin=request.source.startswith("provider.gemini"),
+            owner_epoch=owner_epoch,
+        )
+        if on_local_result is not None and any(
+            name in result.metadata
+            for name in (
+                "matches",
+                "track_candidates",
+                "playlist_candidates",
+                "album_candidates",
+                "artist_candidates",
+            )
+        ):
+            on_local_result(
+                request,
+                replace(
+                    result,
+                    metadata={**result.metadata, "_clarification_epoch": owner_epoch},
+                ),
+            )
         if result.status is ActionStatus.CONFIRMATION_REQUIRED:
-            self._remember_pending(conversion, request)
+            if not self._remember_pending(conversion, request, owner_epoch):
+                return _sanitized(
+                    conversion,
+                    status="cancelled",
+                    message="The action ownership changed.",
+                )
         return _sanitize_action_result(conversion, result)
 
     async def resolve_confirmation(
@@ -178,8 +264,8 @@ class ProviderActionDispatcher:
             raise TypeError("provider action confirmation must be boolean.")
         key = (session_id, turn_id, proposal_id)
         with self._lock:
-            request = self._pending.pop(key, None)
-        if request is None:
+            pending = self._pending.pop(key, None)
+        if pending is None:
             return SanitizedActionResult(
                 session_id=session_id,
                 turn_id=turn_id,
@@ -187,6 +273,10 @@ class ProviderActionDispatcher:
                 status=ActionStatus.UNAVAILABLE.value,
                 message="No pending action confirmation is available.",
             )
+        request, lease = pending
+        permitted = self.clarification_controller.leases.consume_confirmation(
+            lease, request, approved=approved
+        )
         if not approved:
             return SanitizedActionResult(
                 session_id=session_id,
@@ -203,6 +293,14 @@ class ProviderActionDispatcher:
                 status=ActionStatus.CANCELLED.value,
                 message="The action proposal is no longer active.",
             )
+        if not permitted:
+            return SanitizedActionResult(
+                session_id,
+                turn_id,
+                proposal_id,
+                "cancelled",
+                "The action confirmation expired or was invalidated.",
+            )
 
         result = await self._evaluate(request, confirmed=True)
         return SanitizedActionResult(
@@ -216,6 +314,8 @@ class ProviderActionDispatcher:
     def clear(self) -> None:
         """Discard pending sensitive arguments during shutdown or lane change."""
         with self._lock:
+            for _, lease in self._pending.values():
+                self.clarification_controller.leases.discard_confirmation(lease)
             self._pending.clear()
 
     def pending_confirmation(
@@ -228,8 +328,15 @@ class ProviderActionDispatcher:
         """Return a local UI description without consuming the pending request."""
         key = (session_id, turn_id, proposal_id)
         with self._lock:
-            request = self._pending.get(key)
-        if request is None:
+            self._prune_pending()
+            pending = self._pending.get(key)
+        if pending is None:
+            return None
+        request, lease = pending
+        if (
+            self.clarification_controller.leases.clock.monotonic_seconds()
+            >= lease.deadline
+        ):
             return None
         return ProviderActionConfirmation(
             session_id=session_id,
@@ -265,7 +372,8 @@ class ProviderActionDispatcher:
         self,
         conversion: ProposalGatewayResult,
         request: ActionRequest,
-    ) -> None:
+        owner_epoch: int,
+    ) -> bool:
         decision = conversion.decision
         key = (
             decision.session_id,
@@ -273,10 +381,20 @@ class ProviderActionDispatcher:
             decision.proposal_id,
         )
         with self._lock:
-            self._pending[key] = request
+            try:
+                lease = self.clarification_controller.leases.issue_confirmation(
+                    request, owner_epoch=owner_epoch
+                )
+            except ValueError:
+                return False
+            self._pending[key] = (
+                request,
+                lease,
+            )
             self._pending.move_to_end(key)
             while len(self._pending) > self._max_pending_confirmations:
                 self._pending.popitem(last=False)
+            return True
 
 
 def _require_accepted_conversion(

@@ -157,8 +157,14 @@ class SpotifyPlaylistPlaybackExecutor:
             selected = _select_playlist(query, candidates)
             if selected is None:
                 if not candidates:
-                    return _unavailable(
-                        f'I could not find a Spotify playlist matching "{query}".'
+                    return ActionExecutionResult(
+                        status=ActionStatus.UNAVAILABLE,
+                        summary=(
+                            f"I could not find a Spotify playlist "
+                            f'matching "{query}".'
+                        ),
+                        failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                        metadata={"playlist_candidates": ()},
                     )
                 return ActionExecutionResult(
                     status=ActionStatus.FAILED,

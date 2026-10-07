@@ -44,6 +44,11 @@ _FORBIDDEN_FILE_NAMES = {
 }
 _FORBIDDEN_FILE_PREFIXES = (".env.", "client_secret")
 _FORBIDDEN_DATABASE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
+_FORBIDDEN_DATABASE_COMPANION_SUFFIXES = tuple(
+    extension + companion
+    for extension in sorted(_FORBIDDEN_DATABASE_SUFFIXES)
+    for companion in ("-wal", "-shm", "-journal")
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +118,9 @@ def validate_package_artifact(artifact_dir: Path) -> tuple[PackageArtifactIssue,
         normalized_name = candidate.name.casefold()
         is_forbidden_name = normalized_name in _FORBIDDEN_FILE_NAMES
         is_forbidden_prefix = normalized_name.startswith(_FORBIDDEN_FILE_PREFIXES)
-        is_database = candidate.suffix.casefold() in _FORBIDDEN_DATABASE_SUFFIXES
+        is_database = candidate.suffix.casefold() in _FORBIDDEN_DATABASE_SUFFIXES or (
+            normalized_name.endswith(_FORBIDDEN_DATABASE_COMPANION_SUFFIXES)
+        )
         if is_forbidden_name or is_forbidden_prefix or is_database:
             issues.append(
                 PackageArtifactIssue(

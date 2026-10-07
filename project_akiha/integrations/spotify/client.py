@@ -238,8 +238,8 @@ class SpotifyClient:
             "/me/player/recently-played",
             {"limit": str(limit)},
         )
-        return _parse_page_items(
-            payload,
+        return _parse_raw_items(
+            _require_item_list(payload)[:limit],
             SpotifyItemKind.TRACK,
             unwrap_key="track",
         )

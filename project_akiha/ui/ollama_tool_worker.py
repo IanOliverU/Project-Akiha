@@ -8,6 +8,9 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
+from project_akiha.app.action_clarification_controller import (
+    ActionClarificationController,
+)
 from project_akiha.app.chat_controller import ChatController
 from project_akiha.core.actions import ProviderActionToolCatalog
 from project_akiha.core.voice_session import SanitizedActionResult
@@ -25,7 +28,7 @@ from project_akiha.services.provider_action_proposal_gateway import (
     ProviderActionProposalGateway,
 )
 
-_CONFIRMATION_TIMEOUT_SECONDS = 300.0
+_CONFIRMATION_TIMEOUT_SECONDS = 60.0
 
 
 class OllamaNativeToolThread(QThread):
@@ -33,6 +36,7 @@ class OllamaNativeToolThread(QThread):
 
     response_ready = Signal(object)
     action_result = Signal(object)
+    local_action_result = Signal(object, object)
     confirmation_requested = Signal(object)
     native_tools_unavailable = Signal()
     failed = Signal(str)
@@ -47,6 +51,7 @@ class OllamaNativeToolThread(QThread):
         catalog: ProviderActionToolCatalog,
         action_service: ProviderActionService,
         intent_arbiter: IntentArbiter,
+        clarification_controller: ActionClarificationController | None = None,
     ) -> None:
         super().__init__()
         self._provider = provider
@@ -59,6 +64,7 @@ class OllamaNativeToolThread(QThread):
             action_service,
             self._authority,
             intent_arbiter,
+            clarification_controller=clarification_controller,
         )
         self._lock = threading.RLock()
         self._confirmation_decisions: dict[tuple[str, str, str], bool] = {}
@@ -146,6 +152,19 @@ class OllamaNativeToolThread(QThread):
             self.response_ready.emit(commit)
             return
 
+        if len(turn.proposals) > 1:
+            self._dispatcher.clarification_controller.supersede()
+            # Never dispatch a prefix of a compound response, including test adapters.
+            self.action_result.emit(
+                SanitizedActionResult(
+                    identity.session_id,
+                    identity.turn_id,
+                    turn.proposals[0].proposal_id,
+                    "denied",
+                    "Issue one action at a time.",
+                )
+            )
+            return
         self._dispatcher.complete_local_routing(identity.session_id, identity.turn_id)
         results: list[SanitizedActionResult] = []
         for proposal in turn.proposals:
@@ -159,7 +178,15 @@ class OllamaNativeToolThread(QThread):
                     message="The action proposal was rejected safely.",
                 )
             else:
-                result = await self._dispatcher.dispatch(conversion)
+                result = await self._dispatcher.dispatch(
+                    conversion, on_local_result=self.local_action_result.emit
+                )
+            if (
+                result.status == "clarification_required"
+                or self._dispatcher.clarification_controller.leases.pending is not None
+            ):
+                self.action_result.emit(result)
+                return
             if result.status == "confirmation_required":
                 confirmation = self._dispatcher.pending_confirmation(
                     session_id=result.session_id,

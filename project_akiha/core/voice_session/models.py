@@ -545,6 +545,9 @@ class ActionProposal:
     arguments: Mapping[str, object]
     state: ProposalState = ProposalState.READY
     confidence: TranscriptConfidence = TranscriptConfidence.UNKNOWN
+    batch_id: str = ""
+    batch_size: int = 1
+    batch_index: int = 0
 
     def __post_init__(self) -> None:
         _require_identifier(self.session_id, "session ID")
@@ -552,6 +555,17 @@ class ActionProposal:
         _require_identifier(self.proposal_id, "proposal ID")
         _require_identifier(self.source, "proposal source")
         _require_identifier(self.action_name, "action name")
+        if type(self.batch_size) is not int or not 1 <= self.batch_size <= 32:
+            raise ValueError("action proposal batch must be bounded")
+        if (
+            type(self.batch_index) is not int
+            or not 0 <= self.batch_index < self.batch_size
+        ):
+            raise ValueError("invalid action proposal batch index")
+        if self.batch_size > 1 and not self.batch_id:
+            raise ValueError("compound proposals require a batch identity")
+        if self.batch_id:
+            _require_identifier(self.batch_id, "action batch ID")
         copied_arguments = dict(self.arguments)
         if len(copied_arguments) > _MAX_ACTION_ARGUMENTS:
             raise ValueError("action proposal has too many arguments.")

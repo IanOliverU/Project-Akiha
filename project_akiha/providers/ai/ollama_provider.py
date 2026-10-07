@@ -324,6 +324,9 @@ def _parse_native_tool_turn(
                 source="ollama.native",
                 action_name=action_names[tool_name],
                 arguments=arguments,
+                batch_id=f"batch-{turn_id}",
+                batch_size=len(raw_calls),
+                batch_index=index,
             )
         except (TypeError, ValueError) as error:
             raise OllamaProviderError("Ollama tool arguments were unsafe.") from error

@@ -77,8 +77,13 @@ def _serialize_config(config: AppConfig) -> str:
     discord_channel_ids = ", ".join(
         f'"{_escape_toml_string(value)}"' for value in discord.authorized_channel_ids
     )
+    music_paths = ", ".join(
+        f'"{_escape_toml_string(path)}"' for path in config.music_files.paths
+    )
 
     return (
+        "[music_files]\n"
+        f"paths = [{music_paths}]\n\n"
         "[pet_window]\n"
         f"width = {pet_window.width}\n"
         f"height = {pet_window.height}\n"

@@ -405,3 +405,23 @@ database files anywhere in the standalone folder. Gemini credentials,
 Spotify/Gmail refresh tokens, Gmail OAuth client secrets, and Discord bot tokens
 remain in the current Windows user's DPAPI-protected local state and are never
 embedded in `Akiha.exe` or its adjacent data files.
+
+
+## Phase 13B transient action questions
+
+Clarification questions, answers, candidate payloads and lease state exist only
+in process memory and a dedicated local UI panel. They are excluded from
+canonical transcripts and exports, conversation summaries, memories, provider
+prompts, Notification Center records and ordinary logs. Lifecycle evidence is
+a bounded in-memory record containing only opaque lease IDs, action category,
+reason code, monotonic timestamps and outcome. Nothing is restored on restart.
+Normal finalized action audits retain their existing local permission/execution
+evidence; they do not record clarification dialogue.
+
+Only one clarification is foregrounded, for an absolute 120 seconds; revisions
+do not extend it. Confirmation is separate, single-use and expires after 60
+seconds. Revocation, Stop/cancel, reset and shutdown invalidate transient state.
+Gemini audio forwarding pauses before cloud-origin clarification is presented;
+answers require the local panel, and voice must be restarted explicitly after
+resolution. The clarification tool turn is excluded from canonical persistence
+and memory processing. Providers receive only the existing sanitized status.

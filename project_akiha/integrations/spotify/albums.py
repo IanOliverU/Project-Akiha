@@ -604,7 +604,12 @@ def _unresolved_album(
     title, artist = _album_query(action)
     if not candidates:
         label = _query_label(title, artist)
-        return _unavailable(f'I could not find a Spotify album matching "{label}".')
+        return ActionExecutionResult(
+            status=ActionStatus.UNAVAILABLE,
+            summary=f'I could not find a Spotify album matching "{label}".',
+            failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+            metadata={"album_candidates": ()},
+        )
     return ActionExecutionResult(
         status=ActionStatus.FAILED,
         summary="I found several possible Spotify albums.",

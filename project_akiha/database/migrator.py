@@ -50,6 +50,7 @@ class DatabaseMigrator:
             connection.execute("PRAGMA foreign_keys = ON")
             connection.execute("PRAGMA journal_mode = WAL")
             _ensure_schema_version_table(connection)
+            connection.commit()
 
             applied_versions = _applied_versions(connection)
             for migration in self._load_migrations():
@@ -57,7 +58,10 @@ class DatabaseMigrator:
                     continue
                 try:
                     sql = migration.path.read_text(encoding="utf-8")
-                    connection.executescript(sql)
+                    # executescript commits any pending transaction before running.
+                    # Put BEGIN in the script so DDL, data and the receipt share
+                    # one transaction, including when a later statement fails.
+                    connection.executescript("BEGIN IMMEDIATE;\n" + sql)
                     connection.execute(
                         """
                         INSERT INTO schema_version(version, name)
@@ -65,7 +69,9 @@ class DatabaseMigrator:
                         """,
                         (migration.version, migration.name),
                     )
+                    connection.commit()
                 except Exception:
+                    connection.rollback()
                     logger.exception(
                         "Database migration file failed: %s.",
                         migration.path,

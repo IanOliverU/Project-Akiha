@@ -1,6 +1,6 @@
 # Phase 13: Everyday Assistant Utilities
 
-**Status:** In progress - Phase 13A complete; Phase 13B is next
+**Status:** In progress - Phase 13A complete; Phase 13B implementation awaiting independent audit and owner acceptance
 
 ## Purpose
 
@@ -144,6 +144,10 @@ silent exports, external-account mutation, autonomous utility creation, and
 direct LLM access to schedulers, network transports, repositories, or writers.
 
 ### 13B: Ambiguity and confirmation handling
+
+Implementation is under review; the unchecked closure items below remain open.
+See [Phase 13B implementation and verification](PHASE13B.md). No 13C activation
+or migration is authorized by this implementation.
 
 - [ ] Detect missing targets, multiple plausible matches, uncertain times, and
   incomplete consequential requests.

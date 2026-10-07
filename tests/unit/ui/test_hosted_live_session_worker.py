@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 import unittest
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, QEvent, QThread
 
 from project_akiha.app.voice_session_coordinator import VoiceSessionCoordinator
 from project_akiha.core.actions import (
@@ -41,6 +41,13 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QCoreApplication.instance() or QCoreApplication([])
 
+    def stop_worker(self, worker: HostedLiveSessionThread) -> None:
+        worker.request_stop()
+        self.assertTrue(worker.wait(2_000), "hosted worker must join during cleanup")
+        self.assertEqual(QThread.currentThread(), worker.thread())
+        worker.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
     def test_worker_keeps_session_alive_until_explicit_stop(self) -> None:
         adapter = _Adapter()
         coordinator = VoiceSessionCoordinator(
@@ -54,6 +61,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
         connected: list[bool] = []
         worker.connected.connect(lambda: connected.append(True))
 
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(_wait_until(self.app, lambda: connected == [True]))
         self.assertTrue(worker.isRunning())
@@ -80,6 +88,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             lambda code, message: failures.append((code, message))
         )
 
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(worker.wait(2_000))
         self.assertTrue(_wait_until(self.app, lambda: bool(failures)))
@@ -102,6 +111,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             lambda code, message: failures.append((code, message))
         )
 
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(_wait_until(self.app, lambda: worker.submit_audio(_frame())))
         self.assertTrue(_wait_until(self.app, lambda: bool(failures)))
@@ -136,6 +146,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
         emitted_results: list[object] = []
         worker.action_result_signal.connect(emitted_results.append)
 
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(_wait_until(self.app, lambda: worker.isRunning()))
         self.assertTrue(
@@ -166,6 +177,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             build_default_provider_action_catalog(),
             coordinator,
         )
+        gateway.set_directory_aliases({"private": r"C:\Users\Private"})
         dispatcher = ProviderActionDispatcher(
             _ConfirmationActionService(),
             coordinator,
@@ -187,6 +199,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             )
 
         worker.action_confirmation_requested_signal.connect(approve)
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(
             _wait_until(
@@ -229,6 +242,7 @@ class HostedLiveSessionThreadTest(unittest.TestCase):
             lambda code, message: failures.append((code, message))
         )
 
+        self.addCleanup(self.stop_worker, worker)
         worker.start()
         self.assertTrue(
             _wait_until(
@@ -344,7 +358,7 @@ class _ConfirmationToolAdapter(_ToolAdapter):
                 proposal_id="gemini-tool-confirm-1",
                 source="gemini-live",
                 action_name="files.open",
-                arguments={"path": r"C:\Users\Private\notes.txt"},
+                arguments={"path": "private/notes.txt"},
             )
         )
 

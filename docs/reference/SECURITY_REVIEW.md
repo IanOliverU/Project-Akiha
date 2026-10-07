@@ -328,3 +328,26 @@ The contract prohibits arbitrary commands, unrestricted URLs, provider-selected
 paths, silent exports, external-account mutation, and nested/raw provider data
 in utility results. Migration `0015` remains reserved and must satisfy the
 minimal schedule schema recorded in the Phase 13 plan before it is added.
+
+
+## Phase 13B action continuation changes (audit pending)
+
+Shared readiness and process-local leases precede the existing typed action
+service. Resolving a target cannot create a permission grant or confirmation.
+Confirmation is issued only after the action service reports that the grant is
+present, expires after 60 seconds, and binds the exact identity, operation and
+normalized arguments. Consumption is locked and single-use; execution rechecks
+validation and grants. Revocation invalidates pending lease state synchronously.
+
+Providers cannot answer clarification, submit absolute/drive-relative paths or
+select open-any. Root aliases and bounded candidates resolve locally; colliding
+aliases fail closed. Unknown provider directory names require a local target
+instead of resolving against the working directory. Native transport batches
+carry batch identity, count and index; compound batches are rejected before any
+member executes. There is no global action-idempotency redesign, new command
+bus, registry, permission service, notification pipeline or migration.
+
+Cloud audio is paused for Gemini clarification and its affected turn cannot
+commit to transcript or memory. Questions/answers remain in a transient local
+panel with no provider, history, log or notification route. Independent security
+review and owner acceptance remain pending; later utility phases remain closed.

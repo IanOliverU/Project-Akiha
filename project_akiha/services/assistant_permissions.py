@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 from project_akiha.core.actions import (
@@ -32,9 +33,15 @@ class AssistantPermissionService:
         self,
         repository: ActionPermissionRepository,
         path_policy: ProtectedPathPolicy,
+        on_change: Callable[[], None] | None = None,
     ) -> None:
         self._repository = repository
         self._path_policy = path_policy
+        self._on_change = on_change
+
+    def _invalidate_transient_state(self) -> None:
+        if self._on_change is not None:
+            self._on_change()
 
     async def grant_directory(
         self,
@@ -81,6 +88,7 @@ class AssistantPermissionService:
             raise ValueError("application is not in the Phase 8 allowlist.")
         if capability not in _APPLICATION_CAPABILITIES:
             raise ValueError("unsupported application permission capability.")
+        self._invalidate_transient_state()
         grants = await self._repository.get_active_permissions(capability)
         revoked = False
         for grant in grants:
@@ -97,6 +105,7 @@ class AssistantPermissionService:
 
     async def revoke_spotify_playback(self) -> bool:
         """Revoke every active grant for the fixed Spotify target."""
+        self._invalidate_transient_state()
         grants = await self._repository.get_active_permissions(
             SPOTIFY_PLAYBACK_CAPABILITY
         )
@@ -108,6 +117,7 @@ class AssistantPermissionService:
 
     async def reset_all_permissions(self) -> int:
         """Revoke every active assistant-action grant."""
+        self._invalidate_transient_state()
         grants = await self._repository.get_active_permissions()
         revoked_count = 0
         for grant in grants:
@@ -129,6 +139,7 @@ class AssistantPermissionService:
             raise ValueError("approved directory needs at least one capability.")
 
         canonical_root = self._validated_directory(root)
+        self._invalidate_transient_state()
         stored_target = await self._existing_directory_target(canonical_root)
         grants = await self._repository.set_directory_permissions(
             stored_target,
@@ -159,6 +170,7 @@ class AssistantPermissionService:
 
     async def remove_approved_directory(self, root: str | Path) -> bool:
         """Revoke all file permissions for a listed directory, including stale roots."""
+        self._invalidate_transient_state()
         candidate_key = _path_key(str(root).strip())
         if not candidate_key:
             raise ValueError("approved directory root cannot be empty.")
@@ -190,6 +202,7 @@ class AssistantPermissionService:
 
     async def revoke(self, permission_id: int) -> bool:
         """Revoke one permission grant."""
+        self._invalidate_transient_state()
         return await self._repository.revoke_permission(permission_id)
 
     def _validated_directory(self, root: str | Path) -> Path:

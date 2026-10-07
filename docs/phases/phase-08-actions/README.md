@@ -83,11 +83,14 @@ Every action is denied unless all of the following are true:
 1. The action identifier exists in `ActionRegistry`.
 2. Its typed parameters satisfy the registered schema.
 3. The target passes protected-path and capability-specific validation.
-4. A matching permission grant exists or the user approves the request.
-5. The selected executor supports the exact registered action.
+4. A matching scoped permission grant already exists.
+5. Any required current confirmation is obtained after the grant check.
+6. The selected executor supports the exact registered action.
 
 Validation failure cannot be overridden by the AI or by wording in a chat
-message.
+message. Clarification selects parameters only; it grants neither permission
+nor confirmation. Phase 13B uses separate 120-second clarification and 60-second
+confirmation leases, both absolute and single-use.
 
 ### Capability-Specific Executors
 

@@ -5,7 +5,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from time import monotonic
+from weakref import ref
 
+from project_akiha.app.action_clarification_controller import (
+    ActionClarificationController,
+)
 from project_akiha.app.chat_controller import CanonicalLiveChatCommit
 from project_akiha.app.live_audio_playback import NativeAudioPlaybackQueue
 from project_akiha.app.live_transcript_controller import LiveTranscriptController
@@ -53,6 +57,7 @@ class HostedConversationRuntime:
         ) = None,
         on_stopped: Callable[[], None] | None = None,
         monotonic_clock: Callable[[], float] = monotonic,
+        clarification_controller: ActionClarificationController | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._voice_controller = voice_controller
@@ -66,6 +71,7 @@ class HostedConversationRuntime:
         self._on_local_action_result = on_local_action_result
         self._on_stopped = on_stopped
         self._monotonic_clock = monotonic_clock
+        self._clarification_controller = clarification_controller
         self._thread: HostedLiveSessionThread | None = None
         self._active = False
         self._started_at: float | None = None
@@ -84,6 +90,11 @@ class HostedConversationRuntime:
     def start(self) -> bool:
         """Start only Gemini Live after the user selects and requests it."""
         config = self._voice_controller.config
+        if (
+            self._clarification_controller is not None
+            and self._clarification_controller.leases.pending is not None
+        ):
+            return False
         if self._active:
             return False
         if not config.enabled or not config.push_to_talk_enabled:
@@ -138,6 +149,8 @@ class HostedConversationRuntime:
     def submit_audio(self, audio: CapturedAudio) -> None:
         """Send one direct PCM frame only to the active hosted worker."""
         thread = self._thread
+        if thread is not None and thread.cloud_audio_paused is True:
+            return
         if not self._active or thread is None or not self._audio_bridge.is_active:
             return
         try:
@@ -233,22 +246,50 @@ class HostedConversationRuntime:
             thread.request_stop()
             thread.wait(3_000)
 
+    def suspend_for_clarification(self) -> bool:
+        """Latch suspension before any shared question can become actionable."""
+        thread = self._thread
+        if not self._active or thread is None:
+            return False
+        thread.pause_for_clarification(self._turn_id or "")
+        # This worker never unpauses. Only an explicit Start after the lease ends
+        # can create a fresh session; old callbacks cannot release that latch.
+        return True
+
     def _connect_thread(self, thread: HostedLiveSessionThread) -> None:
-        thread.connected.connect(self._handle_connected)
-        thread.transcript_revised_signal.connect(self._handle_transcript)
-        thread.assistant_text_revised_signal.connect(self._handle_assistant_text)
-        thread.audio_received_signal.connect(self._handle_audio)
-        thread.action_confirmation_requested_signal.connect(
-            self._handle_action_confirmation
-        )
-        thread.local_action_result_signal.connect(self._handle_local_action_result)
-        thread.response_interrupted_signal.connect(self._handle_interrupted)
-        thread.turn_completed_signal.connect(self._handle_turn_completed)
-        thread.failed_signal.connect(self._fail_visible)
-        thread.session_state_changed_signal.connect(self._handle_session_state)
-        thread.finished.connect(self._handle_thread_finished)
+        runtime_ref = ref(self)
+        worker_ref = ref(thread)
+        for signal, callback in (
+            (thread.connected, self._handle_connected),
+            (thread.transcript_revised_signal, self._handle_transcript),
+            (thread.assistant_text_revised_signal, self._handle_assistant_text),
+            (thread.audio_received_signal, self._handle_audio),
+            (
+                thread.action_confirmation_requested_signal,
+                self._handle_action_confirmation,
+            ),
+            (thread.local_action_result_signal, self._handle_local_action_result),
+            (thread.response_interrupted_signal, self._handle_interrupted),
+            (thread.turn_completed_signal, self._handle_turn_completed),
+            (thread.failed_signal, self._fail_visible),
+            (thread.session_state_changed_signal, self._handle_session_state),
+            (thread.finished, self._handle_thread_finished),
+        ):
+            # Qt retains Python slots. Strong owner/handler captures would create
+            # a worker/runtime cycle and defer QObject destruction into later turns.
+            def deliver(*args, method=callback.__name__):
+                runtime = runtime_ref()
+                worker = worker_ref()
+                if runtime is not None and worker is not None:
+                    if runtime._thread is worker:
+                        getattr(runtime, method)(*args)
+
+            signal.connect(deliver)
 
     def _handle_connected(self) -> None:
+        if self._thread is not None and self._thread.cloud_audio_paused is True:
+            self.end("clarification_pending")
+            return
         if not self._active:
             thread = self._thread
             if thread is not None:
@@ -281,12 +322,18 @@ class HostedConversationRuntime:
         )
 
     def _handle_transcript(self, revision: TranscriptRevision) -> None:
+        if self._thread is not None and self._thread.cloud_audio_paused is True:
+            return
         self._transcripts.transcript_revised(revision)
 
     def _handle_assistant_text(self, revision: AssistantTextRevision) -> None:
+        if self._thread is not None and self._thread.cloud_audio_paused is True:
+            return
         self._transcripts.assistant_text_revised(revision)
 
     def _handle_audio(self, frame: AudioFrame) -> None:
+        if self._thread is not None and self._thread.cloud_audio_paused is True:
+            return
         if not self._owns_turn(frame.turn_id):
             return
         if not self._native_output_started:
@@ -339,6 +386,15 @@ class HostedConversationRuntime:
     def _handle_turn_completed(self, turn_id: str) -> None:
         if not self._owns_turn(turn_id):
             return
+        thread = self._thread
+        if thread is not None and getattr(
+            thread, "is_noncanonical_turn", lambda _: False
+        )(turn_id):
+            self._transcripts.cancel_turn(turn_id)
+            self._release_turn(cancel=True)
+            thread.request_stop()
+            self._set_inactive("clarification_pending")
+            return
         self._transcripts.turn_completed(turn_id)
         try:
             commit = asyncio.run(
@@ -364,6 +420,9 @@ class HostedConversationRuntime:
 
     def _handle_playback_completed(self) -> None:
         if not self._active:
+            return
+        if self._thread is not None and self._thread.cloud_audio_paused is True:
+            self.end("clarification_pending")
             return
         turn_id = self._turn_id
         snapshot = self._coordinator.snapshot

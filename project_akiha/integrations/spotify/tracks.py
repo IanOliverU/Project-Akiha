@@ -180,8 +180,11 @@ class SpotifyTrackPlaybackExecutor:
                 return _api_failure(error)
             if selected is None:
                 if not candidates:
-                    return _unavailable(
-                        "I could not find a matching playable Spotify track."
+                    return ActionExecutionResult(
+                        status=ActionStatus.UNAVAILABLE,
+                        summary="I could not find a matching playable Spotify track.",
+                        failure_category=ActionFailureCategory.TARGET_UNAVAILABLE,
+                        metadata={"track_candidates": ()},
                     )
                 return ActionExecutionResult(
                     status=ActionStatus.FAILED,

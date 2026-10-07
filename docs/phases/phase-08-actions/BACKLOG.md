@@ -97,7 +97,8 @@ clear short command and a genuinely uncertain high-no-speech result.
   providers.
 - [ ] Improve alias normalization for application names, directory names,
   artists, titles, and common transcription mistakes.
-- [ ] Ask a concise confirmation when multiple approved targets remain viable.
+- [ ] Ask a concise clarification when multiple approved targets remain viable;
+  selecting a target supplies neither a grant nor execution confirmation.
 
 ## Action Experience
 

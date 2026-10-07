@@ -13,6 +13,7 @@ persistent memory, optional voice, and permission-gated assistant actions.
 
 > **Status:** Personal project under active development. Phases 1–12 are
 > complete; Phase 13 (everyday assistant utilities) is in progress.
+> Phase 13B implementation awaits independent audit and owner acceptance.
 
 ## Meet Akiha
 

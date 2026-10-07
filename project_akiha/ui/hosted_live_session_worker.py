@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -30,6 +31,7 @@ from project_akiha.services.provider_action_dispatcher import (
     ProviderActionDispatcher,
 )
 from project_akiha.services.provider_action_proposal_gateway import (
+    ProposalGatewayReason,
     ProviderActionProposalGateway,
 )
 
@@ -69,6 +71,8 @@ class HostedLiveSessionThread(QThread):
         self._stop_event: asyncio.Event | None = None
         self._controller: HostedLiveSessionController | None = None
         self._failure_emitted = False
+        self._cloud_audio_paused = threading.Event()
+        self._noncanonical_turns: set[str] = set()
         self._action_tasks: set[asyncio.Task[None]] = set()
 
     def run(self) -> None:
@@ -77,7 +81,30 @@ class HostedLiveSessionThread(QThread):
 
     def submit_audio(self, frame: AudioFrame) -> bool:
         """Queue one microphone frame on the owned asyncio loop."""
-        return self._submit(lambda controller: controller.accept_audio(frame))
+        if self._cloud_audio_paused.is_set():
+            return False
+        return self._submit(
+            lambda controller: self._accept_unpaused_audio(controller, frame)
+        )
+
+    async def _accept_unpaused_audio(
+        self, controller: HostedLiveSessionController, frame: AudioFrame
+    ) -> None:
+        if not self._cloud_audio_paused.is_set():
+            await controller.accept_audio(frame)
+
+    def is_noncanonical_turn(self, turn_id: str) -> bool:
+        return turn_id in self._noncanonical_turns
+
+    @property
+    def cloud_audio_paused(self) -> bool:
+        """Expose only the suspension flag to the application runtime."""
+        return self._cloud_audio_paused.is_set()
+
+    def pause_for_clarification(self, turn_id: str) -> None:
+        self._cloud_audio_paused.set()
+        if turn_id:
+            self._noncanonical_turns.add(turn_id)
 
     def end_user_turn(self, turn_id: str) -> bool:
         """Queue a provider audio endpoint on the owned asyncio loop."""
@@ -111,13 +138,16 @@ class HostedLiveSessionThread(QThread):
         )
 
     def transcript_revised(self, revision: TranscriptRevision) -> None:
-        self.transcript_revised_signal.emit(revision)
+        if not self._cloud_audio_paused.is_set():
+            self.transcript_revised_signal.emit(revision)
 
     def assistant_text_revised(self, revision: AssistantTextRevision) -> None:
-        self.assistant_text_revised_signal.emit(revision)
+        if not self._cloud_audio_paused.is_set():
+            self.assistant_text_revised_signal.emit(revision)
 
     def audio_received(self, frame: AudioFrame) -> None:
-        self.audio_received_signal.emit(frame)
+        if not self._cloud_audio_paused.is_set():
+            self.audio_received_signal.emit(frame)
 
     def action_proposed(self, proposal: ActionProposal) -> None:
         gateway = self._proposal_gateway
@@ -207,6 +237,8 @@ class HostedLiveSessionThread(QThread):
         controller = self._controller
         if gateway is None or dispatcher is None or controller is None:
             return
+        if self._cloud_audio_paused.is_set():
+            return
         conversion = gateway.convert(proposal)
         if conversion.decision.accepted:
             # Hosted audio currently has no parallel deterministic parser. The
@@ -215,11 +247,16 @@ class HostedLiveSessionThread(QThread):
             dispatcher.complete_local_routing(proposal.session_id, proposal.turn_id)
             result = await dispatcher.dispatch(
                 conversion,
-                on_local_result=lambda request, result: (
-                    self.local_action_result_signal.emit(request, result)
+                before_clarification=lambda: self.pause_for_clarification(
+                    proposal.turn_id
+                ),
+                on_local_result=lambda request, result: self._present_private_result(
+                    proposal.turn_id, request, result
                 ),
             )
         else:
+            if conversion.decision.reason is ProposalGatewayReason.COMPOUND:
+                dispatcher.clarification_controller.supersede()
             result = SanitizedActionResult(
                 session_id=proposal.session_id,
                 turn_id=proposal.turn_id,
@@ -227,6 +264,11 @@ class HostedLiveSessionThread(QThread):
                 status="denied",
                 message="The action proposal was rejected safely.",
             )
+        if (
+            result.status == "clarification_required"
+            or dispatcher.clarification_controller.leases.pending is not None
+        ):
+            self.pause_for_clarification(proposal.turn_id)
         if result.status == "confirmation_required":
             confirmation = dispatcher.pending_confirmation(
                 session_id=result.session_id,
@@ -237,6 +279,10 @@ class HostedLiveSessionThread(QThread):
                 self.action_confirmation_requested_signal.emit(confirmation)
                 return
         await self._return_action_result(controller, result)
+
+    def _present_private_result(self, turn_id: str, request, result) -> None:
+        self.pause_for_clarification(turn_id)
+        self.local_action_result_signal.emit(request, result)
 
     async def _resolve_action_confirmation(
         self,

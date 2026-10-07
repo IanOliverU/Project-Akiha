@@ -14,6 +14,67 @@ from project_akiha.database import DatabaseMigrator
 class DatabaseMigratorTest(unittest.TestCase):
     """Verify migration application and version tracking."""
 
+    def test_failed_upgrade_rolls_back_and_retries(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            migrations_dir = root / "migrations"
+            migrations_dir.mkdir()
+            (migrations_dir / "0001_initial.sql").write_text(
+                "CREATE TABLE retained(value INTEGER); "
+                "INSERT INTO retained VALUES(42);",
+                encoding="utf-8",
+            )
+            database_path = root / "akiha.sqlite3"
+            migrator = DatabaseMigrator(database_path, migrations_dir)
+            migrator.apply_pending()
+            upgrade = migrations_dir / "0002_upgrade.sql"
+            valid_sql = (
+                "CREATE TABLE added(value INTEGER); "
+                "INSERT INTO added VALUES(7); UPDATE retained SET value=99;"
+            )
+            upgrade.write_text(valid_sql + " INVALID SQL;", encoding="utf-8")
+            with self.assertLogs("project_akiha.database.migrator", level="ERROR"):
+                with self.assertRaises(sqlite3.Error):
+                    migrator.apply_pending()
+
+            connection = sqlite3.connect(database_path)
+            try:
+                self.assertEqual(
+                    connection.execute("SELECT value FROM retained").fetchall(), [(42,)]
+                )
+                self.assertEqual(
+                    connection.execute("SELECT version FROM schema_version").fetchall(),
+                    [(1,)],
+                )
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT name FROM sqlite_master WHERE name='added'"
+                    ).fetchall(),
+                    [],
+                )
+            finally:
+                connection.close()
+
+            upgrade.write_text(valid_sql, encoding="utf-8")
+            migrator.apply_pending()
+            migrator.apply_pending()
+            connection = sqlite3.connect(database_path)
+            try:
+                self.assertEqual(
+                    connection.execute("SELECT value FROM retained").fetchall(), [(99,)]
+                )
+                self.assertEqual(
+                    connection.execute("SELECT value FROM added").fetchall(), [(7,)]
+                )
+                self.assertEqual(
+                    connection.execute(
+                        "SELECT version FROM schema_version ORDER BY version"
+                    ).fetchall(),
+                    [(1,), (2,)],
+                )
+            finally:
+                connection.close()
+
     def test_applies_migrations_and_tracks_schema_version(self) -> None:
         with TemporaryDirectory() as directory:
             database_path = Path(directory) / "akiha.sqlite3"

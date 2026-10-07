@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 import tomllib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from ipaddress import ip_address
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import urlparse
 
@@ -547,6 +547,33 @@ class ExternalIntegrationsConfig:
             )
 
 
+MAX_MUSIC_FILES = 1000
+
+
+@dataclass(frozen=True, slots=True)
+class MusicFilesConfig:
+    """Explicit local file registrations, never provider or conversation data."""
+
+    paths: tuple[str, ...] = field(default=(), repr=False)
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.paths, tuple)
+            or len(self.paths) > MAX_MUSIC_FILES
+            or any(
+                not isinstance(path, str)
+                or not 1 <= len(path) <= 1024
+                or any(ord(c) < 32 for c in path)
+                or not (Path(path).is_absolute() or PureWindowsPath(path).is_absolute())
+                for path in self.paths
+            )
+            or len({path.casefold() for path in self.paths}) != len(self.paths)
+        ):
+            raise ValueError(
+                "music_files.paths must be bounded unique absolute local paths."
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
@@ -560,6 +587,11 @@ class AppConfig:
     voice: VoiceConfig = VoiceConfig()
     spotify: SpotifyConfig = SpotifyConfig()
     integrations: ExternalIntegrationsConfig = ExternalIntegrationsConfig()
+    music_files: MusicFilesConfig = MusicFilesConfig()
+
+    def with_music_files(self, music_files: MusicFilesConfig) -> AppConfig:
+        """Return a copy with updated local registrations."""
+        return replace(self, music_files=music_files)
 
     def with_pet_window(self, pet_window: PetWindowConfig) -> AppConfig:
         """Return a copy with updated pet window settings."""
@@ -653,6 +685,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     if not isinstance(spotify_data, dict):
         raise ValueError("spotify config must be a TOML table.")
 
+    music_data = data.get("music_files", {})
+    if not isinstance(music_data, dict) or set(music_data) - {"paths"}:
+        raise ValueError("music_files config must contain only paths.")
+    music_paths = music_data.get("paths", [])
+    if not isinstance(music_paths, list):
+        raise ValueError("music_files.paths must be a TOML array.")
+
     integrations_data = data.get("integrations", {})
     if not isinstance(integrations_data, dict):
         raise ValueError("integrations config must be a TOML table.")
@@ -673,6 +712,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         behavior=BehaviorConfig(**behavior_data),
         voice=VoiceConfig(**voice_data),
         spotify=SpotifyConfig(**spotify_data),
+        music_files=MusicFilesConfig(tuple(music_paths)),
         integrations=ExternalIntegrationsConfig(
             **integrations_data,
             gmail=GmailIntegrationConfig(**gmail_data),

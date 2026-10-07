@@ -12,6 +12,25 @@ from project_akiha.services.package_artifact import validate_package_artifact
 class PackageArtifactTest(unittest.TestCase):
     """Verify standalone artifact validation."""
 
+    def test_rejects_database_companions_without_a_main_database(self) -> None:
+        for extension in (".db", ".sqlite", ".sqlite3"):
+            for companion in ("-wal", "-shm", "-journal"):
+                with self.subTest(extension=extension, companion=companion):
+                    with tempfile.TemporaryDirectory() as directory:
+                        artifact_dir = Path(directory)
+                        _write_complete_artifact(artifact_dir)
+                        private_file = (
+                            artifact_dir / "assets" / f"PRIVATE{extension}{companion}"
+                        )
+                        private_file = private_file.with_name(private_file.name.upper())
+                        private_file.write_bytes(b"private database page sentinel")
+
+                        issues = validate_package_artifact(artifact_dir)
+
+                        self.assertEqual(len(issues), 1)
+                        self.assertEqual(issues[0].path, private_file)
+                        self.assertIn("must not be included", issues[0].message)
+
     def test_accepts_complete_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact_dir = Path(directory)

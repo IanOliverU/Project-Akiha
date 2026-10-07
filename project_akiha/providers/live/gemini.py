@@ -100,6 +100,9 @@ class GeminiTransportEvent:
     action_arguments: dict[str, object] | None = field(default=None, repr=False)
     provider_call_id: str | None = field(default=None, repr=False)
     provider_function_name: str | None = field(default=None, repr=False)
+    batch_id: str = ""
+    batch_size: int = 1
+    batch_index: int = 0
 
     def __post_init__(self) -> None:
         if self.kind in {
@@ -640,6 +643,9 @@ class GeminiLiveSessionAdapter:
                     source="gemini-live",
                     action_name=event.action_name or "",
                     arguments=event.action_arguments or {},
+                    batch_id=event.batch_id,
+                    batch_size=event.batch_size,
+                    batch_index=event.batch_index,
                 )
             )
         elif event.kind is GeminiTransportEventKind.TURN_COMPLETE:
