@@ -1,7 +1,37 @@
 # Phase 13B implementation and verification
 
-Status: audit corrections in the working tree; another independent audit and owner acceptance pending.
-This document is not phase closure or authorization to begin 13C.
+Status: complete; owner accepted Phase 13B on 2026-10-08 with the explicit
+shutdown/package deferrals below. Phase 13C is authorized and active.
+
+## Final owner acceptance — 2026-10-08
+
+The owner reported successful manual functional checks and authorized acceptance
+after a bounded closing review and ten successful historical Qt-pair repetitions.
+Those conditions are now satisfied:
+
+- Unrestricted connected selection: 14 tests, OK, exit 0.
+- Unrestricted single-process complete discovery: 1,878 tests, OK, exit 0,
+  no skips, failures or errors. The inventory exactly matches current discovery.
+- Ten unrestricted historical Qt-pair runs: two tests each, every run OK,
+  exit 0, no skips or errors. Evidence:
+  `dist/phase13b-qt-owner-20261008-133352/`.
+- Bounded review: no new implementation blocker; 72 independent production
+  service/controller probes passed. SQLite inspection cleanup now closes the
+  connection explicitly without changing privacy assertions.
+
+The owner explicitly deferred FOLLOWUP-13B-SHUTDOWN (graceful shutdown while a
+clarification is pending) and FOLLOWUP-13B-PACKAGE (packaged smoke). Graceful
+pending-clarification shutdown remains unproved. FOLLOWUP-CLEANUP-GUARD is a
+mandatory prerequisite: fix and verify the destructive WorkDir cleanup guard
+before any clean packaging. Source smoke verified database/log initialization,
+but its forced stop does not satisfy the deferred graceful-shutdown check.
+
+See [the bounded closing review](../../audits/PHASE13B_BOUNDED_REVIEW_2026-10-08.md)
+and [the 13C kickoff](PHASE13C.md). The owner's acceptance with these deferrals
+does not waive the cleanup prerequisite or assert package/release acceptance.
+Historical pending/blocked records below describe earlier revisions and are
+superseded by this closure record. Commit and push status must be checked from
+Git; this record makes no claim that they have succeeded.
 
 ## Requirement-to-test checklist (recorded before implementation)
 

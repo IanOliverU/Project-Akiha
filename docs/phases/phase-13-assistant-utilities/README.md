@@ -1,6 +1,6 @@
 # Phase 13: Everyday Assistant Utilities
 
-**Status:** In progress - Phase 13A complete; Phase 13B implementation awaiting independent audit and owner acceptance
+**Status:** In progress - Phases 13A and 13B complete; Phase 13C active
 
 ## Purpose
 
@@ -145,21 +145,27 @@ direct LLM access to schedulers, network transports, repositories, or writers.
 
 ### 13B: Ambiguity and confirmation handling
 
-Implementation is under review; the unchecked closure items below remain open.
-See [Phase 13B implementation and verification](PHASE13B.md). No 13C activation
-or migration is authorized by this implementation.
+Complete: owner accepted on 2026-10-08 after the bounded review, unrestricted
+1,878-test single-process pass and ten passing historical Qt-pair repetitions.
+See [Phase 13B implementation and verification](PHASE13B.md) for evidence and
+the explicitly deferred pending-clarification shutdown and packaged smoke.
+No clean packaging until the destructive WorkDir cleanup guard is fixed and verified.
 
-- [ ] Detect missing targets, multiple plausible matches, uncertain times, and
+- [x] Detect missing targets, multiple plausible matches, uncertain times, and
   incomplete consequential requests.
-- [ ] Ask one concise clarification instead of guessing.
-- [ ] Reuse existing scoped permissions and confirmations for consequential
+- [x] Ask one concise clarification instead of guessing.
+- [x] Reuse existing scoped permissions and confirmations for consequential
   operations.
-- [ ] Bind a clarification response to the original typed proposal with an
+- [x] Bind a clarification response to the original typed proposal with an
   expiry and replay protection.
-- [ ] Add deterministic ambiguity, cancellation, stale-response, and injection
+- [x] Add deterministic ambiguity, cancellation, stale-response, and injection
   tests.
 
 ### 13C: One-shot timers
+
+Active: bounded design and implementation preparation started on 2026-10-08.
+See [Phase 13C scope and kickoff](PHASE13C.md). The implementation items below
+remain unchecked; phase activation does not expose any timer operation.
 
 - [ ] Add create, list, inspect, cancel, and optional snooze operations for
   one-shot timers.

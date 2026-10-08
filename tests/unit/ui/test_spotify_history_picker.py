@@ -11,6 +11,7 @@ import os
 import sqlite3
 import time
 import unittest
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
@@ -274,7 +275,7 @@ class SpotifyHistoryPickerTest(unittest.TestCase):
         self.begin()
         self.drain()
         ids = self.leases.pending.choice_ids
-        with sqlite3.connect(self.root / "history.sqlite3") as c:
+        with closing(sqlite3.connect(self.root / "history.sqlite3")) as c:
             rows = "\n".join(
                 repr(c.execute('SELECT * FROM "' + name + '"').fetchall())
                 for (name,) in c.execute(
