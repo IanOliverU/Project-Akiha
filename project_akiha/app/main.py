@@ -80,6 +80,7 @@ from project_akiha.app.streaming_voice_output_controller import (
 from project_akiha.app.talk_interruption_controller import (
     TalkInterruptionController,
 )
+from project_akiha.app.timer_delivery_controller import TimerDeliveryController
 from project_akiha.app.voice_audio_bridge import RealtimeAudioFrameBridge
 from project_akiha.app.voice_capture_controller import VoiceCaptureController
 from project_akiha.app.voice_controller import VoiceController
@@ -200,6 +201,7 @@ from project_akiha.core.shop import (
 )
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.core.state.voice import VoiceState
+from project_akiha.core.utilities.clock import SystemUtilityClock
 from project_akiha.core.voice_session import (
     LiveResponseModality,
     LiveSessionConfig,
@@ -221,6 +223,7 @@ from project_akiha.database import (
     SQLitePetStateRepository,
     SQLiteShopRepository,
 )
+from project_akiha.database.sqlite_timer_repository import SQLiteTimerRepository
 from project_akiha.integrations.discord import DiscordGatewayProvider
 from project_akiha.integrations.gmail import GmailApiClient, GmailIntegrationProvider
 from project_akiha.integrations.gmail.session import GmailSession
@@ -383,6 +386,8 @@ from project_akiha.services.speech_identity import (
 )
 from project_akiha.services.speech_input import SpeechInputService
 from project_akiha.services.speech_output import SpeechOutputService
+from project_akiha.services.timer_actions import build_timer_executors
+from project_akiha.services.timer_schedule import TimerScheduleService
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
@@ -666,12 +671,20 @@ def _run_application() -> int:
         spotify_activator,
         auto_launch_desktop_app=config.spotify.auto_launch_desktop_app,
     )
+    try:
+        timer_schedule_service = TimerScheduleService(
+            SQLiteTimerRepository(paths.database_path), SystemUtilityClock()
+        )
+    except (sqlite3.Error, OSError, ValueError):
+        logger.error("Local timers unavailable.")
+        timer_schedule_service = None
     assistant_action_service = AssistantActionService(
         ActionRequestValidator(build_default_action_registry(), action_path_policy),
         ActionPermissionPolicy(action_path_policy),
         action_repository,
         action_repository,
         executors=(
+            *build_timer_executors(timer_schedule_service),
             FileSearchExecutor(),
             DirectorySearchExecutor(),
             OpenDirectoryExecutor(),
@@ -3926,6 +3939,9 @@ def _run_application() -> int:
 
     def shutdown_app() -> None:
         action_clarification.invalidate()
+        utility_timer_tick.stop()
+        if timer_schedule_service is not None:
+            timer_schedule_service.close()
         provider_tool_fallback_gate.clear()
         local_conversation_tick_timer.stop()
         notification_queue_timer.stop()
@@ -4082,6 +4098,25 @@ def _run_application() -> int:
         event_bus=event_bus,
         speech_controller=assistant_speech_controller,
     )
+    timer_delivery_controller = TimerDeliveryController(
+        timer_schedule_service,
+        inbox=notification_repository,
+        notification_policy=notification_policy,
+        activity_provider=lambda: activity_controller.snapshot,
+        delivery_controller=proactive_delivery_controller,
+        preference_provider=lambda: config.integrations,
+        busy_provider=lambda: (
+            voice_controller.state != VoiceState.IDLE
+            or voice_controller.operation != "none"
+            or has_active_operations()
+            or action_clarification.leases.pending is not None
+        ),
+        now_provider=lambda: datetime.now().astimezone(),
+    )
+    utility_timer_tick = QTimer()
+    utility_timer_tick.setInterval(1_000)
+    utility_timer_tick.timeout.connect(timer_delivery_controller.tick)
+    utility_timer_tick.start()
     external_integration_runtime.start()
 
     def cleanup_pet_runtime_thread(thread: PetRuntimeEvaluationThread) -> None:
@@ -4134,6 +4169,9 @@ def _run_application() -> int:
         activity_controller.snapshot,
     )
     app._akiha_services = (
+        timer_schedule_service,
+        timer_delivery_controller,
+        utility_timer_tick,
         assistant_speech_controller,
         action_repository,
         assistant_action_history_window,

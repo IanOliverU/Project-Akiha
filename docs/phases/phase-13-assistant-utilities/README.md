@@ -163,9 +163,9 @@ No clean packaging until the destructive WorkDir cleanup guard is fixed and veri
 
 ### 13C: One-shot timers
 
-Active: bounded design and implementation preparation started on 2026-10-08.
-See [Phase 13C scope and kickoff](PHASE13C.md). The implementation items below
-remain unchecked; phase activation does not expose any timer operation.
+Active: bounded one-shot timer implementation added on 2026-10-08.
+See [Phase 13C implementation and validation](PHASE13C.md). Review and owner
+acceptance remain pending; the checklist below is not a completion record.
 
 - [ ] Add create, list, inspect, cancel, and optional snooze operations for
   one-shot timers.
@@ -183,8 +183,9 @@ remain unchecked; phase activation does not expose any timer operation.
 - [ ] Add list, cancel, and snooze operations without introducing a second
   scheduler.
 - [ ] Define a bounded missed-reminder grace policy for application downtime.
-- [ ] Add migration `0015` only for minimal timer/reminder state and delivery
-  receipts.
+- [ ] Reconcile reminder persistence with migration `0015`, introduced by 13C
+  for minimal timer state and atomic inbox receipts; use the existing migrator
+  for any subsequently approved schema extension.
 - [ ] Keep recurring reminders deferred until one-shot behavior is accepted.
 
 ### 13E: Read-only weather and current information

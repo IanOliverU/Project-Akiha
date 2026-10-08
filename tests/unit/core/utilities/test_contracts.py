@@ -159,7 +159,9 @@ class UtilityContractCatalogTest(unittest.TestCase):
 
         self.assertIn(UtilityOperation.NAVIGATION_SEARCH.value, active_ids)
         self.assertIn(UtilityOperation.NAVIGATION_OPEN.value, active_ids)
-        self.assertNotIn(UtilityOperation.TIMER_CREATE.value, active_ids)
+        self.assertIn(UtilityOperation.TIMER_CREATE.value, active_ids)
+        self.assertNotIn(UtilityOperation.TIMER_SNOOZE.value, active_ids)
+        self.assertNotIn(UtilityOperation.REMINDER_CREATE.value, active_ids)
         self.assertNotIn(UtilityOperation.WEATHER_CURRENT.value, active_ids)
         self.assertNotIn(UtilityOperation.EXPORT_CONVERSATIONS.value, active_ids)
 

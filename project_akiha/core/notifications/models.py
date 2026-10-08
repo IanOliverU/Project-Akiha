@@ -12,6 +12,10 @@ from project_akiha.core.integrations import (
     ExternalEventPriority,
     ExternalService,
 )
+from project_akiha.core.utilities.timers import (
+    TimerNotificationKind,
+    TimerNotificationSource,
+)
 
 
 class NotificationInboxStatus(StrEnum):
@@ -53,8 +57,8 @@ class NotificationChannelDecision:
 class SanitizedNotification:
     """Rendered notification safe for bounded local persistence."""
 
-    service: ExternalService
-    event_kind: ExternalEventKind
+    service: ExternalService | TimerNotificationSource
+    event_kind: ExternalEventKind | TimerNotificationKind
     priority: ExternalEventPriority
     display_text: str
     occurred_at: datetime

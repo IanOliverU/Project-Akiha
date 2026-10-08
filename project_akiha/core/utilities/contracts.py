@@ -20,6 +20,7 @@ class UtilityOperation(StrEnum):
 
     TIMER_CREATE = "timers.create"
     TIMER_LIST = "timers.list"
+    TIMER_INSPECT = "timers.inspect"
     TIMER_CANCEL = "timers.cancel"
     TIMER_SNOOZE = "timers.snooze"
     REMINDER_CREATE = "reminders.create"
@@ -291,6 +292,7 @@ def build_phase_13_utility_catalog() -> UtilityContractCatalog:
             may_schedule_notification=True,
         ),
         UtilityOperationContract(UtilityOperation.TIMER_LIST, **schedule_read),
+        UtilityOperationContract(UtilityOperation.TIMER_INSPECT, **schedule_read),
         UtilityOperationContract(UtilityOperation.TIMER_CANCEL, **schedule_write),
         UtilityOperationContract(
             UtilityOperation.TIMER_SNOOZE,

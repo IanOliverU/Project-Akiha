@@ -42,6 +42,15 @@ class ActionPermissionPolicy:
         confirmed: bool = False,
     ) -> PermissionDecision:
         """Return the current permission decision without executing anything."""
+        # Local request-bound scheduling does not grant filesystem or external
+        # authority. Timers are not exposed in the provider tool catalog.
+        if action.definition.permission_capability == "timers.manage":
+            return (
+                PermissionDecision.GRANTED
+                if action.request.source == "chat"
+                and action.normalized_target == "timers"
+                else PermissionDecision.MISSING
+            )
         matching_grant = any(
             self._grant_matches(action, grant) for grant in grants if grant.is_active
         )

@@ -45,6 +45,7 @@ from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
+from project_akiha.services.timer_actions import parse_timer_command
 
 _OPEN_DIRECTORY_PATTERN = re.compile(
     r"^(?:(?:/open-dir)\s+|(?:open\s+(?:directory|folder))\s*[:=]\s*)" r"(?P<path>.+)$",
@@ -523,6 +524,9 @@ class AssistantActionRequestParser:
         if envelope is None:
             return None
         normalized = envelope.command_text
+        timer_request = parse_timer_command(normalized, request_id)
+        if timer_request is not None:
+            return timer_request
 
         if _SPOTIFY_CURRENT_PLAYBACK_PATTERN.fullmatch(normalized) is not None:
             return _request(

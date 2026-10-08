@@ -62,7 +62,7 @@ class PackageArtifactTest(unittest.TestCase):
 
             issues = validate_package_artifact(artifact_dir)
 
-        self.assertEqual(len(issues), 3)
+        self.assertEqual(len(issues), 4)
         self.assertTrue(
             any("0013_external_integrations.sql" in str(issue.path) for issue in issues)
         )
@@ -70,6 +70,20 @@ class PackageArtifactTest(unittest.TestCase):
             any("0014_notification_center.sql" in str(issue.path) for issue in issues)
         )
         self.assertTrue(any("SQL files" in issue.message for issue in issues))
+
+    def test_reports_missing_timer_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            (
+                artifact_dir
+                / "project_akiha/database/migrations/0015_one_shot_timers.sql"
+            ).unlink()
+
+            issues = validate_package_artifact(artifact_dir)
+
+        self.assertEqual(len(issues), 1)
+        self.assertIn("0015_one_shot_timers.sql", str(issues[0].path))
 
     def test_reports_missing_google_genai_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -193,3 +207,6 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
         "",
         encoding="utf-8",
     )
+    (
+        artifact_dir / "project_akiha/database/migrations/0015_one_shot_timers.sql"
+    ).write_text("", encoding="utf-8")

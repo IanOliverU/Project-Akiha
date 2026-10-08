@@ -55,6 +55,22 @@ class ActionRequestValidator:
             request.parameters,
             definition.parameters,
         )
+        if definition.action_id.startswith("timers."):
+            from project_akiha.core.utilities.timers import (
+                validate_timer_id,
+                validate_timer_input,
+            )
+
+            try:
+                if definition.action_id == "timers.create":
+                    validate_timer_input(
+                        normalized_parameters["duration_seconds"],
+                        normalized_parameters.get("label", ""),
+                    )
+                if "timer_id" in normalized_parameters:
+                    validate_timer_id(normalized_parameters["timer_id"])
+            except ValueError as error:
+                raise _invalid_parameters("Invalid timer parameters.") from error
         if definition.action_id == SPOTIFY_VOLUME_ACTION:
             _validate_spotify_volume_parameters(normalized_parameters)
         raw_target = normalized_parameters[definition.target_parameter]

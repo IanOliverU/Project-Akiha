@@ -37,6 +37,10 @@ class ActionModelsAndRegistryTest(unittest.TestCase):
         self.assertEqual(
             tuple(item.action_id for item in registry.definitions),
             (
+                "timers.create",
+                "timers.list",
+                "timers.inspect",
+                "timers.cancel",
                 "files.search",
                 "directories.search",
                 "files.open_directory",

@@ -16,6 +16,10 @@ from project_akiha.core.notifications import (
     NotificationInboxStatus,
     SanitizedNotification,
 )
+from project_akiha.core.utilities.timers import (
+    TimerNotificationKind,
+    TimerNotificationSource,
+)
 from project_akiha.database.migrator import DatabaseMigrator
 
 
@@ -162,8 +166,16 @@ class SQLiteNotificationRepository:
 def _record_from_row(row: tuple[object, ...]) -> NotificationInboxRecord:
     return NotificationInboxRecord(
         id=int(row[0]),
-        service=ExternalService(str(row[1])),
-        event_kind=ExternalEventKind(str(row[2])),
+        service=(
+            TimerNotificationSource.TIMERS
+            if row[1] == "timers"
+            else ExternalService(str(row[1]))
+        ),
+        event_kind=(
+            TimerNotificationKind(str(row[2]))
+            if row[1] == "timers"
+            else ExternalEventKind(str(row[2]))
+        ),
         priority=ExternalEventPriority(str(row[3])),
         display_text=str(row[4]),
         occurred_at=_parse_timestamp(str(row[5])),

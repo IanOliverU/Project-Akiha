@@ -35,10 +35,12 @@ class ProactiveDeliveryController:
     def deliver_request(
         self,
         request: ProactiveDeliveryRequest,
+        *,
+        speech_enabled: bool = True,
     ) -> ProactiveDeliveryResult:
         """Deliver a request and publish the delivery result."""
         result = self._delivery_service.deliver(request, self._surface)
-        self._publish_result(result)
+        self._publish_result(result, source_payload={"speech_enabled": speech_enabled})
         return result
 
     def _handle_suggestion_ready(self, event: Event) -> None:

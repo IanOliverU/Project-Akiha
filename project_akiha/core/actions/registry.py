@@ -51,6 +51,53 @@ SPOTIFY_PLAYBACK_CAPABILITY = "spotify.playback"
 ALLOWLISTED_APPLICATION_IDS = ("chrome", "discord", "spotify", "vlc", "vscode")
 
 
+def _timer_definitions() -> tuple[ActionDefinition, ...]:
+    from project_akiha.core.utilities.timers import MAX_TIMER_SECONDS, TIMER_ACTIONS
+
+    service = ActionParameterSpec(
+        "service", ParameterKind.STRING, allowed_values=("timers",)
+    )
+    definitions = []
+    for action_id in TIMER_ACTIONS:
+        parameters = [service]
+        if action_id == "timers.create":
+            parameters.extend(
+                (
+                    ActionParameterSpec(
+                        "duration_seconds",
+                        ParameterKind.INTEGER,
+                        minimum_value=1,
+                        maximum_value=MAX_TIMER_SECONDS,
+                    ),
+                    ActionParameterSpec(
+                        "label", ParameterKind.STRING, required=False, max_length=64
+                    ),
+                )
+            )
+        if action_id in {"timers.inspect", "timers.cancel"}:
+            parameters.append(
+                ActionParameterSpec("timer_id", ParameterKind.STRING, max_length=38)
+            )
+        definitions.append(
+            ActionDefinition(
+                action_id,
+                "Manage an explicitly requested local one-shot timer.",
+                (
+                    ActionRisk.READ_ONLY
+                    if action_id in {"timers.list", "timers.inspect"}
+                    else ActionRisk.USER_VISIBLE
+                ),
+                "timers.manage",
+                ConfirmationPolicy.NEVER,
+                action_id.replace(".", "_"),
+                "service",
+                tuple(parameters),
+                5,
+            )
+        )
+    return tuple(definitions)
+
+
 class ActionRegistry:
     """Resolve only action definitions registered by the application."""
 
@@ -82,6 +129,7 @@ def build_default_action_registry() -> ActionRegistry:
     """Build the Phase 8 allowlist without enabling any executors."""
     return ActionRegistry(
         (
+            *_timer_definitions(),
             ActionDefinition(
                 action_id=FILE_SEARCH_ACTION,
                 description=(

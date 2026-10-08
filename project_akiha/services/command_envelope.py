@@ -11,7 +11,7 @@ _MAX_ENVELOPE_LENGTH = 2_000
 _ACTION_VERB = (
     r"(?:open|launch|start|close|quit|exit|play|pause|resume|continue|search|"
     r"find|show|take|turn|switch|set|raise|lower|increase|decrease|mute|seek|"
-    r"skip|restart|listen|look|go|keep|make)"
+    r"skip|restart|listen|look|go|keep|make|create|cancel|list|inspect)"
 )
 _ACTION_GERUND = (
     r"(?:opening|launching|starting|closing|quitting|exiting|playing|pausing|"

@@ -38,6 +38,7 @@ expected_tables = {
     "memories",
     "messages",
     "notification_inbox",
+    "utility_timers",
     "pet_reward_grants",
     "pet_state",
     "pet_state_history",

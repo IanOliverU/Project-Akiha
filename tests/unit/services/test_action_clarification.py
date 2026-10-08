@@ -382,18 +382,17 @@ class ActionClarificationTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 approved_directory_aliases(roots)
 
-    def test_uncertain_time_is_contract_only_without_registered_utility(self) -> None:
+    def test_uncertain_time_reminders_remain_contract_only(self) -> None:
         spec = ActionClarificationSpec(
             ActionClarificationReason.UNCERTAIN_TIME, ("time",)
         )
         self.assertEqual(spec.reason.value, "uncertain_time")
         registry = build_default_action_registry()
         for definition in registry.definitions:
-            self.assertNotIn("timer", definition.action_id)
             self.assertNotIn("reminder", definition.action_id)
         with self.assertRaises(ValueError):
             self.leases.begin(
-                ActionRequest("timer-1", "timers.create", "chat", {}), spec
+                ActionRequest("reminder-1", "reminders.create", "chat", {}), spec
             )
 
     def test_incomplete_command_envelope_rejects_negation_and_hypothetical(

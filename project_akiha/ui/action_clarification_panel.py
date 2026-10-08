@@ -191,6 +191,8 @@ class ActionClarificationPanel(QWidget):
             else "target"
         )
         questions = {
+            "duration_seconds": "How many whole seconds? Enter 1 to 604800.",
+            "timer_id": "Which timer? Enter the exact timer ID shown by List timers.",
             "application_id": "Which allowlisted application?",
             "path": "Which approved local file or directory?",
             "root": "Which approved local search root?",
