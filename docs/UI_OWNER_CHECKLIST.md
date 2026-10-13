@@ -1,5 +1,9 @@
 # Native UI candidate owner checklist
 
+Historical checklist. Current owner checks are consolidated in [phases/phase-13-assistant-utilities/OWNER_CHECKLIST_CURRENT_HEAD.md](phases/phase-13-assistant-utilities/OWNER_CHECKLIST_CURRENT_HEAD.md).
+Do not repeat this historical list as an additional acceptance requirement.
+
+
 UI acceptance and Phase 13I acceptance remain pending. Use the new candidate
 listed in UI_OVERHAUL_VERIFICATION.md, rather than an earlier packaged build.
 Test your existing profile first; do not delete or overwrite your private data.

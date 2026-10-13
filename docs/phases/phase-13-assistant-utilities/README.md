@@ -1,16 +1,21 @@
 # Phase 13: Everyday Assistant Utilities
 
-**Status:** Complete - Phases 13A through 13I. Final owner acceptance recorded on
-2026-10-13 after the owner confirmed the entire Phase 13 and reviewed the native
-UI candidate. The owner authorized the final chat highlight removal, commit and
-push. This acceptance is owner-reported, not an assertion that automated checks
-performed live account, microphone or cloud verification.
+**Current status (2026-10-13):** Phase 13 pending exact-revision acceptance
+revalidation at HEAD `88a7e6b56322759570dc0c9ee5c72b9fbf88a147`, as requested
+by the owner after the push. Implementation and prior functional approval are
+preserved. Phase 13I is reopened for the remaining candidate/UI/manual checks;
+no later phase is activated. The earlier owner-reported closure remains in the
+chronological records, superseded for current status by this instruction.
 
 See [consolidated evidence](CONSOLIDATED_VERIFICATION.md),
 [owner checklist and acceptance](OWNER_CHECKLIST.md), and
 [UI verification](../../UI_OVERHAUL_VERIFICATION.md). Earlier pending statements
 in chronological records describe their historical state and are superseded by
-this acceptance. The cleanup guard remains mandatory for every clean build.
+the current instruction. The cleanup guard remains mandatory for every clean build.
+
+Current evidence: [exact-HEAD reconciliation](CURRENT_HEAD_VERIFICATION.md).
+Use only [the consolidated outstanding-check checklist](OWNER_CHECKLIST_CURRENT_HEAD.md)
+for this candidate; older checklists and package screenshots are historical evidence.
 
 ## Purpose
 
@@ -262,7 +267,7 @@ under 13I and final acceptance remains pending.
 - [x] Build one fast consolidated PyInstaller candidate after source gates.
 - [x] Verify package privacy, dependency completeness, single-instance behavior,
   providers, voice, and graceful shutdown.
-- [x] Record owner acceptance and formally close Phase 13.
+- [ ] Reconcile exact-HEAD candidate checks and record renewed final acceptance.
 
 ## Explicitly Deferred
 

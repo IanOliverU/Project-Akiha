@@ -1,5 +1,12 @@
 # Native UI overhaul — 2026-10-12
 
+**Current status (2026-10-13):** UI implementation included in pushed HEAD 88a7e6b.
+Phase 13I and exact-revision UI acceptance are pending under the owner's latest
+instruction. See [current reconciliation](phases/phase-13-assistant-utilities/CURRENT_HEAD_VERIFICATION.md)
+and [one consolidated checklist](phases/phase-13-assistant-utilities/OWNER_CHECKLIST_CURRENT_HEAD.md).
+Records below are chronological history; no new commit/push occurred.
+
+
 Status: active presentation/interaction work, separate from Phase 13. Owner
 Phase 13 testing is paused, not passed. Phase 13I and final UI acceptance remain
 pending a fresh consolidated candidate and refreshed checklist. No commit/push.

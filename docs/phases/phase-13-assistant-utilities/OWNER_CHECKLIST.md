@@ -1,5 +1,9 @@
 # Consolidated Phase 13 owner checklist
 
+Historical checklist. Current owner checks are consolidated in [OWNER_CHECKLIST_CURRENT_HEAD.md](OWNER_CHECKLIST_CURRENT_HEAD.md).
+Do not repeat this historical list as an additional acceptance requirement.
+
+
 Final acceptance remains pending this checklist. Use the **entire candidate
 folder**, not Akiha.exe by itself. Candidate:
 `dist/ui-overhaul-candidate-20261013-final/Akiha/Akiha.exe` once the fresh build and

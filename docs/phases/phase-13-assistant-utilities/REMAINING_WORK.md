@@ -191,3 +191,11 @@ environment failures remain documented alongside later passing gates. Generated
 builds, verification artifacts and private data are excluded from the checkpoint.
 The clean-build guard remains mandatory; recurrence, restore/import and all
 other explicit exclusions remain out of scope.
+
+## Current owner instruction - 2026-10-13 exact-HEAD revalidation
+
+After pushing 88a7e6b, the owner requested Phase 13 remain pending until the
+required exact-revision checks pass. Earlier acceptance/closure is preserved
+as history; it does not close this renewed candidate gate. See
+CURRENT_HEAD_VERIFICATION.md and OWNER_CHECKLIST_CURRENT_HEAD.md. No additional
+features, implementation changes, commit or push are part of this reconciliation.
