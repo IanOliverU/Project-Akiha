@@ -261,6 +261,7 @@ from project_akiha.integrations.spotify.tracks import (
     SpotifyTrackSelectionStore,
     build_spotify_track_executors,
 )
+from project_akiha.providers import windows_actions
 from project_akiha.providers.ai import (
     AIProvider,
     MockAIProvider,
@@ -723,10 +724,14 @@ def _run_application(*, shutdown_smoke_report: Path | None = None) -> int:
             ),
             FileSearchExecutor(),
             DirectorySearchExecutor(),
-            OpenDirectoryExecutor(),
-            OpenFileExecutor(),
-            AllowlistedApplicationExecutor(application_catalog),
-            CloseAllowlistedApplicationExecutor(application_catalog),
+            OpenDirectoryExecutor(windows_actions.open_directory),
+            OpenFileExecutor(windows_actions.open_file),
+            AllowlistedApplicationExecutor(
+                application_catalog, windows_actions.launch_application
+            ),
+            CloseAllowlistedApplicationExecutor(
+                application_catalog, windows_actions.close_application_windows
+            ),
             *build_spotify_playback_executors(
                 spotify_client,
                 spotify_device_coordinator,

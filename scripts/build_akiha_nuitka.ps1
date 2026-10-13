@@ -276,6 +276,17 @@ try {
         "-m",
         "nuitka"
     )
+    Invoke-TimedCheckedCommand {
+        & $PythonExecutable -B -m project_akiha.tools.build_identity check
+        if ($LASTEXITCODE -ne 0) { throw 'Pinned release dependency check failed.' }
+        & $PythonExecutable -B -m pip check
+    } "Pinned dependencies and consistency"
+    $IdentityInputs = Join-Path $ReportDir "inputs-$BuildStamp.json"
+    $IdentityReport = Join-Path $ReportDir "identity-$BuildStamp.json"
+    Invoke-TimedCheckedCommand {
+        & $PythonExecutable -B -m project_akiha.tools.build_identity capture --report $IdentityInputs
+    } "Build input identity"
+
     if ($CleanRelease) {
         $BuildMode = "clean-release"
         $CacheDirectory = [System.IO.Path]::GetFullPath($ReleaseCacheDir)
@@ -451,6 +462,9 @@ try {
     Invoke-TimedCheckedCommand {
         & $PythonExecutable -m project_akiha.tools.verify_packaged_artifact $BuiltArtifactDir
     } "Packaged artifact check"
+    Invoke-TimedCheckedCommand {
+        & $PythonExecutable -B -m project_akiha.tools.build_identity finalize --inputs $IdentityInputs --artifact $BuiltArtifactDir --report $IdentityReport
+    } "Build artifact identity"
     $BuildOutcome = "passed"
 }
 finally {

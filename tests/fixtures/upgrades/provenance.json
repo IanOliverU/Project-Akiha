@@ -1,0 +1,62 @@
+{
+  "project_akiha/database/migrations/0001_conversation_transcripts.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "171c24fa22a498d467605ae20b8b7675fd1f32d8b4f020f16cd5722cad6c350f"
+  },
+  "project_akiha/database/migrations/0002_memories.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "8eb1345abf9fcea58c98bf1b8c9a17ce3fc6358abe67704a74caa2fb88736e6c"
+  },
+  "project_akiha/database/migrations/0003_conversation_summaries.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "bbcb84f9a2e7d07591b0e7d9bef69961e9729f92889a818c05cf69a90555889e"
+  },
+  "project_akiha/database/migrations/0004_memory_archiving.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "c995fb9604f6cc6056b563b235f7687c1be61fe782e0933aad25c3fb8a8c082f"
+  },
+  "project_akiha/database/migrations/0005_memory_embeddings.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "d3f1e91c072264cd189a9a5e241a55986a078a6a7cb5b771548d009d876e9c2f"
+  },
+  "project_akiha/database/migrations/0006_behavior_events.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "8da09c9ef7541f4623a0589422db39a8908226dd2e386c15a12c100b1efd6c09"
+  },
+  "project_akiha/database/migrations/0007_message_translations.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "c37143a4ec5701ab18cdae49dc05868ef42ec3404b1d67c8e89a5261d088da78"
+  },
+  "project_akiha/database/migrations/0008_assistant_actions.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "1cc1828846b6ce10ed18519a6b559affabaf1675dd4a828e6e7a8f983980d960"
+  },
+  "project_akiha/database/migrations/0009_pet_state.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "cf2d8c06c940f491975924a8952087401a49056f19e36efff2fb50c09641513d"
+  },
+  "project_akiha/database/migrations/0010_pet_rewards.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "e9b03bcd94b4153a223a357d1ca81c78ddc402f8a93631b572439b1b23411439"
+  },
+  "project_akiha/database/migrations/0011_shop_inventory.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "99912af060e12a833f3c4db64170d1741140a75af2e8742b8099d76737c0c795"
+  },
+  "project_akiha/database/migrations/0012_appearance_selection.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "a64bcb6845d6f6dc8cc529b11d869af0b60ef7061807dafda4f80ead1dccc0ea"
+  },
+  "project_akiha/database/migrations/0013_external_integrations.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "eef6dba29a0607cdf3ca448f0884f18b9a19d6d948d7d25d3437fcb923835be4"
+  },
+  "project_akiha/database/migrations/0014_notification_center.sql": {
+    "revision": "ea93f727aac5ee10331619c897bf919c4323aba2",
+    "sha256": "37d3cde0049949f2a1e3685402b70926e50ef198196023bc8acce6ded6232eb4"
+  },
+  "project_akiha/database/migrations/0015_one_shot_timers.sql": {
+    "revision": "c58474920ad31ac97f07222257c32f2d86c35ade",
+    "sha256": "625145f4324d8ea91d1aa704450a63bbf0e1f7541f1d6291b8bb7f7172a1538b"
+  }
+}

@@ -116,7 +116,8 @@ class GmailIntegrationProvider:
         except GmailApiError as error:
             self._set_health(error.code)
         except Exception:
-            self._logger.exception("Gmail synchronization failed safely.")
+            # Transport exceptions can contain tokens, metadata and private paths.
+            self._logger.warning("Gmail synchronization failed: unexpected_error.")
             self._set_health("provider_unavailable")
         else:
             self._set_health("available")

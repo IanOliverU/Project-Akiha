@@ -25,7 +25,7 @@ material is separated by purpose.
 
 | Phase | Status | Documentation |
 | --- | --- | --- |
-| 13 - Everyday Assistant Utilities | 13A/13B complete; 13C active | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
+| 13 - Everyday Assistant Utilities | Implemented; renewed candidate acceptance pending | [`phases/phase-13-assistant-utilities/`](phases/phase-13-assistant-utilities/) |
 
 Phase 11A-11G provide typed provider-neutral events, fail-closed validation,
 hashed SQLite deduplication receipts, Gmail metadata-only OAuth/polling, an
@@ -41,15 +41,13 @@ recovery, unified provider diagnostics, and a consolidated PyInstaller
 candidate. Automated and owner packaged verification passed, and Phase 12
 formally closed on 2026-09-02.
 
-Phase 13A establishes the non-executable utility ownership/safety catalog and
-reuses the existing action, permission, event, notification, Settings, and
-migration boundaries. Phase 13B was owner-accepted on 2026-10-08 with explicit
-pending-clarification shutdown and packaged-smoke deferrals. The cleanup guard
-must be fixed and verified before clean packaging. Phase 13C is active for
-one-shot timers; its [kickoff](phases/phase-13-assistant-utilities/PHASE13C.md)
-records the bounded scope.
-Its [implementation record](phases/phase-13-assistant-utilities/PHASE13B.md) documents request-bound clarification
-and confirmation handling before any utility executor is exposed.
+Phase 13 reuses the action, permission, event, notification, Settings and
+migration boundaries. Clarification, timers, reminders, weather, navigation,
+selected export and native UI work are implemented. Historical owner acceptance
+and later cleanup/package/default-profile shutdown evidence remain intact;
+renewed candidate acceptance is pending. See the
+[current reconciliation](phases/phase-13-assistant-utilities/CURRENT_HEAD_VERIFICATION.md)
+and [Phases 1–12 stabilization](audits/STABILIZATION_CURRENT_HEAD_2026-10-13.md).
 
 ## Current Roadmap
 

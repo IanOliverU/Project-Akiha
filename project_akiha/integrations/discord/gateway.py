@@ -143,7 +143,8 @@ class DiscordGatewayProvider:
                 self._set_health("provider_unavailable")
                 return
             except Exception:
-                self._logger.exception("Discord Gateway stopped safely.")
+                # Never format transport exceptions or attach their traceback.
+                self._logger.warning("Discord Gateway stopped: unexpected_error.")
                 self._set_health("provider_unavailable")
             finally:
                 self._socket = None

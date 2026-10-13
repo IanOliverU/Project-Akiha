@@ -13,8 +13,10 @@ persistent memory, optional voice, and permission-gated assistant actions.
 
 > **Status:** Personal project under active development. Phases 1–12 are
 > complete; Phase 13 (everyday assistant utilities) is in progress.
-> Phase 13B is owner-accepted with tracked shutdown/package deferrals; Phase 13C
-> is active for one-shot timers.
+> Phase 13 utilities and the native UI overhaul are implemented. Renewed
+> candidate acceptance remains pending. The current Phases 1–12
+> [stabilization register](docs/audits/STABILIZATION_CURRENT_HEAD_2026-10-13.md)
+> reconciles historical findings and records current verification limits.
 
 ## Meet Akiha
 
@@ -47,8 +49,9 @@ hosted provider when you want AI conversation.
 - **Notification controls:** a notification inbox, aggregation, quiet hours,
   cooldowns, and configurable delivery channels.
 
-Timers, durable reminders, and weather/current-information utilities are planned
-in Phase 13; they are not available features yet.
+Phase 13 implements one-shot timers and reminders, opt-in weather, contextual
+navigation and confirmed selected conversation/memory export. Recurrence,
+restore/import and general-purpose browsing remain deferred.
 
 ## What Makes Akiha Different
 

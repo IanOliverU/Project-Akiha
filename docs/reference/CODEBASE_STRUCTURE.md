@@ -32,6 +32,11 @@ docs/                     # Phase, roadmap, reference, and archived documentatio
 - `app/` coordinates use cases and performs dependency wiring; it does not own
   provider protocols or domain policy.
 - `providers/` owns replaceable implementation adapters for a capability.
+  `providers/windows_actions.py` owns concrete default-handler, process-launch
+  and exact-executable WM_CLOSE calls. The composition root injects its callables
+  into core executors; validation, permission and confirmation remain upstream.
+  `python -B -m project_akiha.tools.verify_core_boundaries` and normal unittest
+  discovery enforce the core import/platform boundary automatically.
 - `integrations/` owns optional third-party product workflows that combine
   authentication, API calls, and application-specific behavior.
 - `services/` owns cross-cutting behavior shared by more than one UI or

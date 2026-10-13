@@ -68,8 +68,20 @@ if ($PythonVersion -ne "3.13") {
     throw "PyInstaller packaging requires Python 3.13; found $PythonVersion."
 }
 
+$OriginalBuildPath = $env:PATH
+$GitDirectory = Split-Path -Parent (Get-Command git -ErrorAction Stop).Source
+$PythonBase = (& $PythonPath -c "import sys; print(sys.base_prefix)").Trim()
+# Exclude inherited Poppler/other tool DLL directories from Qt discovery.
+$env:PATH = @((Split-Path -Parent $PythonPath), $PythonBase, $env:SystemRoot,
+    (Join-Path $env:SystemRoot 'System32'),
+    (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0'), $GitDirectory) -join ';'
 Push-Location $ProjectRoot
 try {
+    Invoke-Checked "Pinned release dependencies" {
+        & $PythonPath -B -m project_akiha.tools.build_identity check
+    }
+    Invoke-Checked "Dependency consistency" { & $PythonPath -B -m pip check }
+
     & $PythonPath -m PyInstaller --version *> $null
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller is unavailable. Install the package extra with: pip install -e .[package]"
@@ -88,6 +100,11 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $SpecDir, $ReportDir | Out-Null
 
+    $IdentityInputs = Join-Path $ReportDir "inputs-$BuildStamp.json"
+    $IdentityReport = Join-Path $ReportDir "identity-$BuildStamp.json"
+    Invoke-Checked "Build input identity" {
+        & $PythonPath -B -m project_akiha.tools.build_identity capture --report $IdentityInputs
+    }
     if (-not $SkipQualityChecks) {
         Invoke-Checked "Unit and integration tests" {
             & $PythonPath -m unittest discover tests
@@ -144,9 +161,13 @@ try {
         )
     }
 
+    Invoke-Checked "Build artifact identity" {
+        & $PythonPath -B -m project_akiha.tools.build_identity finalize --inputs $IdentityInputs --artifact $ArtifactDir --report $IdentityReport
+    }
     $EndedAt = (Get-Date).ToUniversalTime()
     $Report = [ordered]@{
-        schema_version = 1
+        schema_version = 2
+        identity_report = $IdentityReport
         build_mode = if ($Clean) { "clean-development" } else { "cached-development" }
         outcome = "passed"
         started_at_utc = $BuildStartedAt.ToString("o")
@@ -166,5 +187,6 @@ try {
     Write-Host "Timing report: $ReportPath"
 }
 finally {
+    $env:PATH = $OriginalBuildPath
     Pop-Location
 }

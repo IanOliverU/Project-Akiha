@@ -3,6 +3,55 @@
 This document captures the release workflow established in Phase 6 and updated
 for the verified V8 Hosted Live standalone package.
 
+## Current stabilization workflow (2026-10-13)
+
+Current candidate and owner results are maintained in the
+[stabilization register](../../audits/STABILIZATION_CURRENT_HEAD_2026-10-13.md).
+The V8/Phase 9 descriptions below are retained historical evidence.
+
+Both builders require `requirements/release-win-py313.txt`: 131 exact versions
+from the existing Windows x64 CPython 3.13 packaging environment, including
+optional packages that can influence bundler hooks. No distribution was upgraded.
+The check rejects missing, different and unpinned additional distributions
+(the editable application is identified by source). General development extras
+remain ranged; release builds must use this pinned workflow. To provision a new
+isolated environment, install the lock file, then the checkout with no dependency
+resolution or isolated build-environment downloads:
+
+```powershell
+py -3.13 -m venv .venv-release
+.\.venv-release\Scripts\python.exe -m pip install -r requirements/release-win-py313.txt
+.\.venv-release\Scripts\python.exe -m pip install --no-deps --no-build-isolation -e .
+.\.venv-release\Scripts\python.exe -m pip check
+.\.venv-release\Scripts\python.exe -B -m project_akiha.tools.build_identity check
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify_stabilization.ps1 -PythonExe .venv-release/Scripts/python.exe
+```
+
+Provisioning this clean environment is an owner-run verification, not a claimed
+completed install. For offline repeatability, retain the exact downloaded wheels/
+source archives and their SHA-256 inventory, use `--no-index --find-links` during
+installation and retain compiler/interpreter versions. The version lock does not
+authenticate upstream archives or guarantee byte-identical bundler output.
+Nuitka retains its existing Zig pin and compiler report; it is not newly certified
+by a PyInstaller candidate. Dependency vulnerability auditing/signing remain
+separate release backlog work; this task made no network vulnerability claim.
+
+Builders capture full dependency inventory, Python/platform, HEAD, HEAD tree,
+dirty status, every tracked/unignored source input and its SHA-256, before the
+build. They reject changes during the build and record every artifact file hash
+and a deterministic artifact tree digest. PyInstaller uses a process-local PATH
+excluding unrelated DLL directories, addressing the recorded Poppler ICU collision.
+Its existing cleanup containment/reparse guards remain mandatory.
+
+The owner handoff includes fresh startup, populated historical schema 14 and 15
+upgrade/restart checks, full target tables/indexes/constraints, ordered version
+receipts, preserved records/active and revoked grants and inbox ID high water.
+The frozen fixture provenance is `tests/fixtures/upgrades/provenance.json`.
+All profiles are newly created synthetic data; existing SmokeRoot/profile paths
+are refused. Startup harness forced termination is not graceful-shutdown evidence.
+The separate pending-clarification Quit diagnostic provides that evidence only
+for the default isolated profile. Final owner acceptance remains pending.
+
 ## Current Verified Candidate
 
 Phase 9 development currently remains source-first. On 2026-08-20 the owner

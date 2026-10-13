@@ -3,7 +3,8 @@ param(
     [string]$SmokeRoot = "",
     [int]$StartupSeconds = 8,
     [int]$ShutdownSeconds = 3,
-    [switch]$RunExistingDataPass
+    [switch]$RunExistingDataPass,
+    [switch]$RunUpgradePass
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,48 +26,7 @@ function Invoke-DatabaseSchemaCheck {
         [string]$DatabasePath
     )
 
-    $SchemaCheck = @'
-import sqlite3
-import sys
-
-database_path = sys.argv[1]
-expected_tables = {
-    "behavior_events",
-    "conversations",
-    "external_event_receipts",
-    "integration_sync_state",
-    "memories",
-    "messages",
-    "notification_inbox",
-    "pet_appearance_selection",
-    "pet_reward_grants",
-    "pet_state",
-    "pet_state_history",
-    "schema_version",
-    "shop_equipment",
-    "shop_inventory",
-    "shop_transactions",
-}
-
-connection = sqlite3.connect(database_path)
-try:
-    tables = {
-        row[0]
-        for row in connection.execute(
-            "select name from sqlite_master where type='table'"
-        )
-    }
-finally:
-    connection.close()
-
-missing = sorted(expected_tables - tables)
-if missing:
-    print(f"Missing database tables: {missing}")
-    raise SystemExit(1)
-
-print(f"Database tables OK: {sorted(expected_tables)}")
-'@
-    $SchemaCheck | & $PythonExe - $DatabasePath
+    & $PythonExe -B -m project_akiha.tools.verify_upgrade_fixture schema $DatabasePath
     if ($LASTEXITCODE -ne 0) {
         throw "Database schema smoke check failed."
     }
@@ -235,7 +195,8 @@ function Invoke-PackagedAppSmokeRun {
     $Process = Start-Process `
         -FilePath $ResolvedExePath `
         -WorkingDirectory $WorkingDir `
-        -PassThru
+        -PassThru `
+        -WindowStyle Hidden
 
     try {
         Start-Sleep -Seconds $StartupSeconds
@@ -294,6 +255,7 @@ function Invoke-PackagedAppSmokeRun {
 }
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'build_path_guard.ps1')
 Push-Location $ProjectRoot
 try {
     $ResolvedExePath = (Resolve-Path $ExePath).Path
@@ -319,8 +281,12 @@ try {
             ("smoke-localappdata-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
     }
 
-    $SmokeRoot = [System.IO.Path]::GetFullPath($SmokeRoot)
-    New-Item -ItemType Directory -Force -Path $SmokeRoot | Out-Null
+    $SmokeRoot = Assert-AkihaBuildDirectory -ProjectRoot $ProjectRoot -Path $SmokeRoot
+    # A diagnostic must never reuse an owner profile.
+    if (Test-Path -LiteralPath $SmokeRoot) {
+        throw "SmokeRoot must be a new isolated directory: $SmokeRoot"
+    }
+    New-Item -ItemType Directory -Path $SmokeRoot | Out-Null
 
     $OldLocalAppData = $env:LOCALAPPDATA
     $env:LOCALAPPDATA = $SmokeRoot
@@ -344,6 +310,20 @@ try {
                 -SmokeRoot $SmokeRoot `
                 -StartupSeconds $StartupSeconds `
                 -ShutdownSeconds $ShutdownSeconds
+        }
+        if ($RunUpgradePass) {
+            foreach ($PriorVersion in @(14, 15)) {
+                $UpgradeRoot = Join-Path $SmokeRoot "prior-v$PriorVersion"
+                $Profile = Join-Path $UpgradeRoot 'Akiha'
+                & $PythonExe -B -m project_akiha.tools.verify_upgrade_fixture create $Profile --prior-version $PriorVersion
+                if ($LASTEXITCODE -ne 0) { throw 'Prior-version fixture creation failed.' }
+                $env:LOCALAPPDATA = $UpgradeRoot
+                foreach ($Pass in @('upgrade', 'restart')) {
+                    Invoke-PackagedAppSmokeRun -RunLabel "v$PriorVersion-$Pass" -PythonExe $PythonExe -ResolvedExePath $ResolvedExePath -WorkingDir $WorkingDir -SmokeRoot $UpgradeRoot -StartupSeconds $StartupSeconds -ShutdownSeconds $ShutdownSeconds
+                    & $PythonExe -B -m project_akiha.tools.verify_upgrade_fixture verify $Profile
+                    if ($LASTEXITCODE -ne 0) { throw "Prior-version preservation failed: v$PriorVersion-$Pass" }
+                }
+            }
         }
     }
     finally {

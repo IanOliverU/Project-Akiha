@@ -47,6 +47,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from project_akiha.tools.verify_core_boundaries import check_core
+check_core()
 output = Path(__file__).parent
 suite = unittest.defaultTestLoader.discover('tests', top_level_dir='.')
 def flatten(suite):
