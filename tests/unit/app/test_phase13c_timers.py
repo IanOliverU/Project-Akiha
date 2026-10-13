@@ -51,6 +51,7 @@ class TimerCompositionTest(unittest.TestCase):
         self.assertIs(self.dispatch().result.status, ActionStatus.SUCCESS)
         self.assertEqual(len(self.service.list()), 2)
         self.assertEqual(self.provider.prompts, [])
+        self.assertNotIn("named tea", self.window._history_view.toPlainText())
 
     def test_real_action_audit_and_inbox_receive_one_expiry_and_cancel_prevents_other(
         self,
@@ -94,8 +95,12 @@ class TimerCompositionTest(unittest.TestCase):
         self.assertEqual(self.service.list(), ())
 
     def test_invalid_and_provider_timer_requests_cannot_create_rows(self):
+        before = len(composition._ControlledAction.created)
         self.send("Set a timer for 1.5 minutes")
-        self.dispatch()
+        # Readiness rejects the invalid duration before an action worker exists.
+        self.assertEqual(len(composition._ControlledAction.created), before)
+        self.assertEqual(self.provider.prompts, [])
+        self.assertEqual(self.service.list(), ())
         request = ActionRequest(
             "forged-timer",
             "timers.create",
@@ -113,6 +118,7 @@ class TimerCompositionTest(unittest.TestCase):
     ):
         sentinel = "TIMER_PRIVATE_LABEL_SENTINEL"
         self.send(f"Set a timer for 2 seconds named {sentinel}")
+        self.assertNotIn(sentinel, self.window._history_view.toPlainText())
         self.dispatch()
         self.clock.advance(2)
         self.state["timer_delivery_controller"].tick()

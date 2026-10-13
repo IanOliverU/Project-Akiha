@@ -7,6 +7,11 @@ from threading import RLock
 from uuid import uuid4
 
 from project_akiha.core.utilities.clock import UtilityClock
+from project_akiha.core.utilities.reminders import (
+    ReminderRecord,
+    reminder_time,
+    validate_reminder_id,
+)
 from project_akiha.core.utilities.timers import (
     TIMER_RECOVERY_GRACE_SECONDS,
     TimerRecord,
@@ -18,9 +23,12 @@ from project_akiha.core.utilities.timers import (
 
 
 class TimerScheduleService:
-    def __init__(self, repository: TimerRepository, clock: UtilityClock) -> None:
+    def __init__(
+        self, repository: TimerRepository, clock: UtilityClock, *, reminders=None
+    ) -> None:
         self.repository = repository
         self.clock = clock
+        self.reminders = reminders
         self._lock = RLock()
         self._closed = False
         wall = clock.now_utc()
@@ -38,6 +46,61 @@ class TimerScheduleService:
     def _open(self) -> None:
         if self._closed:
             raise RuntimeError("Timer service is closed.")
+
+    def create_reminder(
+        self,
+        request_id: str,
+        digest: str,
+        local_time: str,
+        timezone: str,
+        label: str = "",
+        fold: int | None = None,
+    ) -> ReminderRecord:
+        due = reminder_time(local_time, timezone, fold)
+        with self._lock:
+            self._open()
+            if self.reminders is None:
+                raise RuntimeError("Local reminders are unavailable.")
+            record = ReminderRecord(
+                "reminder-" + uuid4().hex,
+                request_id,
+                digest,
+                label,
+                timezone,
+                self.clock.now_utc(),
+                due,
+                TimerStatus.PENDING,
+            )
+            return self.reminders.create(record)
+
+    def list_reminders(self) -> tuple[ReminderRecord, ...]:
+        with self._lock:
+            self._open()
+            if self.reminders is None:
+                raise RuntimeError("Local reminders are unavailable.")
+            return self.reminders.pending()
+
+    def cancel_reminder(self, reminder_id: str) -> bool:
+        validate_reminder_id(reminder_id)
+        with self._lock:
+            self._open()
+            if self.reminders is None:
+                raise RuntimeError("Local reminders are unavailable.")
+            return self.reminders.cancel(reminder_id, self.clock.now_utc())
+
+    def snooze_reminder(
+        self, request_id: str, digest: str, reminder_id: str, seconds: int
+    ) -> ReminderRecord:
+        validate_reminder_id(reminder_id)
+        validate_timer_input(seconds, "")
+        with self._lock:
+            self._open()
+            if self.reminders is None:
+                raise RuntimeError("Local reminders are unavailable.")
+            now = self.clock.now_utc()
+            return self.reminders.snooze(
+                request_id, digest, reminder_id, now, now + timedelta(seconds=seconds)
+            )
 
     def create(
         self, request_id: str, digest: str, seconds: int, label: str = ""
@@ -86,7 +149,7 @@ class TimerScheduleService:
             self._missed.discard(timer_id)
             return changed
 
-    def tick(self) -> tuple[TimerRecord, ...]:
+    def tick(self) -> tuple[TimerRecord | ReminderRecord, ...]:
         with self._lock:
             if self._closed:
                 return ()
@@ -102,6 +165,19 @@ class TimerScheduleService:
                 self._missed.discard(timer_id)
                 if record is not None:
                     ready.append(record)
+            if self.reminders is not None:
+                wall = self.clock.now_utc()
+                for reminder in self.reminders.pending():
+                    if wall < reminder.due_at:
+                        continue
+                    record = self.reminders.claim_expiry(
+                        reminder.reminder_id,
+                        wall,
+                        missed=(wall - reminder.due_at).total_seconds()
+                        > TIMER_RECOVERY_GRACE_SECONDS,
+                    )
+                    if record is not None:
+                        ready.append(record)
             return tuple(ready)
 
     def close(self) -> None:
@@ -109,3 +185,14 @@ class TimerScheduleService:
             self._closed = True
             self._deadlines.clear()
             self._missed.clear()
+
+    def redact_terminal_labels(self, days: int) -> int:
+        if type(days) is not int or not 1 <= days <= 365:
+            raise ValueError("Invalid label retention.")
+        with self._lock:
+            self._open()
+            before = self.clock.now_utc() - timedelta(days=days)
+            count = self.repository.redact_terminal_labels(before)
+            if self.reminders is not None:
+                count += self.reminders.redact_terminal_labels(before)
+            return count

@@ -495,7 +495,7 @@ class TimerMigrationTest(unittest.TestCase):
             migrations.mkdir()
             source = Path(__file__).parents[3] / "project_akiha/database/migrations"
             for file in source.glob("*.sql"):
-                if not file.name.startswith("0015_"):
+                if int(file.name.split("_")[0]) < 15:
                     shutil.copyfile(file, migrations / file.name)
             db = root / "old.sqlite3"
             migrator = DatabaseMigrator(db, migrations)

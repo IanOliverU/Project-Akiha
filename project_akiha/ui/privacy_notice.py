@@ -7,8 +7,11 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QScrollArea,
     QVBoxLayout,
 )
+
+from project_akiha.ui.theme import native_surface_stylesheet
 
 
 class PrivacyNoticeDialog(QDialog):
@@ -16,6 +19,7 @@ class PrivacyNoticeDialog(QDialog):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setStyleSheet(native_surface_stylesheet())
         self.setWindowTitle("Project Akiha Privacy")
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setMinimumWidth(480)
@@ -75,7 +79,11 @@ class PrivacyNoticeDialog(QDialog):
 
         layout = QVBoxLayout()
         layout.addWidget(heading)
-        layout.addWidget(summary)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(summary)
+        scroll.setMinimumHeight(300)
+        layout.addWidget(scroll, 1)
         layout.addWidget(buttons)
         self.setLayout(layout)
 
@@ -85,6 +93,7 @@ class HostedLivePrivacyNoticeDialog(QDialog):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setStyleSheet(native_surface_stylesheet())
         self.setWindowTitle("Gemini Live Cloud Audio")
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setMinimumWidth(520)

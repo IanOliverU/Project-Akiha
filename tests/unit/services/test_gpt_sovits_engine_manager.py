@@ -16,12 +16,19 @@ from project_akiha.services.gpt_sovits_engine_manager import (
 class GptSoVitsEngineManagerTest(unittest.TestCase):
     def test_missing_runtime_is_reported(self) -> None:
         with TemporaryDirectory() as directory:
+            # Runtime discovery checks four ancestors. Keep them inside this
+            # empty fixture even when TEMP itself is inside an installed checkout.
+            root = Path(directory) / "a" / "b" / "c" / "d" / "e"
+            root.mkdir(parents=True)
             factory = _ProcessFactory()
             manager = GptSoVitsEngineManager(
-                Path(directory),
+                root,
                 process_factory=factory,
                 endpoint_probe=lambda _url: False,
                 environment={},
+            )
+            self.assertTrue(
+                all(p.is_relative_to(Path(directory)) for p in manager._support_roots())
             )
 
             status = manager.apply_config(_managed_config())

@@ -373,6 +373,8 @@ try {
         "--include-module=av.utils",
         "--include-package=google.genai",
         "--include-package=websocket",
+        "--include-package=tzdata",
+        "--include-package-data=tzdata",
         "--include-distribution-metadata=google-genai",
         "--include-data-dir=$GoogleGenaiMetadataDir=$GoogleGenaiMetadataName",
         "--include-package-data=faster_whisper",

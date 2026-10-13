@@ -32,6 +32,7 @@ from project_akiha.core.events.types import EventType
 from project_akiha.core.state.animation import AnimationState
 from project_akiha.providers.animation import AnimationProvider
 from project_akiha.providers.animation.base import AnimationFrame
+from project_akiha.ui.menus import polish_menu
 from project_akiha.ui.pet_renderer import PetRenderer
 from project_akiha.ui.theme import AKIHA_PALETTE
 
@@ -143,7 +144,10 @@ class PetWindow(QWidget):
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         """Open the pet action menu."""
         menu = self._build_context_menu()
-        menu.exec(event.globalPos())
+        try:
+            menu.exec(event.globalPos())
+        finally:
+            menu.deleteLater()
         event.accept()
 
     def _build_context_menu(self) -> QMenu:
@@ -207,7 +211,7 @@ class PetWindow(QWidget):
         quit_action.triggered.connect(self._request_quit)
         menu.addAction(quit_action)
 
-        return menu
+        return polish_menu(menu)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         """Paint the temporary Phase 1 pet placeholder."""

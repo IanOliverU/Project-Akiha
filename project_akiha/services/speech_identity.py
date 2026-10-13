@@ -124,6 +124,8 @@ def proactive_speech_line(
     """Return an original Japanese line for a supported proactive event."""
     if kind == "timers.elapsed":
         return "タイマーの時間になりました。"
+    if kind == "reminders.due":
+        return "リマインダーの時間になりました。"
     pet_need_line = _PET_NEED_SPEECH_LINES.get(kind)
     if pet_need_line is not None:
         return pet_need_line

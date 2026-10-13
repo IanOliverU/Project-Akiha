@@ -382,18 +382,23 @@ class ActionClarificationTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 approved_directory_aliases(roots)
 
-    def test_uncertain_time_reminders_remain_contract_only(self) -> None:
+    def test_incomplete_reminder_uses_central_request_bound_clarification(self) -> None:
         spec = ActionClarificationSpec(
-            ActionClarificationReason.UNCERTAIN_TIME, ("time",)
+            ActionClarificationReason.UNCERTAIN_TIME, ("local_time", "timezone")
         )
         self.assertEqual(spec.reason.value, "uncertain_time")
         registry = build_default_action_registry()
-        for definition in registry.definitions:
-            self.assertNotIn("reminder", definition.action_id)
-        with self.assertRaises(ValueError):
-            self.leases.begin(
-                ActionRequest("reminder-1", "reminders.create", "chat", {}), spec
-            )
+        self.assertEqual(
+            registry.resolve("reminders.create").action_id, "reminders.create"
+        )
+        request = ActionRequest(
+            "reminder-1", "reminders.create", "chat", {"service": "reminders"}
+        )
+        self.leases.begin(request, spec)
+        self.assertEqual(self.leases.pending.request, request)
+        self.assertEqual(
+            self.leases.pending.spec.missing_parameters, ("local_time", "timezone")
+        )
 
     def test_incomplete_command_envelope_rejects_negation_and_hypothetical(
         self,

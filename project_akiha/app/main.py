@@ -20,7 +20,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from project_akiha.app.action_clarification_controller import (
     ActionClarificationController,
@@ -202,6 +202,9 @@ from project_akiha.core.shop import (
 from project_akiha.core.state.animation import AnimationStateMachine
 from project_akiha.core.state.voice import VoiceState
 from project_akiha.core.utilities.clock import SystemUtilityClock
+from project_akiha.core.utilities.information import WEATHER_ACTIONS
+from project_akiha.core.utilities.reminders import REMINDER_ACTIONS
+from project_akiha.core.utilities.timers import TIMER_ACTIONS
 from project_akiha.core.voice_session import (
     LiveResponseModality,
     LiveSessionConfig,
@@ -223,6 +226,7 @@ from project_akiha.database import (
     SQLitePetStateRepository,
     SQLiteShopRepository,
 )
+from project_akiha.database.sqlite_reminder_repository import SQLiteReminderRepository
 from project_akiha.database.sqlite_timer_repository import SQLiteTimerRepository
 from project_akiha.integrations.discord import DiscordGatewayProvider
 from project_akiha.integrations.gmail import GmailApiClient, GmailIntegrationProvider
@@ -312,6 +316,7 @@ from project_akiha.services.credential_store import (
     CredentialStoreError,
     EncryptedCredentialStore,
 )
+from project_akiha.services.current_information import build_weather_executors
 from project_akiha.services.diagnostics import (
     build_diagnostics_snapshot,
     render_diagnostics_summary,
@@ -375,6 +380,7 @@ from project_akiha.services.provider_tool_fallback import (
     ProviderToolFallbackGate,
     ProviderToolFallbackToken,
 )
+from project_akiha.services.reminder_actions import build_reminder_executors
 from project_akiha.services.response_segment_renderer import (
     ResponseSegmentRenderer,
     SafeSpeechStyleRenderer,
@@ -391,6 +397,11 @@ from project_akiha.services.timer_schedule import TimerScheduleService
 from project_akiha.services.transcript_export import (
     render_chat_transcript,
     write_chat_transcript,
+)
+from project_akiha.services.user_export import (
+    EXPORT_ACTIONS,
+    UserExportExecutor,
+    UserExportService,
 )
 from project_akiha.services.voice_diagnostics import VoiceDiagnosticsService
 from project_akiha.services.window_placement import (
@@ -443,6 +454,7 @@ from project_akiha.ui.shop_worker import (
 )
 from project_akiha.ui.spotify_history_worker import SpotifyHistoryThread
 from project_akiha.ui.tray import AkihaTrayIcon
+from project_akiha.ui.user_export_dialog import UserExportDialog
 
 _AI_KEY_ENVIRONMENT_VARIABLES = {
     "gemini": "GEMINI_API_KEY",
@@ -466,7 +478,16 @@ def main() -> int:
         report_path, connect_gemini = smoke_request
         return _run_provider_runtime_smoke(report_path, connect_gemini)
     try:
-        return _run_application()
+        from project_akiha.services.utility_shutdown_smoke import (
+            shutdown_smoke_passed,
+            shutdown_smoke_request,
+        )
+
+        report = shutdown_smoke_request(sys.argv[1:], get_app_paths().data_dir)
+        if report is None:
+            return _run_application()
+        result = _run_application(shutdown_smoke_report=report)
+        return result if result else (0 if shutdown_smoke_passed(report) else 1)
     except Exception:
         _log_startup_failure()
         raise
@@ -508,7 +529,7 @@ def _run_provider_runtime_smoke(report_path: Path, connect_gemini: bool) -> int:
     return 0 if report.passed else 1
 
 
-def _run_application() -> int:
+def _run_application(*, shutdown_smoke_report: Path | None = None) -> int:
     """Build the application graph and start the Qt event loop."""
     app = QApplication(sys.argv)
     app.setApplicationName("Project Akiha")
@@ -673,11 +694,20 @@ def _run_application() -> int:
     )
     try:
         timer_schedule_service = TimerScheduleService(
-            SQLiteTimerRepository(paths.database_path), SystemUtilityClock()
+            SQLiteTimerRepository(paths.database_path),
+            SystemUtilityClock(),
+            reminders=SQLiteReminderRepository(paths.database_path),
         )
     except (sqlite3.Error, OSError, ValueError):
         logger.error("Local timers unavailable.")
         timer_schedule_service = None
+    user_export_service = UserExportService(
+        paths.database_path,
+        action_path_policy,
+        commit_guard=lambda request, epoch, commit: (
+            action_clarification.leases.commit_owned(request, epoch, commit)
+        ),
+    )
     assistant_action_service = AssistantActionService(
         ActionRequestValidator(build_default_action_registry(), action_path_policy),
         ActionPermissionPolicy(action_path_policy),
@@ -685,6 +715,12 @@ def _run_application() -> int:
         action_repository,
         executors=(
             *build_timer_executors(timer_schedule_service),
+            *build_reminder_executors(timer_schedule_service),
+            *build_weather_executors(lambda: config.utilities),
+            *(
+                UserExportExecutor(user_export_service, action_id)
+                for action_id in EXPORT_ACTIONS
+            ),
             FileSearchExecutor(),
             DirectorySearchExecutor(),
             OpenDirectoryExecutor(),
@@ -1188,6 +1224,9 @@ def _run_application() -> int:
 
     QTimer.singleShot(0, lambda: apply_voice_engine_config(config.voice))
     chat_window = ChatWindow()
+    chat_window.set_provider_display(
+        config.ai.provider, remote=config.ai.sends_text_off_device
+    )
     chat_window.set_voice_conversation_lane(
         "cloud" if config.voice.session_provider == "gemini_live" else "local",
         available=(
@@ -1362,8 +1401,15 @@ def _run_application() -> int:
             and conversation_runtime_router.active
         ):
             conversation_runtime_router.end("provider_changed")
+        try:
+            user_config_store.save_config(updated_config)
+        except (OSError, ValueError):
+            settings_window.mark_save_result(False)
+            return
         config = updated_config
-        user_config_store.save_config(updated_config)
+        chat_window.set_provider_display(
+            config.ai.provider, remote=config.ai.sends_text_off_device
+        )
         window.apply_config(updated_config.pet_window)
         manifest = appearance_service.current_manifest_path
         window.set_animation_provider(_build_animation_provider(manifest, logger))
@@ -1464,6 +1510,7 @@ def _run_application() -> int:
         proactive_controller.evaluate_snapshot(activity_controller.snapshot)
         scheduled_check_in_controller.tick(activity_controller.snapshot)
         logger.info("Saved user config to %s", user_config_store.config_path)
+        settings_window.mark_save_result(True)
 
     def reset_window_position() -> None:
         fallback = WindowPosition(
@@ -2277,7 +2324,7 @@ def _run_application() -> int:
             request, captured_owner_epoch=epoch
         ),
     )
-    chat_window.layout().insertWidget(2, clarification_panel)
+    chat_window.add_clarification_panel(clarification_panel)
     clarification_panel.normal_chat_requested.connect(
         lambda identity: continue_as_normal_chat(identity)
     )
@@ -2396,10 +2443,24 @@ def _run_application() -> int:
             return
         chat_window.set_busy(True)
         worker_options = {}
-        if captured_owner_epoch is not None:
+        if action_request.action_id in EXPORT_ACTIONS:
+            try:
+                user_export_service.bind_owner(action_request, owner_epoch)
+            except ValueError:
+                chat_window.set_busy(False)
+                clarification_panel.show_notice(
+                    "Export selection expired or changed. Select the "
+                    "records again locally."
+                )
+                return
+        if (
+            captured_owner_epoch is not None
+            or action_request.action_id
+            in TIMER_ACTIONS + REMINDER_ACTIONS + WEATHER_ACTIONS + EXPORT_ACTIONS
+        ):
             worker_options["ownership_guard"] = (
                 lambda: action_clarification.leases.execution_owned(
-                    action_request, captured_owner_epoch
+                    action_request, owner_epoch
                 )
             )
         action_thread = AssistantActionThread(
@@ -2468,6 +2529,45 @@ def _run_application() -> int:
         if not action_clarification.leases.owns(dispatch.request, owner_epoch):
             return
         result = dispatch.result
+        if dispatch.request.action_id in WEATHER_ACTIONS:
+            weather_display = result.metadata.get("weather_display")
+            if isinstance(weather_display, str):
+                settings_window.show_weather(weather_display)
+            else:
+                settings_window.show_weather(result.summary)
+            provider_health_registry.update(
+                "weather",
+                "healthy" if result.status.value == "success" else "unavailable",
+                (
+                    "available"
+                    if result.status.value == "success"
+                    else "lookup_unavailable"
+                ),
+            )
+            update_provider_health_display()
+        if dispatch.request.action_id in EXPORT_ACTIONS:
+            provider_health_registry.update(
+                "exports",
+                (
+                    "healthy"
+                    if result.status.value == "success"
+                    else (
+                        "starting"
+                        if result.status.value == "confirmation_required"
+                        else "unavailable"
+                    )
+                ),
+                (
+                    "export_completed"
+                    if result.status.value == "success"
+                    else (
+                        "awaiting_confirmation"
+                        if result.status.value == "confirmation_required"
+                        else "export_unavailable"
+                    )
+                ),
+            )
+            update_provider_health_display()
         if action_clarification.leases.is_spotify_history_selection(
             dispatch.request, owner_epoch
         ):
@@ -2812,7 +2912,48 @@ def _run_application() -> int:
                 config.personality.character_name, result.summary
             )
         elif result.status.value == "confirmation_required":
-            if dispatch.request.action_id == "files.open":
+            if dispatch.request.action_id in EXPORT_ACTIONS:
+                try:
+                    prompt = user_export_service.confirmation_text(dispatch.request)
+                    lease = action_clarification.leases.issue_confirmation(
+                        dispatch.request, owner_epoch=owner_epoch
+                    )
+                except ValueError:
+                    chat_window.append_notice(
+                        "Export selection expired. Select the records again locally."
+                    )
+                    return
+                answer = QMessageBox.question(
+                    settings_window,
+                    "Confirm private local export",
+                    prompt,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if action_clarification.leases.consume_confirmation(
+                    lease,
+                    dispatch.request,
+                    approved=answer == QMessageBox.StandardButton.Yes,
+                ):
+                    try:
+                        user_export_service.authorize_confirmed(
+                            dispatch.request, owner_epoch
+                        )
+                    except ValueError:
+                        chat_window.append_notice(
+                            "Export confirmation expired. Select the records "
+                            "again locally."
+                        )
+                        return
+                    start_action_thread(
+                        dispatch.request,
+                        confirmed=True,
+                        captured_owner_epoch=owner_epoch,
+                    )
+                else:
+                    user_export_service.invalidate()
+                    chat_window.append_notice("Export was not confirmed.")
+            elif dispatch.request.action_id == "files.open":
                 target = str(
                     dispatch.request.parameters.get("path", "the selected file")
                 )
@@ -3450,7 +3591,13 @@ def _run_application() -> int:
                 "Supply private local paths through the local action panel."
             )
             return
-        chat_window.append_message("You", message)
+        # Timer labels are local schedule metadata, including in the UI transcript.
+        if (
+            action_request is None
+            or action_request.action_id
+            not in TIMER_ACTIONS + REMINDER_ACTIONS + WEATHER_ACTIONS
+        ):
+            chat_window.append_message("You", message)
         if selection_error is not None:
             intent_arbiter.complete_local_routing(turn_id)
             chat_window.append_message(
@@ -3497,6 +3644,7 @@ def _run_application() -> int:
 
     def cancel_active_chat() -> None:
         action_clarification.invalidate()
+        user_export_service.invalidate()
         for thread in tuple(active_chat_threads):
             thread.cancel()
         for thread in tuple(active_action_threads):
@@ -3599,6 +3747,54 @@ def _run_application() -> int:
         logger.info("Exported chat transcript to %s", export_path)
 
     chat_window.message_submitted.connect(submit_chat_message)
+    settings_window.utility_action_requested.connect(start_action_thread)
+
+    def prepare_user_export():
+        if has_active_operations():
+            chat_window.append_notice(
+                "Stop the current action before preparing an export."
+            )
+            return
+        try:
+            catalog = {
+                kind: user_export_service.catalog(kind)
+                for kind in ("conversations", "memories")
+            }
+        except (OSError, ValueError, sqlite3.Error):
+            chat_window.append_notice(
+                "Local export records are unavailable. No export was prepared."
+            )
+            return
+        dialog = UserExportDialog(catalog, settings_window)
+        try:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            kind = dialog.kind.currentText()
+            selection = dialog.selection()
+            destination, _ = QFileDialog.getSaveFileName(
+                settings_window,
+                "Choose a new local export file",
+                "akiha-" + kind + ".json",
+                "JSON (*.json)",
+            )
+            if not destination:
+                return
+            try:
+                request = user_export_service.prepare(
+                    kind, selection, Path(destination)
+                )
+            except (OSError, ValueError):
+                chat_window.append_notice(
+                    "Export destination unavailable. Choose a new "
+                    "local JSON file outside protected locations."
+                )
+                return
+            start_action_thread(request)
+        finally:
+            dialog.close()
+            dialog.deleteLater()
+
+    settings_window.utility_export_requested.connect(prepare_user_export)
     chat_window.cancel_requested.connect(cancel_active_chat)
     chat_window.new_chat_requested.connect(start_new_chat)
     chat_window.clear_chat_requested.connect(clear_current_chat)
@@ -3859,6 +4055,25 @@ def _run_application() -> int:
     )
     notification_center_window.clear_requested.connect(clear_notifications)
     event_bus.subscribe(EventType.CHAT_OPEN_REQUESTED, show_chat)
+
+    def route_workspace_destination(destination: str) -> None:
+        routes = {
+            "chat": show_chat,
+            "memories": show_memory_manager,
+            "notifications": show_notification_center,
+            "activity": show_behavior_history,
+            "companion": show_pet_status,
+            "settings": show_settings,
+        }
+        if destination in ("music", "utilities"):
+            settings_window.open_page(
+                "Music files" if destination == "music" else "Utilities"
+            )
+            show_settings()
+        elif destination in routes:
+            routes[destination]()
+
+    chat_window.destination_requested.connect(route_workspace_destination)
     event_bus.subscribe(EventType.SETTINGS_OPEN_REQUESTED, show_settings)
     event_bus.subscribe(EventType.PET_CARE_OPEN_REQUESTED, show_pet_care)
     event_bus.subscribe(EventType.PET_STATUS_OPEN_REQUESTED, show_pet_status)
@@ -3866,7 +4081,15 @@ def _run_application() -> int:
     event_bus.subscribe(
         EventType.BEHAVIOR_HISTORY_OPEN_REQUESTED, show_behavior_history
     )
-    event_bus.subscribe(EventType.APP_QUIT_REQUESTED, lambda event: app.quit())
+
+    def request_application_quit() -> None:
+        if settings_window._draft_dirty and not settings_window.close():
+            return
+        app.quit()
+
+    event_bus.subscribe(
+        EventType.APP_QUIT_REQUESTED, lambda event: request_application_quit()
+    )
     settings_window.memory_manager_requested.connect(show_memory_manager)
     settings_window.behavior_history_requested.connect(show_behavior_history)
     settings_window.notification_center_requested.connect(show_notification_center)
@@ -3937,7 +4160,10 @@ def _run_application() -> int:
     provider_health_timer.start()
     QTimer.singleShot(5_000, check_optional_provider_health)
 
+    lifecycle_checks: dict[str, bool] = {}
+
     def shutdown_app() -> None:
+        user_export_service.invalidate()
         action_clarification.invalidate()
         utility_timer_tick.stop()
         if timer_schedule_service is not None:
@@ -3997,6 +4223,34 @@ def _run_application() -> int:
             voice_playback=voice_playback_controller,
             voice_engine=gpt_sovits_engine_manager,
         )
+        if shutdown_smoke_report is not None:
+            lifecycle_checks.update(
+                clarification_invalidated=action_clarification.leases.pending is None,
+                schedule_tick_stopped=not utility_timer_tick.isActive(),
+                workers_joined=result.unfinished_threads == 0,
+                voice_stopped=all(
+                    (
+                        result.voice_capture_stopped,
+                        result.voice_diagnostics_stopped,
+                        result.voice_transcription_stopped,
+                        result.voice_synthesis_stopped,
+                        result.voice_playback_stopped,
+                        result.voice_engine_stopped,
+                    )
+                ),
+                background_workers_stopped=all(
+                    (
+                        ai_discovery_stopped,
+                        spotify_authorization_stopped,
+                        gmail_authorization_stopped,
+                        translations_stopped,
+                        live_memory_stopped,
+                        gpt_health_thread is None or not gpt_health_thread.isRunning(),
+                    )
+                ),
+                position_saved=result.position_saved,
+                activity_timer_stopped=result.timer_stopped,
+            )
         logger.info(
             "Shutdown cleanup complete: position_saved=%s, timer_stopped=%s, "
             "cancelled_threads=%s, unfinished_threads=%s, "
@@ -4026,6 +4280,27 @@ def _run_application() -> int:
 
     app.aboutToQuit.connect(shutdown_app)
     app.aboutToQuit.connect(instance_coordinator.close)
+    if shutdown_smoke_report is not None:
+        from project_akiha.services.utility_shutdown_smoke import (
+            write_shutdown_smoke_report,
+        )
+
+        def exercise_pending_shutdown() -> None:
+            try:
+                chat_window._input.setText("Open a folder")
+                chat_window._submit_message()
+                pending = action_clarification.leases.pending
+                lifecycle_checks["pending_before_quit"] = (
+                    pending is not None
+                    and pending.request.action_id == "files.open_directory"
+                )
+            finally:
+                app.quit()
+
+        app.aboutToQuit.connect(
+            lambda: write_shutdown_smoke_report(shutdown_smoke_report, lifecycle_checks)
+        )
+        QTimer.singleShot(2500, exercise_pending_shutdown)
 
     # Cloud tool calls can arrive before Settings or typed chat has refreshed
     # the local approved-directory display names.
@@ -4035,7 +4310,7 @@ def _run_application() -> int:
         pet_window=window,
         chat_window=chat_window,
         settings_window=settings_window,
-        quit_callback=app.quit,
+        quit_callback=request_application_quit,
     )
 
     def activate_existing_instance() -> None:
@@ -4116,6 +4391,48 @@ def _run_application() -> int:
     utility_timer_tick = QTimer()
     utility_timer_tick.setInterval(1_000)
     utility_timer_tick.timeout.connect(timer_delivery_controller.tick)
+    last_utility_redaction = None
+
+    def refresh_utility_schedules():
+        nonlocal last_utility_redaction
+        if timer_schedule_service is None:
+            return
+        try:
+            today = (
+                timer_schedule_service.clock.now_utc().date(),
+                config.utilities.schedule_label_retention_days,
+            )
+            if today != last_utility_redaction:
+                timer_schedule_service.redact_terminal_labels(
+                    config.utilities.schedule_label_retention_days
+                )
+                last_utility_redaction = today
+            settings_window.update_schedules(
+                timer_schedule_service.list(), timer_schedule_service.list_reminders()
+            )
+            drift = timer_delivery_controller.diagnostics["poll_delay_seconds"]
+            provider_health_registry.update(
+                "schedules",
+                "degraded" if drift > 15 else "healthy",
+                "poll_delayed" if drift > 15 else "running",
+            )
+            settings_window._utilities_panel._status.setText(
+                settings_window._utilities_panel._status.text()
+                + f" Poll delay: {drift}s; missed recovery: "
+                f"{timer_delivery_controller.diagnostics['missed_count']}; "
+                f"presentation failures: "
+                f"{timer_delivery_controller.diagnostics['presentation_failures']}."
+            )
+        except (sqlite3.Error, OSError, RuntimeError):
+            provider_health_registry.update(
+                "schedules", "unavailable", "storage_unavailable"
+            )
+            settings_window._utilities_panel._status.setText(
+                "Schedules unavailable; existing chat and other "
+                "features remain available."
+            )
+
+    utility_timer_tick.timeout.connect(refresh_utility_schedules)
     utility_timer_tick.start()
     external_integration_runtime.start()
 

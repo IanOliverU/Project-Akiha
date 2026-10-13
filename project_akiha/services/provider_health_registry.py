@@ -16,6 +16,9 @@ _PROVIDERS = {
     "gpt_sovits",
     "ollama",
     "voice_input",
+    "weather",
+    "schedules",
+    "exports",
 }
 _CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 

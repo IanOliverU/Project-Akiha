@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'build_path_guard.ps1')
 
 function Resolve-ProjectPath {
     param([string]$Path)
@@ -40,8 +41,9 @@ function Invoke-Checked {
     Write-Host "$Name passed in $($Timer.Elapsed.ToString('hh\:mm\:ss\.fff'))."
 }
 
-$ResolvedOutputDir = Resolve-ProjectPath $OutputDir
-$ResolvedWorkDir = Resolve-ProjectPath $WorkDir
+$BuildPaths = Assert-AkihaBuildPaths -ProjectRoot $ProjectRoot -OutputDir $OutputDir -WorkDir $WorkDir
+$ResolvedOutputDir = $BuildPaths.OutputDir
+$ResolvedWorkDir = $BuildPaths.WorkDir
 $SpecDir = Join-Path $ResolvedWorkDir "spec"
 $ReportDir = Join-Path $ResolvedOutputDir "build-reports"
 $BuildStartedAt = (Get-Date).ToUniversalTime()
@@ -74,6 +76,9 @@ try {
     }
 
     if ($Clean) {
+        # Validate BOTH final cleanup targets before removing either one.
+        Assert-AkihaCleanupTree -ProjectRoot $ProjectRoot -Path $ResolvedWorkDir
+        Assert-AkihaCleanupTree -ProjectRoot $ProjectRoot -Path (Join-Path $ResolvedOutputDir 'Akiha')
         if (Test-Path -LiteralPath $ResolvedWorkDir) {
             Remove-Item -LiteralPath $ResolvedWorkDir -Recurse -Force
         }
@@ -115,6 +120,7 @@ try {
         "--add-data", "$(Join-Path $ProjectRoot 'scripts/run_gpt_sovits_api.py');scripts",
         "--collect-all", "faster_whisper",
         "--collect-all", "google.genai",
+        "--collect-all", "tzdata",
         "--copy-metadata", "google-genai",
         "--hidden-import", "av.utils",
         "--hidden-import", "websocket",

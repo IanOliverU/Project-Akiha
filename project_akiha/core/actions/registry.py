@@ -98,6 +98,71 @@ def _timer_definitions() -> tuple[ActionDefinition, ...]:
     return tuple(definitions)
 
 
+def _reminder_definitions() -> tuple[ActionDefinition, ...]:
+    from project_akiha.core.utilities.reminders import REMINDER_ACTIONS
+    from project_akiha.core.utilities.timers import MAX_TIMER_SECONDS
+
+    definitions = []
+    for action_id in REMINDER_ACTIONS:
+        parameters = [
+            ActionParameterSpec(
+                "service", ParameterKind.STRING, allowed_values=("reminders",)
+            )
+        ]
+        if action_id == "reminders.create":
+            parameters.extend(
+                (
+                    ActionParameterSpec(
+                        "local_time", ParameterKind.STRING, max_length=16
+                    ),
+                    ActionParameterSpec(
+                        "timezone", ParameterKind.STRING, max_length=64
+                    ),
+                    ActionParameterSpec(
+                        "fold",
+                        ParameterKind.INTEGER,
+                        required=False,
+                        minimum_value=0,
+                        maximum_value=1,
+                    ),
+                    ActionParameterSpec(
+                        "label", ParameterKind.STRING, required=False, max_length=64
+                    ),
+                )
+            )
+        if action_id in {"reminders.cancel", "reminders.snooze"}:
+            parameters.append(
+                ActionParameterSpec("reminder_id", ParameterKind.STRING, max_length=41)
+            )
+        if action_id == "reminders.snooze":
+            parameters.append(
+                ActionParameterSpec(
+                    "duration_seconds",
+                    ParameterKind.INTEGER,
+                    minimum_value=1,
+                    maximum_value=MAX_TIMER_SECONDS,
+                )
+            )
+        definitions.append(
+            ActionDefinition(
+                action_id,
+                "Manage an explicitly requested one-shot local reminder.",
+                (
+                    ActionRisk.READ_ONLY
+                    if action_id == "reminders.list"
+                    else ActionRisk.USER_VISIBLE
+                ),
+                "reminders.manage",
+                ConfirmationPolicy.NEVER,
+                action_id.replace(".", "_"),
+                "service",
+                tuple(parameters),
+                5,
+            )
+        )
+    return tuple(definitions)
+
+
 class ActionRegistry:
     """Resolve only action definitions registered by the application."""
 
@@ -130,6 +195,49 @@ def build_default_action_registry() -> ActionRegistry:
     return ActionRegistry(
         (
             *_timer_definitions(),
+            *_reminder_definitions(),
+            *(
+                ActionDefinition(
+                    action_id,
+                    "Export only selected local user records after fresh confirmation.",
+                    ActionRisk.SENSITIVE_OPEN,
+                    "exports.write",
+                    ConfirmationPolicy.ALWAYS,
+                    action_id.replace(".", "_"),
+                    "service",
+                    (
+                        ActionParameterSpec(
+                            "service", ParameterKind.STRING, allowed_values=("exports",)
+                        ),
+                        ActionParameterSpec(
+                            "export_token", ParameterKind.STRING, max_length=32
+                        ),
+                    ),
+                    20,
+                )
+                for action_id in ("exports.conversations", "exports.memories")
+            ),
+            *(
+                ActionDefinition(
+                    action_id,
+                    "Read weather for the explicitly configured location.",
+                    ActionRisk.READ_ONLY,
+                    "information.read",
+                    ConfirmationPolicy.NEVER,
+                    action_id.replace(".", "_"),
+                    "service",
+                    (
+                        ActionParameterSpec(
+                            "service", ParameterKind.STRING, allowed_values=("weather",)
+                        ),
+                    ),
+                    20,
+                )
+                for action_id in (
+                    "information.weather.current",
+                    "information.weather.forecast",
+                )
+            ),
             ActionDefinition(
                 action_id=FILE_SEARCH_ACTION,
                 description=(

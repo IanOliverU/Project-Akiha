@@ -1,6 +1,16 @@
 # Phase 13: Everyday Assistant Utilities
 
-**Status:** In progress - Phases 13A and 13B complete; Phase 13C active
+**Status:** Complete - Phases 13A through 13I. Final owner acceptance recorded on
+2026-10-13 after the owner confirmed the entire Phase 13 and reviewed the native
+UI candidate. The owner authorized the final chat highlight removal, commit and
+push. This acceptance is owner-reported, not an assertion that automated checks
+performed live account, microphone or cloud verification.
+
+See [consolidated evidence](CONSOLIDATED_VERIFICATION.md),
+[owner checklist and acceptance](OWNER_CHECKLIST.md), and
+[UI verification](../../UI_OVERHAUL_VERIFICATION.md). Earlier pending statements
+in chronological records describe their historical state and are superseded by
+this acceptance. The cleanup guard remains mandatory for every clean build.
 
 ## Purpose
 
@@ -147,9 +157,11 @@ direct LLM access to schedulers, network transports, repositories, or writers.
 
 Complete: owner accepted on 2026-10-08 after the bounded review, unrestricted
 1,878-test single-process pass and ten passing historical Qt-pair repetitions.
-See [Phase 13B implementation and verification](PHASE13B.md) for evidence and
-the explicitly deferred pending-clarification shutdown and packaged smoke.
-No clean packaging until the destructive WorkDir cleanup guard is fixed and verified.
+See [Phase 13B implementation and verification](PHASE13B.md) for its original
+evidence and deferrals. The consolidated record now proves default-profile
+source/package pending-clarification shutdown and package startup; configured
+live-session owner checks remain pending. The destructive WorkDir cleanup guard
+was fixed and verified before clean packaging.
 
 - [x] Detect missing targets, multiple plausible matches, uncertain times, and
   incomplete consequential requests.
@@ -163,88 +175,94 @@ No clean packaging until the destructive WorkDir cleanup guard is fixed and veri
 
 ### 13C: One-shot timers
 
-Active: bounded one-shot timer implementation added on 2026-10-08.
-See [Phase 13C implementation and validation](PHASE13C.md). Review and owner
-acceptance remain pending; the checklist below is not a completion record.
+Complete: bounded one-shot timer implementation added on 2026-10-08.
+See [Phase 13C implementation and validation](PHASE13C.md). Owner functional
+acceptance was recorded on 2026-10-09 after manual timer testing. Bounded review
+and unrestricted correction gates passed: 1924 tests in one process, no skips,
+exit 0. The subsequent 13D–13H implementation and 13I source/package evidence
+are in the consolidated record; final owner testing remains pending.
 
-- [ ] Add create, list, inspect, cancel, and optional snooze operations for
+- [x] Add create, list, inspect, cancel, and optional snooze operations for
   one-shot timers.
-- [ ] Use monotonic timing while running and persist enough wall-clock state for
+- [x] Use monotonic timing while running and persist enough wall-clock state for
   restart recovery.
-- [ ] Deliver elapsed timers through the existing Notification Center, chat,
+- [x] Deliver elapsed timers through the existing Notification Center, chat,
   tray, voice, and presentation arbitration.
-- [ ] Prevent duplicate delivery after restart or clock changes.
-- [ ] Add simultaneous-timer, cancellation, shutdown, and recovery tests.
+- [x] Prevent duplicate delivery after restart or clock changes.
+- [x] Add simultaneous-timer, cancellation, shutdown, and recovery tests.
 
 ### 13D: Durable reminders
 
-- [ ] Add one-shot reminders with explicit local date, time, and timezone
+Implementation and automated verification complete; owner checks are consolidated
+under 13I and final acceptance remains pending.
+
+- [x] Add one-shot reminders with explicit local date, time, and timezone
   interpretation.
-- [ ] Add list, cancel, and snooze operations without introducing a second
+- [x] Add list, cancel, and snooze operations without introducing a second
   scheduler.
-- [ ] Define a bounded missed-reminder grace policy for application downtime.
-- [ ] Reconcile reminder persistence with migration `0015`, introduced by 13C
+- [x] Define a bounded missed-reminder grace policy for application downtime.
+- [x] Reconcile reminder persistence with migration `0015`, introduced by 13C
   for minimal timer state and atomic inbox receipts; use the existing migrator
   for any subsequently approved schema extension.
-- [ ] Keep recurring reminders deferred until one-shot behavior is accepted.
+- [x] Keep recurring reminders deferred until one-shot behavior is accepted.
 
 ### 13E: Read-only weather and current information
 
-- [ ] Define a provider-neutral, read-only current-information contract.
-- [ ] Start with weather, forecast timestamps, and relevant official weather
+- [x] Define a provider-neutral, read-only current-information contract.
+- [x] Start with weather, forecast timestamps, and relevant official weather
   alerts using an explicitly configured location.
-- [ ] Show source, freshness, uncertainty, and offline/error states.
-- [ ] Keep network results out of long-term memory unless the user explicitly
+- [x] Show source, freshness, uncertainty, and offline/error states.
+- [x] Keep network results out of long-term memory unless the user explicitly
   requests a separate saved memory.
-- [ ] Do not add unrestricted browsing or allow information providers to invoke
+- [x] Do not add unrestricted browsing or allow information providers to invoke
   assistant actions.
 
 ### 13F: Contextual file and directory navigation
 
-- [ ] Reuse approved-directory grants and the existing typed action boundary.
-- [ ] Resolve contextual names only inside approved roots and ask when multiple
+- [x] Reuse approved-directory grants and the existing typed action boundary.
+- [x] Resolve contextual names only inside approved roots and ask when multiple
   matches exist.
-- [ ] Support read-only discovery and explicit opening through existing action
+- [x] Support read-only discovery and explicit opening through existing action
   permissions.
-- [ ] Do not read file contents, mutate files, traverse outside approved roots,
+- [x] Do not read file contents, mutate files, traverse outside approved roots,
   or accept provider-supplied arbitrary paths.
-- [ ] Add path traversal, symlink/reparse-point, ambiguity, and revocation tests.
+- [x] Add path traversal, symlink/reparse-point, ambiguity, and revocation tests.
 
 ### 13G: Conversation and memory backup/export
 
-- [ ] Define a versioned, user-controlled export format and manifest.
-- [ ] Export only explicitly selected conversations or memories to a selected
+- [x] Define a versioned, user-controlled export format and manifest.
+- [x] Export only explicitly selected conversations or memories to a selected
   destination.
-- [ ] Exclude credentials, integration tokens, raw provider responses, logs,
+- [x] Exclude credentials, integration tokens, raw provider responses, logs,
   private notification receipts, and local voice references.
-- [ ] Require explicit confirmation before writing and report partial failures
+- [x] Require explicit confirmation before writing and report partial failures
   safely.
-- [ ] Keep restore/import deferred until export integrity and privacy are
+- [x] Keep restore/import deferred until export integrity and privacy are
   accepted.
 
 ### 13H: Settings, diagnostics, privacy, and failure recovery
 
-- [ ] Add focused controls for timers, reminders, location, provider health,
+- [x] Add focused controls for timers, reminders, location, provider health,
   retention, and export.
-- [ ] Reuse the unified provider-health and Notification Center surfaces.
-- [ ] Add bounded diagnostics for scheduler drift, missed reminders, network
+- [x] Reuse the unified provider-health and Notification Center surfaces.
+- [x] Add bounded diagnostics for scheduler drift, missed reminders, network
   failure, and export errors.
-- [ ] Verify logs, events, exports, and packages contain no credentials or
+- [x] Verify logs, events, exports, and packages contain no credentials or
   unnecessary private content.
-- [ ] Confirm every utility degrades without breaking chat, voice, pet state,
+- [x] Confirm every utility degrades without breaking chat, voice, pet state,
   memory, Gmail, Discord, or startup.
 
 ### 13I: Final verification and consolidated release gate
 
-- [ ] Run the complete source quality and migration gate.
-- [ ] Verify fresh and existing databases, restart recovery, deduplication,
+- [x] Run the complete source quality and migration gate.
+- [x] Verify fresh and existing databases, restart recovery, deduplication,
   timezone behavior, and offline operation.
-- [ ] Perform owner-controlled timer, reminder, weather, navigation, and export
+- [x] Perform owner-controlled timer, reminder, weather, navigation, and export
   smoke tests.
-- [ ] Build one fast consolidated PyInstaller candidate after source acceptance.
-- [ ] Verify package privacy, dependency completeness, single-instance behavior,
+- [x] Build one fast consolidated PyInstaller candidate after source gates.
+- [x] Verify package privacy, dependency completeness, single-instance behavior,
   providers, voice, and graceful shutdown.
-- [ ] Record owner acceptance and formally close Phase 13.
+- [x] Record owner acceptance and formally close Phase 13.
 
 ## Explicitly Deferred
 

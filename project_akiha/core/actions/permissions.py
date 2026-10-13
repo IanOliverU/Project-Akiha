@@ -44,11 +44,33 @@ class ActionPermissionPolicy:
         """Return the current permission decision without executing anything."""
         # Local request-bound scheduling does not grant filesystem or external
         # authority. Timers are not exposed in the provider tool catalog.
-        if action.definition.permission_capability == "timers.manage":
+        if action.definition.permission_capability == "exports.write":
+            if (
+                action.request.source != "ui.exports"
+                or action.normalized_target != "exports"
+            ):
+                return PermissionDecision.MISSING
+            return (
+                PermissionDecision.GRANTED
+                if confirmed
+                else PermissionDecision.CONFIRMATION_REQUIRED
+            )
+        if action.definition.permission_capability == "information.read":
             return (
                 PermissionDecision.GRANTED
                 if action.request.source == "chat"
-                and action.normalized_target == "timers"
+                and action.normalized_target == "weather"
+                else PermissionDecision.MISSING
+            )
+        if action.definition.permission_capability in {
+            "timers.manage",
+            "reminders.manage",
+        }:
+            return (
+                PermissionDecision.GRANTED
+                if action.request.source == "chat"
+                and action.normalized_target
+                == action.definition.permission_capability.split(".")[0]
                 else PermissionDecision.MISSING
             )
         matching_grant = any(

@@ -22,9 +22,71 @@ class AkihaPalette:
     speaking: str = "#B6BADF"
     success: str = "#78B892"
     error: str = "#D87582"
+    hover: str = "#343846"
+    disabled_text: str = "#6F7488"
+    disabled_surface: str = "#252832"
+    disabled_border: str = "#343847"
 
 
 AKIHA_PALETTE = AkihaPalette()
+
+
+@dataclass(frozen=True)
+class LayoutTokens:
+    spacing: tuple[int, ...] = (4, 8, 12, 16, 24, 32)
+    body: int = 14
+    heading: int = 26
+    radius: int = 8
+    control_height: int = 36
+    font_family: str = "Segoe UI, Yu Gothic UI, Meiryo, sans-serif"
+
+
+UI_LAYOUT = LayoutTokens()
+
+
+def native_surface_stylesheet() -> str:
+    c = AKIHA_PALETTE
+    return f"""
+QWidget {{color:{c.text}; font-family: {UI_LAYOUT.font_family};
+font-size:{UI_LAYOUT.body}px;}}
+QDialog, QWidget#akihaWorkspace {{background:{c.window};}}
+QTabWidget::pane {{background:{c.window};border:1px solid {c.border};}}
+QTabBar::tab {{background:{c.panel};color:{c.muted_text};padding:10px 16px;
+border:1px solid {c.border};}}
+QTabBar::tab:selected {{background:{c.control};color:{c.text};}}
+QCalendarWidget QWidget {{background:{c.panel};color:{c.text};}}
+QCalendarWidget QAbstractItemView {{background:{c.window};color:{c.text};
+selection-background-color:{c.primary};selection-color:{c.window};}}
+QCalendarWidget QToolButton {{background:{c.control};color:{c.text};}}
+QFrame#workspaceNavigation {{background:{c.panel};border-right:1px solid {c.border};}}
+QLabel#pageHeading {{font-size:26px;font-weight:600;}}
+QLabel#secondaryText, QLabel#statusBadge {{color:{c.muted_text};}}
+QPushButton {{min-height:34px;padding:2px 12px;border:1px solid {c.border};
+border-radius:8px;background:{c.control};}}
+QPushButton:hover {{background:{c.hover};}}
+QPushButton:focus {{border:1px solid {c.highlight};}}
+QPushButton:pressed {{background:{c.panel};}}
+QPushButton:disabled {{color:{c.disabled_text};}}
+QPushButton#navigationItem {{border:none;background:transparent;text-align:left;}}
+QPushButton#navigationItem:checked {{background:{c.control};color:{c.highlight};}}
+QWidget#akihaChatWindow QPushButton#navigationItem {{border:none;
+background:transparent;text-align:left;color:{c.muted_text};}}
+QWidget#akihaChatWindow QPushButton#navigationItem:checked {{
+background:{c.control};color:{c.highlight};}}
+QPushButton#primaryButton {{background:{c.primary};color:{c.window};}}
+QLineEdit, QPlainTextEdit, QComboBox, QDateTimeEdit, QListWidget {{
+background:{c.control};border:1px solid {c.border};border-radius:8px;
+padding:8px;color:{c.text};}}
+QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus {{border-color:{c.highlight};}}
+QMenu {{background:{c.panel};color:{c.text};border:1px solid {c.border};
+border-radius:10px;padding:8px;}}
+QMenu::item {{padding:9px 32px 9px 12px;border-radius:6px;}}
+QMenu::item:selected {{background:{c.control};}}
+QMenu::item:disabled {{color:{c.muted_text};}}
+QMenu::separator {{height:1px;background:{c.border};margin:6px 8px;}}
+QFrame#contextMenuHeading {{background:{c.panel};border:none;}}
+QFrame#contextMenuHeading QLabel#pageHeading {{font-size:17px;}}
+"""
 
 
 def settings_stylesheet() -> str:
@@ -36,7 +98,7 @@ def settings_stylesheet() -> str:
     background-color: {color.window};
     color: {color.text};
     font-family: "Segoe UI";
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QLabel {{
     color: {color.text};
@@ -76,8 +138,8 @@ def settings_stylesheet() -> str:
     color: {color.text};
 }}
 {root} QPushButton#settingsNavButton:checked {{
-    background-color: {color.primary};
-    color: {color.window};
+    background-color: {color.control};
+    color: {color.highlight};
 }}
 {root} QFrame#settingsSidebarSeparator {{
     max-height: 1px;
@@ -108,7 +170,7 @@ def settings_stylesheet() -> str:
 }}
 {root} QLabel#settingsPageDescription {{
     color: {color.muted_text};
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QFrame#settingsManagementBar {{
     border: none;
@@ -173,8 +235,8 @@ def settings_stylesheet() -> str:
 {root} QSpinBox:disabled,
 {root} QDoubleSpinBox:disabled,
 {root} QTimeEdit:disabled {{
-    color: #6F7488;
-    background-color: #252832;
+    color: {color.disabled_text};
+    background-color: {color.disabled_surface};
 }}
 {root} QComboBox::drop-down {{
     width: 30px;
@@ -219,7 +281,7 @@ def settings_stylesheet() -> str:
 {root} QDoubleSpinBox::down-button:hover,
 {root} QTimeEdit::up-button:hover,
 {root} QTimeEdit::down-button:hover {{
-    background-color: #343846;
+    background-color: {color.hover};
 }}
 {root} QSpinBox::up-arrow,
 {root} QSpinBox::down-arrow,
@@ -275,8 +337,8 @@ def settings_stylesheet() -> str:
     background-color: {color.primary};
 }}
 {root} QCheckBox::indicator:disabled {{
-    border-color: #343847;
-    background-color: #252832;
+    border-color: {color.disabled_border};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton {{
     min-height: 32px;
@@ -288,15 +350,15 @@ def settings_stylesheet() -> str:
 }}
 {root} QPushButton:hover {{
     border-color: {color.highlight};
-    background-color: #343846;
+    background-color: {color.hover};
 }}
 {root} QPushButton:pressed {{
     background-color: {color.panel};
 }}
 {root} QPushButton:disabled {{
-    color: #6F7488;
-    border-color: #343847;
-    background-color: #252832;
+    color: {color.disabled_text};
+    border-color: {color.disabled_border};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton#primaryButton {{
     min-height: 38px;
@@ -355,7 +417,7 @@ def chat_stylesheet() -> str:
     background-color: {color.window};
     color: {color.text};
     font-family: "Segoe UI";
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QLabel {{
     color: {color.text};
@@ -384,7 +446,7 @@ def chat_stylesheet() -> str:
     selection-background-color: {color.primary};
     selection-color: {color.window};
 }}
-{root} QLineEdit#chatInput {{
+{root} QPlainTextEdit#chatInput {{
     min-height: 34px;
     padding: 0 10px;
     border: 1px solid {color.border};
@@ -394,12 +456,12 @@ def chat_stylesheet() -> str:
     selection-background-color: {color.primary};
     selection-color: {color.window};
 }}
-{root} QLineEdit#chatInput:focus {{
+{root} QPlainTextEdit#chatInput:focus {{
     border-color: {color.highlight};
 }}
-{root} QLineEdit#chatInput:disabled {{
-    color: #6F7488;
-    background-color: #252832;
+{root} QPlainTextEdit#chatInput:disabled {{
+    color: {color.disabled_text};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton {{
     min-height: 32px;
@@ -411,15 +473,15 @@ def chat_stylesheet() -> str:
 }}
 {root} QPushButton:hover {{
     border-color: {color.highlight};
-    background-color: #343846;
+    background-color: {color.hover};
 }}
 {root} QPushButton:pressed {{
     background-color: {color.panel};
 }}
 {root} QPushButton:disabled {{
-    color: #6F7488;
-    border-color: #343847;
-    background-color: #252832;
+    color: {color.disabled_text};
+    border-color: {color.disabled_border};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton#primaryButton {{
     border-color: {color.highlight};
@@ -493,7 +555,7 @@ def pet_care_stylesheet() -> str:
     background-color: {color.window};
     color: {color.text};
     font-family: "Segoe UI";
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QLabel {{
     color: {color.text};
@@ -587,9 +649,9 @@ def pet_care_stylesheet() -> str:
     background-color: {color.panel};
 }}
 {root} QPushButton:disabled {{
-    color: #6F7488;
-    border-color: #343847;
-    background-color: #252832;
+    color: {color.disabled_text};
+    border-color: {color.disabled_border};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton#careActionButton {{
     min-height: 40px;
@@ -652,7 +714,7 @@ def shop_window_stylesheet() -> str:
     background-color: {color.window};
     color: {color.text};
     font-family: "Segoe UI";
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QLabel {{
     color: {color.text};
@@ -834,9 +896,9 @@ def shop_window_stylesheet() -> str:
     background-color: #353946;
 }}
 {root} QPushButton:disabled {{
-    color: #6F7488;
-    border-color: #343847;
-    background-color: #252832;
+    color: {color.disabled_text};
+    border-color: {color.disabled_border};
+    background-color: {color.disabled_surface};
 }}
 {root} QPushButton#shopPrimaryButton {{
     min-width: 112px;
@@ -893,62 +955,63 @@ def shop_window_stylesheet() -> str:
 
 def manager_window_stylesheet(object_name: str) -> str:
     """Return the shared technical-modal stylesheet."""
+    color = AKIHA_PALETTE
     root = f"QWidget#{object_name}"
     return f"""
 {root} {{
-    background-color: #1A1D24;
-    color: #E8E9EE;
+    background-color: {color.window};
+    color: {color.text};
     font-family: "Segoe UI";
-    font-size: 13px;
+    font-size: 14px;
 }}
 {root} QLabel {{
-    color: #E8E9EE;
+    color: {color.text};
     background: transparent;
 }}
 {root} QFrame#managerHeader {{
     min-height: 76px;
     border: none;
-    border-bottom: 1px solid #3A3F52;
-    background-color: #2C303C;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.control};
 }}
 {root} QFrame#managerFooter {{
     min-height: 54px;
     border: none;
-    border-top: 1px solid #3A3F52;
-    background-color: #22252E;
+    border-top: 1px solid {color.border};
+    background-color: {color.panel};
 }}
 {root} QFrame#managerFilters {{
     min-height: 56px;
     max-height: 56px;
     border: none;
-    border-bottom: 1px solid #3A3F52;
-    background-color: #2C303C;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.control};
 }}
 {root} QFrame#managerBody {{
     border: none;
-    background-color: #1A1D24;
+    background-color: {color.window};
 }}
 {root} QFrame#managerNavigationPane {{
     border: none;
-    border-right: 1px solid #3A3F52;
-    background-color: #2C303C;
+    border-right: 1px solid {color.border};
+    background-color: {color.control};
 }}
 {root} QFrame#managerDetailPane {{
     border: none;
-    background-color: #1A1D24;
+    background-color: {color.window};
 }}
 {root} QFrame#managerDetailHeader {{
     border: none;
-    border-bottom: 1px solid #3A3F52;
-    background-color: #1A1D24;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.window};
 }}
 {root} QFrame#managerMetadataGrid {{
     border: none;
-    border-bottom: 1px solid #3A3F52;
-    background-color: #1A1D24;
+    border-bottom: 1px solid {color.border};
+    background-color: {color.window};
 }}
 {root} QLabel#managerTitle {{
-    color: #E8E9EE;
+    color: {color.text};
     font-size: 18px;
     font-weight: 600;
 }}
@@ -966,7 +1029,7 @@ def manager_window_stylesheet(object_name: str) -> str:
     font-size: 10px;
 }}
 {root} QLabel#managerDetailTitle {{
-    color: #E8E9EE;
+    color: {color.text};
     font-size: 18px;
     font-weight: 600;
 }}
@@ -991,10 +1054,10 @@ def manager_window_stylesheet(object_name: str) -> str:
 }}
 {root} QLabel#managerValueChip {{
     padding: 5px 8px;
-    border: 1px solid #3A3F52;
+    border: 1px solid {color.border};
     border-radius: 3px;
-    background-color: #2C303C;
-    color: #E8E9EE;
+    background-color: {color.control};
+    color: {color.text};
     font-family: "Cascadia Mono";
     font-size: 11px;
 }}
@@ -1024,15 +1087,15 @@ def manager_window_stylesheet(object_name: str) -> str:
     color: #FFB4AB;
 }}
 {root} QTabWidget#managerTabContainer {{
-    background-color: #22252E;
+    background-color: {color.panel};
 }}
 {root} QTabWidget#managerTabContainer::pane {{
     border: none;
-    background-color: #22252E;
+    background-color: {color.panel};
     top: -1px;
 }}
 {root} QTabBar#managerTabs {{
-    background-color: #22252E;
+    background-color: {color.panel};
 }}
 {root} QTabBar::tab {{
     min-width: 92px;
@@ -1040,7 +1103,7 @@ def manager_window_stylesheet(object_name: str) -> str:
     padding: 0 12px;
     border: none;
     border-bottom: 2px solid transparent;
-    background-color: #22252E;
+    background-color: {color.panel};
     color: #C7C5D1;
 }}
 {root} QTabBar::tab:selected {{
@@ -1050,56 +1113,56 @@ def manager_window_stylesheet(object_name: str) -> str:
     font-weight: 600;
 }}
 {root} QTabBar::tab:hover:!selected {{
-    color: #E8E9EE;
+    color: {color.text};
 }}
 {root} QLineEdit#managerSearchInput {{
     min-height: 34px;
     padding: 0 10px;
-    border: 1px solid #C7C5D1;
-    border-radius: 2px;
-    background-color: #F7F7FA;
-    color: #303035;
+    border: 1px solid {color.border};
+    border-radius: 8px;
+    background-color: {color.control};
+    color: {color.text};
     selection-background-color: #878BD1;
     selection-color: #FFFFFF;
 }}
 {root} QLineEdit#managerSearchInput:focus {{
-    border-color: #9599E0;
+    border-color: {color.highlight};
 }}
 {root} QComboBox {{
     min-height: 34px;
     padding: 0 30px 0 10px;
-    border: 1px solid #3A3F52;
+    border: 1px solid {color.border};
     border-radius: 3px;
-    background-color: #2C303C;
-    color: #E8E9EE;
+    background-color: {color.control};
+    color: {color.text};
 }}
 {root} QListWidget {{
     padding: 0;
     border: none;
     border-radius: 0;
-    background-color: #1A1D24;
-    color: #E8E9EE;
+    background-color: {color.window};
+    color: {color.text};
     selection-background-color: transparent;
-    selection-color: #E8E9EE;
+    selection-color: {color.text};
     outline: none;
 }}
 {root} QListWidget#memoryCardList {{
-    background-color: #2C303C;
+    background-color: {color.control};
 }}
 {root} QListWidget#actionRecordList {{
-    background-color: #2C303C;
+    background-color: {color.control};
 }}
 {root} QPlainTextEdit#managerCodeBlock {{
     margin: 0 24px 22px 24px;
     padding: 14px;
-    border: 1px solid #3A3F52;
+    border: 1px solid {color.border};
     border-radius: 3px;
     background-color: #0E0E12;
     color: #C7C5D1;
     font-family: "Cascadia Mono";
     font-size: 12px;
     selection-background-color: #3C4081;
-    selection-color: #E8E9EE;
+    selection-color: {color.text};
 }}
 {root} QListWidget::item {{
     border: none;
@@ -1108,23 +1171,23 @@ def manager_window_stylesheet(object_name: str) -> str:
 {root} QComboBox:focus,
 {root} QPlainTextEdit#managerCodeBlock:focus,
 {root} QListWidget:focus {{
-    border-color: #9599E0;
+    border-color: {color.highlight};
 }}
 {root} QPushButton {{
     min-height: 32px;
     padding: 0 13px;
-    border: 1px solid #3A3F52;
+    border: 1px solid {color.border};
     border-radius: 4px;
-    background-color: #2C303C;
-    color: #E8E9EE;
+    background-color: {color.control};
+    color: {color.text};
 }}
 {root} QPushButton:hover {{
-    border-color: #9599E0;
+    border-color: {color.highlight};
     background-color: #353946;
 }}
 {root} QPushButton#primaryButton {{
-    border-color: #9599E0;
-    background-color: #7B7FC4;
+    border-color: {color.highlight};
+    background-color: {color.primary};
     color: #F4F4FA;
     font-weight: 600;
 }}
@@ -1149,7 +1212,7 @@ def manager_window_stylesheet(object_name: str) -> str:
 }}
 {root} QSplitter::handle {{
     width: 1px;
-    background-color: #3A3F52;
+    background-color: {color.border};
 }}
 {root} QComboBox::drop-down {{
     width: 30px;
@@ -1161,11 +1224,11 @@ def manager_window_stylesheet(object_name: str) -> str:
     image: none;
 }}
 {root} QComboBox QAbstractItemView {{
-    border: 1px solid #3A3F52;
-    background-color: #2C303C;
-    color: #E8E9EE;
+    border: 1px solid {color.border};
+    background-color: {color.control};
+    color: {color.text};
     selection-background-color: #3C4081;
-    selection-color: #E8E9EE;
+    selection-color: {color.text};
     outline: none;
 }}
 {root} QScrollBar:vertical {{
@@ -1177,10 +1240,10 @@ def manager_window_stylesheet(object_name: str) -> str:
 {root} QScrollBar::handle:vertical {{
     min-height: 30px;
     border-radius: 4px;
-    background-color: #3A3F52;
+    background-color: {color.border};
 }}
 {root} QScrollBar::handle:vertical:hover {{
-    background-color: #7B7FC4;
+    background-color: {color.primary};
 }}
 {root} QScrollBar::add-line:vertical,
 {root} QScrollBar::sub-line:vertical,

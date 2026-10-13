@@ -301,6 +301,23 @@ def analyze_action_readiness(
             for spec in definition.parameters
             if spec.required and spec.name not in parameters
         )
+        if request.action_id == "reminders.create" and not missing:
+            from project_akiha.core.utilities.reminders import (
+                AmbiguousReminderTime,
+                NonexistentReminderTime,
+                reminder_time,
+            )
+
+            try:
+                reminder_time(
+                    parameters["local_time"],
+                    parameters["timezone"],
+                    parameters.get("fold"),
+                )
+            except AmbiguousReminderTime:
+                missing = ("fold",)
+            except NonexistentReminderTime:
+                missing = ("local_time",)
     except (ActionValidationError, ValueError, TypeError):
         return ActionReadinessDecision(ActionReadinessStatus.INVALID, request)
     if missing:

@@ -460,6 +460,16 @@ class ActionClarificationService:
                 return allowed and self.owns(request, epoch)
             return True
 
+    def commit_owned(
+        self, request: ActionRequest, epoch: int, commit: Callable[[], None]
+    ) -> bool:
+        """Publish a confirmed local export under the captured ownership lock."""
+        with self._lock:
+            if not self.execution_owned(request, epoch):
+                return False
+            commit()
+            return True
+
     def start_local_search(self, request: ActionRequest) -> LocalSearchIdentity:
         """Claim the complete local search intent once, before starting its worker.
 

@@ -9,6 +9,7 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -114,9 +115,11 @@ class MusicFilesPanel(QWidget):
         self._open.clicked.connect(self._open_selected)
         refresh = QPushButton("Refresh")
         refresh.clicked.connect(self.refresh)
-        row = QHBoxLayout()
-        for button in (self._add, self._add_folder, self._remove, self._open, refresh):
-            row.addWidget(button)
+        row = QGridLayout()
+        for index, button in enumerate(
+            (self._add, self._add_folder, self._remove, self._open, refresh)
+        ):
+            row.addWidget(button, index // 3, index % 3)
         permission_row = QHBoxLayout()
         permission_note = QLabel(
             "Adding music approves its containing folder for opening; adding an "

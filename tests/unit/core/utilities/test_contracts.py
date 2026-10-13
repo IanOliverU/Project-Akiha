@@ -151,7 +151,9 @@ class UtilityContractCatalogTest(unittest.TestCase):
             )
         )
 
-    def test_future_actions_are_not_exposed_before_their_executor_exists(self) -> None:
+    def test_bounded_implemented_utilities_are_exposed_but_excluded_operations_are_not(
+        self,
+    ) -> None:
         active_ids = {
             definition.action_id
             for definition in build_default_action_registry().definitions
@@ -161,9 +163,16 @@ class UtilityContractCatalogTest(unittest.TestCase):
         self.assertIn(UtilityOperation.NAVIGATION_OPEN.value, active_ids)
         self.assertIn(UtilityOperation.TIMER_CREATE.value, active_ids)
         self.assertNotIn(UtilityOperation.TIMER_SNOOZE.value, active_ids)
-        self.assertNotIn(UtilityOperation.REMINDER_CREATE.value, active_ids)
-        self.assertNotIn(UtilityOperation.WEATHER_CURRENT.value, active_ids)
-        self.assertNotIn(UtilityOperation.EXPORT_CONVERSATIONS.value, active_ids)
+        self.assertIn(UtilityOperation.REMINDER_CREATE.value, active_ids)
+        self.assertIn(UtilityOperation.WEATHER_CURRENT.value, active_ids)
+        self.assertIn(UtilityOperation.EXPORT_CONVERSATIONS.value, active_ids)
+        for excluded in (
+            "reminders.recur",
+            "exports.restore",
+            "information.browse",
+            "files.write",
+        ):
+            self.assertNotIn(excluded, active_ids)
 
     def test_catalog_rejects_duplicate_and_unknown_operations(self) -> None:
         contract = _read_only_contract(UtilityOperation.WEATHER_CURRENT)

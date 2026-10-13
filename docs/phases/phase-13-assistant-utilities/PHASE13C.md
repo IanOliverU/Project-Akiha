@@ -1,8 +1,9 @@
 # Phase 13C: One-shot timers
 
-Status: active; bounded one-shot timer implementation added 2026-10-08 following
-the owner's accepted Phase 13B closure. Independent review, unrestricted
-composition/full-suite verification and owner acceptance remain pending.
+Status: complete, 2026-10-09. Owner timer-behavior acceptance, bounded review,
+correction verification and unrestricted single-process gates are recorded below.
+Graceful pending-clarification shutdown and packaged verification remain tracked
+for the authorized consolidated 13I gate; timer completion does not waive them.
 
 ## Required context and existing boundaries
 
@@ -348,3 +349,154 @@ completion, clean packaging or Phase 13D+ implementation occurred.
 
 These items remain tracked in the [13B closing review](../../audits/PHASE13B_BOUNDED_REVIEW_2026-10-08.md).
 Phase 13C activation is not package/release acceptance.
+
+## Owner functional acceptance — 2026-10-09
+
+The owner reported that the timer commands work well during manual testing and
+explicitly requested acceptance: “Looks good, it works so far the task timer
+commands is working well proceed to accept it since I manually tested it”.
+Owner acceptance of the implemented timer behavior is recorded on that basis.
+The owner did not supply a command-by-command test matrix or new automated
+results; this record does not infer microphone, restart, race, privacy or failure
+case verification beyond the reported manual checks.
+
+The automated results and blocked gates above remain unchanged. Independent
+review, the six composed tests, required single-process complete discovery,
+historical Qt lifecycle verification and source smoke still need unrestricted
+Windows evidence. Manual acceptance is not recorded as an automated gate pass
+or an explicit waiver of those requirements. Phase 13C remains active until its
+remaining verification and review are resolved; Phase 13D is not activated.
+The deferred shutdown/package checks and cleanup-guard prerequisite remain
+in force. This update changes documentation only.
+
+## Automated gates and bounded review follow-up — 2026-10-09
+
+See the [bounded review record](../../audits/PHASE13C_REVIEW_2026-10-09.md) for
+the exact reviewed locations, independent probes, fresh results and limitations.
+Owner timer-behavior acceptance above is preserved. No new implementation defect
+was reproduced. One composed test incorrectly dispatched a worker after central
+readiness had already rejected a fractional duration; the actual production
+callback probe reproduced this, and the test now asserts early rejection,
+zero worker creation, no provider prompts and no rows. Independent code
+and repository probes passed, but composed privacy/lifecycle verification and
+required automated gates remain blocked by this session's local IPC restrictions.
+Phase 13C remains active, not complete. Phase 13D has not started.
+
+Fresh runs: focused 139 tests OK; security/database/shutdown 63 OK; available
+boundaries 27 OK with one existing Windows symlink-privilege skip. Ruff, Black
+API, compilation of 559 files and static boundaries pass. Inventory remains
+1917 unique IDs, including 38 enabled timer tests. Composed/full discovery were
+interrupted with exit 1 and no final totals; source smoke exited 1 before data
+initialization. The default Windows asyncio socket-pair and QLocalServer access
+failures were independently reproduced without timer code.
+
+The new verification-only script captures all required normal Windows gates,
+full discovery in one process, ten historical Qt-pair repetitions, inventory and
+content hashes. Syntax and real inventory-only execution passed. This script
+does not clean/package, change app configuration, bypass IPC or disable tests.
+Its full mode still needs unrestricted execution; it returns nonzero if a gate
+returns nonzero. Run:
+
+```powershell
+Set-Location 'C:\Users\MY PC\Desktop\Project Akiha'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_phase13c.ps1
+```
+
+Return the entire printed verification folder, including `gate-results.json`,
+individual logs/exit codes, `inventory.json`, `file-hashes.json`, `head.txt` and
+`status.txt`. Completion requires reconciling this evidence against the reviewed
+tree and finishing the blocked composed checks. Existing shutdown/package
+deferrals and the cleanup-guard prerequisite are unchanged.
+
+## Normal Windows evidence and gate corrections — 2026-10-09
+
+Reviewed `dist/phase13c-verification-20261009-025651-5d46ef` completely for gate
+results and failure traces. All captured source hashes matched the pre-correction
+tree. Inventory contains 1924 unique IDs; every ID occurs in the wrapped full
+output. Full discovery completed in one process: 1924 tests, 53.152 seconds,
+two failures, no skips, exit 1. Timer selection: 38 tests, 4.073 seconds,
+one failure, exit 1. These are failed gates, not IPC failures.
+
+The real composed privacy test reproduced a timer label entering the visible
+chat transcript through `submit_chat_message`'s unconditional user-message
+append. Other checked persistence/provider/output surfaces excluded the label.
+The composer now omits the user-message echo for recognized typed timer actions;
+the original request and label still reach the existing action validation and
+schedule owner. Other action/chat display routing is preserved. The composed
+privacy test now asserts exclusion immediately after submission, and the
+typed/local-voice convergence test also asserts label exclusion from the UI.
+
+The full suite's second failure was
+`GptSoVitsEngineManagerTest.test_missing_runtime_is_reported`. A targeted rerun
+reproduced it: TEMP inside the checkout allowed the production four-ancestor
+runtime search to discover the actually installed runtime, yielding `starting`.
+The missing-runtime fixture now places its empty root five levels inside its
+temporary directory and asserts all discovery roots stay within that fixture.
+Runtime discovery, process behavior and assertions remain intact. This is a
+test isolation defect, not a timer or live-synthesis failure.
+
+Post-correction commands and results:
+
+- `.venv313/Scripts/python.exe -B -m unittest tests.unit.services.test_gpt_sovits_engine_manager tests.unit.services.test_phase13c_timers -q`:
+  43 tests, 1.938 seconds, OK, exit 0 (TEMP/TMP set to workspace fixture directory).
+- `.venv313/Scripts/python.exe -B dist/phase13c-composer-probe.py`: actual
+  production composer callback and real ChatWindow; private-label exclusion,
+  intact request label and other-action display all pass, exit 0. This bounded
+  probe is supplemental, not a replacement for composed/full discovery.
+- `.venv313/Scripts/python.exe -B -m ruff check project_akiha tests`: exit 0.
+- `.venv313/Scripts/python.exe -B dist/spotify-history-static-check.py`:
+  560 files compile, Black API unchanged, core boundaries pass, 1924 unique IDs,
+  exit 0. Black CLI remains covered by the owner's prior normal run.
+- `git -c safe.directory='C:/Users/MY PC/Desktop/Project Akiha' diff --check`:
+  exit 0.
+
+Owner-run unchanged gates passed: focused 139, security/database/shutdown 63,
+boundaries 39, cleanup guard 7 (including real junction assertions), ten Qt
+pairs of two tests each, Ruff, Black CLI, compilation/static and diff check.
+The cleanup guard prerequisite is now independently verified at the captured
+hashes; no packaging occurred. Source/database/log smoke exited 0 but recorded
+`ForcedStop=True`; graceful shutdown remains unproved.
+
+Changed by this gate correction: `project_akiha/app/main.py`,
+`tests/unit/app/test_phase13c_timers.py`,
+`tests/unit/services/test_gpt_sovits_engine_manager.py` and these review/work
+records. The current inventory remains 1924. Corrected composed timer and full
+single-process gates require normal Windows rerun because this session's
+previously reproduced IPC restriction remains. Run the same verification
+script above and return its new folder. Phase 13C remains active with owner
+functional acceptance preserved; the already authorized 13D–13I work remains
+queued behind this required dependency. No completion, new acceptance, commit,
+push or package is recorded.
+
+## Final correction verification and completion — 2026-10-09
+
+Reviewed `dist/phase13c-verification-20261009-030430-a61707`. All captured hashes
+match the corrected tree; inventory is 1924 unique IDs and every ID occurs in
+the full output. The required one-process discovery ran 1924 tests in 48.545
+seconds, OK, no skips, exit 0. Timer selection ran 38 in 4.739 seconds, OK,
+exit 0. Focused 139, security/database/shutdown 63, boundaries 39, cleanup guard
+7 (including the real junction fixture), and ten historical pairs of 2 tests
+each all passed. Ruff, Black CLI, compilation/static, isolated source/database/
+log smoke and diff check all exited 0. The exact command was
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify_phase13c.ps1`.
+
+Both previously reproduced failures are now covered by the successful composed
+and full gates. Bounded review found no remaining timer acceptance blocker.
+The owner's already recorded functional acceptance is preserved. Phase 13C is
+complete and Phase 13D is active under the existing continuous authorization.
+Smoke still records ForcedStop=True, so graceful shutdown is not claimed.
+The cleanup guard prerequisite is verified; final source/package/shutdown gates
+and the owner's consolidated checklist remain outstanding. No commit or push.
+
+### Consolidated follow-through — 2026-10-09
+
+The authorized dependency-ordered 13D–13H implementation and 13I source gates
+are recorded in [CONSOLIDATED_VERIFICATION.md](CONSOLIDATED_VERIFICATION.md).
+Current discovery passes 1990 tests in one process, zero skips, exit 0; the
+historical 1924 total above remains the reviewed 13C-only milestone. Ten Qt
+pairs and all seven cleanup tests pass. A fresh clean candidate was built only
+after those gates and the cleanup prerequisite passed. Pending-clarification
+Quit is now proved in source and package in fresh default profiles; real
+configured hosted/microphone shutdown remains an explicit owner checklist
+item. Owner timer acceptance is preserved; final consolidated Phase 13
+acceptance is pending. No commit or push was made.

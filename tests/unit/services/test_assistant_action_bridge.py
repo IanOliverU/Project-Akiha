@@ -521,13 +521,18 @@ class AssistantActionRequestParserTest(unittest.TestCase):
             "Please do not open Discord for me, Akiha.",
             "Could you please not pause Spotify, Akiha?",
             "Akiha, tell me how to enable shuffle on Spotify.",
-            "Please remind me to open VLC later, Akiha.",
             'Could you repeat the phrase "open Spotify" for me, Akiha?',
         )
 
         for text in cases:
             with self.subTest(text=text):
                 self.assertIsNone(self.parser.parse(text))
+
+        # Recognized reminder intent cannot become an application launch. Its
+        # unsupported relative time fails closed at reminder readiness.
+        request = self.parser.parse("Please remind me to open VLC later, Akiha.")
+        self.assertEqual(request.action_id, "reminders.create")
+        self.assertEqual(request.parameters["local_time"], "invalid")
 
     def test_parses_absolute_spotify_seek_commands(self) -> None:
         cases = (

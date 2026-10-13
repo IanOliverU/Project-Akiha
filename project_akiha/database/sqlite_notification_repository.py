@@ -167,13 +167,13 @@ def _record_from_row(row: tuple[object, ...]) -> NotificationInboxRecord:
     return NotificationInboxRecord(
         id=int(row[0]),
         service=(
-            TimerNotificationSource.TIMERS
-            if row[1] == "timers"
+            TimerNotificationSource(str(row[1]))
+            if row[1] in {"timers", "reminders"}
             else ExternalService(str(row[1]))
         ),
         event_kind=(
             TimerNotificationKind(str(row[2]))
-            if row[1] == "timers"
+            if row[1] in {"timers", "reminders"}
             else ExternalEventKind(str(row[2]))
         ),
         priority=ExternalEventPriority(str(row[3])),

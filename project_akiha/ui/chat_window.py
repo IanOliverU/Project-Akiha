@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QStyle,
@@ -20,7 +19,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from project_akiha.ui.theme import AKIHA_PALETTE, chat_stylesheet
+from project_akiha.ui.components import MultilineComposer, NavigationItem
+from project_akiha.ui.fluent_icons import fluent_icon
+from project_akiha.ui.theme import (
+    AKIHA_PALETTE,
+    chat_stylesheet,
+    native_surface_stylesheet,
+)
+
+
+class _ConversationView(QTextEdit):
+    """Follow output only while the reader is near the end of the transcript."""
+
+    def append(self, text):
+        scrollbar = self.verticalScrollBar()
+        follow = scrollbar.maximum() - scrollbar.value() < 24
+        position = scrollbar.value()
+        super().append(text)
+        scrollbar.setValue(scrollbar.maximum() if follow else position)
 
 
 class ChatWindow(QWidget):
@@ -38,18 +54,23 @@ class ChatWindow(QWidget):
     voice_replay_requested = Signal()
     voice_conversation_start_requested = Signal()
     voice_conversation_end_requested = Signal()
+    destination_requested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Akiha Chat")
+        self.setWindowTitle("Akiha · Workspace")
         self.setObjectName("akihaChatWindow")
         self.setMinimumSize(480, 540)
-        self.resize(580, 660)
-        self.setStyleSheet(chat_stylesheet())
+        self.resize(820, 760)
+        self.setStyleSheet(chat_stylesheet() + native_surface_stylesheet())
 
-        self._history_view = QTextEdit()
+        self._history_view = _ConversationView()
         self._history_view.setObjectName("chatHistory")
         self._history_view.setReadOnly(True)
+        self._history_view.setPlaceholderText(
+            "What would you like to talk about?\n"
+            "Start a conversation or ask for a supported local action."
+        )
         self._history_view.document().setDefaultStyleSheet(f"""
             .speaker-user {{
                 color: {AKIHA_PALETTE.listening};
@@ -92,8 +113,10 @@ class ChatWindow(QWidget):
         self._presence_label.setObjectName("chatPresence")
         self._status_label = QLabel("Ready")
         self._status_label.setObjectName("chatStatus")
+        self._provider_label = QLabel("Mock · local text")
+        self._provider_label.setObjectName("secondaryText")
 
-        self._input = QLineEdit()
+        self._input = MultilineComposer()
         self._input.setObjectName("chatInput")
         self._input.setPlaceholderText("Message Akiha")
         self._input.returnPressed.connect(self._submit_message)
@@ -121,7 +144,7 @@ class ChatWindow(QWidget):
         self._conversation_button.clicked.connect(self._request_conversation_action)
         self._refresh_conversation_button()
         self._voice_button = QPushButton("Talk")
-        self._voice_button.setFixedWidth(96)
+        self._voice_button.setMinimumWidth(96)
         self._voice_button.setToolTip("Push to talk")
         self._voice_button.clicked.connect(self._request_voice_action)
         self._refresh_voice_button()
@@ -159,20 +182,19 @@ class ChatWindow(QWidget):
         presence_layout.addWidget(self._presence_label)
         presence_layout.addStretch(1)
         presence_layout.addWidget(self._status_label)
+        presence_layout.addWidget(self._provider_label)
 
         toolbar = QFrame()
         toolbar.setObjectName("chatToolbar")
         toolbar_layout = QVBoxLayout()
         toolbar_layout.setContentsMargins(12, 10, 12, 10)
         toolbar_layout.setSpacing(8)
-        toolbar_layout.addLayout(action_layout)
         toolbar_layout.addLayout(presence_layout)
         toolbar.setLayout(toolbar_layout)
 
         input_layout = QHBoxLayout()
         input_layout.setContentsMargins(0, 0, 0, 0)
         input_layout.setSpacing(8)
-        input_layout.addWidget(self._input)
         input_layout.addWidget(self._voice_button)
         input_layout.addWidget(self._voice_replay_button)
         input_layout.addWidget(self._send_button)
@@ -190,6 +212,7 @@ class ChatWindow(QWidget):
         conversation_layout.addWidget(self._conversation_elapsed_label)
         conversation_layout.addWidget(self._conversation_button)
         composer_layout.addLayout(conversation_layout)
+        composer_layout.addWidget(self._input)
         composer_layout.addLayout(input_layout)
         composer.setLayout(composer_layout)
 
@@ -199,7 +222,67 @@ class ChatWindow(QWidget):
         layout.addWidget(toolbar)
         layout.addWidget(self._history_view, stretch=1)
         layout.addWidget(composer)
-        self.setLayout(layout)
+        self._conversation_layout = layout
+        navigation = QFrame()
+        navigation.setObjectName("workspaceNavigation")
+        navigation.setMinimumWidth(172)
+        navigation.setMaximumWidth(220)
+        nav = QVBoxLayout(navigation)
+        nav.setContentsMargins(16, 24, 16, 16)
+        nav.setSpacing(8)
+        title = QLabel("Akiha")
+        title.setObjectName("pageHeading")
+        nav.addWidget(title)
+        caption = QLabel("Your desktop companion")
+        caption.setObjectName("secondaryText")
+        caption.setWordWrap(True)
+        nav.addWidget(caption)
+        nav.addSpacing(16)
+        self._destinations = {}
+        for title, icon, key in [
+            ("Chat", "chat", "chat"),
+            ("Memories", "memory", "memories"),
+            ("Music", "music", "music"),
+            ("Utilities", "timer", "utilities"),
+            ("Notifications", "notification", "notifications"),
+            ("Activity", "history", "activity"),
+            ("Companion", "pet", "companion"),
+        ]:
+            button = NavigationItem(title, fluent_icon(icon))
+            button.setCheckable(key == "chat")
+            button.setChecked(key == "chat")
+            button.clicked.connect(
+                lambda _checked=False, k=key: self.destination_requested.emit(k)
+            )
+            self._destinations[key] = button
+            nav.addWidget(button)
+        nav.addSpacing(16)
+        label = QLabel("CONVERSATION")
+        label.setObjectName("secondaryText")
+        nav.addWidget(label)
+        for button in (
+            self._new_chat_button,
+            self._clear_chat_button,
+            self._export_chat_button,
+        ):
+            nav.addWidget(button)
+        nav.addStretch(1)
+        settings = NavigationItem("Settings", fluent_icon("settings"))
+        settings.setCheckable(False)
+        settings.clicked.connect(lambda: self.destination_requested.emit("settings"))
+        nav.addWidget(settings)
+        self._destinations["settings"] = settings
+        outer = QHBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        outer.addWidget(navigation)
+        outer.addLayout(layout, 1)
+        self.setLayout(outer)
+        self.setMinimumWidth(740)
+        self.resize(1080, 780)
+
+    def add_clarification_panel(self, panel):
+        self._conversation_layout.insertWidget(2, panel)
 
     def clear_history(self) -> None:
         """Clear the visible transcript."""
@@ -207,9 +290,15 @@ class ChatWindow(QWidget):
 
     def append_message(self, speaker: str, content: str) -> None:
         """Append a message to the visible transcript."""
-        self._history_view.append(
+        self._history_view.append(self._message_html(speaker, content))
+
+    @staticmethod
+    def _message_html(speaker, content):
+        body = escape(content).replace("\n", "<br/>")
+        return (
+            '<p style="margin-top:18px;margin-bottom:18px;line-height:150%;">'
             f'<span class="{_speaker_class(speaker)}">{escape(speaker)}</span>: '
-            f"{escape(content)}"
+            f"{body}</p>"
         )
 
     def begin_streaming_message(self, speaker: str) -> None:
@@ -218,12 +307,23 @@ class ChatWindow(QWidget):
             f'<span class="{_speaker_class(speaker)}">{escape(speaker)}</span>: '
         )
         self._streaming_block_number = self._history_view.document().blockCount() - 1
+        self._streaming_start = (
+            self._history_view.document()
+            .findBlockByNumber(self._streaming_block_number)
+            .position()
+        )
+        self._streaming_end = self._history_view.document().characterCount() - 1
 
     def append_stream_delta(self, content: str) -> None:
         """Append incremental plain text to the current message."""
-        self._history_view.moveCursor(QTextCursor.MoveOperation.End)
-        self._history_view.insertPlainText(content)
-        self._history_view.ensureCursorVisible()
+        scroll = self._history_view.verticalScrollBar()
+        follow = scroll.maximum() - scroll.value() < 24
+        position = scroll.value()
+        cursor = QTextCursor(self._history_view.document())
+        cursor.setPosition(self._streaming_end)
+        cursor.insertText(content)
+        self._streaming_end = cursor.position()
+        scroll.setValue(scroll.maximum() if follow else position)
 
     def replace_streaming_message(self, speaker: str, content: str) -> None:
         """Replace the current streaming block with one cumulative revision."""
@@ -237,17 +337,15 @@ class ChatWindow(QWidget):
             block = self._history_view.document().findBlockByNumber(
                 self._streaming_block_number
             )
-        cursor = QTextCursor(block)
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock)
-        cursor.movePosition(
-            QTextCursor.MoveOperation.StartOfBlock,
-            QTextCursor.MoveMode.KeepAnchor,
-        )
-        cursor.insertHtml(
-            f'<span class="{_speaker_class(speaker)}">{escape(speaker)}</span>: '
-            f"{escape(content)}"
-        )
-        self._history_view.ensureCursorVisible()
+        scroll = self._history_view.verticalScrollBar()
+        follow = scroll.maximum() - scroll.value() < 24
+        position = scroll.value()
+        cursor = QTextCursor(self._history_view.document())
+        cursor.setPosition(self._streaming_start)
+        cursor.setPosition(self._streaming_end, QTextCursor.MoveMode.KeepAnchor)
+        cursor.insertHtml(self._message_html(speaker, content))
+        self._streaming_end = cursor.position()
+        scroll.setValue(scroll.maximum() if follow else position)
 
     def finish_streaming_message(self) -> None:
         """Release the current streaming block after its final revision."""
@@ -288,6 +386,11 @@ class ChatWindow(QWidget):
     def set_status(self, status: str) -> None:
         """Show the current chat status."""
         self._status_label.setText(status)
+
+    def set_provider_display(self, provider: str, *, remote: bool):
+        self._provider_label.setText(
+            f"{provider} · " + ("hosted text" if remote else "local text")
+        )
 
     def set_presence_text(self, text: str) -> None:
         """Show the current companion presence text."""

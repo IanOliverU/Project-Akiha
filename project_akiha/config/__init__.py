@@ -17,6 +17,7 @@ from project_akiha.config.settings import (
     PetWindowConfig,
     PrivacyConfig,
     SpotifyConfig,
+    UtilitiesConfig,
     VoiceConfig,
     ai_text_processing_is_remote,
     load_config,
@@ -40,6 +41,7 @@ __all__ = [
     "SPOTIFY_REDIRECT_URI",
     "SpotifyConfig",
     "VoiceConfig",
+    "UtilitiesConfig",
     "ai_text_processing_is_remote",
     "load_config",
 ]

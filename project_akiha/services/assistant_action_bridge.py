@@ -44,6 +44,8 @@ from project_akiha.services.assistant_actions import AssistantActionService
 from project_akiha.services.command_envelope import (
     DeterministicCommandEnvelopeParser,
 )
+from project_akiha.services.current_information import parse_weather_command
+from project_akiha.services.reminder_actions import parse_reminder_command
 from project_akiha.services.spoken_text import strip_speech_echo_wrappers
 from project_akiha.services.timer_actions import parse_timer_command
 
@@ -524,6 +526,12 @@ class AssistantActionRequestParser:
         if envelope is None:
             return None
         normalized = envelope.command_text
+        weather_request = parse_weather_command(normalized, request_id)
+        if weather_request is not None:
+            return weather_request
+        reminder_request = parse_reminder_command(normalized, request_id)
+        if reminder_request is not None:
+            return reminder_request
         timer_request = parse_timer_command(normalized, request_id)
         if timer_request is not None:
             return timer_request

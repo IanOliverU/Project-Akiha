@@ -82,6 +82,14 @@ def _serialize_config(config: AppConfig) -> str:
     )
 
     return (
+        "[utilities]\n"
+        f"weather_enabled = {str(config.utilities.weather_enabled).lower()}\n"
+        f"location_configured = {str(config.utilities.location_configured).lower()}\n"
+        f"latitude = {config.utilities.latitude}\n"
+        f"longitude = {config.utilities.longitude}\n"
+        f"official_alerts = {str(config.utilities.official_alerts).lower()}\n"
+        "schedule_label_retention_days = "
+        f"{config.utilities.schedule_label_retention_days}\n\n"
         "[music_files]\n"
         f"paths = [{music_paths}]\n\n"
         "[pet_window]\n"

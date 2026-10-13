@@ -71,6 +71,27 @@ class ActionRequestValidator:
                     validate_timer_id(normalized_parameters["timer_id"])
             except ValueError as error:
                 raise _invalid_parameters("Invalid timer parameters.") from error
+        if definition.action_id.startswith("reminders."):
+            from project_akiha.core.utilities.reminders import (
+                reminder_time,
+                validate_reminder_id,
+            )
+            from project_akiha.core.utilities.timers import validate_timer_input
+
+            try:
+                if definition.action_id == "reminders.create":
+                    reminder_time(
+                        normalized_parameters["local_time"],
+                        normalized_parameters["timezone"],
+                        normalized_parameters.get("fold"),
+                    )
+                    validate_timer_input(1, normalized_parameters.get("label", ""))
+                if "reminder_id" in normalized_parameters:
+                    validate_reminder_id(normalized_parameters["reminder_id"])
+            except ValueError as error:
+                raise _invalid_parameters(
+                    "Invalid reminder date, timezone or identifier."
+                ) from error
         if definition.action_id == SPOTIFY_VOLUME_ACTION:
             _validate_spotify_volume_parameters(normalized_parameters)
         raw_target = normalized_parameters[definition.target_parameter]

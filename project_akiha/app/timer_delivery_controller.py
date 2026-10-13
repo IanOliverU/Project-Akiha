@@ -10,6 +10,7 @@ from project_akiha.core.behavior import (
     ProactiveDeliveryRequest,
 )
 from project_akiha.core.notifications import NotificationInboxStatus
+from project_akiha.core.utilities.reminders import ReminderRecord
 from project_akiha.core.utilities.timers import TimerStatus
 
 
@@ -36,10 +37,23 @@ class TimerDeliveryController:
         self.busy = busy_provider
         self.now = now_provider
         self.logger = logger or logging.getLogger("project_akiha.timers")
+        self._last_poll = None
+        self.diagnostics = {
+            "poll_delay_seconds": 0,
+            "missed_count": 0,
+            "presentation_failures": 0,
+        }
 
     def tick(self) -> None:
         if self.service is None:
             return
+        now = self.service.clock.monotonic_seconds()
+        self.diagnostics["poll_delay_seconds"] = (
+            0
+            if self._last_poll is None
+            else min(600, max(0, int(now - self._last_poll - 1)))
+        )
+        self._last_poll = now
         try:
             records = self.service.tick()
         except Exception:
@@ -47,20 +61,32 @@ class TimerDeliveryController:
             return
         for record in records:
             if record.status is TimerStatus.MISSED:
+                self.diagnostics["missed_count"] = min(
+                    100000, self.diagnostics["missed_count"] + 1
+                )
                 continue  # Recovery beyond the grace period: inbox only.
             try:
                 self._deliver(record)
             except Exception:
+                self.diagnostics["presentation_failures"] = min(
+                    100000, self.diagnostics["presentation_failures"] + 1
+                )
                 # Receipt already committed; never retry user-facing delivery.
                 self.logger.error(
                     "Timer presentation unavailable; inspect Notification Center."
                 )
 
     def _deliver(self, record) -> None:
-        message = f"Timer {record.timer_id} elapsed."
+        is_reminder = isinstance(record, ReminderRecord)
+        kind = "reminders.due" if is_reminder else "timers.elapsed"
+        message = (
+            f"Reminder {record.reminder_id} is due."
+            if is_reminder
+            else f"Timer {record.timer_id} elapsed."
+        )
         local_now = self.now()
         decision = self.policy.evaluate(
-            NotificationRequest("timers.elapsed", message, NotificationUrgency.NORMAL),
+            NotificationRequest(kind, message, NotificationUrgency.NORMAL),
             activity=self.activity_provider(),
             now=local_now,
             requires_proactive_enabled=False,
@@ -73,7 +99,7 @@ class TimerDeliveryController:
         prefs = self.preferences()
         result = self.delivery.deliver_request(
             ProactiveDeliveryRequest(
-                "timers.elapsed",
+                kind,
                 message,
                 NotificationUrgency.NORMAL,
                 local_now,

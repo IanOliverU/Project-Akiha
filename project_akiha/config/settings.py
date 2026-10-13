@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import tomllib
 from dataclasses import dataclass, field, replace
@@ -575,6 +576,41 @@ class MusicFilesConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class UtilitiesConfig:
+    """Explicit local utility preferences; no inferred or provider-set location."""
+
+    weather_enabled: bool = False
+    location_configured: bool = False
+    latitude: float = field(default=0.0, repr=False)
+    longitude: float = field(default=0.0, repr=False)
+    official_alerts: bool = False
+    schedule_label_retention_days: int = 30
+
+    def __post_init__(self):
+        if any(
+            type(value) is not bool
+            for value in (
+                self.weather_enabled,
+                self.location_configured,
+                self.official_alerts,
+            )
+        ):
+            raise ValueError("Utility opt-in fields must be boolean.")
+        for value, limit in ((self.latitude, 90), (self.longitude, 180)):
+            if (
+                type(value) not in (float, int)
+                or not math.isfinite(value)
+                or not -limit <= value <= limit
+            ):
+                raise ValueError("Weather coordinates are invalid.")
+        if (
+            type(self.schedule_label_retention_days) is not int
+            or not 1 <= self.schedule_label_retention_days <= 365
+        ):
+            raise ValueError("Schedule label retention must be 1 to 365 days.")
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     """Full application configuration."""
 
@@ -588,6 +624,10 @@ class AppConfig:
     spotify: SpotifyConfig = SpotifyConfig()
     integrations: ExternalIntegrationsConfig = ExternalIntegrationsConfig()
     music_files: MusicFilesConfig = MusicFilesConfig()
+    utilities: UtilitiesConfig = UtilitiesConfig()
+
+    def with_utilities(self, utilities: UtilitiesConfig) -> AppConfig:
+        return replace(self, utilities=utilities)
 
     def with_music_files(self, music_files: MusicFilesConfig) -> AppConfig:
         """Return a copy with updated local registrations."""
@@ -691,6 +731,9 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     music_paths = music_data.get("paths", [])
     if not isinstance(music_paths, list):
         raise ValueError("music_files.paths must be a TOML array.")
+    utilities_data = data.get("utilities", {})
+    if not isinstance(utilities_data, dict):
+        raise ValueError("utilities config must be a TOML table.")
 
     integrations_data = data.get("integrations", {})
     if not isinstance(integrations_data, dict):
@@ -713,6 +756,7 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         voice=VoiceConfig(**voice_data),
         spotify=SpotifyConfig(**spotify_data),
         music_files=MusicFilesConfig(tuple(music_paths)),
+        utilities=UtilitiesConfig(**utilities_data),
         integrations=ExternalIntegrationsConfig(
             **integrations_data,
             gmail=GmailIntegrationConfig(**gmail_data),

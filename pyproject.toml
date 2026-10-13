@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "PySide6>=6.8,<7",
+    "tzdata==2026.3",
 ]
 
 [project.optional-dependencies]

@@ -9,11 +9,9 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTime, QUrl, Signal
 from PySide6.QtGui import (
     QColor,
     QDesktopServices,
-    QFont,
     QIcon,
     QPainter,
     QPaintEvent,
-    QPixmap,
 )
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -92,11 +90,17 @@ from project_akiha.services.privacy_notice import (
 from project_akiha.ui.ai_provider_discovery_worker import (
     AIProviderDiscoveryThread,
 )
+from project_akiha.ui.fluent_icons import FluentComboBox, fluent_icon
 from project_akiha.ui.gmail_auth_worker import GmailAuthorizationThread
 from project_akiha.ui.music_files_panel import MusicFilesPanel
 from project_akiha.ui.privacy_notice import HostedLivePrivacyNoticeDialog
 from project_akiha.ui.spotify_auth_worker import SpotifyAuthorizationThread
-from project_akiha.ui.theme import AKIHA_PALETTE, settings_stylesheet
+from project_akiha.ui.theme import (
+    AKIHA_PALETTE,
+    native_surface_stylesheet,
+    settings_stylesheet,
+)
+from project_akiha.ui.utilities_panel import UtilitiesPanel
 
 _AI_PROVIDER_ORDER = (
     "mock",
@@ -175,6 +179,12 @@ _SETTINGS_PAGES = (
         "Register your local music and choose exactly which file to open.",
         "\ue8d6",
     ),
+    (
+        "Utilities",
+        "Everyday Utilities",
+        "Manage local schedules, weather and private exports.",
+        "\ue787",
+    ),
 )
 
 
@@ -182,6 +192,8 @@ class SettingsWindow(QWidget):
     """Settings surface for companion, behavior, and voice configuration."""
 
     settings_saved = Signal(object)
+    utility_action_requested = Signal(object)
+    utility_export_requested = Signal()
     music_files_changed = Signal(object)
     music_registration_requested = Signal(object, object)
     music_file_open_requested = Signal(str)
@@ -242,7 +254,7 @@ class SettingsWindow(QWidget):
 
         self.setWindowTitle("Project Akiha Settings")
         self.setObjectName("akihaSettingsWindow")
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(780, 620)
         self.resize(1120, 760)
         self.setStyleSheet(settings_stylesheet())
 
@@ -772,6 +784,7 @@ class SettingsWindow(QWidget):
             self._build_integrations_tab(),
             self._build_voice_tab(),
             self._build_music_files_tab(),
+            self._build_utilities_tab(),
         )
         pages = QStackedWidget()
         pages.setObjectName("settingsPages")
@@ -860,6 +873,22 @@ class SettingsWindow(QWidget):
         layout.addWidget(sidebar)
         layout.addWidget(main_panel, stretch=1)
         self.setLayout(layout)
+        self.setStyleSheet(settings_stylesheet() + native_surface_stylesheet())
+        self._draft_dirty = False
+        self._refreshing_config = False
+        self._save_result = None
+        self._save_status = QLabel(
+            "Configuration saved. Immediate operations do not wait for Save."
+        )
+        self._save_status.setObjectName("secondaryText")
+        self._save_status.setWordWrap(True)
+        save_status_row = QFrame()
+        save_status_layout = QHBoxLayout(save_status_row)
+        save_status_layout.setContentsMargins(28, 12, 28, 0)
+        save_status_layout.addWidget(self._save_status)
+        main_layout.insertWidget(0, save_status_row)
+        self._build_settings_search_index()
+        self._track_configuration_edits()
 
     def _build_sidebar(
         self,
@@ -871,7 +900,7 @@ class SettingsWindow(QWidget):
     ) -> QFrame:
         sidebar = QFrame()
         sidebar.setObjectName("settingsSidebar")
-        sidebar.setFixedWidth(232)
+        sidebar.setFixedWidth(212)
 
         title = QLabel("Akiha")
         title.setObjectName("settingsTitle")
@@ -892,6 +921,12 @@ class SettingsWindow(QWidget):
 
         navigation_label = QLabel("CONFIGURATION")
         navigation_label.setObjectName("settingsSectionLabel")
+        self._settings_search = QLineEdit()
+        self._settings_search.setPlaceholderText("Search settings")
+        self._settings_search.setAccessibleName(
+            "Search setting labels and descriptions"
+        )
+        self._settings_search.textChanged.connect(self._search_settings)
 
         navigation_group = QButtonGroup(self)
         navigation_group.setExclusive(True)
@@ -922,11 +957,19 @@ class SettingsWindow(QWidget):
         sidebar_layout.setContentsMargins(18, 22, 18, 18)
         sidebar_layout.setSpacing(8)
         sidebar_layout.addLayout(header)
+        sidebar_layout.addWidget(self._settings_search)
         sidebar_layout.addSpacing(20)
         sidebar_layout.addWidget(navigation_label)
+        navigation_content = QWidget()
+        navigation_layout = QVBoxLayout(navigation_content)
+        navigation_layout.setContentsMargins(0, 0, 0, 0)
         for button in navigation_buttons:
-            sidebar_layout.addWidget(button)
-        sidebar_layout.addStretch(1)
+            navigation_layout.addWidget(button)
+        navigation_layout.addStretch(1)
+        navigation_scroll = QScrollArea()
+        navigation_scroll.setWidgetResizable(True)
+        navigation_scroll.setWidget(navigation_content)
+        sidebar_layout.addWidget(navigation_scroll, 1)
         sidebar_layout.addWidget(separator)
         sidebar_layout.addWidget(open_logs_button)
         sidebar_layout.addWidget(reset_position_button)
@@ -937,8 +980,17 @@ class SettingsWindow(QWidget):
 
     def update_config(self, config: AppConfig) -> None:
         """Refresh controls from the current config."""
+        if getattr(self, "_draft_dirty", False):
+            self._config = config
+            self._save_status.setText(
+                "Unsaved edits retained while application settings changed. S"
+                "ave or discard deliberately."
+            )
+            return
         self._config = config
+        self._refreshing_config = True
         self._music_files_panel.set_config(config.music_files)
+        self._utilities_panel.set_config(config.utilities)
         self._width_input.setValue(config.pet_window.width)
         self._height_input.setValue(config.pet_window.height)
         self._fps_input.setValue(config.pet_window.frames_per_second)
@@ -1134,6 +1186,134 @@ class SettingsWindow(QWidget):
         self._set_hosted_live_duration(config.voice.hosted_live_max_duration_seconds)
         self._sync_hosted_live_privacy_status(config.privacy)
         self._sync_voice_controls(config.voice.enabled)
+
+        self._refreshing_config = False
+
+    def _build_settings_search_index(self):
+        self._settings_search_index = []
+        for index, (_, title, description, _) in enumerate(_SETTINGS_PAGES):
+            page = self._tabs.widget(index)
+            # Static labels only: no editor text, combo content, lists or tokens.
+            static_labels = [
+                label
+                for label in page.findChildren(QLabel)
+                if label.objectName()
+                in ("settingsPageTitle", "settingsPageDescription")
+            ]
+            for form in page.findChildren(QFormLayout):
+                for row in range(form.rowCount()):
+                    item = form.itemAt(row, QFormLayout.ItemRole.LabelRole)
+                    if item is not None and isinstance(item.widget(), QLabel):
+                        static_labels.append(item.widget())
+            labels = tuple((label, label.text()) for label in static_labels)
+            self._settings_search_index.append((title + " " + description, labels))
+
+    def _search_settings(self, text):
+        if not hasattr(self, "_settings_search_index"):
+            return
+        query = text.strip().casefold()
+        first = None
+        for index, (heading, labels) in enumerate(self._settings_search_index):
+            matches = [label for label, static in labels if query in static.casefold()]
+            visible = not query or query in heading.casefold() or bool(matches)
+            self._settings_nav_buttons[index].setVisible(visible)
+            if visible and first is None:
+                first = index
+        if query and first is not None:
+            self._settings_nav_buttons[first].click()
+            _, labels = self._settings_search_index[first]
+            for label, static in labels:
+                if query in static.casefold():
+                    ancestor = label.parentWidget()
+                    while ancestor is not None and not isinstance(
+                        ancestor, QScrollArea
+                    ):
+                        ancestor = ancestor.parentWidget()
+                    if ancestor is not None:
+                        ancestor.ensureWidgetVisible(label)
+                    break
+        if query and first is None:
+            self._save_status.setText(
+                "No setting label matches. Search never includes keys, paths "
+                "or private content."
+            )
+
+    def _track_configuration_edits(self):
+        controls = [
+            value for name, value in vars(self).items() if name.endswith("_input")
+        ]
+        controls += [
+            self._utilities_panel._weather_enabled,
+            self._utilities_panel._location_configured,
+            self._utilities_panel._latitude,
+            self._utilities_panel._longitude,
+            self._utilities_panel._alerts,
+            self._utilities_panel._retention,
+        ]
+        for control in controls:
+            if isinstance(control, QLineEdit):
+                control.textEdited.connect(self._mark_unsaved)
+            elif isinstance(control, QPlainTextEdit):
+                control.textChanged.connect(
+                    lambda c=control: self._mark_unsaved() if c.hasFocus() else None
+                )
+            elif isinstance(control, QCheckBox):
+                control.clicked.connect(self._mark_unsaved)
+            elif isinstance(control, QComboBox):
+                control.activated.connect(self._mark_unsaved)
+                if control.isEditable():
+                    control.lineEdit().textEdited.connect(self._mark_unsaved)
+            elif isinstance(control, (QSpinBox, QDoubleSpinBox)):
+                control.valueChanged.connect(
+                    lambda _, c=control: self._mark_unsaved() if c.hasFocus() else None
+                )
+            elif isinstance(control, QTimeEdit):
+                control.timeChanged.connect(
+                    lambda _, c=control: self._mark_unsaved() if c.hasFocus() else None
+                )
+
+    def _mark_unsaved(self, *_):
+        if self._refreshing_config:
+            return
+        self._draft_dirty = True
+        self._save_status.setText(
+            "Unsaved configuration changes · immediate operations remain independent."
+        )
+        self._save_button.setText("Save Changes")
+
+    def mark_save_result(self, success: bool):
+        self._save_result = success
+        self._draft_dirty = not success
+        self._save_status.setText(
+            "Configuration saved."
+            if success
+            else "Settings could not be saved. Edits retained; retry."
+        )
+
+    def closeEvent(self, event):
+        if not self._draft_dirty:
+            super().closeEvent(event)
+            return
+        choice = QMessageBox.question(
+            self,
+            "Unsaved settings",
+            "Save configuration changes before closing?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            event.ignore()
+        elif choice == QMessageBox.StandardButton.Save:
+            if self._save():
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            self._draft_dirty = False
+            self.update_config(self._config)
+            event.accept()
 
     def set_voice_health(
         self,
@@ -1556,7 +1736,36 @@ class SettingsWindow(QWidget):
         self._music_files_panel.permissions_requested.connect(
             lambda: self._settings_nav_buttons[4].click()
         )
-        return self._music_files_panel
+        return _build_scroll_tab(self._music_files_panel)
+
+    def _build_utilities_tab(self) -> QWidget:
+        self._utilities_panel = UtilitiesPanel(self._config.utilities, self)
+        self._utilities_panel.action_requested.connect(
+            self.utility_action_requested.emit
+        )
+        self._utilities_panel.export_requested.connect(
+            self.utility_export_requested.emit
+        )
+        return _build_scroll_tab(self._utilities_panel)
+
+    def show_weather(self, text: str) -> None:
+        self._utilities_panel.show_weather(text)
+        self._settings_nav_buttons[-1].click()
+        self.show()
+
+    def update_schedules(self, timers, reminders) -> None:
+        self._utilities_panel.update_schedules(timers, reminders)
+
+    def open_page(self, label: str) -> None:
+        """Focus an existing page without creating duplicate widgets/workers."""
+        self._settings_search.clear()
+        for button in self._settings_nav_buttons:
+            if button.text() == label:
+                button.click()
+                break
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
     def update_music_files(self, music_files: MusicFilesConfig) -> None:
         """Refresh this page without discarding unsaved changes on other pages."""
@@ -2048,6 +2257,7 @@ class SettingsWindow(QWidget):
             self._manifest_path_input.setText(selected_path)
 
     def _save(self) -> bool:
+        previous_config = self._config
         if not self._validate_ai_inputs():
             return False
         try:
@@ -2195,10 +2405,16 @@ class SettingsWindow(QWidget):
             )
         )
         config = config.with_spotify(spotify_config)
+        config = config.with_utilities(self._utilities_panel.config())
         config = config.with_integrations(integrations_config)
+        self._draft_dirty = False
+        self._save_result = None
         self.update_config(config)
+        self._save_status.setText("Save requested…")
         self.settings_saved.emit(config)
-        return True
+        if self._save_result is False:
+            self._config = previous_config
+        return self._save_result is not False
 
     def _spotify_config_from_inputs(self) -> SpotifyConfig:
         return SpotifyConfig(
@@ -3132,50 +3348,21 @@ def _build_spinbox(minimum: int, maximum: int, value: int) -> QSpinBox:
     return spinbox
 
 
-class _ChevronComboBox(QComboBox):
-    """Combo box with an explicit monochrome dropdown affordance."""
-
-    def __init__(self) -> None:
+class _ChevronComboBox(FluentComboBox):
+    def __init__(self):
         super().__init__()
         self.setObjectName("settingsComboBox")
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        font = QFont("Segoe Fluent Icons")
-        font.setPixelSize(12)
-        painter.setFont(font)
-        painter.setPen(
-            QColor(AKIHA_PALETTE.muted_text if self.isEnabled() else "#6F7488")
-        )
-        painter.drawText(
-            QRectF(self.width() - 30.0, 0.0, 24.0, float(self.height())),
-            Qt.AlignmentFlag.AlignCenter,
-            "\ue70d",
-        )
 
 
 def _paint_stepper_chevrons(widget: QWidget) -> None:
     painter = QPainter(widget)
-    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-    font = QFont("Segoe Fluent Icons")
-    font.setPixelSize(9)
-    painter.setFont(font)
-    painter.setPen(
-        QColor(AKIHA_PALETTE.muted_text if widget.isEnabled() else "#6F7488")
-    )
-    button_height = widget.height() / 2.0
-    painter.drawText(
-        QRectF(widget.width() - 29.0, 0.0, 28.0, button_height),
-        Qt.AlignmentFlag.AlignCenter,
-        "\ue70e",
-    )
-    painter.drawText(
-        QRectF(widget.width() - 29.0, button_height, 28.0, button_height),
-        Qt.AlignmentFlag.AlignCenter,
-        "\ue70d",
-    )
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QColor(AKIHA_PALETTE.muted_text))
+    for offset, name in ((0, "up"), (widget.height() / 2, "down")):
+        icon = fluent_icon(name, 9)
+        icon.paint(
+            painter, int(widget.width() - 25), int(offset), 20, int(widget.height() / 2)
+        )
 
 
 class _FluentSpinBox(QSpinBox):
@@ -3238,42 +3425,11 @@ class _ModelComboBox(_ChevronComboBox):
 
 
 def _build_fluent_icon(
-    glyph: str,
-    size: int = 18,
-    *,
-    default_color: str | None = None,
-    selected_color: str | None = None,
+    glyph: str, size: int = 18, *, default_color=None, selected_color=None
 ) -> QIcon:
-    """Render a Windows Fluent glyph with deterministic button states."""
-
-    def render(color: str) -> QPixmap:
-        canvas_size = size + 6
-        pixmap = QPixmap(canvas_size, canvas_size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        font = QFont("Segoe Fluent Icons")
-        font.setPixelSize(size)
-        painter.setFont(font)
-        painter.setPen(QColor(color))
-        painter.drawText(
-            pixmap.rect(),
-            Qt.AlignmentFlag.AlignCenter,
-            glyph,
-        )
-        painter.end()
-        return pixmap
-
-    normal = default_color or AKIHA_PALETTE.muted_text
-    selected = selected_color or AKIHA_PALETTE.window
-    icon = QIcon()
-    icon.addPixmap(render(normal), QIcon.Mode.Normal, QIcon.State.Off)
-    icon.addPixmap(render(AKIHA_PALETTE.text), QIcon.Mode.Active, QIcon.State.Off)
-    icon.addPixmap(render("#6F7488"), QIcon.Mode.Disabled, QIcon.State.Off)
-    icon.addPixmap(render(selected), QIcon.Mode.Normal, QIcon.State.On)
-    icon.addPixmap(render(selected), QIcon.Mode.Active, QIcon.State.On)
-    icon.addPixmap(render("#6F7488"), QIcon.Mode.Disabled, QIcon.State.On)
-    return icon
+    return fluent_icon(
+        glyph, size, default_color=default_color, selected_color=selected_color
+    )
 
 
 class _ToggleSwitch(QCheckBox):

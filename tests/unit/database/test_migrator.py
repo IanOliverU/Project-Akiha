@@ -146,6 +146,7 @@ class DatabaseMigratorTest(unittest.TestCase):
                 (13,),
                 (14,),
                 (15,),
+                (16,),
             ],
         )
 
@@ -157,7 +158,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             project_root = Path(__file__).resolve().parents[3]
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
-                if source.name.startswith(("0013_", "0014_", "0015_")):
+                if source.name.startswith(("0013_", "0014_", "0015_", "0016_")):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)
 
@@ -328,7 +329,7 @@ class DatabaseMigratorTest(unittest.TestCase):
             source_dir = project_root / "project_akiha" / "database" / "migrations"
             for source in sorted(source_dir.glob("00[01][0-9]_*.sql")):
                 if source.name.startswith(
-                    ("0011_", "0012_", "0013_", "0014_", "0015_")
+                    ("0011_", "0012_", "0013_", "0014_", "0015_", "0016_")
                 ):
                     continue
                 shutil.copy2(source, migrations_dir / source.name)

@@ -24,10 +24,12 @@ class TimerStatus(StrEnum):
 
 class TimerNotificationSource(StrEnum):
     TIMERS = "timers"
+    REMINDERS = "reminders"
 
 
 class TimerNotificationKind(StrEnum):
     ELAPSED = "timers.elapsed"
+    REMINDER_DUE = "reminders.due"
 
 
 def validate_timer_id(value: str) -> str:
@@ -79,6 +81,7 @@ class TimerRepository(Protocol):
     def pending(self) -> tuple[TimerRecord, ...]: ...
     def get(self, timer_id: str) -> TimerRecord | None: ...
     def cancel(self, timer_id: str, now: datetime) -> bool: ...
+    def redact_terminal_labels(self, before: datetime) -> int: ...
     def claim_expiry(
         self, timer_id: str, now: datetime, *, missed: bool
     ) -> TimerRecord | None: ...

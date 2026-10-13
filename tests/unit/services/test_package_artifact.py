@@ -12,6 +12,24 @@ from project_akiha.services.package_artifact import validate_package_artifact
 class PackageArtifactTest(unittest.TestCase):
     """Verify standalone artifact validation."""
 
+    def test_reports_missing_native_vector_rendering_dependencies(self):
+        for relative in (
+            "assets/ui/icons/chat.svg",
+            "assets/ui/icons/settings.svg",
+            "PySide6/QtSvg.pyd",
+            "PySide6/Qt6Svg.dll",
+        ):
+            with (
+                self.subTest(path=relative),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                artifact_dir = Path(directory)
+                _write_complete_artifact(artifact_dir)
+                (artifact_dir / relative).unlink()
+                issues = validate_package_artifact(artifact_dir)
+                self.assertEqual(len(issues), 1)
+                self.assertEqual(issues[0].path, artifact_dir / relative)
+
     def test_rejects_database_companions_without_a_main_database(self) -> None:
         for extension in (".db", ".sqlite", ".sqlite3"):
             for companion in ("-wal", "-shm", "-journal"):
@@ -62,7 +80,7 @@ class PackageArtifactTest(unittest.TestCase):
 
             issues = validate_package_artifact(artifact_dir)
 
-        self.assertEqual(len(issues), 4)
+        self.assertEqual(len(issues), 5)
         self.assertTrue(
             any("0013_external_integrations.sql" in str(issue.path) for issue in issues)
         )
@@ -84,6 +102,27 @@ class PackageArtifactTest(unittest.TestCase):
 
         self.assertEqual(len(issues), 1)
         self.assertIn("0015_one_shot_timers.sql", str(issues[0].path))
+
+    def test_reports_missing_reminder_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            (
+                artifact_dir
+                / "project_akiha/database/migrations/0016_one_shot_reminders.sql"
+            ).unlink()
+            issues = validate_package_artifact(artifact_dir)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("0016_one_shot_reminders.sql", str(issues[0].path))
+
+    def test_reports_missing_timezone_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_dir = Path(directory)
+            _write_complete_artifact(artifact_dir)
+            (artifact_dir / "tzdata/zoneinfo/America/New_York").unlink()
+            issues = validate_package_artifact(artifact_dir)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("New_York", str(issues[0].path))
 
     def test_reports_missing_google_genai_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -157,6 +196,9 @@ class PackageArtifactTest(unittest.TestCase):
 
 
 def _write_complete_artifact(artifact_dir: Path) -> None:
+    (artifact_dir / "assets/ui/icons").mkdir(parents=True)
+    for name in ("chat.svg", "settings.svg"):
+        (artifact_dir / "assets/ui/icons" / name).touch()
     (artifact_dir / "assets/animations").mkdir(parents=True)
     (artifact_dir / "project_akiha/config").mkdir(parents=True)
     (artifact_dir / "project_akiha/database/migrations").mkdir(parents=True)
@@ -167,6 +209,8 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (artifact_dir / "faster_whisper/assets").mkdir(parents=True)
     (artifact_dir / "google_genai-2.17.0.dist-info").mkdir()
     (artifact_dir / "Akiha.exe").write_bytes(b"")
+    (artifact_dir / "PySide6/QtSvg.pyd").touch()
+    (artifact_dir / "PySide6/Qt6Svg.dll").touch()
     (artifact_dir / "PySide6/plugins/multimedia/ffmpegmediaplugin.dll").write_bytes(b"")
     for runtime_dll in (
         "avcodec-61.dll",
@@ -210,3 +254,10 @@ def _write_complete_artifact(artifact_dir: Path) -> None:
     (
         artifact_dir / "project_akiha/database/migrations/0015_one_shot_timers.sql"
     ).write_text("", encoding="utf-8")
+    (
+        artifact_dir / "project_akiha/database/migrations/0016_one_shot_reminders.sql"
+    ).write_text("", encoding="utf-8")
+    timezone_dir = artifact_dir / "tzdata/zoneinfo"
+    (timezone_dir / "America").mkdir(parents=True)
+    (timezone_dir / "UTC").touch()
+    (timezone_dir / "America/New_York").touch()

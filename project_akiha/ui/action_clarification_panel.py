@@ -25,6 +25,7 @@ from project_akiha.core.actions.clarification import (
     ClarificationOutcome,
 )
 from project_akiha.core.actions.models import ActionRequest
+from project_akiha.ui.theme import AKIHA_PALETTE
 
 
 class ActionClarificationPanel(QWidget):
@@ -43,6 +44,11 @@ class ActionClarificationPanel(QWidget):
         on_owned_resolved: Callable[[ActionRequest, int], None] | None = None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("localActionCard")
+        self.setStyleSheet(
+            f"QWidget#localActionCard {{background:{AKIHA_PALETTE.panel};"
+            f"border:1px solid {AKIHA_PALETTE.border};border-radius:10px;}}"
+        )
         self._controller = controller
         self._on_resolved = on_resolved
         self._on_owned_resolved = on_owned_resolved
@@ -74,6 +80,10 @@ class ActionClarificationPanel(QWidget):
         for widget in (self._submit, self._any, cancel):
             row.addWidget(widget)
         layout = QVBoxLayout(self)
+        title = QLabel("LOCAL ACTION · NOT SHARED WITH YOUR AI PROVIDER")
+        title.setWordWrap(True)
+        title.setObjectName("secondaryText")
+        layout.addWidget(title)
         layout.addWidget(self._label)
         layout.addWidget(self._spotify_mode)
         layout.addWidget(self._choices)
@@ -81,6 +91,14 @@ class ActionClarificationPanel(QWidget):
         layout.addWidget(self._artist)
         layout.addLayout(row)
         layout.addWidget(self._normal_chat)
+        self._normal_chat.setToolTip(
+            "Deliberately share the held text as ordinary chat. It may be"
+            " sent to your configured AI provider and saved in chat histo"
+            "ry."
+        )
+        self._choices.setAccessibleName("Eligible local action choices")
+        self._answer.setAccessibleName("Private local clarification answer")
+        self._submit.setAccessibleName("Submit current local action answer")
         self._submit.clicked.connect(lambda: self._resolve())
         self._answer.returnPressed.connect(lambda: self._resolve())
         self._any.clicked.connect(lambda: self._resolve(open_any=True))
@@ -193,6 +211,15 @@ class ActionClarificationPanel(QWidget):
         questions = {
             "duration_seconds": "How many whole seconds? Enter 1 to 604800.",
             "timer_id": "Which timer? Enter the exact timer ID shown by List timers.",
+            "local_time": "When? Enter an explicit local date/time: YYYY-MM-DDTHH:MM.",
+            "timezone": "Which timezone? Enter an IANA name such as Asia/Taipei.",
+            "fold": (
+                "That time occurs twice. Enter 0 for the first "
+                "occurrence or 1 for the second."
+            ),
+            "reminder_id": (
+                "Which reminder? Enter the exact ID shown by List " "reminders."
+            ),
             "application_id": "Which allowlisted application?",
             "path": "Which approved local file or directory?",
             "root": "Which approved local search root?",

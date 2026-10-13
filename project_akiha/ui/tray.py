@@ -8,6 +8,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 
+from project_akiha.ui.menus import polish_menu
+
 
 class AkihaTrayIcon(QSystemTrayIcon):
     """Tray icon with basic Phase 1 window controls."""
@@ -87,7 +89,7 @@ class AkihaTrayIcon(QSystemTrayIcon):
             quit_action.triggered.connect(quit_callback)
         menu.addAction(quit_action)
 
-        return menu
+        return polish_menu(menu)
 
     def _handle_activation(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.Trigger:

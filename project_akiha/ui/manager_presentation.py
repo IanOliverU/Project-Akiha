@@ -25,10 +25,10 @@ ITEM_TIMESTAMP_ROLE = Qt.ItemDataRole.UserRole + 13
 ITEM_TAGS_ROLE = Qt.ItemDataRole.UserRole + 14
 ITEM_STATUS_ROLE = Qt.ItemDataRole.UserRole + 15
 
-_CARD = QColor("#1A1D24")
-_CARD_HOVER = QColor("#22252E")
-_CARD_SELECTED = QColor("#2C303C")
-_CHIP = QColor("#292D3B")
+_CARD = QColor(AKIHA_PALETTE.window)
+_CARD_HOVER = QColor(AKIHA_PALETTE.panel)
+_CARD_SELECTED = QColor(AKIHA_PALETTE.control)
+_CHIP = QColor(AKIHA_PALETTE.control)
 _TEXT = QColor(AKIHA_PALETTE.text)
 _MUTED = QColor(AKIHA_PALETTE.muted_text)
 _PRIMARY = QColor("#BFC2FF")

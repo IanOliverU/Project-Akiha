@@ -82,6 +82,18 @@ class SQLiteTimerRepository:
             ).rowcount
         return changed == 1
 
+    def redact_terminal_labels(self, before: datetime) -> int:
+        # Keep opaque replay identity and receipts; redact only private labels.
+        with closing(self._connect()) as c, c:
+            return c.execute(
+                (
+                    "UPDATE utility_timers SET label='' WHERE "
+                    "status!='pending' AND completed_at<? AND "
+                    "label!=''"
+                ),
+                (_stamp(before),),
+            ).rowcount
+
     def claim_expiry(
         self, timer_id: str, now: datetime, *, missed: bool
     ) -> TimerRecord | None:
